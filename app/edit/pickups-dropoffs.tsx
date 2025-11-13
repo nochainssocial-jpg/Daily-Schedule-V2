@@ -6,16 +6,18 @@ import Chip from '@/components/Chip';
 
 type ID = string;
 
-export default function Step4PickupsDropoffs({
-  workingStaff = [],
-  attendingParticipants = [],
-  pickupParticipants = [],
-  helperStaff = [],
-  dropoffAssignments = {},
-  setPickupParticipants,
-  setHelperStaff,
-  setDropoffAssignments,
-}) {
+export default function Step4PickupsDropoffs(props) {
+  const {
+    workingStaff = [],
+    attendingParticipants = [],
+    pickupParticipants = [],
+    helperStaff = [],
+    dropoffAssignments = {},
+    setPickupParticipants,
+    setHelperStaff,
+    setDropoffAssignments,
+  } = props;
+
   const [showHelpers, setShowHelpers] = useState(false);
   const staffById = new Map(STAFF.map((s) => [s.id, s]));
   const participantsById = new Map(PARTICIPANTS.map((p) => [p.id, p]));
