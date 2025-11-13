@@ -1,0 +1,62 @@
+:root{
+  --chip-active-bg: #ffe8a1;   /* soft yellow for main assignments */
+  --chip-active-border: #d9b74b;
+  --chip-active-text: #5b4a00;
+  --chip-helper-bg: #ffd2e8;   /* pink for helpers */
+  --chip-helper-border: #ea7db1;
+  --chip-helper-text: #7b2c56;
+}
+.chip{display:inline-flex;align-items:center;gap:.5rem;padding:.25rem .75rem;border-radius:999px;border:1px solid #ddd;background:#f5f5f5;color:#444;font-size:.9rem;transition:.15s}
+.chip--active{background:var(--chip-active-bg);border-color:var(--chip-active-border);color:var(--chip-active-text)}
+.chip--helper{background:var(--chip-helper-bg);border-color:var(--chip-helper-border);color:var(--chip-helper-text)}
+.chip[aria-disabled="true"]{opacity:.55;pointer-events:none}
+.badge{font-size:.75rem;color:#b42318}
+.row{display:flex;flex-wrap:wrap;gap:.5rem}
+.stack{display:flex;flex-direction:column;gap:.75rem}
+.section{max-width:52rem;margin:0 auto;padding:1rem}
+.link{font-size:.9rem;text-decoration:underline;cursor:pointer}
+.header-line{display:flex;align-items:center;justify-content:space-between}
+.hr{border-top:1px solid #eee;margin-top:1rem;padding-top:1rem}
+
+
+/* Injected utilities */
+.btn-primary{
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 800;
+}
+.btn-outline{
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 800;
+}
+.card{
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.tile{
+  display:inline-block;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  margin: 5px;
+}
+.tile--active{
+  background: var(--color-primary);
+  color:#fff;
+  font-weight: 800;
+}
+.hero{
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
