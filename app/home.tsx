@@ -1,3 +1,4 @@
+// app/home.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
@@ -5,57 +6,89 @@ import { ROUTES } from '@/constants/ROUTES';
 
 export default function HomeScreen() {
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Daily Schedule</Text>
-      <Text style={styles.subtitle}>
-        Create and fine-tune today&apos;s dream team and participant plan.
-      </Text>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.inner}>
+          <Text style={styles.title}>Daily Schedule</Text>
+          <Text style={styles.subtitle}>
+            Build today&apos;s dream team, plan who&apos;s attending, and fine-tune the day from the Edit Hub.
+          </Text>
 
-      <TouchableOpacity
-        style={styles.primaryButton}
-        onPress={() => router.push(ROUTES.CREATE)}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.primaryLabel}>Create Schedule</Text>
-      </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => router.push(ROUTES.CREATE)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryLabel}>Create Schedule</Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.secondaryButton}
-        onPress={() => router.push(ROUTES.EDIT)}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.secondaryLabel}>Go to Edit Hub</Text>
-      </TouchableOpacity>
-    </ScrollView>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => router.push(ROUTES.EDIT)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryLabel}>Go to Edit Hub</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.guide}>
+            <Text style={styles.guideTitle}>Quick Start Guide</Text>
+            <Text style={styles.step}>1. Select your Dream Team (who is working at B2).</Text>
+            <Text style={styles.step}>2. Mark which participants are attending today.</Text>
+            <Text style={styles.step}>3. Choose who completes the End of Shift Checklist.</Text>
+            <Text style={styles.step}>4. Use the Edit Hub to refine assignments, floating, cleaning, and transport.</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
+const MAX_WIDTH = 880;
+
 const styles = StyleSheet.create({
-  container: {
-    padding: 24,
+  screen: {
+    flex: 1,
+    backgroundColor: '#faf7fb',
+  },
+  scroll: {
+    paddingVertical: 32,
     alignItems: 'center',
   },
+  inner: {
+    width: '100%',
+    maxWidth: MAX_WIDTH,
+    paddingHorizontal: 24,
+  },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     marginBottom: 8,
+    color: '#332244',
   },
   subtitle: {
     fontSize: 14,
-    opacity: 0.7,
-    textAlign: 'center',
+    opacity: 0.75,
     marginBottom: 24,
+    color: '#4c3b5c',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+    flexWrap: 'wrap',
   },
   primaryButton: {
     backgroundColor: '#e91e63',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 999,
-    marginBottom: 12,
   },
   primaryLabel: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 14,
   },
   secondaryButton: {
     borderWidth: 1,
@@ -67,5 +100,25 @@ const styles = StyleSheet.create({
   secondaryLabel: {
     color: '#e91e63',
     fontWeight: '500',
+    fontSize: 14,
+  },
+  guide: {
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f0e4f7',
+  },
+  guideTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#3c234c',
+  },
+  step: {
+    fontSize: 13,
+    marginBottom: 4,
+    color: '#5a486b',
   },
 });
