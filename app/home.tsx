@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { ROUTES } from '@/constants/ROUTES';
+import Footer from '@/components/Footer'; // ⬅ add this import
 
 export default function HomeScreen() {
   return (
@@ -41,6 +42,8 @@ export default function HomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Footer /> {/* ⬅ add this */}
     </View>
   );
 }
