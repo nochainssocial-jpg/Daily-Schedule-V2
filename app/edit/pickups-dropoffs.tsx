@@ -7,11 +7,11 @@ import Chip from '@/components/Chip';
 type ID = string;
 
 export default function Step4PickupsDropoffs({
-  workingStaff,
-  attendingParticipants,
-  pickupParticipants,
-  helperStaff,
-  dropoffAssignments,
+  workingStaff = [],
+  attendingParticipants = [],
+  pickupParticipants = [],
+  helperStaff = [],
+  dropoffAssignments = {},
   setPickupParticipants,
   setHelperStaff,
   setDropoffAssignments,
