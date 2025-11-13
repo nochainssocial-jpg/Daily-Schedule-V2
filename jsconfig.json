@@ -6,3 +6,6 @@
     }
   }
 }
+import Footer from '@/components/Footer';
+import { DEFAULT_CHORES } from '@/constants/data';
+import { useSchedule } from '@/hooks/schedule-store';
