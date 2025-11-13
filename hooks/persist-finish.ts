@@ -1,3 +1,4 @@
+// hooks/persist-finish.ts
 import * as Data from '@/constants/data';
 import type { Staff, Participant } from '@/constants/data';
 import type { ID, ScheduleSnapshot } from './schedule-store';
@@ -73,6 +74,12 @@ export async function persistFinish(params: {
     cleaningAssignments: seededCleaning,
     finalChecklist: seededChecklist,
     finalChecklistStaff,
+
+    // NEW fields default empty for now
+    pickupParticipants: [],
+    helperStaff: [],
+    dropoffAssignments: {},
+
     date: date ?? new Date().toISOString(),
     meta: { from: 'create-wizard' },
   };
