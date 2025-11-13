@@ -1,3 +1,4 @@
+// hooks/schedule-store.ts
 import { create } from 'zustand';
 import type { Staff, Participant } from '@/constants/data';
 
@@ -13,6 +14,12 @@ export type ScheduleSnapshot = {
   cleaningAssignments: Record<string, ID>; // dutyId -> staffId
   finalChecklist: Record<string, boolean>;
   finalChecklistStaff?: ID;
+
+  // NEW: pickups & dropoffs
+  pickupParticipants: ID[];           // participants picked up by third party
+  helperStaff: ID[];                  // non-working staff helping with dropoffs
+  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds[] for dropoffs
+
   date?: string;
   meta?: any;
 };
@@ -34,6 +41,12 @@ const emptySnapshot: ScheduleSnapshot = {
   cleaningAssignments: {},
   finalChecklist: {},
   finalChecklistStaff: undefined,
+
+  // NEW fields default
+  pickupParticipants: [],
+  helperStaff: [],
+  dropoffAssignments: {},
+
   date: undefined,
   meta: undefined,
 };
@@ -43,7 +56,7 @@ export const useSchedule = create<State>((set, get) => ({
   selectedDate: undefined,
 
   touch: (_key: string) => {
-    // Reserved for future “dirty” tracking
+    // Reserved for future “dirty” tracking if needed
   },
 
   updateSchedule: (patch) =>
@@ -60,6 +73,7 @@ export const useSchedule = create<State>((set, get) => ({
     })),
 }));
 
+// Helpers used by other screens
 export const useUnassignedParticipants = () => {
   const { attendingParticipants, assignments } = useSchedule();
   const assigned = new Set<string>();
