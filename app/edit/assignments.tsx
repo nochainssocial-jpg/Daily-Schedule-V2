@@ -23,7 +23,15 @@ export default function EditAssignmentsScreen() {
 
   // Use working staff (Dream Team) if available, otherwise all staff
   const staffToShow = useMemo(
-    () => (workingStaff && workingStaff.length ? staff.filter(s => workingStaff.includes(s.id)) : staff),
+    () => {
+      const base =
+        workingStaff && workingStaff.length
+          ? staff.filter(s => workingStaff.includes(s.id))
+          : staff;
+      return [...base].sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }),
+      );
+    },
     [staff, workingStaff],
   );
 
@@ -44,10 +52,13 @@ export default function EditAssignmentsScreen() {
 
   // Only show participants attending today (if set), else show all
   const participantsToShow = useMemo(() => {
-    if (attendingParticipants && attendingParticipants.length) {
-      return participants.filter(p => attendingParticipants.includes(p.id));
-    }
-    return participants;
+    const base =
+      attendingParticipants && attendingParticipants.length
+        ? participants.filter(p => attendingParticipants.includes(p.id))
+        : participants;
+    return [...base].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }),
+    );
   }, [participants, attendingParticipants]);
 
   // Build lists for "assigned" vs "not assigned" for the active staff
