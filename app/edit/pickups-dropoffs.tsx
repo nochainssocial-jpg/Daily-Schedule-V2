@@ -2,11 +2,12 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { STAFF, PARTICIPANTS } from '@/constants/data';
+import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
 
 type ID = string;
 
-export default function Step4PickupsDropoffs(props) {
+function Step4PickupsDropoffs(props) {
   const {
     workingStaff = [],
     attendingParticipants = [],
@@ -296,3 +297,55 @@ const styles = StyleSheet.create({
   },
   staffChipText: { fontSize: 12, color: '#3a2464' },
 });
+
+// Edit wrapper: loads data from the current schedule and persists changes
+export default function EditPickupsDropoffsScreen() {
+  const {
+    workingStaff,
+    attendingParticipants,
+    pickupParticipants,
+    helperStaff,
+    dropoffAssignments,
+    updateSchedule,
+  } = useSchedule();
+
+  const setPickupParticipants = (updater: any) => {
+    updateSchedule({
+      pickupParticipants:
+        typeof updater === 'function'
+          ? updater(pickupParticipants || [])
+          : (updater || []),
+    });
+  };
+
+  const setHelperStaff = (updater: any) => {
+    updateSchedule({
+      helperStaff:
+        typeof updater === 'function'
+          ? updater(helperStaff || [])
+          : (updater || []),
+    });
+  };
+
+  const setDropoffAssignments = (updater: any) => {
+    updateSchedule({
+      dropoffAssignments:
+        typeof updater === 'function'
+          ? updater(dropoffAssignments || {})
+          : (updater || {}),
+    });
+  };
+
+  return (
+    <Step4PickupsDropoffs
+      workingStaff={workingStaff || []}
+      attendingParticipants={attendingParticipants || []}
+      pickupParticipants={pickupParticipants || []}
+      helperStaff={helperStaff || []}
+      dropoffAssignments={dropoffAssignments || {}}
+      setPickupParticipants={setPickupParticipants}
+      setHelperStaff={setHelperStaff}
+      setDropoffAssignments={setDropoffAssignments}
+    />
+  );
+}

@@ -1,11 +1,17 @@
 // app/edit/floating.tsx
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, Text, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
-import { FLOATING_ROOMS, STAFF as STATIC_STAFF } from '@/constants/data';
-import Chip from '@/components/Chip';
+import { FLOATING_ROOMS, TIME_SLOTS, STAFF as STATIC_STAFF } from '@/constants/data';
 
 type ID = string;
+
+const MAX_WIDTH = 880;
+
+const makeKey = (slotId: string, roomId: string) => `${slotId}|${roomId}`;
+
+const isFSOSlotId = (slotId: string) =>
+  slotId === '11:00-11:30' || slotId === '13:00-13:30';
 
 export default function EditFloatingScreen() {
   const {
@@ -15,46 +21,77 @@ export default function EditFloatingScreen() {
     updateSchedule,
   } = useSchedule();
 
-  // Prefer staff from the store after create, fallback to static constants
+  // Prefer staff from the schedule (after create), fallback to static constants
   const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
 
-  // If we have a Dream Team, use them as the pool for floaters, otherwise all staff
+  // Use the Dream Team as the pool if set, otherwise all staff
   const staffPool = useMemo(
     () => (workingStaff && workingStaff.length ? staff.filter(s => workingStaff.includes(s.id)) : staff),
     [staff, workingStaff],
   );
 
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(FLOATING_ROOMS[0]?.id ?? null);
+  const staffById = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff]);
 
-  // Keep active room valid if rooms or selected id changes
-  useEffect(() => {
-    if (!FLOATING_ROOMS.length) {
-      setActiveRoomId(null);
-      return;
+  const handleCycleCell = (slotId: string, roomId: string) => {
+    if (!staffPool.length) return;
+
+    const isTwins = roomId === 'twins';
+    const fsoSlot = isTwins && isFSOSlotId(slotId);
+
+    // Eligible pool for this cell
+    let eligible = staffPool;
+    if (fsoSlot) {
+      eligible = staffPool.filter((s) => s.gender === 'female');
+      if (!eligible.length) {
+        // Nothing valid to assign here
+        return;
+      }
     }
-    if (!activeRoomId || !FLOATING_ROOMS.some(r => r.id === activeRoomId)) {
-      setActiveRoomId(FLOATING_ROOMS[0].id);
-    }
-  }, [activeRoomId]);
 
-  const activeRoom = FLOATING_ROOMS.find(r => r.id === activeRoomId) || null;
-  const staffById = new Map(staff.map((s) => [s.id, s]));
-
-  // Determine which staff can be assigned to the active room
-  const eligibleStaff = useMemo(() => {
-    if (!activeRoom) return staffPool;
-    if (activeRoom.id === 'twins') {
-      // FSO: only female staff can be assigned to Twins
-      return staffPool.filter(s => s.gender === 'female');
-    }
-    return staffPool;
-  }, [activeRoom, staffPool]);
-
-  const handleAssignStaff = (staffId: ID) => {
-    if (!activeRoom) return;
+    const key = makeKey(slotId, roomId);
     const current = floatingAssignments || {};
-    const next = { ...current, [activeRoom.id]: staffId };
-    updateSchedule({ floatingAssignments: next });
+    const currentId = current[key] as ID | undefined;
+
+    // Build per‑slot assignments so we can enforce "no double‑shift" rule
+    const slotAssignments: Record<string, ID | undefined> = {};
+    for (const room of FLOATING_ROOMS) {
+      const k = makeKey(slotId, room.id);
+      const sid = current[k] as ID | undefined;
+      if (sid) slotAssignments[room.id] = sid;
+    }
+
+    const usedElsewhere = new Set(
+      Object.entries(slotAssignments)
+        .filter(([rid, sid]) => rid !== roomId && sid)
+        .map(([_, sid]) => sid as ID),
+    );
+
+    // We treat the sequence as: eligible staff in order, then "none"
+    const ordered = [...eligible];
+    const currentIdx = currentId ? ordered.findIndex((s) => s.id === currentId) : -1;
+
+    let nextId: ID | undefined = undefined;
+
+    // Try to find the next eligible staff member who isn't already used in this slot
+    for (let step = 1; step <= ordered.length; step++) {
+      const idx = (currentIdx + step) % ordered.length;
+      const candidate = ordered[idx];
+      if (!usedElsewhere.has(candidate.id as ID)) {
+        nextId = candidate.id as ID;
+        break;
+      }
+    }
+
+    // If we didn't find a non‑conflicting candidate, we toggle to "unassigned"
+    const nextAssignments = { ...current };
+
+    if (nextId) {
+      nextAssignments[key] = nextId;
+    } else {
+      delete nextAssignments[key];
+    }
+
+    updateSchedule({ floatingAssignments: nextAssignments });
   };
 
   return (
@@ -63,68 +100,62 @@ export default function EditFloatingScreen() {
         <View style={styles.inner}>
           <Text style={styles.title}>Floating Assignments</Text>
           <Text style={styles.subtitle}>
-            Assign floating staff to rooms. Twins is FSO (Female Staff Only) for 11:00–11:30 and 13:00–13:30.
+            Each row is a time slot; each column is a room. Tap a cell to rotate through eligible staff.
+            Twins has FSO (Female Staff Only) at 11:00–11:30 and 13:00–13:30.
           </Text>
 
-          {/* Room cards */}
-          <View style={styles.roomRow}>
-            {FLOATING_ROOMS.map((room) => {
-              const assignedId = floatingAssignments?.[room.id];
-              const st = assignedId ? staffById.get(assignedId) : null;
-              const isActive = activeRoomId === room.id;
-              const isTwins = room.id === 'twins';
-
-              return (
-                <TouchableOpacity
-                  key={room.id}
-                  style={[styles.roomCard, isActive && styles.roomCardActive, isTwins && styles.roomCardTwins]}
-                  onPress={() => setActiveRoomId(room.id)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.roomLabel}>{room.label}</Text>
-                  {isTwins && (
-                    <Text style={styles.fsoTag}>FSO • 11:00–11:30 & 13:00–13:30</Text>
-                  )}
-                  <Text style={styles.assignedLabel}>
-                    {st ? `Assigned: ${st.name}` : 'No floating staff assigned'}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Staff selector */}
-          <View style={styles.staffBlock}>
-            <Text style={styles.sectionTitle}>
-              {activeRoom ? `Select floating staff for ${activeRoom.label}` : 'Select a room above'}
-            </Text>
-
-            {activeRoom?.id === 'twins' && (
-              <Text style={styles.helperText}>
-                Twins is FSO: only female staff appear below and can be assigned here.
-              </Text>
-            )}
-
-            {eligibleStaff.length === 0 ? (
-              <Text style={styles.empty}>
-                No eligible staff available. Make sure you have selected working staff in the create flow.
-              </Text>
-            ) : (
-              <View style={styles.chipGrid}>
-                {eligibleStaff.map((s) => {
-                  const isAssigned = activeRoom && floatingAssignments?.[activeRoom.id] === s.id;
-                  return (
-                    <Chip
-                      key={s.id}
-                      label={s.name}
-                      selected={isAssigned}
-                      onPress={() => handleAssignStaff(s.id)}
-                      style={styles.staffChip}
-                    />
-                  );
-                })}
+          <View style={styles.tableWrapper}>
+            <View style={styles.table}>
+              {/* Header row */}
+              <View style={[styles.row, styles.headerRow]}>
+                <Text style={[styles.cell, styles.timeCellHeader]}>Time</Text>
+                {FLOATING_ROOMS.map((room) => (
+                  <View key={room.id} style={[styles.cell, styles.headerCell]}>
+                    <Text style={styles.headerLabel}>{room.label}</Text>
+                    {room.id === 'twins' && (
+                      <Text style={styles.fsoHeaderTag}>FSO at 11:00 & 13:00</Text>
+                    )}
+                  </View>
+                ))}
               </View>
-            )}
+
+              {/* Body rows */}
+              {TIME_SLOTS.map((slot) => (
+                <View key={slot.id} style={styles.row}>
+                  <View style={[styles.cell, styles.timeCell]}>
+                    <Text style={styles.timeLabel}>{slot.label}</Text>
+                  </View>
+
+                  {FLOATING_ROOMS.map((room) => {
+                    const key = makeKey(slot.id, room.id);
+                    const staffId = floatingAssignments?.[key] as ID | undefined;
+                    const st = staffId ? staffById.get(staffId) : null;
+                    const fsoSlot = room.id === 'twins' && isFSOSlotId(slot.id);
+
+                    return (
+                      <TouchableOpacity
+                        key={room.id}
+                        style={[
+                          styles.cell,
+                          styles.staffCell,
+                          fsoSlot && styles.fsoCell,
+                          !st && styles.staffCellEmpty,
+                        ]}
+                        onPress={() => handleCycleCell(slot.id, room.id)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.staffName}>
+                          {st ? st.name : 'Tap to assign'}
+                        </Text>
+                        {fsoSlot && (
+                          <Text style={styles.fsoTag}>FSO</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -132,100 +163,107 @@ export default function EditFloatingScreen() {
   );
 }
 
-const MAX_WIDTH = 880;
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
   },
   scroll: {
-    paddingVertical: 24,
+    flexGrow: 1,
     alignItems: 'center',
+    paddingVertical: 24,
   },
   inner: {
     width: '100%',
     maxWidth: MAX_WIDTH,
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    marginBottom: 6,
-    color: '#332244',
+    color: '#3c234c',
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 13,
-    opacity: 0.75,
+    fontSize: 14,
+    color: '#5e4b72',
     marginBottom: 16,
-    color: '#5a486b',
   },
-  roomRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
-  },
-  roomCard: {
-    flexGrow: 1,
-    minWidth: 220,
-    padding: 12,
+  tableWrapper: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5d9f2',
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
+  table: {
+    width: '100%',
+  },
+  row: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1e8ff',
+  },
+  headerRow: {
+    backgroundColor: '#f7f0ff',
+  },
+  cell: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+  },
+  timeCellHeader: {
+    flex: 0.9,
+  },
+  timeCell: {
+    flex: 0.9,
+    borderRightWidth: 1,
+    borderRightColor: '#f1e8ff',
+    backgroundColor: '#faf7ff',
+  },
+  timeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3c234c',
+  },
+  headerCell: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#f1e8ff',
+  },
+  headerLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3c234c',
+  },
+  fsoHeaderTag: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#c62828',
+    fontWeight: '600',
+  },
+  staffCell: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#f1e8ff',
     backgroundColor: '#ffffff',
   },
-  roomCardActive: {
-    borderColor: '#e91e63',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+  staffCellEmpty: {
+    backgroundColor: '#faf7ff',
   },
-  roomCardTwins: {
-    // Slight pink tint to emphasise FSO
-    backgroundColor: '#fef3f7',
+  fsoCell: {
+    borderTopWidth: 1,
+    borderTopColor: '#f8cdd5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8cdd5',
   },
-  roomLabel: {
-    fontSize: 15,
-    fontWeight: '600',
+  staffName: {
+    fontSize: 13,
     color: '#3c234c',
   },
   fsoTag: {
-    marginTop: 4,
+    marginTop: 2,
     fontSize: 11,
-    color: '#e91e63',
-  },
-  assignedLabel: {
-    marginTop: 8,
-    fontSize: 13,
-    color: '#4c3b5c',
-  },
-  staffBlock: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#3c234c',
-  },
-  helperText: {
-    fontSize: 12,
-    opacity: 0.8,
-    color: '#7a688c',
-    marginBottom: 8,
-  },
-  chipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  staffChip: {
-    marginBottom: 8,
-  },
-  empty: {
-    fontSize: 13,
-    opacity: 0.75,
-    color: '#7a688c',
+    fontWeight: '700',
+    color: '#c62828',
   },
 });
