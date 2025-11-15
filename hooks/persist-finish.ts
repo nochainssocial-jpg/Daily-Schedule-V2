@@ -64,24 +64,17 @@ export async function persistFinish(params: PersistParams) {
       if (!validStaff) continue;
       const filtered = (partIds || []).filter(
         (pid) => participantsById.has(pid as ID) && attendingParticipants.includes(pid as ID),
-      ) as ID[];
+      );
       if (filtered.length) {
-        seededAssignments[staffId as ID] = filtered;
+        seededAssignments[staffId as ID] = Array.from(new Set(filtered as ID[]));
       }
     }
   }
 
-  // If nothing came through, fall back to simple round‑robin across the Dream Team
-  if (!Object.keys(seededAssignments).length && attendingParticipants.length) {
-    const workerIds = Array.from(workingSet);
-    if (workerIds.length) {
-      let idx = 0;
-      for (const pid of attendingParticipants) {
-        const sid = workerIds[idx % workerIds.length];
-        if (!seededAssignments[sid]) seededAssignments[sid] = [];
-        seededAssignments[sid].push(pid);
-        idx++;
-      }
+  // Make sure every working staff has an entry, even if empty
+  for (const sid of workingSet) {
+    if (!seededAssignments[sid]) {
+      seededAssignments[sid] = [];
     }
   }
 
@@ -92,6 +85,7 @@ export async function persistFinish(params: PersistParams) {
   if (cleaningDraft && Object.keys(cleaningDraft).length) {
     Object.assign(cleaningAssignments, cleaningDraft);
   } else if (chores.length) {
+    // Round-robin the chores across the working staff for now
     const workerIds = Array.from(workingSet);
     if (workerIds.length) {
       let idx = 0;
@@ -104,20 +98,23 @@ export async function persistFinish(params: PersistParams) {
   }
 
   // ---------- Seed FINAL CHECKLIST ----------
-  const checklistItems = Data.DEFAULT_CHECKLIST || [];
   const finalChecklist: Record<string, boolean> = {};
 
   if (finalChecklistDraft && Object.keys(finalChecklistDraft).length) {
     Object.assign(finalChecklist, finalChecklistDraft);
   } else {
-    for (const item of checklistItems) {
+    (Data.DEFAULT_CHECKLIST || []).forEach((item) => {
       finalChecklist[String(item.id)] = false;
-    }
+    });
   }
 
-  // ---------- AUTO‑FLOATING ENGINE ----------
+  // ---------- Seed FLOATING ASSIGNMENTS ----------
   const timeSlots = Data.TIME_SLOTS || [];
-  const rooms = Data.FLOATING_ROOMS || [];
+  const rooms = Data.FLOATING_ROOMS || [
+    { id: 'front', name: 'Front Room' },
+    { id: 'scotty', name: 'Scotty' },
+    { id: 'twins', name: 'Twins' },
+  ];
 
   const floatingAssignments: Record<string, ID> = {};
 
@@ -150,37 +147,53 @@ export async function persistFinish(params: PersistParams) {
         continue;
       }
 
-      // Prefer staff not already used in this timeslot
-      const candidates = eligible.filter((s) => !usedThisSlot.has(s.id as ID));
-      const considered = candidates.length ? candidates : eligible;
-
-      // Pick the staff member with the lowest load so far
-      let best: Staff | null = null;
-      for (const s of considered) {
-        const sid = s.id as ID;
-        if (!best) {
-          best = s;
-          continue;
-        }
-        const currentLoad = load[sid] ?? 0;
-        const bestLoad = load[best.id as ID] ?? 0;
-        if (currentLoad < bestLoad) {
-          best = s;
+      // Pick the staff with the lowest load who isn't already used in this slot
+      let candidate: Staff | null = null;
+      let bestLoad = Infinity;
+      for (const st of eligible) {
+        const sid = st.id as ID;
+        if (usedThisSlot.has(sid)) continue;
+        const l = load[sid] ?? 0;
+        if (l < bestLoad) {
+          bestLoad = l;
+          candidate = st;
         }
       }
 
-      if (!best) continue;
+      if (!candidate) continue;
 
-      const key = `${slot.id}|${room.id}`;
-      const sid = best.id as ID;
-      floatingAssignments[key] = sid;
-      load[sid] = (load[sid] ?? 0) + 1;
+      const sid = candidate.id as ID;
       usedThisSlot.add(sid);
+      load[sid] = (load[sid] ?? 0) + 1;
+
+      const key = `${room.id}:${slot.id}`;
+      floatingAssignments[key] = sid;
     }
   }
 
-  // NOTE: floatingDraft is intentionally ignored now that we have a full engine.
-  // If we ever want to let the wizard pre‑seed floating, we can merge it here.
+  // ---------- Transport: pickups / helpers / dropoffs -----------------------
+
+  // Clean pickups: only attending participants
+  const pickupClean: ID[] = (pickupParticipants || []).filter((pid) =>
+    attendingParticipants.includes(pid as ID),
+  );
+
+  // Clean helpers: must be staff
+  const helperClean: ID[] = (helperStaff || []).filter((sid) => staffById.has(sid));
+
+  // Clean dropoff assignments: only helpers + pickup participants
+  const dropoffClean: Record<ID, ID[]> = {};
+  const pickupSet = new Set(pickupClean);
+
+  if (dropoffAssignments && Object.keys(dropoffAssignments).length) {
+    for (const [sid, list] of Object.entries(dropoffAssignments)) {
+      if (!helperClean.includes(sid as ID)) continue;
+      const cleaned = (list || []).filter((pid) => pickupSet.has(pid as ID));
+      if (cleaned.length) {
+        dropoffClean[sid as ID] = Array.from(new Set(cleaned as ID[]));
+      }
+    }
+  }
 
   // ---------- Build final snapshot ----------
   const snapshot: ScheduleSnapshot = {
@@ -194,9 +207,9 @@ export async function persistFinish(params: PersistParams) {
     finalChecklist,
     finalChecklistStaff,
 
-    pickupParticipants,
-    helperStaff,
-    dropoffAssignments,
+    pickupParticipants: pickupClean,
+    helperStaff: helperClean,
+    dropoffAssignments: dropoffClean,
 
     date: date ?? new Date().toISOString(),
     meta: { from: 'create-wizard' },

@@ -1,11 +1,14 @@
 // app/edit/assignments.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { ScrollView, Text, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF, PARTICIPANTS as STATIC_PARTS } from '@/constants/data';
-import Chip from '@/components/Chip';
 
 type ID = string;
+
+const nm = (x?: string) => (x || '').trim().toLowerCase();
+const isEveryone = (x?: string) => nm(x) === 'everyone';
+const isAntoinette = (x?: string) => nm(x) === 'antoinette';
 
 export default function EditAssignmentsScreen() {
   const {
@@ -17,82 +20,83 @@ export default function EditAssignmentsScreen() {
     updateSchedule,
   } = useSchedule();
 
-  // Prefer staff/participants from the store (after create) or fall back to constants
-  const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
-  const participants = (scheduleParts && scheduleParts.length ? scheduleParts : STATIC_PARTS) as typeof STATIC_PARTS;
+  const staffSource =
+    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) || [];
+  const partsSource =
+    (scheduleParts && scheduleParts.length ? scheduleParts : STATIC_PARTS) || [];
 
-  // Use working staff (Dream Team) if available, otherwise all staff
-  const staffToShow = useMemo(
-    () => {
-      const base =
-        workingStaff && workingStaff.length
-          ? staff.filter(s => workingStaff.includes(s.id))
-          : staff;
-      return [...base].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }),
-      );
-    },
-    [staff, workingStaff],
+  // Working staff set from the schedule (Dream Team @ B2)
+  const workingSet = new Set<ID>(
+    (workingStaff && workingStaff.length ? (workingStaff as ID[]) : []) as ID[],
   );
 
-  const [activeStaffId, setActiveStaffId] = useState<ID | null>(staffToShow[0]?.id ?? null);
+  // Staff rows: working staff only, plus "Everyone", excluding Antoinette.
+  const rowStaff = staffSource.filter((s) => {
+    const inWorking = workingSet.has(s.id as ID);
+    const everyone = isEveryone(s.name);
+    const anto = isAntoinette(s.name);
 
-  // Keep active staff valid when staffToShow changes
-  useEffect(() => {
-    if (!staffToShow.length) {
-      setActiveStaffId(null);
-      return;
+    if (anto) return false;
+    if (workingSet.size) {
+      // When we know the Dream Team, show only them + Everyone
+      return inWorking || everyone;
     }
-    if (!activeStaffId || !staffToShow.some(s => s.id === activeStaffId)) {
-      setActiveStaffId(staffToShow[0].id);
-    }
-  }, [staffToShow, activeStaffId]);
+    // Fallback: if working staff not yet stored (old schedules), show everyone except Antoinette
+    return !anto;
+  });
 
-  const activeStaff = staffToShow.find(s => s.id === activeStaffId) || null;
+  const assignmentsMap: Record<ID, ID[]> = (assignments || {}) as any;
 
-  // Only show participants attending today (if set), else show all
-  const participantsToShow = useMemo(() => {
-    const base =
-      attendingParticipants && attendingParticipants.length
-        ? participants.filter(p => attendingParticipants.includes(p.id))
-        : participants;
-    return [...base].sort((a, b) =>
-      (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }),
-    );
-  }, [participants, attendingParticipants]);
+  // Attending participants list (or everyone if not set)
+  const attendingIds: ID[] =
+    (attendingParticipants && attendingParticipants.length
+      ? (attendingParticipants as ID[])
+      : partsSource.map((p) => p.id as ID)) || [];
 
-  // Build lists for "assigned" vs "not assigned" for the active staff
-  const assignedIdsForActive = new Set(
-    (activeStaffId && assignments && assignments[activeStaffId]) ? assignments[activeStaffId] : [],
-  );
+  const attendingSet = new Set(attendingIds);
 
-  const assignedList = participantsToShow.filter(p => assignedIdsForActive.has(p.id));
-  const unassignedList = participantsToShow.filter(p => !assignedIdsForActive.has(p.id));
+  const staffById = new Map(staffSource.map((s) => [s.id, s]));
+  const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-  const handleToggleAssignment = (participantId: ID) => {
-    if (!activeStaffId) return;
+  // participant -> staffId (for uniqueness)
+  const assignedByParticipant: Record<ID, ID> = {};
+  Object.entries(assignmentsMap).forEach(([sid, pids]) => {
+    if (!Array.isArray(pids)) return;
+    (pids as ID[]).forEach((pid) => {
+      if (attendingSet.has(pid as ID)) {
+        assignedByParticipant[pid as ID] = sid as ID;
+      }
+    });
+  });
 
-    const current = assignments || {};
-    const newAssignments: Record<ID, ID[]> = {};
+  const handleToggle = (staffId: ID, participantId: ID) => {
+    const current = assignmentsMap || {};
+    const next: Record<ID, ID[]> = {};
 
-    // First, remove this participant from all staff to ensure a single owner
+    // clone first
     Object.entries(current).forEach(([sid, pids]) => {
-      if (!Array.isArray(pids)) return;
-      const filtered = pids.filter(id => id !== participantId);
-      newAssignments[sid as ID] = filtered;
+      next[sid as ID] = Array.isArray(pids) ? [...(pids as ID[])] : [];
     });
 
-    // Then toggle for the active staff
-    const alreadyAssignedToActive = (current[activeStaffId] || []).includes(participantId);
-    if (!alreadyAssignedToActive) {
-      const existing = newAssignments[activeStaffId] || [];
-      newAssignments[activeStaffId] = [...existing, participantId];
+    const currentOwner = assignedByParticipant[participantId];
+
+    if (currentOwner && currentOwner === staffId) {
+      // unassign from this staff → participant becomes "unassigned"
+      next[staffId] = (next[staffId] || []).filter((id) => id !== participantId);
     } else {
-      // If they were assigned to active staff, we just leave them removed
-      newAssignments[activeStaffId] = newAssignments[activeStaffId] || [];
+      // remove from previous owner if any
+      if (currentOwner) {
+        next[currentOwner] = (next[currentOwner] || []).filter(
+          (id) => id !== participantId,
+        );
+      }
+      // assign to this staff
+      const arr = next[staffId] || [];
+      if (!arr.includes(participantId)) arr.push(participantId);
+      next[staffId] = arr;
     }
 
-    updateSchedule({ assignments: newAssignments });
+    updateSchedule({ assignments: next });
   };
 
   return (
@@ -101,74 +105,87 @@ export default function EditAssignmentsScreen() {
         <View style={styles.inner}>
           <Text style={styles.title}>Team Daily Assignments</Text>
           <Text style={styles.subtitle}>
-            Choose a staff member, then tap participants to assign or unassign them. Each participant
-            is assigned to only one staff member at a time.
+            Working staff @ B2 (including Everyone) with their individual participant
+            assignments. Tap a name to move them between staff members.
           </Text>
 
-          {/* Staff selector row */}
-          <View style={styles.staffRow}>
-            {staffToShow.length === 0 ? (
-              <Text style={styles.helperText}>
-                No staff available. Create a schedule and select your Dream Team first.
-              </Text>
-            ) : (
-              staffToShow.map((s) => (
-                <Chip
-                  key={s.id}
-                  label={s.name}
-                  selected={activeStaffId === s.id}
-                  onPress={() => setActiveStaffId(s.id)}
-                  style={styles.staffChip}
-                />
-              ))
-            )}
-          </View>
-
-          {/* Assignment lists */}
-          {!activeStaff ? (
+          {rowStaff.length === 0 ? (
             <Text style={styles.helperText}>
-              Select a staff member above to manage their participants.
+              No working staff found. Create a schedule and select your Dream Team first.
             </Text>
           ) : (
-            <>
-              <Text style={styles.sectionTitle}>
-                Assigned to {activeStaff.name}
-              </Text>
-              {assignedList.length === 0 ? (
-                <Text style={styles.empty}>No participants assigned yet.</Text>
-              ) : (
-                assignedList.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={styles.rowAssigned}
-                    onPress={() => handleToggleAssignment(p.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.rowText}>{p.name}</Text>
-                    <Text style={styles.tagUnassign}>Tap to unassign</Text>
-                  </TouchableOpacity>
-                ))
-              )}
+            <View style={{ gap: 10 }}>
+              {rowStaff.map((st) => {
+                const staffId = st.id as ID;
+                const staffAssigned = (assignmentsMap[staffId] || []).filter((pid) =>
+                  attendingSet.has(pid as ID),
+                ) as ID[];
 
-              <Text style={styles.sectionTitle}>
-                Not assigned to {activeStaff.name}
-              </Text>
-              {unassignedList.length === 0 ? (
-                <Text style={styles.empty}>All attending participants are currently assigned.</Text>
-              ) : (
-                unassignedList.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={styles.rowUnassigned}
-                    onPress={() => handleToggleAssignment(p.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.rowText}>{p.name}</Text>
-                    <Text style={styles.tagAssign}>Tap to assign</Text>
-                  </TouchableOpacity>
-                ))
-              )}
-            </>
+                const assignedNames = staffAssigned
+                  .map((pid) => partsById.get(pid)?.name)
+                  .filter(Boolean)
+                  .join(', ');
+
+                // For this row, participants available to tap:
+                // any attending participant who is either unassigned
+                // or already assigned to this staff member.
+                const availablePids = attendingIds.filter((pid) => {
+                  const owner = assignedByParticipant[pid];
+                  return !owner || owner === staffId;
+                });
+
+                return (
+                  <View key={staffId} style={styles.card}>
+                    {/* Staff header */}
+                    <View style={styles.cardHeader}>
+                      <View
+                        style={[
+                          styles.rect,
+                          { backgroundColor: st.color || '#ddd' },
+                        ]}
+                      />
+                      <Text style={styles.staffName}>{st.name}</Text>
+                    </View>
+
+                    {/* Assigned summary line */}
+                    {staffAssigned.length > 0 && (
+                      <Text style={styles.assignedSummary}>
+                        Assigned: {assignedNames}
+                      </Text>
+                    )}
+
+                    {/* Chips for available participants */}
+                    <View style={styles.chipWrap}>
+                      {availablePids.map((pid) => {
+                        const isAssigned = staffAssigned.includes(pid);
+                        const part = partsById.get(pid);
+                        return (
+                          <TouchableOpacity
+                            key={pid}
+                            onPress={() => handleToggle(staffId, pid)}
+                            activeOpacity={0.85}
+                            style={[styles.chip, isAssigned && styles.chipSel]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipTxt,
+                                isAssigned && styles.chipTxtSel,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {part?.name || '—'}
+                            </Text>
+                            {isAssigned && (
+                              <Text style={styles.checkMark}>✓</Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -177,6 +194,7 @@ export default function EditAssignmentsScreen() {
 }
 
 const MAX_WIDTH = 880;
+const PILL = 999;
 
 const styles = StyleSheet.create({
   screen: {
@@ -204,62 +222,70 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: '#5a486b',
   },
-  staffRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  staffChip: {
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-    color: '#3c234c',
-  },
-  rowAssigned: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#fbe4f0',
-    marginBottom: 6,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  rowUnassigned: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e4d7f0',
-    marginBottom: 6,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  rowText: {
-    fontSize: 14,
-    color: '#4c3b5c',
-  },
-  tagAssign: {
-    fontSize: 11,
-    color: '#e91e63',
-  },
-  tagUnassign: {
-    fontSize: 11,
-    color: '#7a4860',
-  },
-  empty: {
-    fontSize: 13,
-    opacity: 0.75,
-    color: '#7a688c',
-  },
   helperText: {
     fontSize: 13,
     opacity: 0.8,
     color: '#7a688c',
     marginBottom: 8,
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: '#ffffff',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  rect: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: '#E6ECF5',
+  },
+  staffName: {
+    fontSize: 14,
+    color: '#101828',
+    fontWeight: '600',
+  },
+  assignedSummary: {
+    fontSize: 12,
+    color: '#667085',
+    marginBottom: 2,
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E6ECF5',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: PILL,
+    gap: 6,
+  },
+  chipSel: {
+    backgroundColor: '#175CD3',
+    borderColor: '#175CD3',
+  },
+  chipTxt: {
+    fontSize: 14,
+    color: '#101828',
+  },
+  chipTxtSel: {
+    color: '#FFFFFF',
+  },
+  checkMark: {
+    fontSize: 12,
+    color: '#FFFFFF',
   },
 });

@@ -1,5 +1,6 @@
 // hooks/schedule-store.ts
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Staff, Participant } from '@/constants/data';
 import { TIME_SLOTS } from '@/constants/data';
 
@@ -59,22 +60,80 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   meta: {},
 });
 
-export const useSchedule = create<ScheduleState>((set) => ({
-  ...makeInitialSnapshot(),
+export const useSchedule = create<ScheduleState>()(
+  persist(
+    (set, get) => ({
+      // 👇 your existing initial state
+      ...makeInitialSnapshot(),
 
-  createSchedule: (snapshot) => {
-    // Replace the entire snapshot when finishing the create wizard
-    set(() => ({ ...snapshot }));
-  },
+      // if you have extra fields like scheduleStep, selectedDate, etc.
+      scheduleStep: 1,
+      selectedDate: undefined,
+      touch: () => {
+        // optional: used to mark "dirty" or wake up the store
+      },
 
-  updateSchedule: (patch) => {
-    // Merge partial updates from edit screens
-    set((state) => ({
-      ...state,
-      ...patch,
-    }));
-  },
-}));
+      createSchedule: (snapshot: ScheduleSnapshot) => {
+        // Replace the whole snapshot
+        set(() => ({
+          ...snapshot,
+          // keep any extra fields that aren't part of the snapshot
+          scheduleStep: 1,
+          selectedDate: snapshot.date ?? get().selectedDate,
+        }));
+      },
+
+      updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
+        set((state) => {
+          const next = {
+            ...state,
+            ...patch,
+          };
+          return next;
+        });
+      },
+
+      setScheduleStep: (step: number) => {
+        set({ scheduleStep: step });
+      },
+
+      setSelectedDate: (date?: string) => {
+        set({ selectedDate: date });
+      },
+    }),
+    {
+      name: 'daily-schedule-v2', // 🔑 key in storage
+
+      // 🔐 IMPORTANT: make SSR / Vercel safe
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') {
+          return undefined as any;
+        }
+        return window.localStorage;
+      }),
+
+      // Only persist the snapshot-ish fields (not the functions)
+      partialize: (state) => ({
+        staff: state.staff,
+        participants: state.participants,
+        workingStaff: state.workingStaff,
+        attendingParticipants: state.attendingParticipants,
+        assignments: state.assignments,
+        floatingAssignments: state.floatingAssignments,
+        cleaningAssignments: state.cleaningAssignments,
+        finalChecklist: state.finalChecklist,
+        finalChecklistStaff: state.finalChecklistStaff,
+
+        pickupParticipants: state.pickupParticipants,
+        helperStaff: state.helperStaff,
+        dropoffAssignments: state.dropoffAssignments,
+
+        date: state.date,
+        meta: state.meta,
+      }),
+    }
+  )
+);
 
 // Helpers to quickly check if everything has been assigned
 

@@ -7,23 +7,23 @@ import { DEFAULT_CHORES, STAFF as STATIC_STAFF } from '@/constants/data';
 type ID = string;
 
 export default function EditCleaningScreen() {
-  const {
-    staff: scheduleStaff,
-    workingStaff,
-    cleaningAssignments,
-    updateSchedule,
-  } = useSchedule();
+  const { staff: scheduleStaff, workingStaff, cleaningAssignments, updateSchedule } =
+    useSchedule();
 
   // Prefer staff from the schedule (after create), fallback to static constants
-  const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
+  const staff =
+    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
 
   // Use the Dream Team as the pool if set, otherwise all staff
   const staffPool = useMemo(
-    () => (workingStaff && workingStaff.length ? staff.filter(s => workingStaff.includes(s.id)) : staff),
+    () =>
+      workingStaff && workingStaff.length
+        ? staff.filter(s => workingStaff.includes(s.id))
+        : staff,
     [staff, workingStaff],
   );
 
-  const staffById = new Map(staff.map((s) => [s.id, s]));
+  const staffById = new Map(staff.map(s => [s.id, s]));
 
   const cycleChoreAssignment = (choreId: ID | number) => {
     if (!staffPool.length) return; // Nothing to cycle through
@@ -39,12 +39,12 @@ export default function EditCleaningScreen() {
       // No one assigned yet -> assign first in pool
       next[key] = staffPool[0].id;
     } else {
-      const idx = staffPool.findIndex((s) => s.id === currentStaffId);
+      const idx = staffPool.findIndex(s => s.id === currentStaffId);
       if (idx === -1) {
         // Current id not in pool (e.g. pool changed), reset to first
         next[key] = staffPool[0].id;
       } else if (idx === staffPool.length - 1) {
-        // Last staff in pool -> next tap clears assignment (back to "Not yet assigned")
+        // Last staff in pool -> next tap clears assignment
         delete next[key];
       } else {
         // Move to next staff member in pool
@@ -61,20 +61,24 @@ export default function EditCleaningScreen() {
         <View style={styles.inner}>
           <Text style={styles.title}>End of Shift Cleaning Assignments</Text>
           <Text style={styles.subtitle}>
-            Tap a row to cycle who is responsible for each task. The pool is your Dream Team (if selected),
-            or all staff if no Dream Team has been chosen yet.
+            Tap a row to cycle who is responsible for each task. The pool is your Dream Team (if
+            selected), or all staff if no Dream Team has been chosen yet.
           </Text>
 
           {!staffPool.length && (
             <Text style={styles.helperText}>
-              No staff available. Create a schedule and select working staff to assign cleaning duties.
+              No staff available. Create a schedule and select working staff to assign cleaning
+              duties.
             </Text>
           )}
 
-          {DEFAULT_CHORES.map((chore) => {
+          {DEFAULT_CHORES.map(chore => {
             const key = String(chore.id);
             const sid = cleaningAssignments?.[key];
             const st = sid ? staffById.get(sid) : null;
+
+            // Support both `label` and `name` on the chore
+            const label = (chore as any).label || (chore as any).name || '';
 
             return (
               <TouchableOpacity
@@ -84,7 +88,7 @@ export default function EditCleaningScreen() {
                 activeOpacity={0.85}
               >
                 <View style={styles.choreCol}>
-                  <Text style={styles.choreLabel}>{chore.label}</Text>
+                  <Text style={styles.choreLabel}>{label}</Text>
                 </View>
                 <View style={styles.staffCol}>
                   <Text style={st ? styles.staffName : styles.staffEmpty}>

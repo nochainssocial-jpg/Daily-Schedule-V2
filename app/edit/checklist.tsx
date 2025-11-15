@@ -77,20 +77,21 @@ export default function EditChecklistScreen() {
           </Text>
 
           {/* Checklist items */}
-          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
-          {DEFAULT_CHECKLIST.map((item) => {
-            const key = String(item.id);
-            const checked = !!finalChecklist?.[key];
-            return (
-              <View key={key} style={styles.itemRow}>
-                <Checkbox
-                  label={item.label}
-                  checked={checked}
-                  onToggle={() => handleToggleItem(item.id)}
-                />
-              </View>
-            );
-          })}
+<Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
+{DEFAULT_CHECKLIST.map((item) => {
+  const key = String(item.id);
+  const checked = !!finalChecklist?.[key];
+  const label = (item as any).name || (item as any).label || '';
+  return (
+    <View key={key} style={styles.itemRow}>
+      <Checkbox
+        label={label}
+        checked={checked}
+        onToggle={() => handleToggleItem(item.id)}
+      />
+    </View>
+  );
+})}
         </View>
       </ScrollView>
     </View>
