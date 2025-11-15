@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import { persistFinish } from '@/hooks/persist-finish';
@@ -41,12 +41,8 @@ export default function CreateScheduleScreen() {
   const { step: stepParam } = useLocalSearchParams<{ step?: string }>();
   const todayLabel = useTodayLabel();
 
-  const {
-    schedule,
-    updateSchedule,
-    createSchedule,
-    clearSchedule,
-  } = useSchedule();
+  const { schedule, updateSchedule, createSchedule, clearSchedule } =
+    useSchedule();
 
   const scheduleStep = Number(stepParam ?? 1);
   const [localStep, setLocalStep] = useState<number>(
@@ -99,7 +95,7 @@ export default function CreateScheduleScreen() {
         const isAllSelected = allIds.every(x => workingSet.has(x));
         const next = isAllSelected ? [] : allIds;
         setWorkingStaff(next);
-        // also keep helpers in sync – helpers can only be non-working staff
+        // helpers must always be *non*-working staff
         setHelperStaff(prev => prev.filter(hid => !next.includes(hid)));
         return;
       }
@@ -121,10 +117,15 @@ export default function CreateScheduleScreen() {
       return `Working today: ${names.join(', ')}.`;
     }, [workingStaff]);
 
-    const offDutyNames = staffSource
-      .filter(s => !workingStaff.includes(s.id))
-      .map(s => s.name)
-      .sort((a, b) => a.localeCompare(b));
+    const workingList = staffSource
+      .filter(s => workingSet.has(s.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const offDutyList = staffSource
+      .filter(s => !workingSet.has(s.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const offDutyNames = offDutyList.map(s => s.name);
 
     return (
       <View style={styles.section}>
@@ -135,6 +136,38 @@ export default function CreateScheduleScreen() {
           used as dropoff helpers later.
         </Text>
 
+        {/* Selected working staff tiles at the top */}
+        <View style={[styles.workingWrap, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>Working @ B2 today</Text>
+          {workingList.length ? (
+            <View style={styles.tiles}>
+              {workingList.map(st => (
+                <View
+                  key={st.id}
+                  style={[styles.tile, styles.tileSel]}
+                >
+                  <View
+                    style={[
+                      styles.rect,
+                      { backgroundColor: st.color || '#E5ECF5' },
+                    ]}
+                  />
+                  <Text style={styles.tileName}>{st.name}</Text>
+                  <Check size={16} color="#175CD3" />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.emptyHint, { marginTop: 4 }]}>
+              No staff selected yet.
+            </Text>
+          )}
+          <Text style={[styles.assignedSummary, { marginTop: 8 }]}>
+            {workingLabel}
+          </Text>
+        </View>
+
+        {/* Everyone toggle + full list (tap to change selection) */}
         <View style={{ marginTop: 16 }}>
           <TouchableOpacity
             onPress={() => toggleStaff('everyone')}
@@ -152,16 +185,12 @@ export default function CreateScheduleScreen() {
             />
             <Text style={styles.tileName}>Everyone</Text>
           </TouchableOpacity>
-
-          <Text style={[styles.assignedSummary, { marginTop: 8 }]}>
-            {workingLabel}
-          </Text>
         </View>
 
         <View style={{ marginTop: 16 }}>
           <Text style={styles.sectionTitle}>Team members</Text>
           <Text style={styles.subTitle}>
-            Toggle staff on or off individually. This list is always sorted
+            Tap to toggle staff on or off. This list is always sorted
             alphabetically.
           </Text>
 
@@ -185,6 +214,7 @@ export default function CreateScheduleScreen() {
                       ]}
                     />
                     <Text style={styles.tileName}>{st.name}</Text>
+                    {sel && <Check size={16} color="#175CD3" />}
                   </TouchableOpacity>
                 );
               })}
@@ -209,6 +239,8 @@ export default function CreateScheduleScreen() {
       setAttendingParticipants(prev =>
         prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id],
       );
+
+      // Clean up assignments / pickups / dropoffs if removed
       setAssignments(prev => {
         const next: Record<string, string[]> = {};
         Object.entries(prev).forEach(([staffId, pids]) => {
@@ -226,10 +258,12 @@ export default function CreateScheduleScreen() {
       });
     };
 
-    const attendingNames = partsSource
+    const attendingList = partsSource
       .filter(p => attendingSet.has(p.id))
-      .map(p => p.name)
-      .sort((a, b) => a.localeCompare(b));
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const attendingNames = attendingList.map(p => p.name);
+    const anyAttending = attendingList.length > 0;
 
     return (
       <View style={styles.section}>
@@ -239,6 +273,36 @@ export default function CreateScheduleScreen() {
           in the assignment steps.
         </Text>
 
+        {/* Selected attending participants at the top */}
+        <View style={[styles.workingWrap, { marginTop: 16 }]}>
+          <Text style={styles.sectionTitle}>Attending today</Text>
+          {anyAttending ? (
+            <View style={styles.tiles}>
+              {attendingList.map(p => (
+                <View
+                  key={p.id}
+                  style={[styles.tile, styles.tileSel]}
+                >
+                  <View style={styles.rect} />
+                  <Text style={styles.tileName}>{p.name}</Text>
+                  <Check size={16} color="#175CD3" />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.emptyHint, { marginTop: 4 }]}>
+              No participants selected yet.
+            </Text>
+          )}
+
+          <Text style={[styles.assignedSummary, { marginTop: 8 }]}>
+            {anyAttending
+              ? `Attending today: ${attendingNames.join(', ')}.`
+              : 'Select one or more participants below.'}
+          </Text>
+        </View>
+
+        {/* Full list to toggle attendance */}
         <View style={{ marginTop: 16 }}>
           <Text style={styles.sectionTitle}>Participants</Text>
           <Text style={styles.subTitle}>
@@ -261,20 +325,11 @@ export default function CreateScheduleScreen() {
                   >
                     <View style={styles.rect} />
                     <Text style={styles.tileName}>{p.name}</Text>
+                    {sel && <Check size={16} color="#175CD3" />}
                   </TouchableOpacity>
                 );
               })}
           </View>
-
-          {!!attendingNames.length ? (
-            <Text style={[styles.assignedSummary, { marginTop: 8 }]}>
-              Attending today: {attendingNames.join(', ')}.
-            </Text>
-          ) : (
-            <Text style={[styles.assignedSummary, { marginTop: 8 }]}>
-              No participants selected yet.
-            </Text>
-          )}
         </View>
       </View>
     );
@@ -409,9 +464,7 @@ export default function CreateScheduleScreen() {
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const helperCandidates = staffSource
-      .filter(
-        s => !workingStaff.includes(s.id) && !isEveryone(s.name),
-      )
+      .filter(s => !workingStaff.includes(s.id) && !isEveryone(s.name))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const dropoffEligible = attending.filter(p => !pickupSet.has(p.id));
@@ -927,16 +980,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5ECF5',
-    borderRadius: 999,            // pill look — same as before
+    borderRadius: 999,
     paddingVertical: 8,
     paddingHorizontal: 14,
     backgroundColor: '#FFF',
     gap: 8,
 
-    // 🔥 makes tiles uniform and grid-based
-    flexBasis: '23%',              // ~4 per row inside 880px layout
+    flexBasis: '23%',
     maxWidth: '23%',
-    minWidth: 140,                 // prevents squashing on smaller screens
+    minWidth: 140,
   },
 
   tileSel: {
@@ -1025,7 +1077,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#E6ECF5',
+    borderColor: '#E5ECF5',
     backgroundColor: '#FFF',
     gap: 8,
     marginBottom: 6,
