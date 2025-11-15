@@ -11,8 +11,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
-import { useSchedule } from '@hooks/schedule-store';
-import { persistFinish } from '@hooks/persist-finish';
+import { useSchedule } from '../hooks/schedule-store';
+import { persistFinish } from '../hooks/persist-finish';
 import {
   STAFF,
   PARTICIPANTS,
