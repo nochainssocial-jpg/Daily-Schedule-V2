@@ -1,26 +1,31 @@
 // hooks/persist-finish.ts
+//
+// Single place where we take everything the wizard collected and turn it into
+// a ScheduleSnapshot for the zustand store.
+
 import * as Data from '@/constants/data';
 import type { Staff, Participant } from '@/constants/data';
 import type { ID, ScheduleSnapshot } from './schedule-store';
 
 type PersistParams = {
   createSchedule: (snapshot: ScheduleSnapshot) => Promise<void> | void;
+
   staff: Staff[];
   participants: Participant[];
+
   workingStaff: ID[];
   attendingParticipants: ID[];
 
-  // From the wizard
+  // From the Team Daily Assignments step
   assignments?: Record<ID, ID[]>;
 
-  // Optional drafts (not heavily used yet, but kept for compatibility)
+  // Optional drafts from later steps
   floatingDraft?: Record<string, ID>;
   cleaningDraft?: Record<string, ID>;
   finalChecklistDraft?: Record<string, boolean>;
-
   finalChecklistStaff: ID;
 
-  // NEW transport fields
+  // Transport (pickups / helpers / dropoffs)
   pickupParticipants?: ID[];
   helperStaff?: ID[];
   dropoffAssignments?: Record<ID, ID[]>;
@@ -35,163 +40,180 @@ export async function persistFinish(params: PersistParams) {
     participants,
     workingStaff,
     attendingParticipants,
+
     assignments,
+
     floatingDraft,
     cleaningDraft,
     finalChecklistDraft,
     finalChecklistStaff,
+
     pickupParticipants = [],
     helperStaff = [],
     dropoffAssignments = {},
+
     date,
   } = params;
 
   // ---------- Normalise staff / participants ----------
-  const staffById = new Map(staff.map((s) => [s.id, s]));
-  const participantsById = new Map(participants.map((p) => [p.id, p]));
+  const staffById = new Map<ID, Staff>(staff.map((s) => [s.id as ID, s]));
+  const participantsById = new Map<ID, Participant>(participants.map((p) => [p.id as ID, p]));
 
   const workingSet = new Set<ID>(
     (workingStaff && workingStaff.length ? workingStaff : staff.map((s) => s.id)) as ID[],
   );
 
-  // ---------- Seed TEAM DAILY ASSIGNMENTS ----------
+  const attendingSet = new Set<ID>(attendingParticipants as ID[]);
+
+  // ---------- TEAM DAILY ASSIGNMENTS ----------
   const seededAssignments: Record<ID, ID[]> = {};
 
   if (assignments) {
-    // Clean up any stray IDs and keep only attending participants
-    for (const [staffId, partIds] of Object.entries(assignments)) {
-      const validStaff = staffById.has(staffId as ID);
-      if (!validStaff) continue;
-      const filtered = (partIds || []).filter(
-        (pid) => participantsById.has(pid as ID) && attendingParticipants.includes(pid as ID),
-      );
-      if (filtered.length) {
-        seededAssignments[staffId as ID] = Array.from(new Set(filtered as ID[]));
+    for (const [sid, partIds] of Object.entries(assignments)) {
+      if (!staffById.has(sid as ID)) continue;
+      const cleaned = (partIds || []).filter(
+        (pid) => participantsById.has(pid as ID) && attendingSet.has(pid as ID),
+      ) as ID[];
+      if (cleaned.length) {
+        seededAssignments[sid as ID] = cleaned;
       }
     }
   }
 
-  // Make sure every working staff has an entry, even if empty
-  for (const sid of workingSet) {
-    if (!seededAssignments[sid]) {
-      seededAssignments[sid] = [];
-    }
-  }
-
-  // ---------- Seed CLEANING ASSIGNMENTS ----------
-  const chores = Data.DEFAULT_CHORES || [];
-  const cleaningAssignments: Record<string, ID> = {};
-
-  if (cleaningDraft && Object.keys(cleaningDraft).length) {
-    Object.assign(cleaningAssignments, cleaningDraft);
-  } else if (chores.length) {
-    // Round-robin the chores across the working staff for now
+  // Fallback: simple round-robin across Dream Team if nothing came through
+  if (!Object.keys(seededAssignments).length && attendingParticipants.length) {
     const workerIds = Array.from(workingSet);
     if (workerIds.length) {
       let idx = 0;
-      for (const chore of chores) {
+      for (const pid of attendingParticipants as ID[]) {
         const sid = workerIds[idx % workerIds.length];
-        cleaningAssignments[String(chore.id)] = sid;
+        if (!seededAssignments[sid]) seededAssignments[sid] = [];
+        seededAssignments[sid].push(pid);
         idx++;
       }
     }
   }
 
-  // ---------- Seed FINAL CHECKLIST ----------
-  const finalChecklist: Record<string, boolean> = {};
+  // ---------- CLEANING ASSIGNMENTS ----------
+  const chores = (Data as any).DEFAULT_CHORES || [];
+  const cleaningAssignments: Record<string, ID> = {};
 
-  if (finalChecklistDraft && Object.keys(finalChecklistDraft).length) {
-    Object.assign(finalChecklist, finalChecklistDraft);
-  } else {
-    (Data.DEFAULT_CHECKLIST || []).forEach((item) => {
-      finalChecklist[String(item.id)] = false;
-    });
+  if (cleaningDraft && Object.keys(cleaningDraft).length) {
+    for (const [choreId, staffId] of Object.entries(cleaningDraft)) {
+      const validChore = chores.some((c: any) => c.id === choreId);
+      if (!validChore) continue;
+      if (!staffById.has(staffId as ID)) continue;
+      cleaningAssignments[choreId] = staffId as ID;
+    }
+  } else if (chores.length) {
+    const pool = (staff.filter((s) => workingSet.has(s.id as ID)) || staff) as Staff[];
+    if (pool.length) {
+      let idx = 0;
+      for (const chore of chores) {
+        const s = pool[idx % pool.length];
+        cleaningAssignments[chore.id] = s.id as ID;
+        idx++;
+      }
+    }
   }
 
-  // ---------- Seed FLOATING ASSIGNMENTS ----------
-  const timeSlots = Data.TIME_SLOTS || [];
-  const rooms = Data.FLOATING_ROOMS || [
-    { id: 'front', name: 'Front Room' },
-    { id: 'scotty', name: 'Scotty' },
-    { id: 'twins', name: 'Twins' },
-  ];
+  // ---------- AUTO-FLOATING ENGINE ----------
+  const timeSlots: { id: ID }[] = ((Data as any).TIME_SLOTS || []) as { id: ID }[];
+  const rooms: { id: ID }[] =
+    ((Data as any).FLOATING_ROOMS as { id: ID }[] | undefined) ||
+    [
+      { id: 'front-room' as ID },
+      { id: 'scotty' as ID },
+      { id: 'twins' as ID },
+    ];
 
   const floatingAssignments: Record<string, ID> = {};
 
-  // Pool of staff we can actually use for floating
   const workingStaffList = staff.filter((s) => workingSet.has(s.id as ID));
-  const pool = (workingStaffList.length ? workingStaffList : staff) as Staff[];
+  const floatingPool = (workingStaffList.length ? workingStaffList : staff) as Staff[];
 
-  // Track how many floating slots each staff member has picked up
   const load: Record<ID, number> = {};
-  for (const s of pool) {
+  for (const s of floatingPool) {
     load[s.id as ID] = 0;
   }
 
-  const isFSOSlotId = (slotId: string) =>
-    slotId === '11:00-11:30' || slotId === '13:00-13:30';
+  const fsoSlotIds: ID[] = ((Data as any).TWIN_FSO_TIME_SLOT_IDS || []) as ID[];
 
   for (const slot of timeSlots) {
     const usedThisSlot = new Set<ID>();
 
     for (const room of rooms) {
-      let eligible = pool;
+      let eligible = floatingPool;
 
-      // Twins has FSO (Female Staff Only) for specific slots
-      if (room.id === 'twins' && isFSOSlotId(slot.id)) {
-        eligible = pool.filter((s) => s.gender === 'female');
+      const isTwinsFSO =
+        room.id === ('twins' as ID) && fsoSlotIds.length && fsoSlotIds.includes(slot.id);
+
+      if (isTwinsFSO) {
+        eligible = floatingPool.filter((s) => s.gender === 'female');
       }
 
       if (!eligible.length) {
-        // No-one can cover this cell; leave it blank
         continue;
       }
 
-      // Pick the staff with the lowest load who isn't already used in this slot
-      let candidate: Staff | null = null;
-      let bestLoad = Infinity;
-      for (const st of eligible) {
-        const sid = st.id as ID;
-        if (usedThisSlot.has(sid)) continue;
-        const l = load[sid] ?? 0;
-        if (l < bestLoad) {
-          bestLoad = l;
-          candidate = st;
+      // Prefer staff not already used in this timeslot
+      const candidates = eligible.filter((s) => !usedThisSlot.has(s.id as ID));
+      const considered = candidates.length ? candidates : eligible;
+
+      let best: Staff | null = null;
+      for (const s of considered) {
+        if (!best) {
+          best = s;
+          continue;
+        }
+        const currentLoad = load[s.id as ID] ?? 0;
+        const bestLoad = load[best.id as ID] ?? 0;
+        if (currentLoad < bestLoad) {
+          best = s;
         }
       }
 
-      if (!candidate) continue;
+      if (!best) continue;
 
-      const sid = candidate.id as ID;
-      usedThisSlot.add(sid);
-      load[sid] = (load[sid] ?? 0) + 1;
-
-      const key = `${room.id}:${slot.id}`;
+      const sid = best.id as ID;
+      const key = `${slot.id}|${room.id}`;
       floatingAssignments[key] = sid;
+      load[sid] = (load[sid] ?? 0) + 1;
+      usedThisSlot.add(sid);
     }
   }
 
-  // ---------- Transport: pickups / helpers / dropoffs -----------------------
+  // If the wizard captured any explicit floatingDraft overrides, merge them on top
+  if (floatingDraft && Object.keys(floatingDraft).length) {
+    for (const [key, sid] of Object.entries(floatingDraft)) {
+      if (!staffById.has(sid as ID)) continue;
+      floatingAssignments[key] = sid as ID;
+    }
+  }
 
-  // Clean pickups: only attending participants
-  const pickupClean: ID[] = (pickupParticipants || []).filter((pid) =>
-    attendingParticipants.includes(pid as ID),
-  );
+  // ---------- FINAL CHECKLIST ----------
+  const finalChecklist: Record<string, boolean> = {};
+  if (finalChecklistDraft) {
+    for (const [id, done] of Object.entries(finalChecklistDraft)) {
+      finalChecklist[id] = !!done;
+    }
+  }
 
-  // Clean helpers: must be staff
-  const helperClean: ID[] = (helperStaff || []).filter((sid) => staffById.has(sid));
+  // ---------- TRANSPORT (PICKUPS / DROPOFFS) ----------
+  const validPickup = (pickupParticipants || []).filter((pid) =>
+    participantsById.has(pid as ID),
+  ) as ID[];
 
-  // Clean dropoff assignments: only helpers + pickup participants
-  const dropoffClean: Record<ID, ID[]> = {};
-  const pickupSet = new Set(pickupClean);
+  const validHelpers = (helperStaff || []).filter((sid) => staffById.has(sid as ID)) as ID[];
 
-  if (dropoffAssignments && Object.keys(dropoffAssignments).length) {
-    for (const [sid, list] of Object.entries(dropoffAssignments)) {
-      if (!helperClean.includes(sid as ID)) continue;
-      const cleaned = (list || []).filter((pid) => pickupSet.has(pid as ID));
-      if (cleaned.length) {
-        dropoffClean[sid as ID] = Array.from(new Set(cleaned as ID[]));
-      }
+  const cleanedDropoffs: Record<ID, ID[]> = {};
+  if (dropoffAssignments) {
+    for (const [sid, partIds] of Object.entries(dropoffAssignments)) {
+      if (!staffById.has(sid as ID)) continue;
+      const cleaned = (partIds || []).filter(
+        (pid) => participantsById.has(pid as ID) && !validPickup.includes(pid as ID),
+      ) as ID[];
+      cleanedDropoffs[sid as ID] = cleaned;
     }
   }
 
@@ -201,15 +223,17 @@ export async function persistFinish(params: PersistParams) {
     participants,
     workingStaff,
     attendingParticipants,
+
     assignments: seededAssignments,
     floatingAssignments,
     cleaningAssignments,
+
     finalChecklist,
     finalChecklistStaff,
 
-    pickupParticipants: pickupClean,
-    helperStaff: helperClean,
-    dropoffAssignments: dropoffClean,
+    pickupParticipants: validPickup,
+    helperStaff: validHelpers,
+    dropoffAssignments: cleanedDropoffs,
 
     date: date ?? new Date().toISOString(),
     meta: { from: 'create-wizard' },
