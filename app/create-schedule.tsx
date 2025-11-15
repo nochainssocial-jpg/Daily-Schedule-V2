@@ -11,17 +11,17 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
-import { useSchedule } from '../hooks/schedule-store';
-import { persistFinish } from '../hooks/persist-finish';
+import { useSchedule } from '@/hooks/schedule-store';
+import { persistFinish } from '@/hooks/persist-finish';
 import {
   STAFF,
   PARTICIPANTS,
   CLEANING_TASKS,
   FLOATING_TIME_SLOTS,
-} from '@constants/data';
-import * as Data from '../constants/data';
-import ROUTES from '../constants/routes';
-import { useTodayLabel } from '../components/use-today-label';
+} from '@/constants/data';
+import * as Data from '@/constants/data';
+import ROUTES from '@/constants/routes';
+import { useTodayLabel } from '@/components/use-today-label';
 
 const PILL = 999;
 
