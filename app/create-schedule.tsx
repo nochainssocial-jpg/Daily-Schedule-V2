@@ -413,9 +413,7 @@ export default function CreateScheduleScreen() {
     );
   };
 
-  // ---- Step 4: Pickups, Helpers & Dropoffs ---------------------------------
-// STEP 4 – Pickups & Dropoffs
-// STEP 4 – Pickups & Dropoffs
+// STEP 4 – Pickups & Dropoffs (same card UI as Team Daily Assignments)
 function Step4() {
   const {
     staff,
@@ -435,30 +433,12 @@ function Step4() {
   const isEveryone = (name?: string | null) =>
     (name || '').trim().toLowerCase() === 'everyone';
 
-  const staffById = React.useMemo(
-    () => new Map(staff.map((s) => [s.id as ID, s])),
-    [staff]
-  );
-
-  const attending = React.useMemo(
-    () =>
-      participants
-        .filter((p) => attendingParticipants.includes(p.id))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [participants, attendingParticipants]
-  );
-
-  const pickupsSet = React.useMemo(
-    () => new Set(pickupParticipants || []),
-    [pickupParticipants]
-  );
-
   const workingSet = React.useMemo(
     () => new Set(workingStaff || []),
     [workingStaff]
   );
 
-  // Working staff for dropoffs (exclude "Everyone")
+  // 🧑‍🤝‍🧑 Working staff cards (no "Everyone")
   const workingStaffList = React.useMemo(
     () =>
       staff
@@ -467,7 +447,7 @@ function Step4() {
     [staff, workingSet]
   );
 
-  // Helper pool = staff not working @ B2 (exclude "Everyone")
+  // 👥 Helpers pool = not working @ B2, no "Everyone"
   const helperPool = React.useMemo(
     () =>
       staff
@@ -476,19 +456,32 @@ function Step4() {
     [staff, workingSet]
   );
 
-  const assignments = (dropoffAssignments || {}) as Record<ID, ID[]>;
-
-  // Participants that can take dropoffs: attending but not in pickups
-  const visibleDropoffParticipants = React.useMemo(
+  // ✅ Attending participants
+  const attending = React.useMemo(
     () =>
-      attending.filter(
-        (p) => !pickupsSet.has(p.id as ID) // pickups do not appear here
-      ),
+      participants
+        .filter((p) => attendingParticipants.includes(p.id))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [participants, attendingParticipants]
+  );
+
+  // Set of pickups (by id)
+  const pickupsSet = React.useMemo(
+    () => new Set(pickupParticipants || []),
+    [pickupParticipants]
+  );
+
+  // Participants available for dropoffs (attending but not in pickups)
+  const dropoffEligible = React.useMemo(
+    () => attending.filter((p) => !pickupsSet.has(p.id as ID)),
     [attending, pickupsSet]
   );
 
-  // pid -> staffId lookup
-  const participantAssignedTo = React.useMemo(() => {
+  // Current assignments: staffId -> [participantIds]
+  const assignments = (dropoffAssignments || {}) as Record<ID, ID[]>;
+
+  // Reverse map: participantId -> staffId
+  const assignedTo = React.useMemo(() => {
     const map = new Map<ID, ID>();
     Object.entries(assignments).forEach(([sid, pids]) => {
       (pids || []).forEach((pid) => map.set(pid as ID, sid as ID));
@@ -496,27 +489,25 @@ function Step4() {
     return map;
   }, [assignments]);
 
+  // --- Update helpers ---
   const togglePickup = (pid: ID) => {
-    const current = new Set(pickupParticipants || []);
-    if (current.has(pid)) current.delete(pid);
-    else current.add(pid);
-    updateSchedule({ pickupParticipants: Array.from(current) });
+    const next = new Set(pickupParticipants || []);
+    next.has(pid) ? next.delete(pid) : next.add(pid);
+    updateSchedule({ pickupParticipants: Array.from(next) });
   };
 
   const toggleHelper = (sid: ID) => {
-    const current = new Set(helperStaff || []);
-    if (current.has(sid)) current.delete(sid);
-    else current.add(sid);
-    updateSchedule({ helperStaff: Array.from(current) });
+    const next = new Set(helperStaff || []);
+    next.has(sid) ? next.delete(sid) : next.add(sid);
+    updateSchedule({ helperStaff: Array.from(next) });
   };
 
-  // Per-staff toggle for dropoffs – exclusive owner, like assignments
+  // Exclusive staff–participant toggle (just like assignments)
   const toggleDropoff = (sid: ID, pid: ID) => {
     const current = { ...(dropoffAssignments || {}) } as Record<ID, ID[]>;
 
     let previousOwner: ID | null = null;
 
-    // Remove from any previous staff
     Object.entries(current).forEach(([staffId, pids]) => {
       if (!Array.isArray(pids)) return;
       if (pids.includes(pid)) {
@@ -526,7 +517,7 @@ function Step4() {
       }
     });
 
-    // If it was already owned by this staff, that's a toggle-off
+    // If this staff already owned it, we just unassign
     if (previousOwner === sid) {
       updateSchedule({ dropoffAssignments: current });
       return;
@@ -543,17 +534,18 @@ function Step4() {
       <Text style={styles.subTitle}>
         Choose which participants are picked up by external transport, which
         staff will assist, and who is responsible for each dropoff. You can
-        adjust everything later in the Edit Hub.
+        adjust everything later from the Edit Hub.
       </Text>
 
-      {/* PICKUPS */}
+      {/* ───── PICKUPS (chips for attending participants) ───── */}
       <Text style={styles.sectionTitle}>Pickups</Text>
       <Text style={styles.subTitle}>
         Select participants being picked up by external transport. These
         participants will not appear in the dropoff lists.
       </Text>
+
       <View style={styles.chipGrid}>
-        {visibleDropoffParticipants.map((p) => {
+        {attending.map((p) => {
           const selected = pickupsSet.has(p.id as ID);
           return (
             <TouchableOpacity
@@ -570,12 +562,12 @@ function Step4() {
         })}
       </View>
 
-      {/* HELPERS – hidden by default, expanded on tap */}
+      {/* ───── HELPERS (hidden by default) ───── */}
       <View style={{ marginTop: 20 }}>
         <TouchableOpacity
           onPress={() => setShowHelpers((v) => !v)}
-          style={styles.helpersToggle}
           activeOpacity={0.85}
+          style={styles.helpersToggle}
         >
           <Text style={styles.sectionTitle}>Dropoff Helpers (optional)</Text>
           <Text style={styles.helpersToggleText}>
@@ -612,7 +604,7 @@ function Step4() {
         )}
       </View>
 
-      {/* DROPOFFS – card per staff, like Team Daily Assignments */}
+      {/* ───── DROPOFFS – cards per staff, same as Team Daily Assignments ───── */}
       <View style={{ marginTop: 24 }}>
         <Text style={styles.sectionTitle}>Dropoffs</Text>
         <Text style={styles.subTitle}>
@@ -622,19 +614,18 @@ function Step4() {
         </Text>
 
         {workingStaffList.map((s) => {
-          const assigned = visibleDropoffParticipants.filter(
-            (p) => participantAssignedTo.get(p.id as ID) === s.id
-          );
-          const unassigned = visibleDropoffParticipants.filter(
-            (p) => !participantAssignedTo.has(p.id as ID)
+          const assigned = dropoffEligible.filter(
+            (p) => assignedTo.get(p.id as ID) === s.id
           );
 
           return (
             <View key={s.id} style={styles.assignmentCard}>
+              {/* Header identical to Team Daily Assignments */}
               <View style={styles.assignmentHeader}>
                 <View style={styles.rect} />
                 <Text style={styles.assignmentName}>{s.name}</Text>
               </View>
+
               <Text style={styles.assignedSummary}>
                 {assigned.length
                   ? `Assigned: ${assigned.map((p) => p.name).join(', ')}`
@@ -642,9 +633,8 @@ function Step4() {
               </Text>
 
               <View style={[styles.chipGrid, { marginTop: 8 }]}>
-                {visibleDropoffParticipants.map((p) => {
-                  const selected =
-                    participantAssignedTo.get(p.id as ID) === s.id;
+                {dropoffEligible.map((p) => {
+                  const selected = assignedTo.get(p.id as ID) === s.id;
                   return (
                     <TouchableOpacity
                       key={p.id + '-' + s.id}
