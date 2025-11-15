@@ -20,7 +20,7 @@ import {
   FLOATING_TIME_SLOTS,
 } from '@/constants/data';
 import * as Data from '@/constants/data';
-import ROUTES from '@/constants/routes';
+import ROUTES from '@/constants/ROUTES';
 import { useTodayLabel } from '@/components/use-today-label';
 
 const PILL = 999;
