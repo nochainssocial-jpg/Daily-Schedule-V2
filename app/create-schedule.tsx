@@ -917,30 +917,45 @@ const styles = StyleSheet.create({
 
   tiles: {
     marginTop: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
+
   tile: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5ECF5',
-    borderRadius: 12,
+    borderRadius: 999,            // pill look — same as before
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     backgroundColor: '#FFF',
     gap: 8,
+
+    // 🔥 makes tiles uniform and grid-based
+    flexBasis: '23%',              // ~4 per row inside 880px layout
+    maxWidth: '23%',
+    minWidth: 140,                 // prevents squashing on smaller screens
   },
+
   tileSel: {
     backgroundColor: '#EEF4FF',
     borderColor: '#D1E0FF',
   },
+
   rect: {
     width: 16,
     height: 16,
     borderRadius: 4,
     backgroundColor: '#E6ECF5',
   },
-  tileName: { fontSize: 14, fontWeight: '600', color: '#101828' },
+
+  tileName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#101828',
+  },
 
   chip: {
     flexDirection: 'row',
