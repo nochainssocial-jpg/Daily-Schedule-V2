@@ -2,7 +2,7 @@
 // Thin adapter so older imports keep working.
 // We re-export the real hook from schedule-store.
 
-import { useSchedule as baseUseSchedule } from "./schedule-store";
+import { useSchedule as baseUseSchedule } from './schedule-store';
 
 export default function useSchedule() {
   return baseUseSchedule();

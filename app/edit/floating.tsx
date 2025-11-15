@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { ScrollView, Text, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
-import { FLOATING_ROOMS, TIME_SLOTS, STAFF as STATIC_STAFF } from '@/constants/data';
+import { FLOATING_ROOMS, TIME_SLOTS, TWIN_FSO_TIME_SLOT_IDS, STAFF as STATIC_STAFF } from '@/constants/data';
 
 type ID = string;
 
@@ -10,8 +10,8 @@ const MAX_WIDTH = 880;
 
 const makeKey = (slotId: string, roomId: string) => `${slotId}|${roomId}`;
 
-const isFSOSlotId = (slotId: string) =>
-  slotId === '11:00-11:30' || slotId === '13:00-13:30';
+// Use the same FSO slot IDs as the auto-engine in persist-finish.ts
+const isFSOSlotId = (slotId: string) => TWIN_FSO_TIME_SLOT_IDS.includes(slotId as ID);
 
 export default function EditFloatingScreen() {
   const {
@@ -21,12 +21,11 @@ export default function EditFloatingScreen() {
     updateSchedule,
   } = useSchedule();
 
-  // Prefer staff from the schedule (after create), fallback to static constants
   const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
 
   // Use the Dream Team as the pool if set, otherwise all staff
   const staffPool = useMemo(
-    () => (workingStaff && workingStaff.length ? staff.filter(s => workingStaff.includes(s.id)) : staff),
+    () => (workingStaff && workingStaff.length ? staff.filter((s) => workingStaff.includes(s.id)) : staff),
     [staff, workingStaff],
   );
 
@@ -38,21 +37,20 @@ export default function EditFloatingScreen() {
     const isTwins = roomId === 'twins';
     const fsoSlot = isTwins && isFSOSlotId(slotId);
 
-    // Eligible pool for this cell
-    let eligible = staffPool;
-    if (fsoSlot) {
-      eligible = staffPool.filter((s) => s.gender === 'female');
-      if (!eligible.length) {
-        // Nothing valid to assign here
-        return;
+    const eligible = staffPool.filter((s) => {
+      if (fsoSlot) {
+        return s.gender === 'female';
       }
-    }
+      return true;
+    });
+
+    if (!eligible.length) return;
 
     const key = makeKey(slotId, roomId);
     const current = floatingAssignments || {};
     const currentId = current[key] as ID | undefined;
 
-    // Build per‑slot assignments so we can enforce "no double‑shift" rule
+    // Build per-slot assignments so we can enforce "no double-shift" rule
     const slotAssignments: Record<string, ID | undefined> = {};
     for (const room of FLOATING_ROOMS) {
       const k = makeKey(slotId, room.id);
@@ -82,15 +80,16 @@ export default function EditFloatingScreen() {
       }
     }
 
-    // If we didn't find a non‑conflicting candidate, we toggle to "unassigned"
-    const nextAssignments = { ...current };
-
-    if (nextId) {
-      nextAssignments[key] = nextId;
-    } else {
+    // If we went through everyone and couldn't find a free candidate, clear the cell
+    if (!nextId) {
+      const nextAssignments = { ...(floatingAssignments || {}) };
       delete nextAssignments[key];
+      updateSchedule({ floatingAssignments: nextAssignments });
+      return;
     }
 
+    const nextAssignments = { ...(floatingAssignments || {}) };
+    nextAssignments[key] = nextId;
     updateSchedule({ floatingAssignments: nextAssignments });
   };
 
@@ -100,7 +99,7 @@ export default function EditFloatingScreen() {
         <View style={styles.inner}>
           <Text style={styles.title}>Floating Assignments</Text>
           <Text style={styles.subtitle}>
-            Each row is a time slot; each column is a room. Tap a cell to rotate through eligible staff.
+            Tap a cell to assign a staff member. Each row is a time slot, each column is a room.
             Twins has FSO (Female Staff Only) at 11:00–11:30 and 13:00–13:30.
           </Text>
 
@@ -123,7 +122,7 @@ export default function EditFloatingScreen() {
               {TIME_SLOTS.map((slot) => (
                 <View key={slot.id} style={styles.row}>
                   <View style={[styles.cell, styles.timeCell]}>
-                    <Text style={styles.timeLabel}>{slot.label}</Text>
+                    <Text style={styles.timeLabel}>{slot.displayTime}</Text>
                   </View>
 
                   {FLOATING_ROOMS.map((room) => {
@@ -144,12 +143,14 @@ export default function EditFloatingScreen() {
                         onPress={() => handleCycleCell(slot.id, room.id)}
                         activeOpacity={0.85}
                       >
-                        <Text style={styles.staffName}>
-                          {st ? st.name : 'Tap to assign'}
-                        </Text>
-                        {fsoSlot && (
-                          <Text style={styles.fsoTag}>FSO</Text>
-                        )}
+                        <View style={styles.staffCellContent}>
+                          <Text style={styles.staffName}>
+                            {st ? st.name : 'Tap to assign'}
+                          </Text>
+                          {fsoSlot && (
+                            <Text style={styles.fsoTag}>FSO</Text>
+                          )}
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
@@ -179,22 +180,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#3c234c',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#5e4b72',
+    fontSize: 13,
+    color: '#7b688c',
     marginBottom: 16,
   },
   tableWrapper: {
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5d9f2',
-    backgroundColor: '#fff',
     overflow: 'hidden',
+    backgroundColor: '#fdfbff',
+    borderWidth: 1,
+    borderColor: '#e2d5f5',
   },
   table: {
     width: '100%',
@@ -215,6 +216,8 @@ const styles = StyleSheet.create({
   },
   timeCellHeader: {
     flex: 0.9,
+    borderRightWidth: 1,
+    borderRightColor: '#f1e8ff',
   },
   timeCell: {
     flex: 0.9,
@@ -247,6 +250,12 @@ const styles = StyleSheet.create({
     borderLeftColor: '#f1e8ff',
     backgroundColor: '#ffffff',
   },
+  staffCellContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    columnGap: 6,
+  },
   staffCellEmpty: {
     backgroundColor: '#faf7ff',
   },
@@ -261,7 +270,6 @@ const styles = StyleSheet.create({
     color: '#3c234c',
   },
   fsoTag: {
-    marginTop: 2,
     fontSize: 11,
     fontWeight: '700',
     color: '#c62828',

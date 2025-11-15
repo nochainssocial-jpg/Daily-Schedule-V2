@@ -161,3 +161,10 @@ export const TIME_SLOTS: TimeSlot[] = [
 // Twins FSO (Female Staff Only) slots – used for nappy changes in the Twins room.
 // These correspond to TIME_SLOTS with IDs '3' (11:00–11:30) and '7' (13:00–13:30).
 export const TWIN_FSO_TIME_SLOT_IDS: ID[] = ['3', '7'];
+
+// Rooms used in the Floating Assignments table (one column per room).
+export const FLOATING_ROOMS = [
+  { id: 'front', label: 'Front Room' },
+  { id: 'scotty', label: 'Scotty' },
+  { id: 'twins', label: 'Twins' },
+];

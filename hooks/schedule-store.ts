@@ -1,6 +1,5 @@
 // hooks/schedule-store.ts
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Staff, Participant } from '@/constants/data';
 import { TIME_SLOTS } from '@/constants/data';
 
@@ -41,6 +40,13 @@ export type ScheduleSnapshot = {
 type ScheduleState = ScheduleSnapshot & {
   createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
+
+  // Wizard + UI state
+  scheduleStep: number;
+  selectedDate?: string;
+  setScheduleStep: (step: number) => void;
+  setSelectedDate: (date?: string) => void;
+  touch: () => void;
 };
 
 const makeInitialSnapshot = (): ScheduleSnapshot => ({
@@ -60,90 +66,51 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   meta: {},
 });
 
-export const useSchedule = create<ScheduleState>()(
-  persist(
-    (set, get) => ({
-      // 👇 your existing initial state
-      ...makeInitialSnapshot(),
+export const useSchedule = create<ScheduleState>((set, get) => ({
+  ...makeInitialSnapshot(),
 
-      // if you have extra fields like scheduleStep, selectedDate, etc.
+  // wizard / UI state
+  scheduleStep: 1,
+  selectedDate: undefined,
+
+  createSchedule: (snapshot: ScheduleSnapshot) => {
+    set(() => ({
+      ...snapshot,
+      // reset wizard state when a new schedule is created
       scheduleStep: 1,
-      selectedDate: undefined,
-      touch: () => {
-        // optional: used to mark "dirty" or wake up the store
-      },
+      selectedDate: snapshot.date ?? get().selectedDate,
+    }));
+  },
 
-      createSchedule: (snapshot: ScheduleSnapshot) => {
-        // Replace the whole snapshot
-        set(() => ({
-          ...snapshot,
-          // keep any extra fields that aren't part of the snapshot
-          scheduleStep: 1,
-          selectedDate: snapshot.date ?? get().selectedDate,
-        }));
-      },
+  updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
+    set((state) => ({
+      ...state,
+      ...patch,
+    }));
+  },
 
-      updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
-        set((state) => {
-          const next = {
-            ...state,
-            ...patch,
-          };
-          return next;
-        });
-      },
+  setScheduleStep: (step: number) => {
+    set({ scheduleStep: step });
+  },
 
-      setScheduleStep: (step: number) => {
-        set({ scheduleStep: step });
-      },
+  setSelectedDate: (date?: string) => {
+    set({ selectedDate: date });
+  },
 
-      setSelectedDate: (date?: string) => {
-        set({ selectedDate: date });
-      },
-    }),
-    {
-      name: 'daily-schedule-v2', // 🔑 key in storage
-
-      // 🔐 IMPORTANT: make SSR / Vercel safe
-      storage: createJSONStorage(() => {
-        if (typeof window === 'undefined') {
-          return undefined as any;
-        }
-        return window.localStorage;
-      }),
-
-      // Only persist the snapshot-ish fields (not the functions)
-      partialize: (state) => ({
-        staff: state.staff,
-        participants: state.participants,
-        workingStaff: state.workingStaff,
-        attendingParticipants: state.attendingParticipants,
-        assignments: state.assignments,
-        floatingAssignments: state.floatingAssignments,
-        cleaningAssignments: state.cleaningAssignments,
-        finalChecklist: state.finalChecklist,
-        finalChecklistStaff: state.finalChecklistStaff,
-
-        pickupParticipants: state.pickupParticipants,
-        helperStaff: state.helperStaff,
-        dropoffAssignments: state.dropoffAssignments,
-
-        date: state.date,
-        meta: state.meta,
-      }),
-    }
-  )
-);
+  touch: () => {
+    // no-op for now; used just to trigger a rerender in some places
+  },
+}));
 
 // Helpers to quickly check if everything has been assigned
 
 export const useFloatingMissing = (rooms: { id: string }[]) => {
   const { floatingAssignments } = useSchedule();
-  const requiredKeys: string[] = [];
 
-  // Every room should have a staff member for every time-slot
-  for (const room of rooms || []) {
-    for (const slot of TIME_SLOTS) {
+  // Build the set of required keys for all time slots + rooms
+  const requiredKeys: string[] = [];
+  for (const slot of TIME_SLOTS) {
+    for (const room of rooms) {
       requiredKeys.push(`${slot.id}|${room.id}`);
     }
   }
