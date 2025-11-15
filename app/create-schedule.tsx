@@ -18,7 +18,8 @@ import {
   PARTICIPANTS,
   CLEANING_TASKS,
   FLOATING_TIME_SLOTS,
-} from '@/components/data';
+} from '@/constants/data';
+import * as Data from '@/constants/data';
 import { ROUTES } from '@/components/routes';
 import { useTodayLabel } from '@/components/use-today-label';
 
