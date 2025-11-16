@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButton: {
-    backgroundColor: '#e91e63',
+    backgroundColor: '#F54FA5',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 999,
@@ -144,13 +144,13 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: '#e91e63',
+    borderColor: '#F54FA5',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 999,
   },
   secondaryLabel: {
-    color: '#e91e63',
+    color: '#F54FA5',
     fontWeight: '500',
     fontSize: 14,
   },
