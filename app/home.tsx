@@ -27,21 +27,13 @@ export default function HomeScreen() {
           </Text>
 
           <View style={styles.startContainer}>
-            <Image
-              source={require('../assets/images/app-start.png')}
-              style={styles.startImage}
-              resizeMode="contain"
-            />
-          </View>
-
-                  <View style={styles.startContainer}>
           <Image
             source={require('../assets/images/app-start.png')}
             style={styles.startImage}
             resizeMode="contain"
           />
           <Text style={styles.greeting}>Good morning Dalida! 👋</Text>
-        </View>
+          </View>
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
