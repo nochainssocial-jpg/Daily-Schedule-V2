@@ -95,20 +95,22 @@ const styles = StyleSheet.create({
   },
 
   navRow: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 12,
-  },
+  height: 56,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',      // <— bring items together
+  paddingHorizontal: 4,          // <— reduce side padding
+  gap: 10,                        // <— small modern spacing
+},
 
-  navItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
+navItem: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 12,         // <— reduced from before
+  paddingVertical: 6,
+  borderRadius: 999,
+},
+
   navItemActive: {
     backgroundColor: '#FF8FC5', // lighter pink highlight
   },
