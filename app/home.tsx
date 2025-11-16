@@ -1,9 +1,18 @@
 // app/home.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { ROUTES } from '@/constants/ROUTES';
 import Footer from '@/components/Footer';
+
+const MAX_WIDTH = 880;
 
 export default function HomeScreen() {
   return (
@@ -13,33 +22,18 @@ export default function HomeScreen() {
           <Text style={styles.title}>Daily Schedule</Text>
 
           <Text style={styles.subtitle}>
-            Build today&apos;s dream team, plan who&apos;s attending, and fine-tune the day from the Edit Hub.
+            Build today&apos;s dream team, plan who&apos;s attending, and
+            fine-tune the day from the Edit Hub.
           </Text>
 
-          {/* ⭐ Inserted Start Screen Block ⭐ */}
           <View style={styles.startContainer}>
             <Image
               source={require('../assets/images/app-start.png')}
               style={styles.startImage}
               resizeMode="contain"
             />
-
-            <Text style={styles.startTitle}>Welcome to Daily Schedule</Text>
-            <Text style={styles.startSubtitle}>
-              Create today&apos;s schedule and share it with your team.
-            </Text>
-
-            <TouchableOpacity
-              onPress={() => router.push('/create-schedule')}
-              style={styles.startButton}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.startButtonLabel}>Let&apos;s get started</Text>
-            </TouchableOpacity>
           </View>
-          {/* ⭐ End Inserted Block ⭐ */}
 
-          {/* Center the two main action buttons */}
           <View style={styles.buttonRow}>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -61,12 +55,20 @@ export default function HomeScreen() {
           {/* Quick Start Guide Updated */}
           <View style={styles.guide}>
             <Text style={styles.guideTitle}>Quick Start Guide</Text>
-            <Text style={styles.step}>1. Select your Dream Team (who is working at B2).</Text>
-            <Text style={styles.step}>2. Mark which participants are attending today.</Text>
-            <Text style={styles.step}>3. Choose who completes the End of Shift Checklist.</Text>
-            <Text style={styles.step}>4. Use the Edit Hub to refine assignments, floating, cleaning, and transport.</Text>
+            <Text style={styles.step}>
+              1. Select your Dream Team (who is working at B2).
+            </Text>
+            <Text style={styles.step}>
+              2. Mark which participants are attending today.
+            </Text>
+            <Text style={styles.step}>
+              3. Choose who completes the End of Shift Checklist.
+            </Text>
+            <Text style={styles.step}>
+              4. Use the Edit Hub to refine assignments, floating, cleaning, and
+              transport.
+            </Text>
           </View>
-
         </View>
       </ScrollView>
 
@@ -74,8 +76,6 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const MAX_WIDTH = 880;
 
 const styles = StyleSheet.create({
   screen: {
@@ -91,7 +91,6 @@ const styles = StyleSheet.create({
     maxWidth: MAX_WIDTH,
     paddingHorizontal: 24,
   },
-
   title: {
     fontSize: 28,
     fontWeight: '700',
@@ -102,48 +101,18 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     opacity: 0.75,
-    marginBottom: 32,
+    marginBottom: 24,
     color: '#4c3b5c',
     textAlign: 'center',
   },
-
-  /* ⭐ NEW START BLOCK STYLES ⭐ */
   startContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   startImage: {
     width: 160,
     height: 160,
-    marginBottom: 16,
   },
-  startTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: '#2c1e3f',
-    textAlign: 'center',
-  },
-  startSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  startButton: {
-    backgroundColor: '#FF6FB3',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  startButtonLabel: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  /* Buttons Row */
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
@@ -151,7 +120,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
-
   primaryButton: {
     backgroundColor: '#e91e63',
     paddingHorizontal: 24,
@@ -170,30 +138,4 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 999,
   },
-  secondaryLabel: {
-    color: '#e91e63',
-    fontWeight: '500',
-    fontSize: 14,
-  },
-
-  /* ⭐ Updated Quick Start Guide ⭐ */
-  guide: {
-    marginTop: 8,
-    padding: 20,
-    borderRadius: 12,
-    backgroundColor: '#e3f2fd',   // light blue
-    borderWidth: 1,
-    borderColor: '#b6d4f0',
-  },
-  guideTitle: {
-    fontSize: 18,                 // +20%
-    fontWeight: '700',
-    marginBottom: 10,
-    color: '#1e3c64',
-  },
-  step: {
-    fontSize: 16,                 // +20%
-    marginBottom: 6,
-    color: '#2a446e',
-  },
-});
+  secondaryL
