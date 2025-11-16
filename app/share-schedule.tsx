@@ -1,5 +1,5 @@
 // app/share-schedule.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,22 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
 
 export default function ShareScheduleScreen() {
-  useSchedule(); // verify provider is wired without doing anything risky
+  const { shareCode, updateSchedule } = useSchedule() as any;
 
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(shareCode || '');
+
+  useEffect(() => {
+    if (shareCode && shareCode !== code) {
+      setCode(shareCode);
+    }
+  }, [shareCode]);
 
   const smsHref = useMemo(() => {
     const body = encodeURIComponent(
@@ -33,10 +39,13 @@ export default function ShareScheduleScreen() {
     });
   }, [code]);
 
-  const handleGenerate = () =>
-    setCode(
-      Math.floor(100000 + Math.random() * 900000).toString(),
-    );
+  const handleGenerate = () => {
+    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setCode(newCode);
+    try {
+      updateSchedule && updateSchedule({ shareCode: newCode });
+    } catch {}
+  };
 
   const handleShareSms = async () => {
     try {
@@ -54,14 +63,35 @@ export default function ShareScheduleScreen() {
   };
 
   const handleImport = () => {
-    if (!/^\d{6}$/.test(code.trim())) {
+    const trimmed = code.trim();
+
+    if (!/^\d{6}$/.test(trimmed)) {
+      Alert.alert('Import', 'Please enter a valid 6-digit code.');
+      return;
+    }
+
+    if (!shareCode) {
       Alert.alert(
         'Import',
-        'Please enter a valid 6-digit code.',
+        'No shared schedule is available on this device yet. Generate a code from the main device first.'
       );
       return;
     }
-    Alert.alert('Import', 'Demo import succeeded (stub).');
+
+    if (trimmed !== String(shareCode)) {
+      Alert.alert(
+        'Import',
+        'No schedule was found for that code on this device. Please check the code and try again.'
+      );
+      return;
+    }
+
+    // Code matches the current shared schedule — navigate to the Edit Hub
+    try {
+      router.push('/edit');
+    } catch {
+      Alert.alert('Import', 'Code accepted, but navigation failed.');
+    }
   };
 
   return (

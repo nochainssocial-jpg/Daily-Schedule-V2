@@ -34,8 +34,10 @@ export default function EditChecklistScreen() {
 
   const handleToggleItem = (itemId: ID | number) => {
     const key = String(itemId);
+    const raw = finalChecklist?.[key];
+    const current = raw === undefined ? true : !!raw;
     const next = { ...(finalChecklist || {}) };
-    next[key] = !next[key];
+    next[key] = !current;
     updateSchedule({ finalChecklist: next });
   };
 
@@ -48,39 +50,31 @@ export default function EditChecklistScreen() {
             Tick each item as it&apos;s completed and confirm who is last to leave and responsible for closing tasks.
           </Text>
 
-          {/* Last-to-leave selector */}
+          {/* Last-to-leave summary */}
           <Text style={styles.sectionTitle}>Who is last to leave?</Text>
           {staffPool.length === 0 ? (
             <Text style={styles.helperText}>
               No staff available. Create a schedule and select working staff so you can assign the checklist
               to someone.
             </Text>
-          ) : (
-            <View style={styles.chipRow}>
-              {staffPool.map((s) => (
-                <Chip
-                  key={s.id}
-                  label={s.name}
-                  selected={finalChecklistStaff === s.id}
-                  onPress={() => handleSelectStaff(s.id)}
-                  style={styles.staffChip}
-                />
-              ))}
-            </View>
-          )}
-
-          <Text style={styles.currentStaff}>
-            Last to leave:{' '}
-            <Text style={styles.currentStaffName}>
-              {selectedStaff ? selectedStaff.name : 'Not yet selected'}
+          ) : !selectedStaff ? (
+            <Text style={styles.helperText}>
+              No staff member has been nominated yet. Select the final checklist staff member when creating
+              today&apos;s schedule.
             </Text>
-          </Text>
+          ) : (
+            <Text style={styles.currentStaff}>
+              Last to leave:{' '}
+              <Text style={styles.currentStaffName}>{selectedStaff.name}</Text>
+            </Text>
+          )}
 
           {/* Checklist items */}
 <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
 {DEFAULT_CHECKLIST.map((item) => {
   const key = String(item.id);
-  const checked = !!finalChecklist?.[key];
+  const raw = finalChecklist?.[key];
+  const checked = raw === undefined ? true : !!raw;
   const label = (item as any).name || (item as any).label || '';
   return (
     <View key={key} style={styles.itemRow}>
