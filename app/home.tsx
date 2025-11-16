@@ -94,8 +94,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#faf7fb',
   },
   scroll: {
-    paddingVertical: 32,
-    alignItems: 'center',
+  paddingVertical: 32,
+  alignItems: 'center',
+  paddingBottom: 160,   // 👈 added
   },
   inner: {
     width: '100%',
