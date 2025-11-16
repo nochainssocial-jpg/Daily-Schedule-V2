@@ -34,6 +34,15 @@ export default function HomeScreen() {
             />
           </View>
 
+                  <View style={styles.startContainer}>
+          <Image
+            source={require('../assets/images/app-start.png')}
+            style={styles.startImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.greeting}>Good morning Dalida! 👋</Text>
+        </View>
+
           <View style={styles.buttonRow}>
             <TouchableOpacity
               style={styles.primaryButton}
@@ -173,4 +182,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     color: '#2a446e',
   },
+  greeting: {
+  marginTop: 12,
+  fontSize: 18,
+  fontWeight: '600',
+  color: '#332244',
+  textAlign: 'center',
+},
 });
