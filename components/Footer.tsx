@@ -7,7 +7,9 @@ export default function Footer() {
   const pathname = usePathname();
 
   const goHome = () => router.push('/home');
-  const goEdit = () => router.push('/edit');
+  const goEditHub = () => router.push('/edit');
+  const goShare = () => router.push('/share-schedule'); // or '/share' if that's your file
+  const goSettings = () => router.push('/settings');
   const goHelp = () => router.push('/help');
 
   return (
@@ -20,7 +22,17 @@ export default function Footer() {
       <FooterItem
         label="Edit Hub"
         active={pathname.startsWith('/edit')}
-        onPress={goEdit}
+        onPress={goEditHub}
+      />
+      <FooterItem
+        label="Share"
+        active={pathname === '/share-schedule'} // match the actual route
+        onPress={goShare}
+      />
+      <FooterItem
+        label="Settings"
+        active={pathname === '/settings'}
+        onPress={goSettings}
       />
       <FooterItem
         label="Help"
