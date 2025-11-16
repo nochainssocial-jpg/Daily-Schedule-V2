@@ -48,7 +48,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<HomeIcon size={18} color="#332244" />}
+              icon={<HomeIcon size={24} color="#332244" />}
               label="Home"
             />
           ),
@@ -61,7 +61,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<Edit3 size={18} color="#332244" />}
+              icon={<Edit3 size={24} color="#332244" />}
               label="Edit Hub"
             />
           ),
@@ -74,7 +74,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<Share2 size={18} color="#332244" />}
+              icon={<Share2 size={24} color="#332244" />}
               label="Share today&apos;s schedule"
             />
           ),
@@ -87,7 +87,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<SettingsIcon size={18} color="#332244" />}
+              icon={<SettingsIcon size={24} color="#332244" />}
               label="Settings"
             />
           ),
@@ -100,7 +100,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<HelpCircle size={18} color="#332244" />}
+              icon={<HelpCircle size={24} color="#332244" />}
               label="Help"
             />
           ),
