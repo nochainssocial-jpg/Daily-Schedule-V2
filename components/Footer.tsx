@@ -1,6 +1,12 @@
 // components/Footer.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
 import { router, usePathname } from 'expo-router';
 
 export default function Footer() {
@@ -13,32 +19,41 @@ export default function Footer() {
   const goHelp = () => router.push('/help');
 
   return (
-    <View style={styles.container}>
-      <FooterItem
-        label="Home"
-        active={pathname === '/home'}
-        onPress={goHome}
-      />
-      <FooterItem
-        label="Edit Hub"
-        active={pathname.startsWith('/edit')}
-        onPress={goEditHub}
-      />
-      <FooterItem
-        label="Share"
-        active={pathname === '/share-schedule'} // match the actual route
-        onPress={goShare}
-      />
-      <FooterItem
-        label="Settings"
-        active={pathname === '/settings'}
-        onPress={goSettings}
-      />
-      <FooterItem
-        label="Help"
-        active={pathname === '/help'}
-        onPress={goHelp}
-      />
+    <View style={styles.footerContainer} accessibilityRole="contentinfo">
+      <View style={styles.navRow}>
+        <FooterItem
+          label="Home"
+          active={pathname === '/home'}
+          onPress={goHome}
+        />
+        <FooterItem
+          label="Edit Hub"
+          active={pathname.startsWith('/edit')}
+          onPress={goEditHub}
+        />
+        <FooterItem
+          label="Share"
+          active={pathname === '/share-schedule'}
+          onPress={goShare}
+        />
+        <FooterItem
+          label="Settings"
+          active={pathname === '/settings'}
+          onPress={goSettings}
+        />
+        <FooterItem
+          label="Help"
+          active={pathname === '/help'}
+          onPress={goHelp}
+        />
+      </View>
+
+      <View style={styles.brandingRow}>
+        <Text style={styles.brandingText}>
+          Daily Schedule App | Designed by Bruno Pouzet, coded &amp; refined by
+          OpenAI
+        </Text>
+      </View>
     </View>
   );
 }
@@ -52,11 +67,13 @@ type ItemProps = {
 function FooterItem({ label, active, onPress }: ItemProps) {
   return (
     <TouchableOpacity
-      style={[styles.item, active && styles.itemActive]}
+      style={[styles.navItem, active && styles.navItemActive]}
       onPress={onPress}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
     >
-      <Text style={[styles.itemLabel, active && styles.itemLabelActive]}>
+      <Text style={[styles.navLabel, active && styles.navLabelActive]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -64,30 +81,58 @@ function FooterItem({ label, active, onPress }: ItemProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderTopWidth: 1,
-    borderColor: '#e4d7f0',
-    backgroundColor: '#ffffff',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
+  footerContainer: {
+    backgroundColor: '#F54FA5', // Pink matching Create button (from foot.tsx)
+    borderTopWidth: 0,
+    ...(Platform.OS === 'web'
+      ? { position: 'fixed', left: 0, right: 0, bottom: 0 }
+      : null),
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: -2 },
+    zIndex: 999,
   },
-  item: {
+
+  navRow: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+  },
+
+  navItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
   },
-  itemActive: {
-    backgroundColor: '#fbe4f0',
+  navItemActive: {
+    backgroundColor: '#FF8FC5', // lighter pink highlight
   },
-  itemLabel: {
-    fontSize: 13,
-    color: '#5a486b',
+
+  navLabel: {
+    fontSize: 14,
+    color: '#FFFFFF', // White text
+    fontWeight: '500',
   },
-  itemLabelActive: {
-    fontWeight: '600',
-    color: '#e91e63',
+  navLabelActive: {
+    fontWeight: '700',
+  },
+
+  brandingRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#444444',
+  },
+
+  brandingText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#FFFFFF', // White
+    textAlign: 'center',
   },
 });
+
