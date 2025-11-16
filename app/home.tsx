@@ -138,4 +138,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 999,
   },
-  secondaryL
+  secondaryLabel: {
+    color: '#e91e63',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  guide: {
+    marginTop: 8,
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: '#e3f2fd', // light blue
+    borderWidth: 1,
+    borderColor: '#b6d4f0',
+  },
+  guideTitle: {
+    fontSize: 18, // ~20% larger
+    fontWeight: '700',
+    marginBottom: 10,
+    color: '#1e3c64',
+    textAlign: 'center',
+  },
+  step: {
+    fontSize: 16, // ~20% larger
+    marginBottom: 6,
+    color: '#2a446e',
+  },
+});
