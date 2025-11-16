@@ -56,16 +56,26 @@ export default function HomeScreen() {
           <View style={styles.guide}>
             <Text style={styles.guideTitle}>Quick Start Guide</Text>
             <Text style={styles.step}>
-              1. Select your Dream Team (who is working at B2).
+              1.)  Select your Dream Team (who is working at B2).
             </Text>
             <Text style={styles.step}>
-              2. Mark which participants are attending today.
+              2.)  Mark which participants are attending today.
             </Text>
             <Text style={styles.step}>
-              3. Choose who completes the End of Shift Checklist.
+              3.)  Assign attending participants to your team.
             </Text>
             <Text style={styles.step}>
-              4. Use the Edit Hub to refine assignments, floating, cleaning, and
+              4.)  Assign participants to your drop-off team.
+            </Text>
+            <Text style={styles.step}>
+              5.)  Choose who completes the End of Shift Checklist.
+            </Text>
+            <Text style={styles.step}>
+              6.)  Floating and end of shift cleaning assignments 
+              will be automated by the app.
+            </Text>
+            <Text style={styles.step}>
+              7.)  Use the Edit Hub to refine assignments, floating, cleaning, and
               transport.
             </Text>
           </View>
