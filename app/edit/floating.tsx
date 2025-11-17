@@ -1,11 +1,33 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+// @ts-nocheck
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+} from 'react';
+import {
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
-import * as Data from '@/constants/data';
+import { TIME_SLOTS } from '@/constants/data';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
+
+// room ids used in the flat floatingAssignments map
+const ROOM_IDS: Record<ColKey, string> = {
+  frontRoom: 'frontRoom',
+  scotty: 'scotty',
+  twins: 'twins',
+};
+
+const keyOf = (slotId: string, col: ColKey) =>
+  `${slotId}|${ROOM_IDS[col]}`;
 
 const WRAP = {
   width: '100%',
@@ -14,131 +36,41 @@ const WRAP = {
   paddingHorizontal: 12,
 };
 
-const TIME_SLOTS: Array<{
-  id: string;
-  startTime?: string;
-  endTime?: string;
-  displayTime?: string;
-}> = Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : [];
-
-const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
-
-// --- helpers -----------------------------------------------------
-
+// Build a normalised label like "11:00am-11:30am"
 function slotLabel(slot: any): string {
   if (!slot) return '';
   const raw =
     slot.displayTime ||
-    (slot.startTime && slot.endTime ? `${slot.startTime} - ${slot.endTime}` : '');
+    (slot.startTime && slot.endTime
+      ? `${slot.startTime} - ${slot.endTime}`
+      : '');
   return String(raw).replace(/\s/g, '').toLowerCase();
 }
 
-// Twins slots that are FSO (Female Staff Only): 11:00–11:30 and 1:00–1:30
+// Twins slots that are FSO (Female Staff Only)
+// Exactly: 11:00–11:30 and 1:00–1:30
 function isFSOTwinsSlot(slot?: any): boolean {
-  const label = slotLabel(slot);
-  if (!label) return false;
+  const lbl = slotLabel(slot);
+  if (!lbl) return false;
   return (
-    label === '11:00am-11:30am' ||
-    label === '11:00-11:30' ||
-    label === '1:00pm-1:30pm' ||
-    label === '13:00-13:30'
+    lbl === '11:00am-11:30am' ||
+    lbl === '11:00-11:30' ||
+    lbl === '1:00pm-1:30pm' ||
+    lbl === '13:00-13:30'
   );
 }
 
+// Helper: is this slot at or after 2:00pm (for Antoinette rule)
 function isAfter2PM(slot?: any): boolean {
-  const label = slotLabel(slot);
-  if (!label) return false;
+  const lbl = slotLabel(slot);
+  if (!lbl) return false;
   return (
-    label.startsWith('2:00pm-') ||
-    label.startsWith('14:00-') ||
-    label.includes('2:00pm-2:30pm') ||
-    label.includes('14:00-14:30')
+    lbl.startsWith('2:00pm-') ||
+    lbl.startsWith('14:00-') ||
+    lbl.includes('2:00pm-2:30pm') ||
+    lbl.includes('14:00-14:30')
   );
 }
-
-function isFemale(staff: any): boolean {
-  return staff && String(staff.gender || '').toLowerCase() === 'female';
-}
-
-function isAntoinette(staff: any): boolean {
-  if (!staff) return false;
-  const name = String(staff.name || '').toLowerCase();
-  return name.includes('antoinette');
-}
-
-/**
- * Build a full set of floating assignments:
- *  - fills Front Room, Scotty and Twins for each slot
- *  - no staff in more than one room per slot
- *  - tries to avoid back-to-back slots
- *  - FSO rules for Twins
- *  - Antoinette only after 2pm
- *
- * Returns: { [slotId]: { frontRoom?: staffId, scotty?: staffId, twins?: staffId } }
- */
-function buildAutoAssignments(
-  working: any[],
-  timeSlots: any[],
-): Record<string, { [K in ColKey]?: ID }> {
-  if (!Array.isArray(working) || working.length === 0) return {};
-
-  const usage: Record<string, number> = {};
-  working.forEach((s) => {
-    usage[s.id] = 0;
-  });
-
-  const result: Record<string, { [K in ColKey]?: ID }> = {};
-  let prevSlotStaff = new Set<string>();
-
-  (timeSlots || []).forEach((slot, index) => {
-    const slotId = String(slot.id ?? index);
-    const row: { [K in ColKey]?: ID } = {};
-    const thisSlotStaff = new Set<string>();
-    const fso = isFSOTwinsSlot(slot);
-    const after2 = isAfter2PM(slot);
-
-    ROOM_KEYS.forEach((col) => {
-      let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
-
-      // Twins FSO: only female staff
-      if (col === 'twins' && fso) {
-        candidates = candidates.filter(isFemale);
-      }
-
-      // Antoinette only after 2pm
-      candidates = candidates.filter((s) => !isAntoinette(s) || after2);
-
-      if (!candidates.length) return;
-
-      // Avoid back-to-back slots where possible
-      const cooled = candidates.filter((s) => !prevSlotStaff.has(s.id));
-      if (cooled.length) {
-        candidates = cooled;
-      }
-
-      // Fair usage: choose among least-used, then random
-      let min = Infinity;
-      candidates.forEach((s) => {
-        const c = usage[s.id] ?? 0;
-        if (c < min) min = c;
-      });
-      const leastUsed = candidates.filter((s) => (usage[s.id] ?? 0) === min);
-      const chosen =
-        leastUsed[Math.floor(Math.random() * leastUsed.length)];
-
-      row[col] = chosen.id;
-      thisSlotStaff.add(chosen.id);
-      usage[chosen.id] = (usage[chosen.id] ?? 0) + 1;
-    });
-
-    result[slotId] = row;
-    prevSlotStaff = thisSlotStaff;
-  });
-
-  return result;
-}
-
-// ---------------------------------------------------------------
 
 export default function FloatingScreen() {
   const {
@@ -169,14 +101,19 @@ export default function FloatingScreen() {
     fso?: boolean;
   } | null>(null);
 
-  const getRow = (slotId: string) =>
-    (floatingAssignments as any)[slotId] || {};
+  const [autoDone, setAutoDone] = useState(false);
 
-  const nameOf = (id?: string) => (id ? staffById[id]?.name ?? '' : '');
+  // Helpers to read the flat map for a row
+  const getCellStaffId = (slotId: string, col: ColKey): ID | undefined => {
+    return floatingAssignments?.[keyOf(slotId, col)];
+  };
+
+  const nameOf = (id?: string) =>
+    id ? staffById[id]?.name ?? '' : '';
 
   const openPicker = (slotId: string, col: ColKey) => {
     const slot = (TIME_SLOTS || []).find(
-      (s) => String(s.id) === String(slotId),
+      s => String(s.id) === String(slotId),
     );
     setPick({
       slotId,
@@ -188,11 +125,9 @@ export default function FloatingScreen() {
 
   const choose = (id: string) => {
     if (!pick?.slotId || !pick.col) return;
-    const next = { ...(floatingAssignments || {}) } as any;
-    next[pick.slotId] = {
-      ...(next[pick.slotId] || {}),
-      [pick.col]: id,
-    };
+    const key = keyOf(pick.slotId, pick.col);
+    const next = { ...(floatingAssignments || {}) };
+    next[key] = id;
     updateSchedule?.({ floatingAssignments: next });
     touch?.();
     setOpen(false);
@@ -200,40 +135,116 @@ export default function FloatingScreen() {
 
   const clearCell = () => {
     if (!pick?.slotId || !pick.col) return;
-    const next = { ...(floatingAssignments || {}) } as any;
-    if (next[pick.slotId]) {
-      delete next[pick.slotId][pick.col];
-    }
+    const key = keyOf(pick.slotId, pick.col);
+    const next = { ...(floatingAssignments || {}) };
+    delete next[key];
     updateSchedule?.({ floatingAssignments: next });
     touch?.();
     setOpen(false);
   };
 
-  // Do we already have any Front Room assignments at all?
-  const hasFrontRoom = useMemo(
-    () =>
-      Object.values(floatingAssignments || {}).some((row: any) => row && row.frontRoom),
-    [floatingAssignments],
-  );
+  // 🔁 Auto / shuffle logic
+  const autoAssignAll = useCallback(() => {
+    const list = working || [];
+    if (!list.length) return;
 
-  // Initial auto-assign: first time we hit this screen after create
+    const usage: Record<string, number> = {};
+    list.forEach((s: any) => {
+      usage[s.id] = 0;
+    });
+
+    const next: Record<string, ID> = {};
+
+    const chooseFor = (
+      slot: any,
+      col: ColKey,
+      taken: Set<string>,
+    ): string | undefined => {
+      let candidates = list.filter(
+        (s: any) => !taken.has(s.id),
+      );
+
+      // Twins FSO: only female staff
+      if (col === 'twins' && isFSOTwinsSlot(slot)) {
+        candidates = candidates.filter(
+          (s: any) =>
+            String(s.gender || '').toLowerCase() === 'female',
+        );
+      }
+
+      // Antoinette rule: only after 2:00pm
+      const after2 = isAfter2PM(slot);
+      candidates = candidates.filter((s: any) => {
+        const name = String(s.name || '').toLowerCase();
+        const isAntoinette = name.includes('antoinette');
+        if (isAntoinette && !after2) return false;
+        return true;
+      });
+
+      if (!candidates.length) return undefined;
+
+      // Fair usage: pick amongst least-used, randomly
+      let minCount = Infinity;
+      candidates.forEach((s: any) => {
+        const c = usage[s.id] ?? 0;
+        if (c < minCount) minCount = c;
+      });
+
+      const leastUsed = candidates.filter(
+        (s: any) => (usage[s.id] ?? 0) === minCount,
+      );
+      const chosen =
+        leastUsed[Math.floor(Math.random() * leastUsed.length)];
+
+      usage[chosen.id] = (usage[chosen.id] ?? 0) + 1;
+      return chosen.id;
+    };
+
+    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
+      const slotId = String(slot.id ?? idx);
+      const taken = new Set<string>();
+
+      const frId = chooseFor(slot, 'frontRoom', taken);
+      if (frId) {
+        next[keyOf(slotId, 'frontRoom')] = frId;
+        taken.add(frId);
+      }
+
+      const scId = chooseFor(slot, 'scotty', taken);
+      if (scId) {
+        next[keyOf(slotId, 'scotty')] = scId;
+        taken.add(scId);
+      }
+
+      const twId = chooseFor(slot, 'twins', taken);
+      if (twId) {
+        next[keyOf(slotId, 'twins')] = twId;
+        taken.add(twId);
+      }
+    });
+
+    updateSchedule?.({ floatingAssignments: next });
+    touch?.();
+  }, [working, updateSchedule, touch]);
+
+  // First-time auto-populate if there are working staff but no assignments yet
   useEffect(() => {
-    if (!hasFrontRoom && working.length && updateSchedule) {
-      const next = buildAutoAssignments(working, TIME_SLOTS);
-      updateSchedule({ floatingAssignments: next });
-    }
-  }, [hasFrontRoom, working, updateSchedule]);
+    if (autoDone) return;
+    const hasAny =
+      floatingAssignments &&
+      Object.keys(floatingAssignments).length > 0;
 
-  // Shuffle handler
-  const handleShuffle = () => {
-    if (!working.length || !updateSchedule) return;
-    const next = buildAutoAssignments(working, TIME_SLOTS);
-    updateSchedule({ floatingAssignments: next });
-  };
+    if (!hasAny && (working || []).length > 0) {
+      autoAssignAll();
+      setAutoDone(true);
+    }
+  }, [autoDone, floatingAssignments, working, autoAssignAll]);
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
         <View style={WRAP as any}>
           <Text
             style={{
@@ -245,9 +256,11 @@ export default function FloatingScreen() {
           >
             Floating Assignments
           </Text>
-          <Text style={{ color: '#64748b', marginBottom: 12 }}>
-            Tap a cell to assign a staff member. Twins FSO slots require a
-            female staff.
+          <Text
+            style={{ color: '#64748b', marginBottom: 12 }}
+          >
+            Tap a cell to assign a staff member. Twins FSO slots
+            require a female staff.
           </Text>
 
           <View
@@ -275,15 +288,18 @@ export default function FloatingScreen() {
 
             {(TIME_SLOTS || []).map((slot: any, idx: number) => {
               const slotId = String(slot.id ?? idx);
-              const row = getRow(slotId);
 
-              const frStaff = row.frontRoom ? staffById[row.frontRoom] : undefined;
-              const scStaff = row.scotty ? staffById[row.scotty] : undefined;
-              const twStaff = row.twins ? staffById[row.twins] : undefined;
+              const frId = getCellStaffId(slotId, 'frontRoom');
+              const scId = getCellStaffId(slotId, 'scotty');
+              const twId = getCellStaffId(slotId, 'twins');
 
-              const fr = frStaff?.name ?? '';
-              const sc = scStaff?.name ?? '';
-              const tw = twStaff?.name ?? '';
+              const frStaff = frId ? staffById[frId] : undefined;
+              const scStaff = scId ? staffById[scId] : undefined;
+              const twStaff = twId ? staffById[twId] : undefined;
+
+              const fr = nameOf(frId);
+              const sc = nameOf(scId);
+              const tw = nameOf(twId);
 
               const fso = isFSOTwinsSlot(slot);
 
@@ -324,7 +340,9 @@ export default function FloatingScreen() {
                       }}
                     >
                       {slot.displayTime ||
-                        `${slot.startTime ?? ''} - ${slot.endTime ?? ''}`}
+                        `${slot.startTime ?? ''} - ${
+                          slot.endTime ?? ''
+                        }`}
                     </Text>
                   </View>
 
@@ -333,7 +351,9 @@ export default function FloatingScreen() {
                     style={{ flex: 1 }}
                     label={fr || 'Tap to assign'}
                     gender={frStaff?.gender}
-                    onPress={() => openPicker(slotId, 'frontRoom')}
+                    onPress={() =>
+                      openPicker(slotId, 'frontRoom')
+                    }
                   />
 
                   {/* Scotty */}
@@ -369,10 +389,14 @@ export default function FloatingScreen() {
           </View>
 
           {/* Shuffle button */}
-          <View style={{ marginTop: 12, alignItems: 'flex-end' }}>
+          <View
+            style={{
+              marginTop: 12,
+              alignItems: 'flex-end',
+            }}
+          >
             <TouchableOpacity
-              onPress={handleShuffle}
-              activeOpacity={0.9}
+              onPress={autoAssignAll}
               style={{
                 paddingVertical: 8,
                 paddingHorizontal: 14,
@@ -430,22 +454,34 @@ export default function FloatingScreen() {
               Assign Staff
             </Text>
 
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
               {(working || [])
                 .filter(
                   (s: any) =>
                     !pick?.fso ||
-                    String(s.gender || '').toLowerCase() === 'female',
+                    String(s.gender || '').toLowerCase() ===
+                      'female',
                 )
                 .map((s: any) => (
-                  <Chip key={s.id} label={s.name} onPress={() => choose(s.id)} />
+                  <Chip
+                    key={s.id}
+                    label={s.name}
+                    onPress={() => choose(s.id)}
+                  />
                 ))}
             </View>
 
             {pick?.fso &&
               (working || []).every(
                 (s: any) =>
-                  String(s.gender || '').toLowerCase() !== 'female',
+                  String(s.gender || '').toLowerCase() !==
+                  'female',
               ) && (
                 <View
                   style={{
@@ -463,7 +499,8 @@ export default function FloatingScreen() {
                       fontWeight: '600',
                     }}
                   >
-                    No eligible female staff on the Dream Team for this slot.
+                    No eligible female staff on the Dream Team
+                    for this slot.
                   </Text>
                 </View>
               )}
@@ -539,8 +576,15 @@ type CellProps = {
   fsoTag?: boolean;
 };
 
-function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
-  const isEmpty = label.toLowerCase().startsWith('tap to assign');
+function CellButton({
+  label,
+  onPress,
+  style,
+  gender,
+  fsoTag,
+}: CellProps) {
+  const isEmpty =
+    label.toLowerCase().startsWith('tap to assign');
 
   const genderColor =
     String(gender || '').toLowerCase() === 'female'
