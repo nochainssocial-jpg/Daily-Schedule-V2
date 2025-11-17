@@ -84,7 +84,7 @@ export default function EditLayout() {
         }}
       />
       <Stack.Screen
-        name="lastToLeave"
+        name="checklist"
         options={{
           headerTitle: () => (
             <EditHeaderTitle label="Final Checklist" />
