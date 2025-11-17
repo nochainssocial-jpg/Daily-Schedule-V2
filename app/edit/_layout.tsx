@@ -1,4 +1,4 @@
-list// app/edit/_layout.tsx
+// app/edit/_layout.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
@@ -28,6 +28,7 @@ export default function EditLayout() {
         headerTitleAlign: 'center',
         headerShadowVisible: false,
         headerTintColor: '#332244',
+        headerStyle: { backgroundColor: '#f7f1ff' },
       }}
     >
       {/* Edit Hub main menu */}
@@ -42,9 +43,12 @@ export default function EditLayout() {
       <Stack.Screen
         name="dream-team"
         options={{
-          headerTitle: () => <EditHeaderTitle label="The Dream Team" />,
+          headerTitle: () => (
+            <EditHeaderTitle label="The Dream Team" />
+          ),
         }}
       />
+
       <Stack.Screen
         name="participants"
         options={{
@@ -53,12 +57,16 @@ export default function EditLayout() {
           ),
         }}
       />
+
       <Stack.Screen
         name="assignments"
         options={{
-          headerTitle: () => <EditHeaderTitle label="Assignments" />,
+          headerTitle: () => (
+            <EditHeaderTitle label="Team Daily Assignments" />
+          ),
         }}
       />
+
       <Stack.Screen
         name="floating"
         options={{
@@ -67,6 +75,7 @@ export default function EditLayout() {
           ),
         }}
       />
+
       <Stack.Screen
         name="cleaning"
         options={{
@@ -75,6 +84,7 @@ export default function EditLayout() {
           ),
         }}
       />
+
       <Stack.Screen
         name="pickups-dropoffs"
         options={{
@@ -83,8 +93,9 @@ export default function EditLayout() {
           ),
         }}
       />
+
       <Stack.Screen
-        name="lastToLeave"
+        name="checklist"
         options={{
           headerTitle: () => (
             <EditHeaderTitle label="Final Checklist" />
