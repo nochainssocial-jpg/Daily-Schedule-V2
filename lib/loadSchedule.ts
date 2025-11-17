@@ -1,3 +1,4 @@
+// lib/loadSchedule.ts
 import { supabase } from './supabase';
 
 export async function loadScheduleFromSupabase(code: string) {
@@ -7,7 +8,8 @@ export async function loadScheduleFromSupabase(code: string) {
     .eq('code', code)
     .single();
 
-  if (error) {
+  if (error || !data) {
+    console.warn('[loadScheduleFromSupabase] error', error);
     return { ok: false, error };
   }
 
