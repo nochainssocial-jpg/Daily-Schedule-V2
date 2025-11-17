@@ -82,12 +82,75 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
     }));
   },
 
-  updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
-    set((state) => ({
-      ...state,
-      ...patch,
-    }));
-  },
+updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
+  set((state) => {
+    const next = { ...state, ...patch };
+
+    // Only apply cleanup logic if workingStaff changed
+    if (patch.workingStaff) {
+      const oldStaff = state.workingStaff;
+      const newStaff = patch.workingStaff;
+
+      // Staff removed from Dream Team
+      const removed = oldStaff.filter((id) => !newStaff.includes(id));
+
+      if (removed.length > 0) {
+        // 1️⃣ TEAM DAILY ASSIGNMENTS
+        const newAssignments = { ...next.assignments };
+        for (const staffId of removed) {
+          delete newAssignments[staffId];
+        }
+
+        // 2️⃣ DROPOFF ASSIGNMENTS
+        const newDropoffs = { ...next.dropoffAssignments };
+        for (const staffId of removed) {
+          delete newDropoffs[staffId];
+        }
+
+        // 3️⃣ FLOATING ASSIGNMENTS
+        const newFloating = { ...next.floatingAssignments };
+        for (const key of Object.keys(newFloating)) {
+          if (removed.includes(newFloating[key])) {
+            delete newFloating[key];
+          }
+        }
+
+        // 4️⃣ CLEANING ASSIGNMENTS
+        const newCleaning = { ...next.cleaningAssignments };
+        for (const choreId of Object.keys(newCleaning)) {
+          if (removed.includes(newCleaning[choreId])) {
+            delete newCleaning[choreId];
+          }
+        }
+
+        // 5️⃣ END-OF-SHIFT CHECKLIST STAFF
+        let newFinalChecklistStaff = next.finalChecklistStaff;
+        if (newFinalChecklistStaff && removed.includes(newFinalChecklistStaff)) {
+          newFinalChecklistStaff = undefined;
+        }
+
+        // 6️⃣ HELPER STAFF
+        const newHelpers = next.helperStaff.filter(
+          (id) => !removed.includes(id)
+        );
+
+        // 7️⃣ PARTICIPANTS MUST REMAIN ATTENDING
+        // nothing to change here — kept intentionally
+
+        // Apply all cleaned-up values
+        next.assignments = newAssignments;
+        next.dropoffAssignments = newDropoffs;
+        next.floatingAssignments = newFloating;
+        next.cleaningAssignments = newCleaning;
+        next.finalChecklistStaff = newFinalChecklistStaff;
+        next.helperStaff = newHelpers;
+      }
+    }
+
+    return next;
+  });
+},
+
 
   setScheduleStep: (step: number) => {
     set({ scheduleStep: step });
