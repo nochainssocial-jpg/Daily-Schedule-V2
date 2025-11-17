@@ -2,14 +2,14 @@
   "name": "expo-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
-"scripts": {
-  "start": "bunx rork start -p r0zofc8p3enybeuldw19k --tunnel",
-  "start-web": "bunx rork start -p r0zofc8p3enybeuldw19k --web --tunnel",
-  "start-web-dev": "DEBUG=expo* bunx rork start -p r0zofc8p3enybeuldw19k --web --tunnel",
-  "build": "expo export -p web",
-  "preview": "npx serve dist",
-  "lint": "expo lint"
-},
+  "scripts": {
+    "start": "bunx rork start -p r0zofc8p3enybeuldw19k --tunnel",
+    "start-web": "bunx rork start -p r0zofc8p3enybeuldw19k --web --tunnel",
+    "start-web-dev": "DEBUG=expo* bunx rork start -p r0zofc8p3enybeuldw19k --web --tunnel",
+    "build": "expo export -p web",
+    "preview": "npx serve dist",
+    "lint": "expo lint"
+  },
   "dependencies": {
     "@ai-sdk/react": "^2.0.81",
     "@expo/vector-icons": "^15.0.3",
@@ -19,6 +19,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-pdf/renderer": "^4.3.0",
     "@stardazed/streams-text-encoding": "^1.0.2",
+    "@supabase/supabase-js": "^2.81.1",
     "@tanstack/eslint-plugin-query": "^5.91.2",
     "@tanstack/react-query": "^5.90.5",
     "@trpc/client": "^11.5.1",
