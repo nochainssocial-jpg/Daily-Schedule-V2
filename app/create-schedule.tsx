@@ -838,31 +838,57 @@ const Step4 = () => {
       assignmentsMap[sid] = cleaned;
     });
 
-    try {
-      await persistFinish({
-        createSchedule,
-        staff: staffSource ?? [],
-        participants: partsSource ?? [],
-        workingStaff: realWorkers,
-        attendingParticipants,
-        assignments: assignmentsMap,
-        floatingDraft: {},
-        cleaningDraft: {},
-        finalChecklistDraft: {},
-        finalChecklistStaff,
-        pickupParticipants,
-        helperStaff,
-        dropoffAssignments,          // ✅ now persisted to store
-        date: selectedDate,
-      });
-    } catch (e) {
-      console.warn('persistFinish error, continuing to /edit anyway:', e);
-    }
+try {
+  await persistFinish({
+    createSchedule,
+    staff: staffSource ?? [],
+    participants: partsSource ?? [],
+    workingStaff: realWorkers,
+    attendingParticipants,
+    assignments: assignmentsMap,
+    floatingDraft: {},
+    cleaningDraft: {},
+    finalChecklistDraft: {},
+    finalChecklistStaff,
+    pickupParticipants,
+    helperStaff,
+    dropoffAssignments,
+    date: selectedDate,
+  });
+} catch (e) {
+  console.warn('persistFinish error, continuing anyway:', e);
+}
 
-    try {
-      router.replace(EDIT_HUB);
-    } catch {}
-  };
+/** 🔥 NEW — Build snapshot for Supabase */
+const snapshot = {
+  staff: staffSource ?? [],
+  participants: partsSource ?? [],
+  workingStaff: realWorkers,
+  attendingParticipants,
+  assignments: assignmentsMap,
+  pickupParticipants,
+  helperStaff,
+  dropoffAssignments,
+  finalChecklistStaff,
+  date: selectedDate,
+};
+
+/** 🔥 NEW — Save to Supabase */
+try {
+  const result = await saveScheduleToSupabase('B2', snapshot);
+  if (!result.ok) {
+    console.warn('Supabase save error:', result.error);
+  } else {
+    console.log('Supabase schedule saved with code:', result.code);
+  }
+} catch (e) {
+  console.warn('Supabase insert failed:', e);
+}
+
+/** Continue as normal */
+try {
+  router.replace(EDIT_HUB);
+} catch {}
 
   const onNext = () => (step < TOTAL ? setStep(step + 1) : onComplete());
   const onBack = () => setStep(step > 1 ? step - 1 : 1);
