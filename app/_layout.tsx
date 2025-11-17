@@ -10,6 +10,9 @@ import {
   HelpCircle,
 } from 'lucide-react-native';
 
+// 🔔 ADD THIS
+import NotificationToaster from '@/components/NotificationToaster';
+
 const PINK = '#FF8FC5';
 
 function HeaderTitle({
@@ -37,88 +40,91 @@ function HeaderTitle({
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerTitleAlign: 'center',
-        headerShadowVisible: false,
-        headerTintColor: PINK,            // chevron & default icon colour
-        headerStyle: { backgroundColor: '#FFFFFF' }, // white header bg
-      }}
-    >
-      {/* EDIT STACK ROOT – header handled by app/edit/_layout.tsx */}
-      <Stack.Screen
-        name="edit"
-        options={{
-          headerShown: false, // hide the plain "edit" header
-        }}
-      />
+    <>
+      {/* 🔔 GLOBAL NOTIFICATION PANEL */}
+      <NotificationToaster />
 
-      {/* HOME */}
-      <Stack.Screen
-        name="home"
-        options={{
-          headerTitle: () => (
-            <HeaderTitle
-              icon={<HomeIcon size={24} color={PINK} />}
-              label="Home"
-            />
-          ),
+      <Stack
+        screenOptions={{
+          headerTitleAlign: 'center',
+          headerShadowVisible: false,
+          headerTintColor: PINK,
+          headerStyle: { backgroundColor: '#FFFFFF' },
         }}
-      />
+      >
+        {/* EDIT STACK ROOT – header handled by app/edit/_layout.tsx */}
+        <Stack.Screen
+          name="edit"
+          options={{
+            headerShown: false,
+          }}
+        />
 
-      {/* EDIT HUB (edit/index.tsx) – optional if using nested layout */}
-      <Stack.Screen
-        name="edit/index"
-        options={{
-          headerTitle: () => (
-            <HeaderTitle
-              icon={<Edit3 size={24} color={PINK} />}
-              label="Edit Hub"
-            />
-          ),
-        }}
-      />
+        {/* HOME */}
+        <Stack.Screen
+          name="home"
+          options={{
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<HomeIcon size={24} color={PINK} />}
+                label="Home"
+              />
+            ),
+          }}
+        />
 
-      {/* SHARE TODAY'S SCHEDULE */}
-      <Stack.Screen
-        name="share-schedule"
-        options={{
-          headerTitle: () => (
-            <HeaderTitle
-              icon={<Share2 size={24} color={PINK} />}
-              label="Share today&apos;s schedule"
-            />
-          ),
-        }}
-      />
+        {/* EDIT HUB */}
+        <Stack.Screen
+          name="edit/index"
+          options={{
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<Edit3 size={24} color={PINK} />}
+                label="Edit Hub"
+              />
+            ),
+          }}
+        />
 
-      {/* SETTINGS */}
-      <Stack.Screen
-        name="settings"
-        options={{
-          headerTitle: () => (
-            <HeaderTitle
-              icon={<SettingsIcon size={24} color={PINK} />}
-              label="Settings"
-            />
-          ),
-        }}
-      />
+        {/* SHARE TODAY'S SCHEDULE */}
+        <Stack.Screen
+          name="share-schedule"
+          options={{
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<Share2 size={24} color={PINK} />}
+                label="Share today&apos;s schedule"
+              />
+            ),
+          }}
+        />
 
-      {/* HELP */}
-      <Stack.Screen
-        name="help"
-        options={{
-          headerTitle: () => (
-            <HeaderTitle
-              icon={<HelpCircle size={24} color={PINK} />}
-              label="Help"
-            />
-          ),
-        }}
-      />
+        {/* SETTINGS */}
+        <Stack.Screen
+          name="settings"
+          options={{
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<SettingsIcon size={24} color={PINK} />}
+                label="Settings"
+              />
+            ),
+          }}
+        />
 
-      {/* Any other screens keep their default header */}
-    </Stack>
+        {/* HELP */}
+        <Stack.Screen
+          name="help"
+          options={{
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<HelpCircle size={24} color={PINK} />}
+                label="Help"
+              />
+            ),
+          }}
+        />
+      </Stack>
+    </>
   );
 }
