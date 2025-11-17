@@ -22,7 +22,7 @@ function HeaderTitle({
       {icon}
       <Text
         style={{
-          fontSize: 16,
+          fontSize: 24,
           fontWeight: '600',
           color: '#FF8FC5',
         }}
@@ -39,7 +39,7 @@ export default function RootLayout() {
       screenOptions={{
         headerTitleAlign: 'center',
         headerShadowVisible: false,
-        headerTintColor: '#332244',
+        headerTintColor: '#FF8FC5',
       }}
     >
       {/* EDIT STACK ROOT – header handled by app/edit/_layout.tsx */}
