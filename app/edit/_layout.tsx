@@ -4,15 +4,18 @@ import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import { Edit3 } from 'lucide-react-native';
 
+const PINK = '#FF8FC5';
+const DARK_GREY = '#444444';
+
 function EditHeaderTitle({ label }: { label: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <Edit3 size={24} color="#FF8FC5" />
+      <Edit3 size={24} color={PINK} />
       <Text
         style={{
           fontSize: 24,
           fontWeight: '600',
-          color: '#FF8FC5',
+          color: PINK,
         }}
       >
         {label}
@@ -27,7 +30,8 @@ export default function EditLayout() {
       screenOptions={{
         headerTitleAlign: 'center',
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: '#444444' },
+        headerStyle: { backgroundColor: DARK_GREY }, // dark grey header
+        headerTintColor: PINK,                        // chevron colour
       }}
     >
       {/* Edit Hub main menu */}
