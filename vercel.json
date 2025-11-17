@@ -4,13 +4,15 @@
   "installCommand": "npm install --legacy-peer-deps",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+
+  "functions": {
+    "api/*.ts": {
+      "runtime": "nodejs20.x"
+    }
+  },
+
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
-"functions": {
-  "api/*.ts": {
-    "runtime": "nodejs20.x"
-  }
 }
-
