@@ -35,13 +35,13 @@ function HeaderTitle({
 
 export default function RootLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerTitleAlign: 'center',
-        headerShadowVisible: false,
-        headerTintColor: '#332244',
-      }}
-    >
+      <Stack.Screen
+        name="edit"
+        options={{
+          headerShown: false,   // ← fully disable root header for edit stack
+        }}
+      />
+
       {/* HOME */}
       <Stack.Screen
         name="home"
