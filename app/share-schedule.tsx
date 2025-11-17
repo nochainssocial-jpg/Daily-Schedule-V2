@@ -14,13 +14,20 @@ import {
 import { Stack, router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
 import Footer from '@/components/Footer';
+import { loadScheduleFromSupabase } from '@/lib/loadSchedule';
 
 const MAX_WIDTH = 880;
 
 export default function ShareScheduleScreen() {
-  const { shareCode, updateSchedule } = useSchedule() as any;
+  const {
+    shareCode,
+    updateSchedule,
+    hydrateFromSnapshot,
+    loadSnapshot,
+  } = useSchedule() as any;
 
   const [code, setCode] = useState(shareCode || '');
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     if (shareCode && shareCode !== code) {
@@ -55,14 +62,11 @@ export default function ShareScheduleScreen() {
       }
       await Linking.openURL(smsHref || 'sms:');
     } catch {
-      Alert.alert(
-        'Share',
-        'Unable to open SMS composer on this device.',
-      );
+      Alert.alert('Share', 'Unable to open SMS composer on this device.');
     }
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     const trimmed = code.trim();
 
     if (!/^\d{6}$/.test(trimmed)) {
@@ -70,46 +74,70 @@ export default function ShareScheduleScreen() {
       return;
     }
 
-    if (!shareCode) {
-      Alert.alert(
-        'Import',
-        'No shared schedule is available on this device yet. Generate a code from the main device first.'
-      );
-      return;
-    }
-
-    if (trimmed !== String(shareCode)) {
-      Alert.alert(
-        'Import',
-        'No schedule was found for that code on this device. Please check the code and try again.'
-      );
-      return;
-    }
-
-    // Code matches the current shared schedule — navigate to the Edit Hub
+    setImporting(true);
     try {
-      router.push('/edit');
-    } catch {
-      Alert.alert('Import', 'Code accepted, but navigation failed.');
+      const result = await loadScheduleFromSupabase(trimmed);
+
+      if (!result.ok || !result.schedule) {
+        Alert.alert(
+          'Import',
+          'No schedule was found for that code. Please check the code and try again.'
+        );
+        return;
+      }
+
+      const snapshot = result.schedule.snapshot;
+
+      // Try to hydrate the schedule store from the snapshot
+      try {
+        if (typeof hydrateFromSnapshot === 'function') {
+          hydrateFromSnapshot(snapshot);
+        } else if (typeof loadSnapshot === 'function') {
+          loadSnapshot(snapshot);
+        } else if (typeof updateSchedule === 'function') {
+          // Fallback: at least store the snapshot + code
+          updateSchedule({ snapshot, shareCode: trimmed });
+        }
+      } catch (e) {
+        console.warn(
+          '[ShareSchedule] failed to hydrate from Supabase snapshot:',
+          e
+        );
+      }
+
+      // Ensure shareCode in store matches imported code
+      try {
+        updateSchedule && updateSchedule({ shareCode: trimmed });
+      } catch {}
+
+      // Navigate to Edit Hub
+      try {
+        router.push('/edit');
+      } catch {
+        Alert.alert('Import', 'Code accepted, but navigation failed.');
+      }
+    } catch (e) {
+      console.warn('[ShareSchedule] import error:', e);
+      Alert.alert(
+        'Import',
+        'There was a problem loading this schedule. Please try again.'
+      );
+    } finally {
+      setImporting(false);
     }
   };
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{ title: "Share Today's Schedule" }}
-      />
+      <Stack.Screen options={{ title: "Share Today's Schedule" }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           {/* Section 1: Code generator */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              Generate a 6-digit code
-            </Text>
+            <Text style={styles.cardTitle}>Generate a 6-digit code</Text>
             <Text style={styles.cardDescription}>
-              Create a one-time code you can share with staff so
-              they can view today&apos;s Daily Schedule on their
-              own device.
+              Create a one-time code you can share with staff so they can view
+              today&apos;s Daily Schedule on their own device.
             </Text>
             <View style={styles.row}>
               <TouchableOpacity
@@ -117,9 +145,7 @@ export default function ShareScheduleScreen() {
                 style={[styles.button, styles.btnPink]}
                 activeOpacity={0.9}
               >
-                <Text style={styles.btnText}>
-                  Generate Code
-                </Text>
+                <Text style={styles.btnText}>Generate Code</Text>
               </TouchableOpacity>
               <TextInput
                 value={code}
@@ -133,21 +159,17 @@ export default function ShareScheduleScreen() {
                 style={[styles.button, styles.btnLavender]}
                 activeOpacity={0.9}
               >
-                <Text style={styles.btnText}>
-                  Share via TXT
-                </Text>
+                <Text style={styles.btnText}>Share via TXT</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Section 2: Share via text */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              Share code via text
-            </Text>
+            <Text style={styles.cardTitle}>Share code via text</Text>
             <Text style={styles.cardDescription}>
-              Open your SMS app with a pre-filled message that
-              includes the current code.
+              Open your SMS app with a pre-filled message that includes the
+              current code.
             </Text>
             <TouchableOpacity
               onPress={handleShareSms}
@@ -168,8 +190,8 @@ export default function ShareScheduleScreen() {
               Import code to access today&apos;s schedule
             </Text>
             <Text style={styles.cardDescription}>
-              Enter a valid 6-digit code to load today&apos;s
-              Daily Schedule associated with that code.
+              Enter a valid 6-digit code to load today&apos;s Daily Schedule
+              associated with that code.
             </Text>
             <View style={styles.row}>
               <TextInput
@@ -183,8 +205,11 @@ export default function ShareScheduleScreen() {
                 onPress={handleImport}
                 style={[styles.button, styles.btnDeepPink]}
                 activeOpacity={0.9}
+                disabled={importing}
               >
-                <Text style={styles.btnText}>Import</Text>
+                <Text style={styles.btnText}>
+                  {importing ? 'Importing…' : 'Import'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -201,9 +226,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#faf7fb',
   },
   scroll: {
-  paddingVertical: 24,
-  alignItems: 'center',
-  paddingBottom: 160,   // 👈 added
+    paddingVertical: 24,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
