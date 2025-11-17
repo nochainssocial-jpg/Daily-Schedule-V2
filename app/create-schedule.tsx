@@ -7,6 +7,7 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 import { persistFinish } from '@/hooks/persist-finish';
 import useSchedule from '@/hooks/schedule-adapter';
 import { STAFF, PARTICIPANTS } from '@/constants/data';
+import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type ID = string;
 
@@ -889,6 +890,7 @@ try {
 try {
   router.replace(EDIT_HUB);
 } catch {}
+    };
 
   const onNext = () => (step < TOTAL ? setStep(step + 1) : onComplete());
   const onBack = () => setStep(step > 1 ? step - 1 : 1);
