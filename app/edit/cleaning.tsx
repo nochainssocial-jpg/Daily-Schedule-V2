@@ -1,4 +1,4 @@
-// app/edit/cleaning.tsx (or wherever your Cleaning edit screen lives)
+// app/edit/cleaning.tsx
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
@@ -8,68 +8,76 @@ import {
   View,
   StyleSheet,
 } from 'react-native';
-import { useSchedule } from '@/hooks/schedule-store';
-import * as Data from '@/constants/data'; // CLEANING_TASKS etc.
 import { Check } from 'lucide-react-native';
 
-type Staff = {
-  id: string;
-  name: string;
-  color?: string;
-};
-
-type CleaningTask = {
-  id: string;
-  label: string;
-};
+import { useSchedule } from '@/hooks/schedule-store';
+import {
+  DEFAULT_CHORES,
+  type Staff,
+  type Chore,
+} from '@/constants/data';
+import { useNotifications } from '@/hooks/notifications';
 
 export default function CleaningEditScreen() {
-  const { schedule, updateSchedule } = useSchedule();
+  const {
+    staff,
+    workingStaff,
+    cleaningAssignments = {},
+    updateSchedule,
+  } = useSchedule();
 
-  const staff: Staff[] = schedule.staff || [];
-  const workingStaffIds: string[] = schedule.workingStaff || [];
+  const { push } = useNotifications();
 
-  const tasks: CleaningTask[] = Data.CLEANING_TASKS || [];
+  const chores: Chore[] = DEFAULT_CHORES || [];
 
-  const assignments: Record<string, string | undefined> =
-    schedule.cleaningAssignments || {};
+  const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
 
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-
-  const activeTask = useMemo(
-    () => tasks.find(t => t.id === activeTaskId) || null,
-    [tasks, activeTaskId]
+  const activeChore = useMemo(
+    () => chores.find(c => String(c.id) === String(activeChoreId)) || null,
+    [chores, activeChoreId]
   );
 
-  const workingStaff = useMemo(
-    () => staff.filter(s => workingStaffIds.includes(s.id)),
-    [staff, workingStaffIds]
+  const workingStaffList: Staff[] = useMemo(
+    () => staff.filter(s => workingStaff.includes(s.id)),
+    [staff, workingStaff]
   );
 
-  const helpers = useMemo(
-    () => staff.filter(s => !workingStaffIds.includes(s.id)),
-    [staff, workingStaffIds]
+  const helperStaffList: Staff[] = useMemo(
+    () => staff.filter(s => !workingStaff.includes(s.id)),
+    [staff, workingStaff]
   );
 
   const handleSelectStaff = (staffId: string | null) => {
-    if (!activeTaskId) return;
+    if (!activeChoreId) return;
+
+    const chore = chores.find(c => String(c.id) === String(activeChoreId));
 
     const nextAssignments = {
-      ...(assignments || {}),
-      [activeTaskId]: staffId || undefined,
+      ...(cleaningAssignments || {}),
+      [String(activeChoreId)]: staffId || undefined,
     };
 
     updateSchedule?.({ cleaningAssignments: nextAssignments });
 
-    // 🔔 trigger notification (hook added later)
-    // pushNotification(`Cleaning updated — ${activeTask?.label ?? 'Task'}`);
+    // 🔔 fire a notification
+    if (staffId && chore) {
+      push(
+        `Cleaning updated — ${chore.name}`,
+        'cleaning'
+      );
+    } else if (chore) {
+      push(
+        `Cleaning cleared — ${chore.name}`,
+        'cleaning'
+      );
+    }
 
-    setActiveTaskId(null);
+    setActiveChoreId(null);
   };
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.heading}>End of Shift Cleaning Assignments</Text>
+      <Text style={styles.heading}>Cleaning Duties</Text>
       <Text style={styles.subheading}>
         Tap a staff pill to update who is responsible for each task.
       </Text>
@@ -78,23 +86,26 @@ export default function CleaningEditScreen() {
         style={{ marginTop: 16 }}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {tasks.map(task => {
-          const staffId = assignments[task.id];
-          const st = staff.find(s => s.id === staffId) || null;
-          const label = st ? st.name : 'Not assigned';
+        {chores.map(chore => {
+          const choreId = String(chore.id);
+          const assignedStaffId = cleaningAssignments[choreId];
+          const st = staff.find(s => s.id === assignedStaffId) || null;
 
+          const label = st ? st.name : 'Not assigned';
           const isAssigned = !!st;
 
           return (
-            <View key={task.id} style={styles.row}>
+            <View key={choreId} style={styles.row}>
+              {/* Left: task / chore name */}
               <View style={styles.taskCol}>
-                <Text style={styles.taskLabel}>{task.label}</Text>
+                <Text style={styles.taskLabel}>{chore.name}</Text>
               </View>
 
+              {/* Right: inline pill */}
               <View style={styles.staffCol}>
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={() => setActiveTaskId(task.id)}
+                  onPress={() => setActiveChoreId(choreId)}
                   style={[
                     styles.pill,
                     isAssigned && styles.pillAssigned,
@@ -126,28 +137,31 @@ export default function CleaningEditScreen() {
 
       {/* Staff picker modal */}
       <Modal
-        visible={!!activeTask}
+        visible={!!activeChore}
         animationType="slide"
         transparent
-        onRequestClose={() => setActiveTaskId(null)}
+        onRequestClose={() => setActiveChoreId(null)}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
-              Choose staff for
-            </Text>
-            {activeTask && (
-              <Text style={styles.modalTaskLabel}>{activeTask.label}</Text>
+            <Text style={styles.modalTitle}>Choose staff for</Text>
+            {activeChore && (
+              <Text style={styles.modalTaskLabel}>
+                {activeChore.name}
+              </Text>
             )}
 
             <ScrollView
               style={{ marginTop: 16 }}
               contentContainerStyle={{ paddingBottom: 16 }}
             >
+              {/* Working staff */}
               <Text style={styles.modalSectionTitle}>Working staff</Text>
               <View style={{ marginTop: 8, gap: 6 }}>
-                {workingStaff.map(st => {
-                  const selected = assignments[activeTaskId ?? ''] === st.id;
+                {workingStaffList.map(st => {
+                  const selected =
+                    cleaningAssignments[String(activeChoreId ?? '')] === st.id;
+
                   return (
                     <TouchableOpacity
                       key={st.id}
@@ -178,15 +192,20 @@ export default function CleaningEditScreen() {
                 })}
               </View>
 
-              {!!helpers.length && (
+              {/* Helpers / other staff */}
+              {!!helperStaffList.length && (
                 <>
-                  <Text style={[styles.modalSectionTitle, { marginTop: 18 }]}>
+                  <Text
+                    style={[styles.modalSectionTitle, { marginTop: 18 }]}
+                  >
                     Other staff
                   </Text>
                   <View style={{ marginTop: 8, gap: 6 }}>
-                    {helpers.map(st => {
+                    {helperStaffList.map(st => {
                       const selected =
-                        assignments[activeTaskId ?? ''] === st.id;
+                        cleaningAssignments[String(activeChoreId ?? '')] ===
+                        st.id;
+
                       return (
                         <TouchableOpacity
                           key={st.id}
@@ -219,16 +238,19 @@ export default function CleaningEditScreen() {
                 </>
               )}
 
+              {/* Clear assignment */}
               <TouchableOpacity
                 onPress={() => handleSelectStaff(null)}
                 style={[styles.modalRow, { marginTop: 18 }]}
               >
-                <Text style={styles.modalRowTxt}>Clear assignment</Text>
+                <Text style={styles.modalRowTxt}>
+                  Clear assignment
+                </Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity
-              onPress={() => setActiveTaskId(null)}
+              onPress={() => setActiveChoreId(null)}
               style={styles.modalClose}
             >
               <Text style={styles.modalCloseTxt}>Cancel</Text>
@@ -239,6 +261,8 @@ export default function CleaningEditScreen() {
     </View>
   );
 }
+
+const PINK = '#F54FA5';
 
 const styles = StyleSheet.create({
   wrap: {
@@ -251,7 +275,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#333',
+    color: '#433F4C',
   },
   subheading: {
     marginTop: 4,
@@ -292,7 +316,7 @@ const styles = StyleSheet.create({
     maxWidth: 190,
   },
   pillAssigned: {
-    borderColor: '#F54FA5', // footer pink
+    borderColor: PINK,
   },
   pillText: {
     fontSize: 14,
@@ -347,7 +371,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalRowSel: {
-    backgroundColor: '#F54FA5',
+    backgroundColor: PINK,
   },
   modalRect: {
     width: 12,
