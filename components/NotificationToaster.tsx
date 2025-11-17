@@ -1,19 +1,31 @@
 // components/NotificationToaster.tsx
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Bell } from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  TouchableOpacity,
+} from 'react-native';
+import { Bell, X } from 'lucide-react-native';
 import { useNotifications } from '@/hooks/notifications';
+
+const ORANGE = '#F7A534'; // agreed mid-orange
 
 export default function NotificationToaster() {
   const { current, clearCurrent } = useNotifications();
   const [visible, setVisible] = useState(false);
-  const translateX = React.useRef(new Animated.Value(40)).current;
-  const opacity = React.useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(40)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!current) return;
+    if (!current) {
+      return;
+    }
 
     setVisible(true);
+
+    // slide in + fade in
     Animated.parallel([
       Animated.timing(translateX, {
         toValue: 0,
@@ -26,27 +38,25 @@ export default function NotificationToaster() {
         useNativeDriver: true,
       }),
     ]).start();
+  }, [current, translateX, opacity]);
 
-    const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: 40,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setVisible(false);
-        clearCurrent();
-      });
-    }, 3500);
-
-    return () => clearTimeout(timer);
-  }, [current, translateX, opacity, clearCurrent]);
+  const handleClose = () => {
+    Animated.parallel([
+      Animated.timing(translateX, {
+        toValue: 40,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setVisible(false);
+      clearCurrent();
+    });
+  };
 
   if (!current || !visible) return null;
 
@@ -65,15 +75,30 @@ export default function NotificationToaster() {
         <View style={styles.iconWrap}>
           <Bell size={18} color="#FFFFFF" />
         </View>
-        <Text style={styles.text} numberOfLines={2}>
-          {current.message}
-        </Text>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title} numberOfLines={1}>
+            {current.category
+              ? current.category[0].toUpperCase() +
+                current.category.slice(1)
+              : 'Update'}
+          </Text>
+          <Text style={styles.text} numberOfLines={2}>
+            {current.message}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleClose}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.closeBtn}
+        >
+          <X size={16} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
     </Animated.View>
   );
 }
-
-const ORANGE = '#F7A534'; // agreed mid orange
 
 const styles = StyleSheet.create({
   root: {
@@ -104,11 +129,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 6,
+  },
+  title: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
+    textTransform: 'uppercase',
+    opacity: 0.9,
   },
   text: {
-    flex: 1,
     fontSize: 13,
     color: '#FFFFFF',
     fontWeight: '500',
+  },
+  closeBtn: {
+    marginLeft: 8,
+    padding: 4,
   },
 });
