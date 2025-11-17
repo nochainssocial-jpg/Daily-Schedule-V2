@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import SaveExit from '@/components/SaveExit';
@@ -37,6 +37,15 @@ function isFSOTwinsSlot(slot?: any): boolean {
   );
 }
 
+// Helper: is this slot at or after 2:00pm (for Antoinette rule)
+function isAfter2PM(slot?: any): boolean {
+  if (!slot) return false;
+  const label = String(
+    slot.displayTime || `${slot.startTime ?? ''}-${slot.endTime ?? ''}`,
+  ).toLowerCase();
+  return label.includes('2:00') || label.includes('14:00');
+}
+
 export default function FloatingScreen() {
   const {
     staff = [],
@@ -66,6 +75,8 @@ export default function FloatingScreen() {
     fso?: boolean;
   } | null>(null);
 
+  const [autoDone, setAutoDone] = useState(false);
+
   const getRow = (slotId: string) =>
     (floatingAssignments || {})[slotId] || {};
   const nameOf = (id?: string) => (id ? staffById[id]?.name ?? '' : '');
@@ -90,7 +101,6 @@ export default function FloatingScreen() {
       [pick.col]: id,
     };
     updateSchedule?.({ floatingAssignments: next });
-    // keep this key consistent with SaveExit touchKey
     touch?.('floating', 'FloatingScreen');
     setOpen(false);
   };
@@ -105,6 +115,104 @@ export default function FloatingScreen() {
     touch?.('floating', 'FloatingScreen');
     setOpen(false);
   };
+
+  // 🔁 Auto / shuffle logic
+  const autoAssignAll = useCallback(() => {
+    const list = working || [];
+    if (!list.length) return;
+
+    const usage: Record<string, number> = {};
+    list.forEach((s: any) => {
+      usage[s.id] = 0;
+    });
+
+    const next: Record<string, any> = {};
+
+    const chooseFor = (slot: any, col: ColKey, taken: Set<string>): string | undefined => {
+      let candidates = list.filter((s: any) => !taken.has(s.id));
+
+      // Twins FSO: only female staff
+      if (col === 'twins' && isFSOTwinsSlot(slot)) {
+        candidates = candidates.filter(
+          (s: any) => String(s.gender || '').toLowerCase() === 'female',
+        );
+      }
+
+      // Antoinette rule: only after 2:00pm
+      const after2 = isAfter2PM(slot);
+      candidates = candidates.filter((s: any) => {
+        const name = String(s.name || '').toLowerCase();
+        const isAntoinette = name.includes('antoinette');
+        if (isAntoinette && !after2) return false;
+        return true;
+      });
+
+      if (!candidates.length) return undefined;
+
+      // Fair usage: pick amongst least-used, randomly
+      let minCount = Infinity;
+      candidates.forEach((s: any) => {
+        const c = usage[s.id] ?? 0;
+        if (c < minCount) minCount = c;
+      });
+
+      const leastUsed = candidates.filter(
+        (s: any) => (usage[s.id] ?? 0) === minCount,
+      );
+      const chosen =
+        leastUsed[Math.floor(Math.random() * leastUsed.length)];
+
+      usage[chosen.id] = (usage[chosen.id] ?? 0) + 1;
+      return chosen.id;
+    };
+
+    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
+      const slotId = String(slot.id ?? idx);
+      const taken = new Set<string>();
+      const row: any = {};
+
+      // Front Room
+      const frId = chooseFor(slot, 'frontRoom', taken);
+      if (frId) {
+        row.frontRoom = frId;
+        taken.add(frId);
+      }
+
+      // Scotty
+      const scId = chooseFor(slot, 'scotty', taken);
+      if (scId) {
+        row.scotty = scId;
+        taken.add(scId);
+      }
+
+      // Twins
+      const twId = chooseFor(slot, 'twins', taken);
+      if (twId) {
+        row.twins = twId;
+        taken.add(twId);
+      }
+
+      if (Object.keys(row).length) {
+        next[slotId] = row;
+      }
+    });
+
+    updateSchedule?.({ floatingAssignments: next });
+    touch?.('floating', 'FloatingScreen');
+  }, [working, updateSchedule, touch]);
+
+  // First-time auto-populate if there are working staff but no assignments yet
+  useEffect(() => {
+    if (autoDone) return;
+    const hasAny =
+      floatingAssignments &&
+      Object.keys(floatingAssignments).length > 0;
+
+    if (!hasAny && (working || []).length > 0) {
+      autoAssignAll();
+      setAutoDone(true);
+    }
+  }, [autoDone, floatingAssignments, working, autoAssignAll]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -198,11 +306,6 @@ export default function FloatingScreen() {
                       {slot.displayTime ||
                         `${slot.startTime ?? ''} - ${slot.endTime ?? ''}`}
                     </Text>
-                    {fso && (
-                      <View style={{ marginTop: 4 }}>
-                        <Tag>FSO</Tag>
-                      </View>
-                    )}
                   </View>
 
                   {/* Front Room */}
@@ -237,11 +340,41 @@ export default function FloatingScreen() {
                         : 'Tap to assign'
                     }
                     gender={twStaff?.gender}
+                    fsoTag={fso}
                     onPress={() => openPicker(slotId, 'twins')}
                   />
                 </View>
               );
             })}
+          </View>
+
+          {/* Shuffle button */}
+          <View
+            style={{
+              marginTop: 12,
+              alignItems: 'flex-end',
+            }}
+          >
+            <TouchableOpacity
+              onPress={autoAssignAll}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: '#4f46e5',
+                backgroundColor: '#eef2ff',
+              }}
+            >
+              <Text
+                style={{
+                  color: '#4f46e5',
+                  fontWeight: '600',
+                }}
+              >
+                Shuffle all assignments
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -392,9 +525,10 @@ type CellProps = {
   onPress: () => void;
   style?: any;
   gender?: string;
+  fsoTag?: boolean;
 };
 
-function CellButton({ label, onPress, style, gender }: CellProps) {
+function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
   const isEmpty = label.toLowerCase().startsWith('tap to assign');
 
   const genderColor =
@@ -415,6 +549,7 @@ function CellButton({ label, onPress, style, gender }: CellProps) {
           borderLeftWidth: 1,
           borderLeftColor: '#e5e7eb',
           justifyContent: 'center',
+          position: 'relative',
         },
         style,
       ]}
@@ -459,6 +594,18 @@ function CellButton({ label, onPress, style, gender }: CellProps) {
           >
             {label}
           </Text>
+        </View>
+      )}
+
+      {fsoTag && (
+        <View
+          style={{
+            position: 'absolute',
+            right: 8,
+            bottom: 6,
+          }}
+        >
+          <Tag>FSO</Tag>
         </View>
       )}
     </TouchableOpacity>
