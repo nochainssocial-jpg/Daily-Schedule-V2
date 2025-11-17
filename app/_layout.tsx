@@ -10,6 +10,8 @@ import {
   HelpCircle,
 } from 'lucide-react-native';
 
+const PINK = '#FF8FC5';
+
 function HeaderTitle({
   icon,
   label,
@@ -24,7 +26,7 @@ function HeaderTitle({
         style={{
           fontSize: 24,
           fontWeight: '600',
-          color: '#FF8FC5',
+          color: PINK,
         }}
       >
         {label}
@@ -39,7 +41,8 @@ export default function RootLayout() {
       screenOptions={{
         headerTitleAlign: 'center',
         headerShadowVisible: false,
-        headerTintColor: '#FF8FC5',
+        headerTintColor: PINK,            // chevron & default icon colour
+        headerStyle: { backgroundColor: '#FFFFFF' }, // white header bg
       }}
     >
       {/* EDIT STACK ROOT – header handled by app/edit/_layout.tsx */}
@@ -56,20 +59,20 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<HomeIcon size={24} color="#332244" />}
+              icon={<HomeIcon size={24} color={PINK} />}
               label="Home"
             />
           ),
         }}
       />
 
-      {/* EDIT HUB (edit/index.tsx) – this is optional if using nested layout */}
+      {/* EDIT HUB (edit/index.tsx) – optional if using nested layout */}
       <Stack.Screen
         name="edit/index"
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<Edit3 size={24} color="#332244" />}
+              icon={<Edit3 size={24} color={PINK} />}
               label="Edit Hub"
             />
           ),
@@ -82,7 +85,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<Share2 size={24} color="#332244" />}
+              icon={<Share2 size={24} color={PINK} />}
               label="Share today&apos;s schedule"
             />
           ),
@@ -95,7 +98,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<SettingsIcon size={24} color="#332244" />}
+              icon={<SettingsIcon size={24} color={PINK} />}
               label="Settings"
             />
           ),
@@ -108,7 +111,7 @@ export default function RootLayout() {
         options={{
           headerTitle: () => (
             <HeaderTitle
-              icon={<HelpCircle size={24} color="#332244" />}
+              icon={<HelpCircle size={24} color={PINK} />}
               label="Help"
             />
           ),
