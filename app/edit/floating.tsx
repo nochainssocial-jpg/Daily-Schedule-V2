@@ -2,8 +2,8 @@
 import React, {
   useMemo,
   useState,
-  useCallback,
   useEffect,
+  useCallback,
 } from 'react';
 import {
   Modal,
@@ -16,19 +16,6 @@ import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
 import { TIME_SLOTS } from '@/constants/data';
 
-type ID = string;
-type ColKey = 'frontRoom' | 'scotty' | 'twins';
-
-// room ids used in the flat floatingAssignments map
-const ROOM_IDS: Record<ColKey, string> = {
-  frontRoom: 'frontRoom',
-  scotty: 'scotty',
-  twins: 'twins',
-};
-
-const keyOf = (slotId: string, col: ColKey) =>
-  `${slotId}|${ROOM_IDS[col]}`;
-
 const WRAP = {
   width: '100%',
   maxWidth: 880,
@@ -36,8 +23,19 @@ const WRAP = {
   paddingHorizontal: 12,
 };
 
-// Build a normalised label like "11:00am-11:30am"
-function slotLabel(slot: any): string {
+const ROOM_IDS = {
+  frontRoom: 'frontRoom',
+  scotty: 'scotty',
+  twins: 'twins',
+};
+
+const ROOM_KEYS = ['frontRoom', 'scotty', 'twins'] as const;
+
+function keyOf(slotId, col) {
+  return `${slotId}|${ROOM_IDS[col]}`;
+}
+
+function slotLabel(slot) {
   if (!slot) return '';
   const raw =
     slot.displayTime ||
@@ -47,9 +45,8 @@ function slotLabel(slot: any): string {
   return String(raw).replace(/\s/g, '').toLowerCase();
 }
 
-// Twins slots that are FSO (Female Staff Only)
-// Exactly: 11:00–11:30 and 1:00–1:30
-function isFSOTwinsSlot(slot?: any): boolean {
+// Exactly these are FSO slots for Twins
+function isFSOTwinsSlot(slot) {
   const lbl = slotLabel(slot);
   if (!lbl) return false;
   return (
@@ -60,8 +57,7 @@ function isFSOTwinsSlot(slot?: any): boolean {
   );
 }
 
-// Helper: is this slot at or after 2:00pm (for Antoinette rule)
-function isAfter2PM(slot?: any): boolean {
+function isAfter2PM(slot) {
   const lbl = slotLabel(slot);
   if (!lbl) return false;
   return (
@@ -72,193 +68,166 @@ function isAfter2PM(slot?: any): boolean {
   );
 }
 
+function isFemale(staff) {
+  return (
+    staff &&
+    String(staff.gender || '').toLowerCase() === 'female'
+  );
+}
+
+function isAntoinette(staff) {
+  if (!staff) return false;
+  const name = String(staff.name || '').toLowerCase();
+  return name.includes('antoinette');
+}
+
+// Build a full floating schedule for all slots/rooms
+function buildAutoAssignments(working, timeSlots) {
+  if (!working || !working.length) return {};
+
+  const next = {};
+  const usage = {};
+  working.forEach((s) => {
+    usage[s.id] = 0;
+  });
+
+  let prevSlotStaff = new Set();
+
+  (timeSlots || []).forEach((slot, idx) => {
+    const slotId = String(slot.id ?? idx);
+    const taken = new Set();
+    const thisSlotStaff = new Set();
+
+    ROOM_KEYS.forEach((col) => {
+      let candidates = working.filter((s) => !taken.has(s.id));
+
+      // FSO filter on Twins
+      if (col === 'twins' && isFSOTwinsSlot(slot)) {
+        candidates = candidates.filter(isFemale);
+      }
+
+      // Antoinette only after 2pm
+      const after2 = isAfter2PM(slot);
+      candidates = candidates.filter(
+        (s) => !isAntoinette(s) || after2,
+      );
+
+      if (!candidates.length) return;
+
+      // Try to avoid back-to-back slots
+      const cooled = candidates.filter(
+        (s) => !prevSlotStaff.has(s.id),
+      );
+      if (cooled.length) {
+        candidates = cooled;
+      }
+
+      // Fair usage: pick among least used, then random
+      let minCount = Infinity;
+      candidates.forEach((s) => {
+        const c = usage[s.id] ?? 0;
+        if (c < minCount) minCount = c;
+      });
+      const leastUsed = candidates.filter(
+        (s) => (usage[s.id] ?? 0) === minCount,
+      );
+      const chosen =
+        leastUsed[
+          Math.floor(Math.random() * leastUsed.length)
+        ];
+
+      usage[chosen.id] = (usage[chosen.id] ?? 0) + 1;
+      next[keyOf(slotId, col)] = chosen.id;
+      taken.add(chosen.id);
+      thisSlotStaff.add(chosen.id);
+    });
+
+    prevSlotStaff = thisSlotStaff;
+  });
+
+  return next;
+}
+
 export default function FloatingScreen() {
   const {
     staff = [],
     workingStaff = [],
     floatingAssignments = {},
     updateSchedule,
-    touch,
-  } = useSchedule() as any;
+  } = useSchedule();
 
   const staffById = useMemo(() => {
-    const m: Record<string, any> = {};
-    (staff || []).forEach((s: any) => {
+    const m = {};
+    (staff || []).forEach((s) => {
       m[s.id] = s;
     });
     return m;
   }, [staff]);
 
   const working = useMemo(
-    () => (staff || []).filter((s: any) => (workingStaff || []).includes(s.id)),
+    () =>
+      (staff || []).filter((s) =>
+        (workingStaff || []).includes(s.id),
+      ),
     [staff, workingStaff],
   );
 
-  const [open, setOpen] = useState(false);
-  const [pick, setPick] = useState<{
-    slotId?: string;
-    col?: ColKey;
-    fso?: boolean;
-  } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pick, setPick] = useState(null); // { slotId, col, fso }
 
   const [autoDone, setAutoDone] = useState(false);
 
-  // Helpers to read the flat map for a row
-  const getCellStaffId = (slotId: string, col: ColKey): ID | undefined => {
-    return floatingAssignments?.[keyOf(slotId, col)];
-  };
+  const getCellStaffId = (slotId, col) =>
+    floatingAssignments?.[keyOf(slotId, col)];
 
-  const nameOf = (id?: string) =>
+  const nameOf = (id) =>
     id ? staffById[id]?.name ?? '' : '';
 
-  const openPicker = (slotId: string, col: ColKey) => {
+  const openPicker = (slotId, col) => {
     const slot = (TIME_SLOTS || []).find(
-      s => String(s.id) === String(slotId),
+      (s) => String(s.id) === String(slotId),
     );
     setPick({
       slotId,
       col,
       fso: col === 'twins' && isFSOTwinsSlot(slot),
     });
-    setOpen(true);
+    setPickerOpen(true);
   };
 
-  const choose = (id: string) => {
-    if (!pick?.slotId || !pick.col) return;
+  const choose = (id) => {
+    if (!pick || !pick.slotId || !pick.col) return;
     const key = keyOf(pick.slotId, pick.col);
     const next = { ...(floatingAssignments || {}) };
     next[key] = id;
     updateSchedule?.({ floatingAssignments: next });
-    touch?.();
-    setOpen(false);
+    setPickerOpen(false);
   };
 
   const clearCell = () => {
-    if (!pick?.slotId || !pick.col) return;
+    if (!pick || !pick.slotId || !pick.col) return;
     const key = keyOf(pick.slotId, pick.col);
     const next = { ...(floatingAssignments || {}) };
     delete next[key];
     updateSchedule?.({ floatingAssignments: next });
-    touch?.();
-    setOpen(false);
+    setPickerOpen(false);
   };
 
-  // 🔁 Auto / shuffle logic with:
-  // - no same staff in 2 rooms in same slot
-  // - avoid consecutive slots for same staff where possible
-  // - FSO + Antoinette rules
   const autoAssignAll = useCallback(() => {
-    const list = working || [];
-    if (!list.length) return;
-
-    const usage: Record<string, number> = {};
-    list.forEach((s: any) => {
-      usage[s.id] = 0;
-    });
-
-    const next: Record<string, ID> = {};
-    let prevSlotStaff = new Set<string>();
-
-    const chooseFor = (
-      slot: any,
-      col: ColKey,
-      taken: Set<string>,
-      prevSet: Set<string>,
-    ): string | undefined => {
-      // base pool: not already used in this slot
-      let candidates = list.filter(
-        (s: any) => !taken.has(s.id),
-      );
-
-      // Twins FSO: only female staff
-      if (col === 'twins' && isFSOTwinsSlot(slot)) {
-        candidates = candidates.filter(
-          (s: any) =>
-            String(s.gender || '').toLowerCase() === 'female',
-        );
-      }
-
-      // Antoinette rule: only after 2:00pm
-      const after2 = isAfter2PM(slot);
-      candidates = candidates.filter((s: any) => {
-        const name = String(s.name || '').toLowerCase();
-        const isAntoinette = name.includes('antoinette');
-        if (isAntoinette && !after2) return false;
-        return true;
-      });
-
-      if (!candidates.length) return undefined;
-
-      // Avoid back-to-back slots where possible
-      const cooled = candidates.filter(
-        (s: any) => !prevSet.has(s.id),
-      );
-      if (cooled.length > 0) {
-        candidates = cooled;
-      }
-
-      // Fair usage: pick amongst least-used, randomly
-      let minCount = Infinity;
-      candidates.forEach((s: any) => {
-        const c = usage[s.id] ?? 0;
-        if (c < minCount) minCount = c;
-      });
-
-      const leastUsed = candidates.filter(
-        (s: any) => (usage[s.id] ?? 0) === minCount,
-      );
-      const chosen =
-        leastUsed[Math.floor(Math.random() * leastUsed.length)];
-
-      usage[chosen.id] = (usage[chosen.id] ?? 0) + 1;
-      return chosen.id;
-    };
-
-    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
-      const slotId = String(slot.id ?? idx);
-      const taken = new Set<string>();
-      const thisSlotStaff = new Set<string>();
-
-      const frId = chooseFor(slot, 'frontRoom', taken, prevSlotStaff);
-      if (frId) {
-        next[keyOf(slotId, 'frontRoom')] = frId;
-        taken.add(frId);
-        thisSlotStaff.add(frId);
-      }
-
-      const scId = chooseFor(slot, 'scotty', taken, prevSlotStaff);
-      if (scId) {
-        next[keyOf(slotId, 'scotty')] = scId;
-        taken.add(scId);
-        thisSlotStaff.add(scId);
-      }
-
-      const twId = chooseFor(slot, 'twins', taken, prevSlotStaff);
-      if (twId) {
-        next[keyOf(slotId, 'twins')] = twId;
-        taken.add(twId);
-        thisSlotStaff.add(twId);
-      }
-
-      prevSlotStaff = thisSlotStaff;
-    });
-
+    const next = buildAutoAssignments(working, TIME_SLOTS);
     updateSchedule?.({ floatingAssignments: next });
-    touch?.();
-  }, [working, updateSchedule, touch]);
+  }, [working, updateSchedule]);
 
-  // First-time auto-populate if:
-  // - there are working staff
-  // - AND there are no Front Room assignments at all
+  // First visit after create: if Front Room is completely empty,
+  // auto-assign everything once.
   useEffect(() => {
     if (autoDone) return;
-    const hasFrontRoom =
-      floatingAssignments &&
-      Object.keys(floatingAssignments).some(k =>
-        k.endsWith('|frontRoom'),
-      );
 
-    if (!hasFrontRoom && (working || []).length > 0) {
+    const hasFrontRoom = Object.keys(
+      floatingAssignments || {},
+    ).some((k) => k.endsWith('|frontRoom'));
+
+    if (!hasFrontRoom && working.length) {
       autoAssignAll();
       setAutoDone(true);
     }
@@ -269,7 +238,7 @@ export default function FloatingScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <View style={WRAP as any}>
+        <View style={WRAP}>
           <Text
             style={{
               fontSize: 30,
@@ -310,16 +279,16 @@ export default function FloatingScreen() {
               <HeaderCell label="Twins" />
             </View>
 
-            {(TIME_SLOTS || []).map((slot: any, idx: number) => {
+            {(TIME_SLOTS || []).map((slot, idx) => {
               const slotId = String(slot.id ?? idx);
 
               const frId = getCellStaffId(slotId, 'frontRoom');
               const scId = getCellStaffId(slotId, 'scotty');
               const twId = getCellStaffId(slotId, 'twins');
 
-              const frStaff = frId ? staffById[frId] : undefined;
-              const scStaff = scId ? staffById[scId] : undefined;
-              const twStaff = twId ? staffById[twId] : undefined;
+              const frStaff = staffById[frId];
+              const scStaff = staffById[scId];
+              const twStaff = staffById[twId];
 
               const fr = nameOf(frId);
               const sc = nameOf(scId);
@@ -445,10 +414,10 @@ export default function FloatingScreen() {
 
       {/* Staff picker modal */}
       <Modal
-        visible={open}
+        visible={pickerOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setOpen(false)}
+        onRequestClose={() => setPickerOpen(false)}
       >
         <View
           style={{
@@ -487,12 +456,10 @@ export default function FloatingScreen() {
             >
               {(working || [])
                 .filter(
-                  (s: any) =>
-                    !pick?.fso ||
-                    String(s.gender || '').toLowerCase() ===
-                      'female',
+                  (s) =>
+                    !pick?.fso || isFemale(s),
                 )
-                .map((s: any) => (
+                .map((s) => (
                   <Chip
                     key={s.id}
                     label={s.name}
@@ -502,11 +469,7 @@ export default function FloatingScreen() {
             </View>
 
             {pick?.fso &&
-              (working || []).every(
-                (s: any) =>
-                  String(s.gender || '').toLowerCase() !==
-                  'female',
-              ) && (
+              (working || []).every((s) => !isFemale(s)) && (
                 <View
                   style={{
                     marginTop: 12,
@@ -549,7 +512,7 @@ export default function FloatingScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setOpen(false)}
+                onPress={() => setPickerOpen(false)}
                 style={{
                   paddingVertical: 8,
                   paddingHorizontal: 14,
@@ -568,7 +531,7 @@ export default function FloatingScreen() {
   );
 }
 
-function HeaderCell({ label, flex = 1 }: { label: string; flex?: number }) {
+function HeaderCell({ label, flex = 1 }) {
   return (
     <View
       style={{
@@ -592,30 +555,16 @@ function HeaderCell({ label, flex = 1 }: { label: string; flex?: number }) {
   );
 }
 
-type CellProps = {
-  label: string;
-  onPress: () => void;
-  style?: any;
-  gender?: string;
-  fsoTag?: boolean;
-};
-
-function CellButton({
-  label,
-  onPress,
-  style,
-  gender,
-  fsoTag,
-}: CellProps) {
+function CellButton({ label, onPress, style, gender, fsoTag }) {
   const isEmpty =
-    label.toLowerCase().startsWith('tap to assign');
+    String(label).toLowerCase().startsWith('tap to assign');
 
   const genderColor =
     String(gender || '').toLowerCase() === 'female'
       ? '#fb7185' // pink
       : String(gender || '').toLowerCase() === 'male'
       ? '#60a5fa' // blue
-      : '#cbd5e1'; // neutral grey
+      : '#cbd5e1'; // neutral
 
   return (
     <TouchableOpacity
@@ -637,7 +586,7 @@ function CellButton({
         <Text
           style={{
             color: '#64748b',
-            fontWeight: '400' as any,
+            fontWeight: '400',
             fontSize: 13,
           }}
         >
@@ -667,7 +616,7 @@ function CellButton({
           <Text
             style={{
               color: '#0f172a',
-              fontWeight: '600' as any,
+              fontWeight: '600',
               fontSize: 13,
             }}
           >
@@ -691,7 +640,7 @@ function CellButton({
   );
 }
 
-function Tag({ children }: { children: React.ReactNode }) {
+function Tag({ children }) {
   return (
     <View
       style={{
@@ -709,7 +658,7 @@ function Tag({ children }: { children: React.ReactNode }) {
           fontWeight: '700',
         }}
       >
-        {children as any}
+        {children}
       </Text>
     </View>
   );
