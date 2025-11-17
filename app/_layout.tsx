@@ -24,7 +24,7 @@ function HeaderTitle({
         style={{
           fontSize: 16,
           fontWeight: '600',
-          color: '#332244',
+          color: '#FF8FC5',
         }}
       >
         {label}
