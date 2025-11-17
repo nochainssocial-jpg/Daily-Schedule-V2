@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, Text, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF, PARTICIPANTS as STATIC_PARTS } from '@/constants/data';
+import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
 
@@ -19,6 +20,8 @@ export default function EditAssignmentsScreen() {
     attendingParticipants,
     updateSchedule,
   } = useSchedule();
+  const { push } = useNotifications();
+
 
   const staffSource =
     (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) || [];
@@ -97,6 +100,7 @@ export default function EditAssignmentsScreen() {
     }
 
     updateSchedule({ assignments: next });
+    push('Team daily assignments updated', 'assignments');
   };
 
   return (

@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import Chip from '@/components/Chip';
+import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
 const MAX_WIDTH = 880;
@@ -16,6 +17,8 @@ export default function EditParticipantsScreen() {
     attendingParticipants = [],
     updateSchedule,
   } = useSchedule();
+  const { push } = useNotifications();
+
 
   // Prefer schedule-attached participants after create, fallback to constants
   const participants = useMemo(
@@ -76,6 +79,7 @@ export default function EditParticipantsScreen() {
     });
 
     updateSchedule({ attendingParticipants: next });
+    push('Participants attending updated', 'participants');
   };
 
   return (

@@ -5,6 +5,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
+import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
 
@@ -16,6 +17,8 @@ export default function EditChecklistScreen() {
     finalChecklistStaff,
     updateSchedule,
   } = useSchedule();
+  const { push } = useNotifications();
+
 
   // Prefer staff from the schedule (after create), fallback to static constants
   const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
@@ -30,6 +33,7 @@ export default function EditChecklistScreen() {
 
   const handleSelectStaff = (id: ID) => {
     updateSchedule({ finalChecklistStaff: id });
+    push('Final checklist staff updated', 'checklist');
   };
 
   const handleToggleItem = (itemId: ID | number) => {
@@ -37,6 +41,7 @@ export default function EditChecklistScreen() {
     const next = { ...(finalChecklist || {}) };
     next[key] = !next[key];
     updateSchedule({ finalChecklist: next });
+    push('Final checklist updated', 'checklist');
   };
 
   return (

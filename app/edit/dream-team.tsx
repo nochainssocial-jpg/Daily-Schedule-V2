@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
+import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
 
@@ -13,6 +14,8 @@ const MAX_WIDTH = 880;
 
 export default function EditDreamTeamScreen() {
   const { staff: scheduleStaff, workingStaff = [], updateSchedule } = useSchedule();
+  const { push } = useNotifications();
+
 
   // Prefer schedule-attached staff after create, fallback to static STAFF
   const staff = useMemo(
@@ -64,6 +67,7 @@ export default function EditDreamTeamScreen() {
     });
 
     updateSchedule({ workingStaff: next });
+    push('Dream Team updated', 'dream');
   };
 
   return (

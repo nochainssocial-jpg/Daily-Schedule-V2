@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
+import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
 
@@ -27,6 +28,8 @@ export default function EditPickupsDropoffsScreen() {
     dropoffAssignments,
     updateSchedule,
   } = useSchedule();
+  const { push } = useNotifications();
+
 
   const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
@@ -143,6 +146,7 @@ export default function EditPickupsDropoffsScreen() {
     if (current.has(pid)) current.delete(pid);
     else current.add(pid);
     updateSchedule({ pickupParticipants: Array.from(current) });
+    push('Pickups updated', 'pickups');
   };
 
   const toggleHelper = (sid: ID) => {
@@ -150,6 +154,7 @@ export default function EditPickupsDropoffsScreen() {
     if (current.has(sid)) current.delete(sid);
     else current.add(sid);
     updateSchedule({ helperStaff: Array.from(current) });
+    push('Helper staff updated', 'pickups');
   };
 
   const toggleDropoff = (sid: ID, pid: ID) => {
@@ -169,12 +174,14 @@ export default function EditPickupsDropoffsScreen() {
     // Already owned by this staff -> toggle off
     if (previousOwner === sid) {
       updateSchedule({ dropoffAssignments: current });
+    push('Dropoff assignments updated', 'pickups');
       return;
     }
 
     const list = current[sid] || [];
     current[sid] = [...list, pid];
     updateSchedule({ dropoffAssignments: current });
+    push('Dropoff assignments updated', 'pickups');
   };
 
   return (

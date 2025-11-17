@@ -3,6 +3,7 @@ import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
+import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
@@ -141,6 +142,8 @@ function buildAutoAssignments(
 // ---------------------------------------------------------------
 
 export default function FloatingScreen() {
+  const { push } = useNotifications();
+
   const {
     staff = [],
     workingStaff = [],
@@ -221,6 +224,7 @@ export default function FloatingScreen() {
     if (!hasFrontRoom && working.length && updateSchedule) {
       const next = buildAutoAssignments(working, TIME_SLOTS);
       updateSchedule({ floatingAssignments: next });
+      push('Floating assignments updated', 'floating');
     }
   }, [hasFrontRoom, working, updateSchedule]);
 
@@ -229,6 +233,7 @@ export default function FloatingScreen() {
     if (!working.length || !updateSchedule) return;
     const next = buildAutoAssignments(working, TIME_SLOTS);
     updateSchedule({ floatingAssignments: next });
+    push('Floating assignments updated', 'floating');
   };
 
   return (
