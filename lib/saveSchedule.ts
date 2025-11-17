@@ -1,0 +1,27 @@
+import { supabase } from './supabase';
+import { ScheduleSnapshot } from '@/types/schedule'; // adjust path if needed
+
+// Generates a simple 6-digit code (e.g. 482193)
+export function generateShareCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+export async function saveScheduleToSupabase(
+  house: string,
+  snapshot: ScheduleSnapshot
+) {
+  const code = generateShareCode();
+
+  const { error } = await supabase.from('schedules').insert({
+    house,
+    code,
+    snapshot,
+  });
+
+  if (error) {
+    console.error('Supabase insert error:', error);
+    return { ok: false, error };
+  }
+
+  return { ok: true, code };
+}
