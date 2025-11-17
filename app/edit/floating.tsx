@@ -143,7 +143,10 @@ export default function FloatingScreen() {
     setOpen(false);
   };
 
-  // 🔁 Auto / shuffle logic
+  // 🔁 Auto / shuffle logic with:
+  // - no same staff in 2 rooms in same slot
+  // - avoid consecutive slots for same staff where possible
+  // - FSO + Antoinette rules
   const autoAssignAll = useCallback(() => {
     const list = working || [];
     if (!list.length) return;
@@ -154,12 +157,15 @@ export default function FloatingScreen() {
     });
 
     const next: Record<string, ID> = {};
+    let prevSlotStaff = new Set<string>();
 
     const chooseFor = (
       slot: any,
       col: ColKey,
       taken: Set<string>,
+      prevSet: Set<string>,
     ): string | undefined => {
+      // base pool: not already used in this slot
       let candidates = list.filter(
         (s: any) => !taken.has(s.id),
       );
@@ -183,6 +189,14 @@ export default function FloatingScreen() {
 
       if (!candidates.length) return undefined;
 
+      // Avoid back-to-back slots where possible
+      const cooled = candidates.filter(
+        (s: any) => !prevSet.has(s.id),
+      );
+      if (cooled.length > 0) {
+        candidates = cooled;
+      }
+
       // Fair usage: pick amongst least-used, randomly
       let minCount = Infinity;
       candidates.forEach((s: any) => {
@@ -203,38 +217,48 @@ export default function FloatingScreen() {
     (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
       const slotId = String(slot.id ?? idx);
       const taken = new Set<string>();
+      const thisSlotStaff = new Set<string>();
 
-      const frId = chooseFor(slot, 'frontRoom', taken);
+      const frId = chooseFor(slot, 'frontRoom', taken, prevSlotStaff);
       if (frId) {
         next[keyOf(slotId, 'frontRoom')] = frId;
         taken.add(frId);
+        thisSlotStaff.add(frId);
       }
 
-      const scId = chooseFor(slot, 'scotty', taken);
+      const scId = chooseFor(slot, 'scotty', taken, prevSlotStaff);
       if (scId) {
         next[keyOf(slotId, 'scotty')] = scId;
         taken.add(scId);
+        thisSlotStaff.add(scId);
       }
 
-      const twId = chooseFor(slot, 'twins', taken);
+      const twId = chooseFor(slot, 'twins', taken, prevSlotStaff);
       if (twId) {
         next[keyOf(slotId, 'twins')] = twId;
         taken.add(twId);
+        thisSlotStaff.add(twId);
       }
+
+      prevSlotStaff = thisSlotStaff;
     });
 
     updateSchedule?.({ floatingAssignments: next });
     touch?.();
   }, [working, updateSchedule, touch]);
 
-  // First-time auto-populate if there are working staff but no assignments yet
+  // First-time auto-populate if:
+  // - there are working staff
+  // - AND there are no Front Room assignments at all
   useEffect(() => {
     if (autoDone) return;
-    const hasAny =
+    const hasFrontRoom =
       floatingAssignments &&
-      Object.keys(floatingAssignments).length > 0;
+      Object.keys(floatingAssignments).some(k =>
+        k.endsWith('|frontRoom'),
+      );
 
-    if (!hasAny && (working || []).length > 0) {
+    if (!hasFrontRoom && (working || []).length > 0) {
       autoAssignAll();
       setAutoDone(true);
     }
