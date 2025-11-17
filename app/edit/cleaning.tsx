@@ -1,175 +1,377 @@
-// app/edit/cleaning.tsx
-import React, { useMemo } from 'react';
-import { ScrollView, Text, StyleSheet, View, TouchableOpacity } from 'react-native';
+// app/edit/cleaning.tsx (or wherever your Cleaning edit screen lives)
+import React, { useMemo, useState } from 'react';
+import {
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  StyleSheet,
+} from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
-import { DEFAULT_CHORES, STAFF as STATIC_STAFF } from '@/constants/data';
+import * as Data from '@/constants/data'; // CLEANING_TASKS etc.
+import { Check } from 'lucide-react-native';
 
-type ID = string;
+type Staff = {
+  id: string;
+  name: string;
+  color?: string;
+};
 
-export default function EditCleaningScreen() {
-  const { staff: scheduleStaff, workingStaff, cleaningAssignments, updateSchedule } =
-    useSchedule();
+type CleaningTask = {
+  id: string;
+  label: string;
+};
 
-  // Prefer staff from the schedule (after create), fallback to static constants
-  const staff =
-    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
+export default function CleaningEditScreen() {
+  const { schedule, updateSchedule } = useSchedule();
 
-  // Use the Dream Team as the pool if set, otherwise all staff
-  const staffPool = useMemo(
-    () =>
-      workingStaff && workingStaff.length
-        ? staff.filter(s => workingStaff.includes(s.id))
-        : staff,
-    [staff, workingStaff],
+  const staff: Staff[] = schedule.staff || [];
+  const workingStaffIds: string[] = schedule.workingStaff || [];
+
+  const tasks: CleaningTask[] = Data.CLEANING_TASKS || [];
+
+  const assignments: Record<string, string | undefined> =
+    schedule.cleaningAssignments || {};
+
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+
+  const activeTask = useMemo(
+    () => tasks.find(t => t.id === activeTaskId) || null,
+    [tasks, activeTaskId]
   );
 
-  const staffById = new Map(staff.map(s => [s.id, s]));
+  const workingStaff = useMemo(
+    () => staff.filter(s => workingStaffIds.includes(s.id)),
+    [staff, workingStaffIds]
+  );
 
-  const cycleChoreAssignment = (choreId: ID | number) => {
-    if (!staffPool.length) return; // Nothing to cycle through
+  const helpers = useMemo(
+    () => staff.filter(s => !workingStaffIds.includes(s.id)),
+    [staff, workingStaffIds]
+  );
 
-    const key = String(choreId);
-    const current = cleaningAssignments || {};
-    const currentStaffId = current[key];
+  const handleSelectStaff = (staffId: string | null) => {
+    if (!activeTaskId) return;
 
-    // Clone current assignments so we can safely mutate
-    const next: Record<string, ID> = { ...current };
+    const nextAssignments = {
+      ...(assignments || {}),
+      [activeTaskId]: staffId || undefined,
+    };
 
-    if (!currentStaffId) {
-      // No one assigned yet -> assign first in pool
-      next[key] = staffPool[0].id;
-    } else {
-      const idx = staffPool.findIndex(s => s.id === currentStaffId);
-      if (idx === -1) {
-        // Current id not in pool (e.g. pool changed), reset to first
-        next[key] = staffPool[0].id;
-      } else if (idx === staffPool.length - 1) {
-        // Last staff in pool -> next tap clears assignment
-        delete next[key];
-      } else {
-        // Move to next staff member in pool
-        next[key] = staffPool[idx + 1].id;
-      }
-    }
+    updateSchedule?.({ cleaningAssignments: nextAssignments });
 
-    updateSchedule({ cleaningAssignments: next });
+    // 🔔 trigger notification (hook added later)
+    // pushNotification(`Cleaning updated — ${activeTask?.label ?? 'Task'}`);
+
+    setActiveTaskId(null);
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.inner}>
-          <Text style={styles.title}>End of Shift Cleaning Assignments</Text>
-          <Text style={styles.subtitle}>
-            Tap a row to cycle who is responsible for each task. The pool is your Dream Team (if
-            selected), or all staff if no Dream Team has been chosen yet.
-          </Text>
+    <View style={styles.wrap}>
+      <Text style={styles.heading}>End of Shift Cleaning Assignments</Text>
+      <Text style={styles.subheading}>
+        Tap a staff pill to update who is responsible for each task.
+      </Text>
 
-          {!staffPool.length && (
-            <Text style={styles.helperText}>
-              No staff available. Create a schedule and select working staff to assign cleaning
-              duties.
-            </Text>
-          )}
+      <ScrollView
+        style={{ marginTop: 16 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {tasks.map(task => {
+          const staffId = assignments[task.id];
+          const st = staff.find(s => s.id === staffId) || null;
+          const label = st ? st.name : 'Not assigned';
 
-          {DEFAULT_CHORES.map(chore => {
-            const key = String(chore.id);
-            const sid = cleaningAssignments?.[key];
-            const st = sid ? staffById.get(sid) : null;
+          const isAssigned = !!st;
 
-            // Support both `label` and `name` on the chore
-            const label = (chore as any).label || (chore as any).name || '';
+          return (
+            <View key={task.id} style={styles.row}>
+              <View style={styles.taskCol}>
+                <Text style={styles.taskLabel}>{task.label}</Text>
+              </View>
 
-            return (
-              <TouchableOpacity
-                key={key}
-                style={styles.row}
-                onPress={() => cycleChoreAssignment(chore.id)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.choreCol}>
-                  <Text style={styles.choreLabel}>{label}</Text>
-                </View>
-                <View style={styles.staffCol}>
-                  <Text style={st ? styles.staffName : styles.staffEmpty}>
-                    {st ? st.name : 'Not yet assigned'}
+              <View style={styles.staffCol}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setActiveTaskId(task.id)}
+                  style={[
+                    styles.pill,
+                    isAssigned && styles.pillAssigned,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pillText,
+                      isAssigned && styles.pillTextAssigned,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {label}
                   </Text>
-                  <Text style={styles.tapHint}>Tap to change</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  <Text
+                    style={[
+                      styles.pillChevron,
+                      isAssigned && styles.pillTextAssigned,
+                    ]}
+                  >
+                    ▾
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
+
+      {/* Staff picker modal */}
+      <Modal
+        visible={!!activeTask}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setActiveTaskId(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              Choose staff for
+            </Text>
+            {activeTask && (
+              <Text style={styles.modalTaskLabel}>{activeTask.label}</Text>
+            )}
+
+            <ScrollView
+              style={{ marginTop: 16 }}
+              contentContainerStyle={{ paddingBottom: 16 }}
+            >
+              <Text style={styles.modalSectionTitle}>Working staff</Text>
+              <View style={{ marginTop: 8, gap: 6 }}>
+                {workingStaff.map(st => {
+                  const selected = assignments[activeTaskId ?? ''] === st.id;
+                  return (
+                    <TouchableOpacity
+                      key={st.id}
+                      onPress={() => handleSelectStaff(st.id)}
+                      style={[
+                        styles.modalRow,
+                        selected && styles.modalRowSel,
+                      ]}
+                      activeOpacity={0.85}
+                    >
+                      <View
+                        style={[
+                          styles.modalRect,
+                          { backgroundColor: st.color || '#E5ECF5' },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.modalRowTxt,
+                          selected && styles.modalRowTxtSel,
+                        ]}
+                      >
+                        {st.name}
+                      </Text>
+                      {selected && <Check size={18} color="#fff" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {!!helpers.length && (
+                <>
+                  <Text style={[styles.modalSectionTitle, { marginTop: 18 }]}>
+                    Other staff
+                  </Text>
+                  <View style={{ marginTop: 8, gap: 6 }}>
+                    {helpers.map(st => {
+                      const selected =
+                        assignments[activeTaskId ?? ''] === st.id;
+                      return (
+                        <TouchableOpacity
+                          key={st.id}
+                          onPress={() => handleSelectStaff(st.id)}
+                          style={[
+                            styles.modalRow,
+                            selected && styles.modalRowSel,
+                          ]}
+                          activeOpacity={0.85}
+                        >
+                          <View
+                            style={[
+                              styles.modalRect,
+                              { backgroundColor: st.color || '#E5ECF5' },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.modalRowTxt,
+                              selected && styles.modalRowTxtSel,
+                            ]}
+                          >
+                            {st.name}
+                          </Text>
+                          {selected && <Check size={18} color="#fff" />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              <TouchableOpacity
+                onPress={() => handleSelectStaff(null)}
+                style={[styles.modalRow, { marginTop: 18 }]}
+              >
+                <Text style={styles.modalRowTxt}>Clear assignment</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setActiveTaskId(null)}
+              style={styles.modalClose}
+            >
+              <Text style={styles.modalCloseTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-const MAX_WIDTH = 880;
-
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#faf7fb',
-  },
-  scroll: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  inner: {
+  wrap: {
     width: '100%',
-    maxWidth: MAX_WIDTH,
-    paddingHorizontal: 24,
+    maxWidth: 880,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 16,
   },
-  title: {
-    fontSize: 20,
+  heading: {
+    fontSize: 22,
     fontWeight: '700',
-    marginBottom: 6,
-    color: '#332244',
+    color: '#333',
   },
-  subtitle: {
-    fontSize: 13,
-    opacity: 0.75,
-    marginBottom: 16,
-    color: '#5a486b',
+  subheading: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#7A7485',
   },
-  helperText: {
-    fontSize: 13,
-    opacity: 0.8,
-    color: '#7a688c',
-    marginBottom: 12,
-  },
+
   row: {
     flexDirection: 'row',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderColor: '#e5d9f2',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5ECF5',
   },
-  choreCol: {
-    flex: 2,
+  taskCol: {
+    flex: 3,
     paddingRight: 12,
   },
   staffCol: {
-    flex: 1.4,
+    flex: 2,
     alignItems: 'flex-end',
   },
-  choreLabel: {
+  taskLabel: {
     fontSize: 14,
-    color: '#4c3b5c',
+    color: '#433F4C',
   },
-  staffName: {
+
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5ECF5',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFF',
+    gap: 6,
+    maxWidth: 190,
+  },
+  pillAssigned: {
+    borderColor: '#F54FA5', // footer pink
+  },
+  pillText: {
     fontSize: 14,
+    color: '#7A7485',
+    flexShrink: 1,
+  },
+  pillTextAssigned: {
+    color: '#433F4C',
     fontWeight: '600',
-    color: '#3c234c',
   },
-  staffEmpty: {
+  pillChevron: {
     fontSize: 14,
-    color: '#9a86aa',
-    fontStyle: 'italic',
+    color: '#7A7485',
   },
-  tapHint: {
-    fontSize: 11,
-    color: '#a68ab8',
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    padding: 18,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#433F4C',
+  },
+  modalTaskLabel: {
     marginTop: 2,
+    fontSize: 14,
+    color: '#7A7485',
+  },
+  modalSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#433F4C',
+  },
+  modalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#F7F6FB',
+    gap: 8,
+  },
+  modalRowSel: {
+    backgroundColor: '#F54FA5',
+  },
+  modalRect: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: '#E5ECF5',
+  },
+  modalRowTxt: {
+    flex: 1,
+    fontSize: 14,
+    color: '#433F4C',
+  },
+  modalRowTxtSel: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  modalClose: {
+    marginTop: 10,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  modalCloseTxt: {
+    fontSize: 14,
+    color: '#7A7485',
   },
 });
