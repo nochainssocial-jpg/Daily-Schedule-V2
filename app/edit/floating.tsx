@@ -3,7 +3,7 @@ import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
-import * as Data from '@/components/data';
+import * as Data from '@/constants/data';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
