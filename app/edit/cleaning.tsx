@@ -8,7 +8,6 @@ import {
   View,
   StyleSheet,
 } from 'react-native';
-import { Check } from 'lucide-react-native';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import {
@@ -17,6 +16,8 @@ import {
   type Chore,
 } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+
+const PINK = '#F54FA5';
 
 export default function CleaningEditScreen() {
   const {
@@ -42,11 +43,6 @@ export default function CleaningEditScreen() {
     [staff, workingStaff]
   );
 
-  const helperStaffList: Staff[] = useMemo(
-    () => staff.filter(s => !workingStaff.includes(s.id)),
-    [staff, workingStaff]
-  );
-
   const handleSelectStaff = (staffId: string | null) => {
     if (!activeChoreId) return;
 
@@ -59,17 +55,12 @@ export default function CleaningEditScreen() {
 
     updateSchedule?.({ cleaningAssignments: nextAssignments });
 
-    // 🔔 fire a notification
-    if (staffId && chore) {
-      push(
-        `Cleaning updated — ${chore.name}`,
-        'cleaning'
-      );
-    } else if (chore) {
-      push(
-        `Cleaning cleared — ${chore.name}`,
-        'cleaning'
-      );
+    if (chore) {
+      if (staffId) {
+        push(`Cleaning updated — ${chore.name}`, 'cleaning');
+      } else {
+        push(`Cleaning cleared — ${chore.name}`, 'cleaning');
+      }
     }
 
     setActiveChoreId(null);
@@ -96,12 +87,10 @@ export default function CleaningEditScreen() {
 
           return (
             <View key={choreId} style={styles.row}>
-              {/* Left: task / chore name */}
               <View style={styles.taskCol}>
                 <Text style={styles.taskLabel}>{chore.name}</Text>
               </View>
 
-              {/* Right: inline pill */}
               <View style={styles.staffCol}>
                 <TouchableOpacity
                   activeOpacity={0.85}
@@ -135,134 +124,83 @@ export default function CleaningEditScreen() {
         })}
       </ScrollView>
 
-      {/* Staff picker modal */}
+      {/* Floating-style staff picker modal */}
       <Modal
         visible={!!activeChore}
-        animationType="slide"
+        animationType="fade"
         transparent
         onRequestClose={() => setActiveChoreId(null)}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Choose staff for</Text>
+            <Text style={styles.modalTitle}>Assign Staff</Text>
             {activeChore && (
-              <Text style={styles.modalTaskLabel}>
-                {activeChore.name}
-              </Text>
+              <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
             <ScrollView
-              style={{ marginTop: 16 }}
+              style={{ marginTop: 16, maxHeight: 340 }}
               contentContainerStyle={{ paddingBottom: 16 }}
             >
-              {/* Working staff */}
-              <Text style={styles.modalSectionTitle}>Working staff</Text>
-              <View style={{ marginTop: 8, gap: 6 }}>
-                {workingStaffList.map(st => {
-                  const selected =
-                    cleaningAssignments[String(activeChoreId ?? '')] === st.id;
+              {workingStaffList.length ? (
+                <View style={styles.chipGrid}>
+                  {workingStaffList.map(st => {
+                    const selected =
+                      cleaningAssignments[String(activeChoreId ?? '')] ===
+                      st.id;
 
-                  return (
-                    <TouchableOpacity
-                      key={st.id}
-                      onPress={() => handleSelectStaff(st.id)}
-                      style={[
-                        styles.modalRow,
-                        selected && styles.modalRowSel,
-                      ]}
-                      activeOpacity={0.85}
-                    >
-                      <View
+                    return (
+                      <TouchableOpacity
+                        key={st.id}
+                        onPress={() => handleSelectStaff(st.id)}
+                        activeOpacity={0.85}
                         style={[
-                          styles.modalRect,
-                          { backgroundColor: st.color || '#E5ECF5' },
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.modalRowTxt,
-                          selected && styles.modalRowTxtSel,
+                          styles.chip,
+                          selected && styles.chipSel,
                         ]}
                       >
-                        {st.name}
-                      </Text>
-                      {selected && <Check size={18} color="#fff" />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Helpers / other staff */}
-              {!!helperStaffList.length && (
-                <>
-                  <Text
-                    style={[styles.modalSectionTitle, { marginTop: 18 }]}
-                  >
-                    Other staff
-                  </Text>
-                  <View style={{ marginTop: 8, gap: 6 }}>
-                    {helperStaffList.map(st => {
-                      const selected =
-                        cleaningAssignments[String(activeChoreId ?? '')] ===
-                        st.id;
-
-                      return (
-                        <TouchableOpacity
-                          key={st.id}
-                          onPress={() => handleSelectStaff(st.id)}
+                        <Text
                           style={[
-                            styles.modalRow,
-                            selected && styles.modalRowSel,
+                            styles.chipLabel,
+                            selected && styles.chipLabelSel,
                           ]}
-                          activeOpacity={0.85}
+                          numberOfLines={1}
                         >
-                          <View
-                            style={[
-                              styles.modalRect,
-                              { backgroundColor: st.color || '#E5ECF5' },
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.modalRowTxt,
-                              selected && styles.modalRowTxtSel,
-                            ]}
-                          >
-                            {st.name}
-                          </Text>
-                          {selected && <Check size={18} color="#fff" />}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
+                          {st.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.noWorkingText}>
+                  No working staff set for this schedule.
+                </Text>
               )}
 
-              {/* Clear assignment */}
               <TouchableOpacity
                 onPress={() => handleSelectStaff(null)}
-                style={[styles.modalRow, { marginTop: 18 }]}
+                style={{ marginTop: 18 }}
               >
-                <Text style={styles.modalRowTxt}>
-                  Clear assignment
-                </Text>
+                <Text style={styles.clearLink}>Clear this task</Text>
               </TouchableOpacity>
             </ScrollView>
 
-            <TouchableOpacity
-              onPress={() => setActiveChoreId(null)}
-              style={styles.modalClose}
-            >
-              <Text style={styles.modalCloseTxt}>Cancel</Text>
-            </TouchableOpacity>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                onPress={() => setActiveChoreId(null)}
+                style={styles.closeBtn}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.closeBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
     </View>
   );
 }
-
-const PINK = '#F54FA5';
 
 const styles = StyleSheet.create({
   wrap: {
@@ -332,6 +270,7 @@ const styles = StyleSheet.create({
     color: '#7A7485',
   },
 
+  // modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -341,61 +280,72 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
-    maxWidth: 420,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    padding: 18,
+    maxWidth: 560,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
   },
   modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#433F4C',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111',
   },
   modalTaskLabel: {
-    marginTop: 2,
+    marginTop: 4,
     fontSize: 14,
-    color: '#7A7485',
+    color: '#555',
   },
-  modalSectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#433F4C',
-  },
-  modalRow: {
+  chipGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: '#F7F6FB',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  modalRowSel: {
-    backgroundColor: PINK,
+  chip: {
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    backgroundColor: '#FFF',
   },
-  modalRect: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    backgroundColor: '#E5ECF5',
+  chipSel: {
+    borderColor: PINK,
+    backgroundColor: '#FFE5F4',
   },
-  modalRowTxt: {
-    flex: 1,
+  chipLabel: {
+    fontSize: 15,
+    color: '#222',
+  },
+  chipLabelSel: {
+    fontWeight: '600',
+    color: '#111',
+  },
+  clearLink: {
     fontSize: 14,
-    color: '#433F4C',
-  },
-  modalRowTxtSel: {
-    color: '#FFF',
+    color: '#E23A3A',
     fontWeight: '600',
   },
-  modalClose: {
-    marginTop: 10,
-    alignSelf: 'flex-end',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  modalCloseTxt: {
+  noWorkingText: {
     fontSize: 14,
     color: '#7A7485',
+  },
+  modalFooter: {
+    marginTop: 18,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  closeBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#CCC',
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    backgroundColor: '#FFF',
+  },
+  closeBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#222',
   },
 });
