@@ -7,12 +7,12 @@ import { Edit3 } from 'lucide-react-native';
 function EditHeaderTitle({ label }: { label: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <Edit3 size={24} color="#332244" />
+      <Edit3 size={24} color="#FF8FC5" />
       <Text
         style={{
-          fontSize: 18,
+          fontSize: 24,
           fontWeight: '600',
-          color: '#332244',
+          color: '#FF8FC5',
         }}
       >
         {label}
@@ -27,8 +27,7 @@ export default function EditLayout() {
       screenOptions={{
         headerTitleAlign: 'center',
         headerShadowVisible: false,
-        headerTintColor: '#332244',
-        headerStyle: { backgroundColor: '#f7f1ff' },
+        headerStyle: { backgroundColor: '#444444' },
       }}
     >
       {/* Edit Hub main menu */}
