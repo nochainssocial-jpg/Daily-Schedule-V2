@@ -35,10 +35,18 @@ function HeaderTitle({
 
 export default function RootLayout() {
   return (
+    <Stack
+      screenOptions={{
+        headerTitleAlign: 'center',
+        headerShadowVisible: false,
+        headerTintColor: '#332244',
+      }}
+    >
+      {/* EDIT STACK ROOT – header handled by app/edit/_layout.tsx */}
       <Stack.Screen
         name="edit"
         options={{
-          headerShown: false,   // ← fully disable root header for edit stack
+          headerShown: false, // hide the plain "edit" header
         }}
       />
 
@@ -55,7 +63,7 @@ export default function RootLayout() {
         }}
       />
 
-      {/* EDIT HUB (edit/index.tsx) */}
+      {/* EDIT HUB (edit/index.tsx) – this is optional if using nested layout */}
       <Stack.Screen
         name="edit/index"
         options={{
