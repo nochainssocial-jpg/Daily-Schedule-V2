@@ -4,6 +4,9 @@ import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import { Edit3 } from 'lucide-react-native';
 
+// 🔔 ADD THIS
+import NotificationToaster from '@/components/NotificationToaster';
+
 const PINK = '#FF8FC5';
 const DARK_GREY = '#444444';
 
@@ -26,85 +29,88 @@ function EditHeaderTitle({ label }: { label: string }) {
 
 export default function EditLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerTitleAlign: 'center',
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: DARK_GREY }, // dark grey header
-        headerTintColor: PINK,                        // chevron colour
-      }}
-    >
-      {/* Edit Hub main menu */}
-      <Stack.Screen
-        name="index"
-        options={{
-          headerTitle: () => <EditHeaderTitle label="Edit Hub" />,
-        }}
-      />
+    <>
+      {/* 🔔 NOTIFICATIONS ALSO APPEAR IN EDIT HUB */}
+      <NotificationToaster />
 
-      {/* Individual edit categories */}
-      <Stack.Screen
-        name="dream-team"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="The Dream Team" />
-          ),
+      <Stack
+        screenOptions={{
+          headerTitleAlign: 'center',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: DARK_GREY },
+          headerTintColor: PINK,
         }}
-      />
+      >
+        <Stack.Screen
+          name="index"
+          options={{
+            headerTitle: () => <EditHeaderTitle label="Edit Hub" />,
+          }}
+        />
 
-      <Stack.Screen
-        name="participants"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="Participants Attending" />
-          ),
-        }}
-      />
+        <Stack.Screen
+          name="dream-team"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="The Dream Team" />
+            ),
+          }}
+        />
 
-      <Stack.Screen
-        name="assignments"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="Team Daily Assignments" />
-          ),
-        }}
-      />
+        <Stack.Screen
+          name="participants"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Participants Attending" />
+            ),
+          }}
+        />
 
-      <Stack.Screen
-        name="floating"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="Floating Assignments" />
-          ),
-        }}
-      />
+        <Stack.Screen
+          name="assignments"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Team Daily Assignments" />
+            ),
+          }}
+        />
 
-      <Stack.Screen
-        name="cleaning"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="Cleaning Duties" />
-          ),
-        }}
-      />
+        <Stack.Screen
+          name="floating"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Floating Assignments" />
+            ),
+          }}
+        />
 
-      <Stack.Screen
-        name="pickups-dropoffs"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="Pickups & Dropoffs" />
-          ),
-        }}
-      />
+        <Stack.Screen
+          name="cleaning"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Cleaning Duties" />
+            ),
+          }}
+        />
 
-      <Stack.Screen
-        name="checklist"
-        options={{
-          headerTitle: () => (
-            <EditHeaderTitle label="Final Checklist" />
-          ),
-        }}
-      />
-    </Stack>
+        <Stack.Screen
+          name="pickups-dropoffs"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Pickups & Dropoffs" />
+            ),
+          }}
+        />
+
+        <Stack.Screen
+          name="checklist"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Final Checklist" />
+            ),
+          }}
+        />
+      </Stack>
+    </>
   );
 }
