@@ -84,8 +84,6 @@ export default function ShareScheduleScreen() {
     });
   }, [code]);
 
-
-
   const handleShareSms = async () => {
     try {
       const ok = await Linking.canOpenURL(smsHref || 'sms:');
@@ -120,7 +118,10 @@ export default function ShareScheduleScreen() {
             const raw = window.localStorage.getItem('nc_schedule_' + trimmed);
             if (raw) {
               snapshot = JSON.parse(raw);
-              console.warn('[ShareSchedule] using localStorage snapshot fallback for code', trimmed);
+              console.warn(
+                '[ShareSchedule] using localStorage snapshot fallback for code',
+                trimmed,
+              );
             }
           }
         } catch (err) {
@@ -130,10 +131,25 @@ export default function ShareScheduleScreen() {
         if (!snapshot) {
           Alert.alert(
             'Import',
-            'No schedule was found for that code. Please check the code and try again.'
+            'No schedule was found for that code. Please check the code and try again.',
           );
           return;
         }
+      }
+
+      // 🧠 Persist the snapshot locally on this device as well (for re-import / offline)
+      try {
+        if (typeof window !== 'undefined' && window.localStorage && snapshot) {
+          window.localStorage.setItem(
+            'nc_schedule_' + String(trimmed),
+            JSON.stringify(snapshot),
+          );
+        }
+      } catch (err) {
+        console.warn(
+          '[ShareSchedule] failed to store imported snapshot in localStorage:',
+          err,
+        );
       }
 
       // 🔥 Hydrate store from snapshot (covers different helper names)
@@ -175,7 +191,10 @@ export default function ShareScheduleScreen() {
           window.localStorage.setItem('nc_share_code', String(trimmed));
         }
       } catch (err) {
-        console.warn('[ShareSchedule] failed to store imported shareCode in localStorage:', err);
+        console.warn(
+          '[ShareSchedule] failed to store imported shareCode in localStorage:',
+          err,
+        );
       }
 
       // Go to Edit Hub (same route as create-schedule uses: '/edit')
@@ -188,7 +207,7 @@ export default function ShareScheduleScreen() {
       console.warn('[ShareSchedule] import error:', e);
       Alert.alert(
         'Import',
-        'There was a problem loading this schedule. Please try again.'
+        'There was a problem loading this schedule. Please try again.',
       );
     } finally {
       setImporting(false);
@@ -223,8 +242,7 @@ export default function ShareScheduleScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Share code via text</Text>
             <Text style={styles.cardDescription}>
-              Open your SMS app with a pre-filled message that includes the
-              current code.
+              Open your SMS app with a pre-filled message that includes the current code.
             </Text>
             <TouchableOpacity
               onPress={handleShareSms}
@@ -245,8 +263,7 @@ export default function ShareScheduleScreen() {
               Import code to access today&apos;s schedule
             </Text>
             <Text style={styles.cardDescription}>
-              Enter a valid 6-digit code to load today&apos;s Daily Schedule
-              associated with that code.
+              Enter a valid 6-digit code to load today&apos;s Daily Schedule associated with that code.
             </Text>
             <View style={styles.row}>
               <TextInput
