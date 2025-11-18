@@ -38,6 +38,8 @@ export default function CreateScheduleScreen() {
     scheduleStep,
     setScheduleStep,
     touch,
+    updateSchedule,
+    meta,
   } = hook;
 
   // ---- step state (web-stable) ----------------------------------------

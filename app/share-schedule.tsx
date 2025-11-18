@@ -56,33 +56,7 @@ export default function ShareScheduleScreen() {
     });
   }, [code]);
 
-  const handleGenerate = () => {
-    const stored =
-      (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
-      shareCode;
 
-    if (!stored) {
-      Alert.alert(
-        'Share code',
-        'A share code is created when you press Finish at the end of the Create Schedule flow.'
-      );
-      return;
-    }
-
-    setCode(stored);
-
-    try {
-      if (typeof updateSchedule === 'function') {
-        const currentMeta = (meta || {}) as Record<string, any>;
-        updateSchedule({
-          meta: {
-            ...currentMeta,
-            shareCode: stored,
-          },
-        } as any);
-      }
-    } catch {}
-  };
 
   const handleShareSms = async () => {
     try {
@@ -172,21 +146,15 @@ export default function ShareScheduleScreen() {
       <Stack.Screen options={{ title: "Share Today's Schedule" }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
-          {/* Section 1: Code generator */}
+          {/* Section 1: Today's share code */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Generate a 6-digit code</Text>
+            <Text style={styles.cardTitle}>Today's share code</Text>
             <Text style={styles.cardDescription}>
-              Create a one-time code you can share with staff so they can view
-              today&apos;s Daily Schedule on their own device.
+              This 6-digit code is generated automatically when you press Finish at the end of the
+              Create Schedule flow. Share it with staff so they can view today's Daily Schedule on
+              their own device.
             </Text>
             <View style={styles.row}>
-              <TouchableOpacity
-                onPress={handleGenerate}
-                style={[styles.button, styles.btnPink]}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.btnText}>Generate Code</Text>
-              </TouchableOpacity>
               <TextInput
                 value={code}
                 onChangeText={setCode}
@@ -194,13 +162,6 @@ export default function ShareScheduleScreen() {
                 style={styles.input}
                 keyboardType="number-pad"
               />
-              <TouchableOpacity
-                onPress={handleShareSms}
-                style={[styles.button, styles.btnLavender]}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.btnText}>Share via TXT</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
