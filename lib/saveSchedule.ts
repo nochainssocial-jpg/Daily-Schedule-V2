@@ -12,23 +12,16 @@ export async function saveScheduleToSupabase(
 ) {
   const code = generateShareCode();
 
-  try {
-    const { error } = await supabase.from('schedules').insert({
-      house,
-      code,
-      snapshot,
-    });
+  const { error } = await supabase.from('schedules').insert({
+    house,
+    code,
+    snapshot,
+  });
 
-    if (error) {
-      console.error('Supabase insert error:', error);
-      // Even if Supabase failed, return the code so the UI can still use it
-      return { ok: false, error, code };
-    }
-
-    return { ok: true, code };
-  } catch (error) {
+  if (error) {
     console.error('Supabase insert error:', error);
-    // Network / DNS / other fatal error — still return the code
-    return { ok: false, error, code } as any;
+    return { ok: false, error };
   }
+
+  return { ok: true, code };
 }
