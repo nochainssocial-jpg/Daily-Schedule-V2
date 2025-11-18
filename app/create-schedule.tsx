@@ -879,12 +879,16 @@ const snapshot = {
 /** 🔥 NEW — Save to Supabase */
 try {
   const result = await saveScheduleToSupabase('B2', snapshot);
+
   if (!result.ok) {
     console.warn('Supabase save error:', result.error);
   } else {
     console.log('Supabase schedule saved with code:', result.code);
+  }
 
-    // 🧠 Persist the share code into the store so Share screen can use it
+  // 🧠 Persist the share code into the store so Share screen can use it,
+  // even if Supabase failed, as long as we have a code.
+  if (result && result.code) {
     try {
       const currentMeta = (meta || {}) as Record<string, any>;
       if (typeof updateSchedule === 'function') {
