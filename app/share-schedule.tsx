@@ -27,21 +27,49 @@ export default function ShareScheduleScreen() {
     loadSnapshot,
   } = useSchedule() as any;
 
-  const initialCode =
-    (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
-    shareCode ||
-    '';
+  // Derive initial code from state, with localStorage fallback on web
+  const initialCode = (() => {
+    const fromState =
+      (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
+      shareCode ||
+      '';
+    if (fromState) return fromState;
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem('nc_share_code');
+        return stored || '';
+      }
+    } catch (err) {
+      console.warn('[ShareSchedule] failed to read localStorage share code:', err);
+    }
+    return '';
+  })();
 
   const [code, setCode] = useState(initialCode);
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    const next =
+    const fromState =
       (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
       shareCode ||
       '';
-    if (next && next !== code) {
-      setCode(next);
+    if (fromState && fromState !== code) {
+      setCode(fromState);
+      return;
+    }
+
+    if (!fromState) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const stored = window.localStorage.getItem('nc_share_code');
+          if (stored && stored !== code) {
+            setCode(stored);
+          }
+        }
+      } catch (err) {
+        console.warn('[ShareSchedule] failed to read localStorage share code:', err);
+      }
     }
   }, [meta?.shareCode, shareCode]);
 
@@ -123,6 +151,15 @@ export default function ShareScheduleScreen() {
           } as any);
         }
       } catch {}
+
+      // Also persist imported code to localStorage on web
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('nc_share_code', String(trimmed));
+        }
+      } catch (err) {
+        console.warn('[ShareSchedule] failed to store imported shareCode in localStorage:', err);
+      }
 
       // Go to Edit Hub (same route as create-schedule uses: '/edit')
       try {

@@ -902,7 +902,17 @@ try {
     } catch (err) {
       console.warn('[create-schedule] failed to store shareCode in meta:', err);
     }
+
+    // Also persist to localStorage on web so Share screen can always recover it
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('nc_share_code', String(result.code));
+      }
+    } catch (err) {
+      console.warn('[create-schedule] failed to store shareCode in localStorage:', err);
+    }
   }
+
 } catch (e) {
   console.warn('Supabase insert failed:', e);
 }
