@@ -109,15 +109,32 @@ export default function ShareScheduleScreen() {
       // 🔥 Fetch schedule from Supabase by code
       const result = await loadScheduleFromSupabase(trimmed);
 
-      if (!result.ok || !result.schedule) {
-        Alert.alert(
-          'Import',
-          'No schedule was found for that code. Please check the code and try again.'
-        );
-        return;
-      }
+      let snapshot: any | null = null;
 
-      const snapshot = result.schedule.snapshot;
+      if (result && result.ok && result.schedule && result.schedule.snapshot) {
+        snapshot = result.schedule.snapshot;
+      } else {
+        // Fallback: try to load snapshot from localStorage on this device
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            const raw = window.localStorage.getItem('nc_schedule_' + trimmed);
+            if (raw) {
+              snapshot = JSON.parse(raw);
+              console.warn('[ShareSchedule] using localStorage snapshot fallback for code', trimmed);
+            }
+          }
+        } catch (err) {
+          console.warn('[ShareSchedule] failed to read localStorage snapshot:', err);
+        }
+
+        if (!snapshot) {
+          Alert.alert(
+            'Import',
+            'No schedule was found for that code. Please check the code and try again.'
+          );
+          return;
+        }
+      }
 
       // 🔥 Hydrate store from snapshot (covers different helper names)
       try {

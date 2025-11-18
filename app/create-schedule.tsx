@@ -907,9 +907,11 @@ try {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem('nc_share_code', String(result.code));
+        // Store the full snapshot as well for same-device import fallback
+        window.localStorage.setItem('nc_schedule_' + String(result.code), JSON.stringify(snapshot));
       }
     } catch (err) {
-      console.warn('[create-schedule] failed to store shareCode in localStorage:', err);
+      console.warn('[create-schedule] failed to store shareCode/snapshot in localStorage:', err);
     }
   }
 
