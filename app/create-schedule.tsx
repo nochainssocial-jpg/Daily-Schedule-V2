@@ -435,284 +435,285 @@ export default function CreateScheduleScreen() {
   };
 
   // ---- Step 4: Pickups & dropoffs ------------------------------------------
-const Step4 = () => {
-  const pickupSet = new Set(pickupParticipants || []);
-  const helperSet = new Set(helperStaff || []);
+  const Step4 = () => {
+    const pickupSet = new Set(pickupParticipants || []);
+    const helperSet = new Set(helperStaff || []);
 
-  const attending = partsSource
-    .filter(p => attendingParticipants.includes(p.id))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    const attending = partsSource
+      .filter(p => attendingParticipants.includes(p.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-  const workingList = staffSource
-    .filter(s => workingStaff.includes(s.id) && !isEveryone(s.name))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    const workingList = staffSource
+      .filter(s => workingStaff.includes(s.id) && !isEveryone(s.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-  const helperCandidates = staffSource
-    .filter(s => !workingStaff.includes(s.id) && !isEveryone(s.name))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    const helperCandidates = staffSource
+      .filter(s => !workingStaff.includes(s.id) && !isEveryone(s.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-  const dropoffEligible = attending.filter(p => !pickupSet.has(p.id));
+    const dropoffEligible = attending.filter(p => !pickupSet.has(p.id));
 
-  // Build a map of participantId -> staffId from current assignments
-  const assignedTo = new Map<string, string>();
-  Object.entries(dropoffAssignments || {}).forEach(([sid, pids]) => {
-    (pids || []).forEach(pid => {
-      assignedTo.set(pid, sid);
+    // Build a map of participantId -> staffId from current assignments
+    const assignedTo = new Map<string, string>();
+    Object.entries(dropoffAssignments || {}).forEach(([sid, pids]) => {
+      (pids || []).forEach(pid => {
+        assignedTo.set(pid, sid);
+      });
     });
-  });
 
-  const [showHelpers, setShowHelpers] = useState(false);
-  const [collapsedDropoffs, setCollapsedDropoffs] = useState<Record<string, boolean>>({});
+    const [showHelpers, setShowHelpers] = useState(false);
+    const [collapsedDropoffs, setCollapsedDropoffs] = useState<Record<string, boolean>>({});
 
-  const togglePickupLocal = (pid: string) => {
-    setPickupParticipants(prev =>
-      prev.includes(pid) ? prev.filter(id => id !== pid) : [...prev, pid],
-    );
-  };
+    const togglePickupLocal = (pid: string) => {
+      setPickupParticipants(prev =>
+        prev.includes(pid) ? prev.filter(id => id !== pid) : [...prev, pid],
+      );
+    };
 
-  const toggleHelperLocal = (sid: string) => {
-    setHelperStaff(prev =>
-      prev.includes(sid) ? prev.filter(id => id !== sid) : [...prev, sid],
-    );
-  };
+    const toggleHelperLocal = (sid: string) => {
+      setHelperStaff(prev =>
+        prev.includes(sid) ? prev.filter(id => id !== sid) : [...prev, sid],
+      );
+    };
 
-  const toggleDropoffLocal = (staffId: string, participantId: string) => {
-    setDropoffAssignments(prevRaw => {
-      const prev = prevRaw || {};
-      const next: Record<string, string[]> = {};
+    const toggleDropoffLocal = (staffId: string, participantId: string) => {
+      setDropoffAssignments(prevRaw => {
+        const prev = prevRaw || {};
+        const next: Record<string, string[]> = {};
 
-      // clone
-      for (const [sid, pids] of Object.entries(prev)) {
-        next[sid] = [...(pids || [])];
-      }
-
-      // find current owner from *prev*
-      let currentlyAssignedTo: string | undefined;
-      for (const [sid, pids] of Object.entries(prev)) {
-        if ((pids || []).includes(participantId)) {
-          currentlyAssignedTo = sid;
-          break;
+        // clone
+        for (const [sid, pids] of Object.entries(prev)) {
+          next[sid] = [...(pids || [])];
         }
-      }
 
-      // remove participant from everyone in next
-      for (const [sid, pids] of Object.entries(next)) {
-        next[sid] = (pids || []).filter(pid => pid !== participantId);
-      }
+        // find current owner from *prev*
+        let currentlyAssignedTo: string | undefined;
+        for (const [sid, pids] of Object.entries(prev)) {
+          if ((pids || []).includes(participantId)) {
+            currentlyAssignedTo = sid;
+            break;
+          }
+        }
 
-      // if tapping same staff → just unassign
-      if (currentlyAssignedTo === staffId) {
+        // remove participant from everyone in next
+        for (const [sid, pids] of Object.entries(next)) {
+          next[sid] = (pids || []).filter(pid => pid !== participantId);
+        }
+
+        // if tapping same staff → just unassign
+        if (currentlyAssignedTo === staffId) {
+          return next;
+        }
+
+        if (!next[staffId]) next[staffId] = [];
+        next[staffId].push(participantId);
         return next;
-      }
+      });
+    };
 
-      if (!next[staffId]) next[staffId] = [];
-      next[staffId].push(participantId);
-      return next;
-    });
-  };
-
-  return (
-    <View style={styles.section}>
-      <Text style={styles.title}>Pickups & Dropoffs</Text>
-      <Text style={styles.subTitle}>
-        Choose which participants are picked up by external transport, which
-        staff will assist, and who is responsible for each dropoff. You can
-        adjust everything later in the Edit Hub.
-      </Text>
-
-      {/* Pickups */}
-      <View style={{ marginTop: 16 }}>
-        <Text style={styles.sectionTitle}>Pickups</Text>
+    return (
+      <View style={styles.section}>
+        <Text style={styles.title}>Pickups & Dropoffs</Text>
         <Text style={styles.subTitle}>
-          Select participants being picked up by external transport. These
-          participants will not appear in the dropoff lists.
+          Choose which participants are picked up by external transport, which
+          staff will assist, and who is responsible for each dropoff. You can
+          adjust everything later in the Edit Hub.
         </Text>
 
-        {attending.length ? (
-          <View style={styles.chipGrid}>
-            {attending.map(p => {
-              const sel = pickupSet.has(p.id);
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.chip, sel && styles.chipSel]}
-                  onPress={() => togglePickupLocal(p.id)}
-                  activeOpacity={0.9}
-                >
-                  <Text style={[styles.chipTxt, sel && styles.chipTxtSel]}>
-                    {p.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : (
-          <Text style={styles.emptyHint}>
-            Pickups are only available once you have at least one attending
-            participant.
+        {/* Pickups */}
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.sectionTitle}>Pickups</Text>
+          <Text style={styles.subTitle}>
+            Select participants being picked up by external transport. These
+            participants will not appear in the dropoff lists.
           </Text>
-        )}
-      </View>
 
-      {/* Helpers */}
-      <View style={{ marginTop: 24 }}>
-        <View style={styles.helpersToggle}>
-          <View>
-            <Text style={styles.sectionTitle}>Dropoff Helpers (optional)</Text>
-            <Text style={styles.subTitle}>
-              Select staff who will assist with pickups and dropoffs. Only
-              team members not working at B2 are shown here.
+          {attending.length ? (
+            <View style={styles.chipGrid}>
+              {attending.map(p => {
+                const sel = pickupSet.has(p.id);
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[styles.chip, sel && styles.chipSel]}
+                    onPress={() => togglePickupLocal(p.id)}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={[styles.chipTxt, sel && styles.chipTxtSel]}>
+                      {p.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyHint}>
+              Pickups are only available once you have at least one attending
+              participant.
             </Text>
-          </View>
-          {helperCandidates.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setShowHelpers(v => !v)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.helpersToggleText}>
-                {showHelpers ? 'Hide helpers' : 'Show helpers'}
-              </Text>
-            </TouchableOpacity>
           )}
         </View>
 
-        {showHelpers && helperCandidates.length > 0 && (
-          <View style={styles.chipGrid}>
-            {helperCandidates.map(st => {
-              const sel = helperSet.has(st.id);
-              return (
-                <TouchableOpacity
-                  key={st.id}
-                  style={[styles.chip, sel && styles.chipSel]}
-                  onPress={() => toggleHelperLocal(st.id)}
-                  activeOpacity={0.9}
-                >
-                  <Text style={[styles.chipTxt, sel && styles.chipTxtSel]}>
-                    {st.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Helpers */}
+        <View style={{ marginTop: 24 }}>
+          <View style={styles.helpersToggle}>
+            <View>
+              <Text style={styles.sectionTitle}>Dropoff Helpers (optional)</Text>
+              <Text style={styles.subTitle}>
+                Select staff who will assist with pickups and dropoffs. Only
+                team members not working at B2 are shown here.
+              </Text>
+            </View>
+            {helperCandidates.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setShowHelpers(v => !v)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.helpersToggleText}>
+                  {showHelpers ? 'Hide helpers' : 'Show helpers'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
-        )}
-      </View>
 
-      {/* Dropoffs */}
-      <View style={{ marginTop: 24 }}>
-        <Text style={styles.sectionTitle}>Dropoffs</Text>
-        <Text style={styles.subTitle}>
-          Assign each dropoff participant to one staff member. Participants in
-          Pickups won&apos;t appear here. Once a participant is assigned for dropoff,
-          they will disappear from the other staff lists.
-        </Text>
+          {showHelpers && helperCandidates.length > 0 && (
+            <View style={styles.chipGrid}>
+              {helperCandidates.map(st => {
+                const sel = helperSet.has(st.id);
+                return (
+                  <TouchableOpacity
+                    key={st.id}
+                    style={[styles.chip, sel && styles.chipSel]}
+                    onPress={() => toggleHelperLocal(st.id)}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={[styles.chipTxt, sel && styles.chipTxtSel]}>
+                      {st.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
-        {workingList.length === 0 ? (
-          <Text style={styles.emptyHint}>
-            Set your Dream Team in Step 1 before assigning dropoffs.
+        {/* Dropoffs */}
+        <View style={{ marginTop: 24 }}>
+          <Text style={styles.sectionTitle}>Dropoffs</Text>
+          <Text style={styles.subTitle}>
+            Assign each dropoff participant to one staff member. Participants in
+            Pickups won&apos;t appear here. Once a participant is assigned for dropoff,
+            they will disappear from the other staff lists.
           </Text>
-        ) : dropoffEligible.length === 0 ? (
-          <Text style={styles.emptyHint}>
-            Once you have attending participants who are not in Pickups,
-            you&apos;ll be able to assign their dropoffs here.
-          </Text>
-        ) : (
-          <View style={{ marginTop: 12, gap: 12 as any }}>
-            {workingList.map(st => {
-              const assigned = dropoffEligible.filter(
-                p => assignedTo.get(p.id) === st.id,
-              );
-              const anyAssigned = assigned.length > 0;
 
-              // Only show participants that are either unassigned,
-              // or already assigned to THIS staff member.
-              const visibleForStaff = dropoffEligible.filter(p => {
-                const assignedStaff = assignedTo.get(p.id);
-                return !assignedStaff || assignedStaff === st.id;
-              });
+          {workingList.length === 0 ? (
+            <Text style={styles.emptyHint}>
+              Set your Dream Team in Step 1 before assigning dropoffs.
+            </Text>
+          ) : dropoffEligible.length === 0 ? (
+            <Text style={styles.emptyHint}>
+              Once you have attending participants who are not in Pickups,
+              you&apos;ll be able to assign their dropoffs here.
+            </Text>
+          ) : (
+            <View style={{ marginTop: 12, gap: 12 as any }}>
+              {workingList.map(st => {
+                const assigned = dropoffEligible.filter(
+                  p => assignedTo.get(p.id) === st.id,
+                );
+                const anyAssigned = assigned.length > 0;
 
-              const collapsed = !!collapsedDropoffs[st.id];
+                // Only show participants that are either unassigned,
+                // or already assigned to THIS staff member.
+                const visibleForStaff = dropoffEligible.filter(p => {
+                  const assignedStaff = assignedTo.get(p.id);
+                  return !assignedStaff || assignedStaff === st.id;
+                });
 
-              return (
-                <View key={st.id} style={styles.assignmentCard}>
-                  <View style={styles.assignmentHeader}>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8,
-                        flex: 1,
-                      }}
-                    >
+                const collapsed = !!collapsedDropoffs[st.id];
+
+                return (
+                  <View key={st.id} style={styles.assignmentCard}>
+                    <View style={styles.assignmentHeader}>
                       <View
-                        style={[
-                          styles.rect,
-                          { backgroundColor: st.color || '#E5ECF5' },
-                        ]}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.assignmentName}>{st.name}</Text>
-                        <Text style={styles.assignedSummary}>
-                          {anyAssigned
-                            ? `Assigned: ${assigned
-                                .map(p => p.name)
-                                .join(', ')}`
-                            : 'No dropoffs assigned yet.'}
-                        </Text>
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                          flex: 1,
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.rect,
+                            { backgroundColor: st.color || '#E5ECF5' },
+                          ]}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.assignmentName}>{st.name}</Text>
+                          <Text style={styles.assignedSummary}>
+                            {anyAssigned
+                              ? `Assigned: ${assigned
+                                  .map(p => p.name)
+                                  .join(', ')}`
+                              : 'No dropoffs assigned yet.'}
+                          </Text>
+                        </View>
                       </View>
+
+                      <TouchableOpacity
+                        onPress={() =>
+                          setCollapsedDropoffs(prev => ({
+                            ...prev,
+                            [st.id]: !collapsed,
+                          }))
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.helpersToggleText}>
+                          {collapsed ? 'Show list' : 'Hide list'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity
-                      onPress={() =>
-                        setCollapsedDropoffs(prev => ({
-                          ...prev,
-                          [st.id]: !collapsed,
-                        }))
-                      }
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.helpersToggleText}>
-                        {collapsed ? 'Show list' : 'Hide list'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {!collapsed && (
-                    <View style={[styles.chipGrid, { marginTop: 8 }]}>
-                      {visibleForStaff.map(p => {
-                        const selectedForStaff =
-                          assignedTo.get(p.id) === st.id;
-                        return (
-                          <TouchableOpacity
-                            key={p.id}
-                            style={[
-                              styles.chip,
-                              selectedForStaff && styles.chipSel,
-                            ]}
-                            onPress={() => toggleDropoffLocal(st.id, p.id)}
-                            activeOpacity={0.9}
-                          >
-                            <Text
+                    {!collapsed && (
+                      <View style={[styles.chipGrid, { marginTop: 8 }]}>
+                        {visibleForStaff.map(p => {
+                          const selectedForStaff =
+                            assignedTo.get(p.id) === st.id;
+                          return (
+                            <TouchableOpacity
+                              key={p.id}
                               style={[
-                                styles.chipTxt,
-                                selectedForStaff && styles.chipTxtSel,
+                                styles.chip,
+                                selectedForStaff && styles.chipSel,
                               ]}
+                              onPress={() => toggleDropoffLocal(st.id, p.id)}
+                              activeOpacity={0.9}
                             >
-                              {p.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
+                              <Text
+                                style={[
+                                  styles.chipTxt,
+                                  selectedForStaff && styles.chipTxtSel,
+                                ]}
+                              >
+                                {p.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  );
-};
+    );
+  };
+
   // ---- Step 5: Auto-Assignments message -----------------------------------
   const Step5 = () => (
     <View style={styles.section}>
@@ -841,89 +842,115 @@ const Step4 = () => {
       assignmentsMap[sid] = cleaned;
     });
 
-try {
-  await persistFinish({
-    createSchedule,
-    staff: staffSource ?? [],
-    participants: partsSource ?? [],
-    workingStaff: realWorkers,
-    attendingParticipants,
-    assignments: assignmentsMap,
-    floatingDraft: {},
-    cleaningDraft: {},
-    finalChecklistDraft: {},
-    finalChecklistStaff,
-    pickupParticipants,
-    helperStaff,
-    dropoffAssignments,
-    date: selectedDate,
-  });
-} catch (e) {
-  console.warn('persistFinish error, continuing anyway:', e);
-}
-
-/** 🔥 NEW — Build snapshot for Supabase */
-const snapshot = {
-  staff: staffSource ?? [],
-  participants: partsSource ?? [],
-  workingStaff: realWorkers,
-  attendingParticipants,
-  assignments: assignmentsMap,
-  pickupParticipants,
-  helperStaff,
-  dropoffAssignments,
-  finalChecklistStaff,
-  date: selectedDate,
-};
-
-/** 🔥 NEW — Save to Supabase */
-try {
-  const result = await saveScheduleToSupabase('B2', snapshot);
-
-  if (!result.ok) {
-    console.warn('Supabase save error:', result.error);
-  } else {
-    console.log('Supabase schedule saved with code:', result.code);
-  }
-
-  // 🧠 Persist the share code into the store so Share screen can use it,
-  // even if Supabase failed, as long as we have a code.
-  if (result && result.code) {
+    // First, let persistFinish compute all derived slices (floating, cleaning, etc.)
     try {
-      const currentMeta = (meta || {}) as Record<string, any>;
-      if (typeof updateSchedule === 'function') {
-        updateSchedule({
-          meta: {
-            ...currentMeta,
-            shareCode: result.code,
-          },
-        } as any);
-      }
-    } catch (err) {
-      console.warn('[create-schedule] failed to store shareCode in meta:', err);
+      await persistFinish({
+        createSchedule,
+        staff: staffSource ?? [],
+        participants: partsSource ?? [],
+        workingStaff: realWorkers,
+        attendingParticipants,
+        assignments: assignmentsMap,
+        floatingDraft: {},
+        cleaningDraft: {},
+        finalChecklistDraft: {},
+        finalChecklistStaff,
+        pickupParticipants,
+        helperStaff,
+        dropoffAssignments,
+        date: selectedDate,
+      });
+    } catch (e) {
+      console.warn('persistFinish error, continuing anyway:', e);
     }
 
-    // Also persist to localStorage on web so Share screen can always recover it
+    // 🔥 After persistFinish, read any derived drafts from the schedule store
+    let cleaningDraft: any = {};
+    let floatingDraft: any = {};
+    let finalChecklistDraft: any = {};
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem('nc_share_code', String(result.code));
-        // Store the full snapshot as well for same-device import fallback
-        window.localStorage.setItem('nc_schedule_' + String(result.code), JSON.stringify(snapshot));
-      }
-    } catch (err) {
-      console.warn('[create-schedule] failed to store shareCode/snapshot in localStorage:', err);
+      cleaningDraft = (hook as any).cleaningDraft ?? {};
+      floatingDraft = (hook as any).floatingDraft ?? {};
+      finalChecklistDraft = (hook as any).finalChecklistDraft ?? {};
+    } catch (e) {
+      console.warn(
+        '[create-schedule] unable to read cleaning/floating/finalChecklist drafts from store:',
+        e,
+      );
     }
-  }
 
-} catch (e) {
-  console.warn('Supabase insert failed:', e);
-}
+    /** 🔥 NEW — Build snapshot for Supabase */
+    const snapshot = {
+      staff: staffSource ?? [],
+      participants: partsSource ?? [],
+      workingStaff: realWorkers,
+      attendingParticipants,
+      assignments: assignmentsMap,
+      pickupParticipants,
+      helperStaff,
+      dropoffAssignments,
+      finalChecklistStaff,
+      date: selectedDate,
 
-/** Continue as normal */
-try {
-  router.replace(EDIT_HUB);
-} catch {}
+      // Include auto-generated drafts so all devices see the same Cleaning/Floating/Checklist data
+      cleaningDraft,
+      floatingDraft,
+      finalChecklistDraft,
     };
+
+    /** 🔥 NEW — Save to Supabase */
+    try {
+      const result = await saveScheduleToSupabase('B2', snapshot);
+
+      if (!result.ok) {
+        console.warn('Supabase save error:', result.error);
+      } else {
+        console.log('Supabase schedule saved with code:', result.code);
+      }
+
+      // 🧠 Persist the share code into the store so Share screen can use it,
+      // even if Supabase failed, as long as we have a code.
+      if (result && result.code) {
+        try {
+          const currentMeta = (meta || {}) as Record<string, any>;
+          if (typeof updateSchedule === 'function') {
+            updateSchedule({
+              meta: {
+                ...currentMeta,
+                shareCode: result.code,
+              },
+            } as any);
+          }
+        } catch (err) {
+          console.warn('[create-schedule] failed to store shareCode in meta:', err);
+        }
+
+        // Also persist to localStorage on web so Share screen can always recover it
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('nc_share_code', String(result.code));
+            // Store the full snapshot as well for same-device import fallback
+            window.localStorage.setItem(
+              'nc_schedule_' + String(result.code),
+              JSON.stringify(snapshot),
+            );
+          }
+        } catch (err) {
+          console.warn(
+            '[create-schedule] failed to store shareCode/snapshot in localStorage:',
+            err,
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase insert failed:', e);
+    }
+
+    /** Continue as normal */
+    try {
+      router.replace(EDIT_HUB);
+    } catch {}
+  };
 
   const onNext = () => (step < TOTAL ? setStep(step + 1) : onComplete());
   const onBack = () => setStep(step > 1 ? step - 1 : 1);
@@ -1076,7 +1103,6 @@ const styles = StyleSheet.create({
   },
   emptyHint: { fontSize: 13, color: '#98A2B3' },
 
-  // OLD list-style tiles (still used in other steps if you want)
   tiles: {
     marginTop: 8,
     gap: 8,
@@ -1115,7 +1141,7 @@ const styles = StyleSheet.create({
     color: '#175CD3',
     fontWeight: '600',
   },
-  // Generic chip style
+
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1130,7 +1156,6 @@ const styles = StyleSheet.create({
   chipTxt: { fontSize: 14, color: '#101828' },
   chipTxtSel: { color: '#FFF' },
 
-  // grid + tile styles for Steps 1 & 2 and dropoff chips
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
