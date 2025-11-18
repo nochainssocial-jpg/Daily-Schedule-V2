@@ -20,20 +20,30 @@ const MAX_WIDTH = 880;
 
 export default function ShareScheduleScreen() {
   const {
+    meta,
     shareCode,
     updateSchedule,
     hydrateFromSnapshot,
     loadSnapshot,
   } = useSchedule() as any;
 
-  const [code, setCode] = useState(shareCode || '');
+  const initialCode =
+    (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
+    shareCode ||
+    '';
+
+  const [code, setCode] = useState(initialCode);
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    if (shareCode && shareCode !== code) {
-      setCode(shareCode);
+    const next =
+      (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
+      shareCode ||
+      '';
+    if (next && next !== code) {
+      setCode(next);
     }
-  }, [shareCode]);
+  }, [meta?.shareCode, shareCode]);
 
   const smsHref = useMemo(() => {
     const body = encodeURIComponent(
@@ -47,10 +57,30 @@ export default function ShareScheduleScreen() {
   }, [code]);
 
   const handleGenerate = () => {
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setCode(newCode);
+    const stored =
+      (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
+      shareCode;
+
+    if (!stored) {
+      Alert.alert(
+        'Share code',
+        'A share code is created when you press Finish at the end of the Create Schedule flow.'
+      );
+      return;
+    }
+
+    setCode(stored);
+
     try {
-      updateSchedule && updateSchedule({ shareCode: newCode });
+      if (typeof updateSchedule === 'function') {
+        const currentMeta = (meta || {}) as Record<string, any>;
+        updateSchedule({
+          meta: {
+            ...currentMeta,
+            shareCode: stored,
+          },
+        } as any);
+      }
     } catch {}
   };
 
@@ -94,16 +124,30 @@ export default function ShareScheduleScreen() {
         } else if (typeof loadSnapshot === 'function') {
           loadSnapshot(snapshot);
         } else if (typeof updateSchedule === 'function') {
-          // Fallback: at least store snapshot + code
-          updateSchedule({ snapshot, shareCode: trimmed });
+          const snap = snapshot as any;
+          updateSchedule({
+            ...snap,
+            meta: {
+              ...(snap.meta || {}),
+              shareCode: trimmed,
+            },
+          } as any);
         }
       } catch (e) {
         console.warn('[ShareSchedule] hydrate failed:', e);
       }
 
-      // Make sure shareCode in store matches imported code
+      // Make sure meta.shareCode in store matches imported code
       try {
-        updateSchedule && updateSchedule({ shareCode: trimmed });
+        if (typeof updateSchedule === 'function') {
+          const currentMeta = (meta || {}) as Record<string, any>;
+          updateSchedule({
+            meta: {
+              ...currentMeta,
+              shareCode: trimmed,
+            },
+          } as any);
+        }
       } catch {}
 
       // Go to Edit Hub (same route as create-schedule uses: '/edit')

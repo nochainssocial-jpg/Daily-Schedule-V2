@@ -881,6 +881,21 @@ try {
     console.warn('Supabase save error:', result.error);
   } else {
     console.log('Supabase schedule saved with code:', result.code);
+
+    // 🧠 Persist the share code into the store so Share screen can use it
+    try {
+      const currentMeta = (meta || {}) as Record<string, any>;
+      if (typeof updateSchedule === 'function') {
+        updateSchedule({
+          meta: {
+            ...currentMeta,
+            shareCode: result.code,
+          },
+        } as any);
+      }
+    } catch (err) {
+      console.warn('[create-schedule] failed to store shareCode in meta:', err);
+    }
   }
 } catch (e) {
   console.warn('Supabase insert failed:', e);
