@@ -57,9 +57,7 @@ export default function ShareScheduleScreen() {
   const handleShareSms = async () => {
     try {
       const ok = await Linking.canOpenURL(smsHref || 'sms:');
-      if (!ok) {
-        throw new Error('SMS not available');
-      }
+      if (!ok) throw new Error('SMS not available');
       await Linking.openURL(smsHref || 'sms:');
     } catch {
       Alert.alert('Share', 'Unable to open SMS composer on this device.');
@@ -76,6 +74,7 @@ export default function ShareScheduleScreen() {
 
     setImporting(true);
     try {
+      // 🔥 Fetch schedule from Supabase by code
       const result = await loadScheduleFromSupabase(trimmed);
 
       if (!result.ok || !result.schedule) {
@@ -88,29 +87,26 @@ export default function ShareScheduleScreen() {
 
       const snapshot = result.schedule.snapshot;
 
-      // Try to hydrate the schedule store from the snapshot
+      // 🔥 Hydrate store from snapshot (covers different helper names)
       try {
         if (typeof hydrateFromSnapshot === 'function') {
           hydrateFromSnapshot(snapshot);
         } else if (typeof loadSnapshot === 'function') {
           loadSnapshot(snapshot);
         } else if (typeof updateSchedule === 'function') {
-          // Fallback: at least store the snapshot + code
+          // Fallback: at least store snapshot + code
           updateSchedule({ snapshot, shareCode: trimmed });
         }
       } catch (e) {
-        console.warn(
-          '[ShareSchedule] failed to hydrate from Supabase snapshot:',
-          e
-        );
+        console.warn('[ShareSchedule] hydrate failed:', e);
       }
 
-      // Ensure shareCode in store matches imported code
+      // Make sure shareCode in store matches imported code
       try {
         updateSchedule && updateSchedule({ shareCode: trimmed });
       } catch {}
 
-      // Navigate to Edit Hub
+      // Go to Edit Hub (same route as create-schedule uses: '/edit')
       try {
         router.push('/edit');
       } catch {
