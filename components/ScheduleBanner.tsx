@@ -1,6 +1,7 @@
 // components/ScheduleBanner.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 
 // 👉 AUS date formatter: "YYYY-MM-DD" → "DD/MM/YYYY"
@@ -24,8 +25,7 @@ export default function ScheduleBanner() {
   let message = '';
 
   if (isLoaded) {
-    const createdIso =
-      banner.sourceDate || banner.scheduleDate || '';
+    const createdIso = banner.sourceDate || banner.scheduleDate || '';
     const created = formatAusDate(createdIso);
     message = `Successfully loaded schedule – schedule created ${created}`;
   } else {
@@ -36,7 +36,15 @@ export default function ScheduleBanner() {
 
   return (
     <View style={[styles.box, { backgroundColor: bgColor, borderColor }]}>
-      <Text style={styles.text}>{message}</Text>
+      <View style={styles.row}>
+        <Ionicons
+          name="time-outline"
+          size={18}
+          color="#433F4C"
+          style={styles.icon}
+        />
+        <Text style={styles.text}>{message}</Text>
+      </View>
     </View>
   );
 }
@@ -49,9 +57,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 12,
   },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  icon: {
+    marginRight: 8,
+  },
   text: {
     fontSize: 14,
     fontWeight: '600',
     color: '#433F4C',
+    flexShrink: 1,
   },
 });
