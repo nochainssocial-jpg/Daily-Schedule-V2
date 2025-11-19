@@ -13,6 +13,7 @@ import { useNotifications } from '@/hooks/notifications';
 type ID = string;
 
 const MAX_WIDTH = 880;
+const ACCENT = '#10B981'; // emerald to match Edit Hub tile
 
 const isEveryone = (name?: string | null) =>
   (name || '').trim().toLowerCase() === 'everyone';
@@ -29,7 +30,6 @@ export default function EditPickupsDropoffsScreen() {
     updateSchedule,
   } = useSchedule();
   const { push } = useNotifications();
-
 
   const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
@@ -140,7 +140,6 @@ export default function EditPickupsDropoffsScreen() {
     [workingStaffList, helperStaffList, assignments, hideEmptyStaff, staff]
   );
 
-
   const togglePickup = (pid: ID) => {
     const current = new Set(pickupParticipants || []);
     if (current.has(pid)) current.delete(pid);
@@ -174,7 +173,7 @@ export default function EditPickupsDropoffsScreen() {
     // Already owned by this staff -> toggle off
     if (previousOwner === sid) {
       updateSchedule({ dropoffAssignments: current });
-    push('Dropoff assignments updated', 'pickups');
+      push('Dropoff assignments updated', 'pickups');
       return;
     }
 
@@ -268,7 +267,7 @@ export default function EditPickupsDropoffsScreen() {
             )}
           </View>
 
-          {/* DROPOFFS – cards per staff, like Team Daily Assignments */}
+          {/* DROPOFFS – cards per staff */}
           <View style={{ marginTop: 24 }}>
             <View style={styles.dropoffsHeaderRow}>
               <Text style={styles.sectionTitle}>Dropoffs</Text>
@@ -393,7 +392,7 @@ export default function EditPickupsDropoffsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFF7FB',
+    backgroundColor: '#F2FBF7', // pastel emerald
   },
   scroll: {
     flexGrow: 1,
@@ -439,12 +438,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#E0D0F0',
+    borderColor: '#CCF4E1',
     backgroundColor: '#FFFFFF',
   },
   chipSel: {
-    backgroundColor: '#175CD3',
-    borderColor: '#175CD3',
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
   },
   chipTxt: {
     fontSize: 13,
@@ -461,7 +460,7 @@ const styles = StyleSheet.create({
   },
   hideToggle: {
     fontSize: 12,
-    color: '#175CD3',
+    color: ACCENT,
     fontWeight: '600',
   },
   assignmentCard: {
