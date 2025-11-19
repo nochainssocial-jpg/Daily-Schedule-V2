@@ -1,4 +1,3 @@
-// app/edit/pickups-dropoffs.tsx
 import React, { useMemo, useState } from 'react';
 import {
   ScrollView,
@@ -6,7 +5,9 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
+  Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
 
@@ -37,7 +38,7 @@ export default function EditPickupsDropoffsScreen() {
 
   const staffById = useMemo(
     () => new Map(staff.map((s) => [s.id as ID, s])),
-    [staff]
+    [staff],
   );
 
   const attending = useMemo(
@@ -45,27 +46,27 @@ export default function EditPickupsDropoffsScreen() {
       participants
         .filter((p) => attendingParticipants.includes(p.id))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [participants, attendingParticipants]
+    [participants, attendingParticipants],
   );
 
   const pickupsSet = useMemo(
     () => new Set(pickupParticipants || []),
-    [pickupParticipants]
+    [pickupParticipants],
   );
 
   const selectedPickupParticipants = useMemo(
     () => attending.filter((p) => pickupsSet.has(p.id as ID)),
-    [attending, pickupsSet]
+    [attending, pickupsSet],
   );
 
   const helperSet = useMemo(
     () => new Set(helperStaff || []),
-    [helperStaff]
+    [helperStaff],
   );
 
   const workingSet = useMemo(
     () => new Set(workingStaff || []),
-    [workingStaff]
+    [workingStaff],
   );
 
   // Staff actually working @ B2, excluding "Everyone"
@@ -74,7 +75,7 @@ export default function EditPickupsDropoffsScreen() {
       staff
         .filter((s) => workingSet.has(s.id) && !isEveryone(s.name))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [staff, workingSet]
+    [staff, workingSet],
   );
 
   // Helpers = staff not working @ B2, excluding "Everyone"
@@ -83,7 +84,7 @@ export default function EditPickupsDropoffsScreen() {
       staff
         .filter((s) => !workingSet.has(s.id) && !isEveryone(s.name))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [staff, workingSet]
+    [staff, workingSet],
   );
 
   const helperStaffList = useMemo(
@@ -91,7 +92,7 @@ export default function EditPickupsDropoffsScreen() {
       staff
         .filter((s) => helperSet.has(s.id as ID))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [staff, helperSet]
+    [staff, helperSet],
   );
 
   const assignments = (dropoffAssignments || {}) as Record<ID, ID[]>;
@@ -100,9 +101,9 @@ export default function EditPickupsDropoffsScreen() {
   const visibleDropoffParticipants = useMemo(
     () =>
       attending.filter(
-        (p) => !pickupsSet.has(p.id as ID) // pickups not shown in dropoffs
+        (p) => !pickupsSet.has(p.id as ID), // pickups not shown in dropoffs
       ),
-    [attending, pickupsSet]
+    [attending, pickupsSet],
   );
 
   // pid -> staffId lookup
@@ -115,30 +116,27 @@ export default function EditPickupsDropoffsScreen() {
   }, [assignments]);
 
   // Hide staff cards with no dropoffs if requested
-  const staffForCards = useMemo(
-    () => {
-      // Merge working staff and selected helpers, de-duplicated by id
-      const merged = [...workingStaffList, ...helperStaffList];
-      const byId = new Map<ID, (typeof staff)[number]>();
-      merged.forEach((s) => {
-        if (!byId.has(s.id as ID)) {
-          byId.set(s.id as ID, s);
-        }
-      });
+  const staffForCards = useMemo(() => {
+    // Merge working staff and selected helpers, de-duplicated by id
+    const merged = [...workingStaffList, ...helperStaffList];
+    const byId = new Map<ID, (typeof staff)[number]>();
+    merged.forEach((s) => {
+      if (!byId.has(s.id as ID)) {
+        byId.set(s.id as ID, s);
+      }
+    });
 
-      const list = Array.from(byId.values()).sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
+    const list = Array.from(byId.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
 
-      if (!hideEmptyStaff) return list;
+    if (!hideEmptyStaff) return list;
 
-      return list.filter((s) => {
-        const assignedList = assignments[s.id as ID];
-        return Array.isArray(assignedList) && assignedList.length > 0;
-      });
-    },
-    [workingStaffList, helperStaffList, assignments, hideEmptyStaff, staff]
-  );
+    return list.filter((s) => {
+      const assignedList = assignments[s.id as ID];
+      return Array.isArray(assignedList) && assignedList.length > 0;
+    });
+  }, [workingStaffList, helperStaffList, assignments, hideEmptyStaff, staff]);
 
   const togglePickup = (pid: ID) => {
     const current = new Set(pickupParticipants || []);
@@ -185,13 +183,23 @@ export default function EditPickupsDropoffsScreen() {
 
   return (
     <View style={styles.screen}>
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="car-outline"
+          size={220}
+          color="#6EE7B7"
+          style={styles.heroIcon}
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>Pickups &amp; Dropoffs</Text>
           <Text style={styles.subtitle}>
             Review and adjust today&apos;s pickups, helpers and dropoff
             assignments. Participants in pickups are not shown in the dropoff
-            lists, and each participant can only be assigned to one staff member.
+            lists, and each participant can only be assigned to one staff
+            member.
           </Text>
 
           {/* PICKUPS */}
@@ -284,13 +292,13 @@ export default function EditPickupsDropoffsScreen() {
             </View>
             <Text style={styles.sectionSub}>
               Tap participants inside each staff card to assign or move
-              dropoffs. Each participant can only belong to one staff member at a
-              time.
+              dropoffs. Each participant can only belong to one staff member at
+              a time.
             </Text>
 
             {staffForCards.map((s) => {
               const assigned = visibleDropoffParticipants.filter(
-                (p) => participantAssignedTo.get(p.id as ID) === s.id
+                (p) => participantAssignedTo.get(p.id as ID) === s.id,
               );
 
               const visibleForStaff = visibleDropoffParticipants.filter((p) => {
@@ -394,6 +402,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2FBF7', // pastel emerald
   },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
+  },
   scroll: {
     flexGrow: 1,
     alignItems: 'center',
@@ -456,7 +471,7 @@ const styles = StyleSheet.create({
   dropoffsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    justifyContent: 'space-between',
+    justifyContent: 'spaceBetween',
   },
   hideToggle: {
     fontSize: 12,
