@@ -113,15 +113,22 @@ export default function HelpScreen() {
           <Text style={styles.sectionTitle}>4. Sharing today&apos;s schedule</Text>
           <Text style={styles.body}>
             From the footer or Home, open{' '}
-            <Text style={styles.bold}>Share Today&apos;s Schedule</Text>. This screen lets you:{'\n'}
-            {'\n'}• Generate a new 6-digit code for today&apos;s schedule.{'\n'}
-            • Share the code via SMS (pre-filled message) on your device.{'\n'}
-            • Import a code to view the schedule associated with that code (useful for staff viewing on their own device).{'\n'}
+            <Text style={styles.bold}>Share Today&apos;s Schedule</Text>. When you press{' '}
+            <Text style={styles.bold}>Finish</Text> on the wizard, the app automatically creates (or reuses) a
+            6-digit code for today&apos;s schedule, so you don&apos;t have to generate it manually.{'\n'}
             {'\n'}
-            Steps:{'\n'}
-            {'\n'}1) Tap <Text style={styles.bold}>Generate Code</Text> to create a new 6-digit code.{'\n'}
-            2) Tap <Text style={styles.bold}>Share via TXT</Text> or <Text style={styles.bold}>Open Messages</Text> to send the code to staff.{'\n'}
-            3) On another device, staff can open the app, go to Share, enter the code and tap{' '}
+            On the Share screen you can:{'\n'}
+            {'\n'}
+            • See today&apos;s 6-digit share code for this schedule.{'\n'}
+            • Copy the code or open your Messages app with a pre-filled SMS containing the code.{'\n'}
+            • Use the Import section so staff can enter a code on their own device to view today&apos;s schedule.{'\n'}
+            {'\n'}
+            Typical steps:{'\n'}
+            {'\n'}
+            1) After finishing the schedule, open{' '}
+            <Text style={styles.bold}>Share Today&apos;s Schedule</Text>; the current code will be shown at the top.{'\n'}
+            2) Tap the option to copy or share the code via TXT / Messages and send it to staff.{'\n'}
+            3) On another device, staff open the app, go to Share, type the code and tap{' '}
             <Text style={styles.bold}>Import</Text> to load today&apos;s schedule.
           </Text>
 
@@ -145,7 +152,7 @@ export default function HelpScreen() {
             • Make sure you&apos;ve set both a Dream Team (Step 1) and Attending Participants (Step 2) before doing assignments.{'\n'}
             • If a participant is missing from Dropoffs, check whether they were marked as a Pickup in Step 4.{'\n'}
             • If you can&apos;t see the buttons at the bottom of a step, scroll down – the layout keeps them pinned near the bottom of the screen.{'\n'}
-            • If codes or data don&apos;t seem to match, regenerate a fresh 6-digit code and share again.{'\n'}
+            • If codes or data don&apos;t seem to match, regenerate a fresh 6-digit code and share again if needed.{'\n'}
             {'\n'}
             If you&apos;re ever unsure, you can safely revisit <Text style={styles.bold}>Help</Text> or step back into
             the wizard and review your choices, then press <Text style={styles.bold}>Finish</Text> again.
