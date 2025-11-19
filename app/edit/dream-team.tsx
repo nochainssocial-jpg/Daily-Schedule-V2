@@ -2,7 +2,14 @@
 // Editable Dream Team screen with chip layout and Staff Pool
 // Names are always sorted alphabetically.
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
@@ -13,12 +20,14 @@ type ID = string;
 const MAX_WIDTH = 880;
 
 export default function EditDreamTeamScreen() {
-  const { staff: scheduleStaff, workingStaff = [], updateSchedule } = useSchedule();
+  const { staff: scheduleStaff, workingStaff = [], updateSchedule } =
+    useSchedule();
   const { push } = useNotifications();
 
   // Prefer schedule-attached staff after create, fallback to static STAFF
   const staff = useMemo(
-    () => (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF),
+    () =>
+      scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF,
     [scheduleStaff],
   );
 
@@ -30,12 +39,17 @@ export default function EditDreamTeamScreen() {
   const sortedStaff = useMemo(
     () =>
       [...staff].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }),
+        (a.name || '').localeCompare(b.name || '', 'en', {
+          sensitivity: 'base',
+        }),
       ),
     [staff],
   );
 
-  const workingSet = useMemo(() => new Set<ID>(workingStaff as ID[]), [workingStaff]);
+  const workingSet = useMemo(
+    () => new Set<ID>(workingStaff as ID[]),
+    [workingStaff],
+  );
 
   const dreamTeam = useMemo(
     () => sortedStaff.filter((s) => workingSet.has(s.id as ID)),
@@ -71,12 +85,22 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="people-circle-outline"
+          size={220}
+          color="#F1C6E1"
+          style={styles.heroIcon}
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>The Dream Team</Text>
           <Text style={styles.subtitle}>
-            Tap staff to mark who is working at B2 today. Working at B2 are shown at the top;
-            everyone else appears in the Staff Pool below. Names are always sorted alphabetically.
+            Tap staff to mark who is working at B2 today. Working at B2 are
+            shown at the top; everyone else appears in the Staff Pool below.
+            Names are always sorted alphabetically.
           </Text>
 
           {/* Working at B2 (Dream Team) */}
@@ -84,7 +108,9 @@ export default function EditDreamTeamScreen() {
             <Text style={styles.sectionTitle}>Working at B2 (Dream Team)</Text>
             <View style={styles.chipGrid}>
               {dreamTeam.length === 0 ? (
-                <Text style={styles.empty}>No staff currently marked as working at B2.</Text>
+                <Text style={styles.empty}>
+                  No staff currently marked as working at B2.
+                </Text>
               ) : (
                 dreamTeam.map((s) => (
                   <Chip
@@ -127,7 +153,14 @@ export default function EditDreamTeamScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFF5FB', // pastel pink for Dream Team
+    backgroundColor: '#FFF5FB', // pastel pink
+  },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     flexGrow: 1,
