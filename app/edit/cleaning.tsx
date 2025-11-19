@@ -1,4 +1,3 @@
-// app/edit/cleaning.tsx
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
@@ -7,7 +6,9 @@ import {
   TouchableOpacity,
   View,
   StyleSheet,
+  Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import {
@@ -34,19 +35,19 @@ export default function CleaningEditScreen() {
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
 
   const activeChore = useMemo(
-    () => chores.find(c => String(c.id) === String(activeChoreId)) || null,
-    [chores, activeChoreId]
+    () => chores.find((c) => String(c.id) === String(activeChoreId)) || null,
+    [chores, activeChoreId],
   );
 
   const workingStaffList: Staff[] = useMemo(
-    () => staff.filter(s => workingStaff.includes(s.id)),
-    [staff, workingStaff]
+    () => staff.filter((s) => workingStaff.includes(s.id)),
+    [staff, workingStaff],
   );
 
   const handleSelectStaff = (staffId: string | null) => {
     if (!activeChoreId) return;
 
-    const chore = chores.find(c => String(c.id) === String(activeChoreId));
+    const chore = chores.find((c) => String(c.id) === String(activeChoreId));
 
     const nextAssignments = {
       ...(cleaningAssignments || {}),
@@ -68,6 +69,15 @@ export default function CleaningEditScreen() {
 
   return (
     <View style={styles.screen}>
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="sparkles-outline"
+          size={220}
+          color="#FFD8A8"
+          style={styles.heroIcon}
+        />
+      )}
+
       <View style={styles.wrap}>
         <Text style={styles.heading}>Cleaning Duties</Text>
         <Text style={styles.subheading}>
@@ -78,10 +88,10 @@ export default function CleaningEditScreen() {
           style={{ marginTop: 16 }}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
-          {chores.map(chore => {
+          {chores.map((chore) => {
             const choreId = String(chore.id);
             const assignedStaffId = cleaningAssignments[choreId];
-            const st = staff.find(s => s.id === assignedStaffId) || null;
+            const st = staff.find((s) => s.id === assignedStaffId) || null;
 
             const label = st ? st.name : 'Not assigned';
             const isAssigned = !!st;
@@ -96,10 +106,7 @@ export default function CleaningEditScreen() {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={() => setActiveChoreId(choreId)}
-                    style={[
-                      styles.pill,
-                      isAssigned && styles.pillAssigned,
-                    ]}
+                    style={[styles.pill, isAssigned && styles.pillAssigned]}
                   >
                     <Text
                       style={[
@@ -143,12 +150,12 @@ export default function CleaningEditScreen() {
             <ScrollView
               style={{ marginTop: 16 }}
               contentContainerStyle={{
-                paddingBottom: 140,   // ← more space for mobile safe-area + footer
+                paddingBottom: 140, // more space for mobile safe-area + footer
               }}
             >
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
-                  {workingStaffList.map(st => {
+                  {workingStaffList.map((st) => {
                     const selected =
                       cleaningAssignments[String(activeChoreId ?? '')] ===
                       st.id;
@@ -158,10 +165,7 @@ export default function CleaningEditScreen() {
                         key={st.id}
                         onPress={() => handleSelectStaff(st.id)}
                         activeOpacity={0.85}
-                        style={[
-                          styles.chip,
-                          selected && styles.chipSel,
-                        ]}
+                        style={[styles.chip, selected && styles.chipSel]}
                       >
                         <Text
                           style={[
@@ -210,6 +214,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFFAF2', // warm pastel (cleaning tile is amber)
+  },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   wrap: {
     width: '100%',
