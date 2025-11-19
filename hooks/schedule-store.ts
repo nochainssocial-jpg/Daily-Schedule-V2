@@ -1,16 +1,18 @@
 // hooks/schedule-store.ts
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import type { Staff, Participant } from '@/constants/data';
+import { TIME_SLOTS } from '@/constants/data';
+import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
 
 export type ID = string;
 
-// Banner types for auto-loaded vs created schedules
 type BannerType = 'loaded' | 'created' | null;
 
 export type ScheduleBanner = {
   type: BannerType;
-  scheduleDate?: string;
-  sourceDate?: string;
+  scheduleDate?: string; // YYYY-MM-DD (today we're using it for)
+  sourceDate?: string;   // YYYY-MM-DD (original creation date)
 };
 
 // Snapshot of a single saved schedule
@@ -19,8 +21,8 @@ export type ScheduleSnapshot = {
   participants: Participant[];
 
   // Core selections
-  workingStaff: ID[];          
-  attendingParticipants: ID[]; 
+  workingStaff: ID[];          // The Dream Team (Working at B2)
+  attendingParticipants: ID[]; // Attending Participants
 
   // Daily assignments (staff -> participantIds)
   assignments: Record<ID, ID[]>;
@@ -36,9 +38,9 @@ export type ScheduleSnapshot = {
   finalChecklistStaff?: ID;
 
   // Transport
-  pickupParticipants: ID[];
-  helperStaff: ID[];
-  dropoffAssignments: Record<ID, ID[]>;
+  pickupParticipants: ID[];             // participantIds being picked up by third parties
+  helperStaff: ID[];                    // helpers joining dropoffs
+  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
 
   // Meta
   date?: string;
@@ -49,7 +51,7 @@ type ScheduleState = ScheduleSnapshot & {
   createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
 
-  // Wizard / UI state
+  // Wizard + UI state
   scheduleStep: number;
   selectedDate?: string;
   setScheduleStep: (step: number) => void;
@@ -57,7 +59,7 @@ type ScheduleState = ScheduleSnapshot & {
 
   // Auto-init + banner state
   banner: ScheduleBanner | null;
-  currentInitDate?: string;
+  currentInitDate?: string;          // which YYYY-MM-DD we last initialised for
   hasInitialisedToday: boolean;
   setBanner: (banner: ScheduleBanner | null) => void;
   markInitialisedForDate: (date: string) => void;
@@ -86,16 +88,15 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
 export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
 
-  // wizard UI
+  // wizard / UI state
   scheduleStep: 1,
   selectedDate: undefined,
 
-  // banner/init state
+  // banner/init
   banner: null,
   currentInitDate: undefined,
   hasInitialisedToday: false,
 
-  // Create schedule
   createSchedule: (snapshot: ScheduleSnapshot) => {
     set(() => ({
       ...snapshot,
@@ -104,46 +105,57 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
     }));
   },
 
-  // Update schedule with cleanup logic
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
     set((state) => {
-      const next = { ...state, ...patch };
+      const next: ScheduleSnapshot & {
+        [key: string]: any;
+      } = { ...state, ...patch };
 
-      // If working staff changed → clean dependent data
+      // If working staff changed, clean dependent assignments
       if (patch.workingStaff) {
         const oldStaff = state.workingStaff;
         const newStaff = patch.workingStaff;
         const removed = oldStaff.filter((id) => !newStaff.includes(id));
 
         if (removed.length > 0) {
-          // 1) Daily assignments
+          // 1) Team daily assignments
           const newAssignments = { ...next.assignments };
-          removed.forEach((id) => delete newAssignments[id]);
+          for (const staffId of removed) {
+            delete newAssignments[staffId];
+          }
 
           // 2) Dropoffs
           const newDropoffs = { ...next.dropoffAssignments };
-          removed.forEach((id) => delete newDropoffs[id]);
+          for (const staffId of removed) {
+            delete newDropoffs[staffId];
+          }
 
-          // 3) Floating
+          // 3) Floating assignments
           const newFloating = { ...next.floatingAssignments };
-          Object.keys(newFloating).forEach((k) => {
-            if (removed.includes(newFloating[k])) delete newFloating[k];
-          });
+          for (const key of Object.keys(newFloating)) {
+            if (removed.includes(newFloating[key])) {
+              delete newFloating[key];
+            }
+          }
 
-          // 4) Cleaning
+          // 4) Cleaning assignments
           const newCleaning = { ...next.cleaningAssignments };
-          Object.keys(newCleaning).forEach((k) => {
-            if (removed.includes(newCleaning[k])) delete newCleaning[k];
-          });
+          for (const choreId of Object.keys(newCleaning)) {
+            if (removed.includes(newCleaning[choreId])) {
+              delete newCleaning[choreId];
+            }
+          }
 
-          // 5) Checklist staff
+          // 5) End-of-shift checklist staff
           let newFinalChecklistStaff = next.finalChecklistStaff;
           if (newFinalChecklistStaff && removed.includes(newFinalChecklistStaff)) {
             newFinalChecklistStaff = undefined;
           }
 
           // 6) Helper staff
-          const newHelpers = next.helperStaff.filter(id => !removed.includes(id));
+          const newHelpers = next.helperStaff.filter(
+            (id: ID) => !removed.includes(id)
+          );
 
           next.assignments = newAssignments;
           next.dropoffAssignments = newDropoffs;
@@ -158,5 +170,76 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
     });
   },
 
-  // UI
-  setScheduleStep: (step: number) => set({
+  setScheduleStep: (step: number) => set({ scheduleStep: step }),
+  setSelectedDate: (date?: string) => set({ selectedDate: date }),
+
+  setBanner: (banner: ScheduleBanner | null) => set({ banner }),
+  markInitialisedForDate: (date: string) =>
+    set({ currentInitDate: date, hasInitialisedToday: true }),
+
+  touch: () => set((state) => ({ ...state })),
+}));
+
+// Helper hooks to check if there are missing floating or cleaning assignments
+
+export const useFloatingMissing = (rooms: { id: string }[]) => {
+  const floatingAssignments = useSchedule((s) => s.floatingAssignments);
+
+  return useMemo(() => {
+    if (!rooms.length) return false;
+
+    for (const slot of TIME_SLOTS) {
+      for (const room of rooms) {
+        const key = `${slot.id}|${room.id}`;
+        if (!floatingAssignments[key]) {
+          return true; // missing assignment
+        }
+      }
+    }
+    return false;
+  }, [floatingAssignments, rooms]);
+};
+
+export const useCleaningMissing = (choreIds: (string | number)[]) => {
+  const cleaningAssignments = useSchedule((s) => s.cleaningAssignments);
+
+  return useMemo(
+    () => choreIds.some((id) => !cleaningAssignments[String(id)]),
+    [choreIds, cleaningAssignments]
+  );
+};
+
+/**
+ * Initialise the schedule store when the app starts for a given house.
+ * If the latest schedule in Supabase is for today → banner = "created"
+ * Otherwise → banner = "loaded" (using a previous day's schedule for today).
+ */
+export async function initScheduleForToday(house: string) {
+  const state = useSchedule.getState();
+  const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
+    return;
+  }
+
+  const result = await fetchLatestScheduleForHouse(house);
+
+  if (!result.ok || !result.data) {
+    state.markInitialisedForDate(todayKey);
+    state.setBanner(null);
+    return;
+  }
+
+  const { snapshot, scheduleDate } = result.data;
+  await state.createSchedule(snapshot);
+
+  const sourceDate = (scheduleDate || '').slice(0, 10);
+  const isToday = sourceDate === todayKey;
+
+  state.markInitialisedForDate(todayKey);
+  state.setBanner({
+    type: isToday ? 'created' : 'loaded',
+    scheduleDate: todayKey,
+    sourceDate,
+  });
+}
