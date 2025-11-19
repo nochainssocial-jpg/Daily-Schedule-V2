@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
 import { initScheduleForToday } from '@/hooks/schedule-store';
@@ -19,52 +19,44 @@ const MAX_WIDTH = 880;
 type TileConfig = {
   title: string;
   path: string;
-  icon: string;
-  color: string;
+  icon: string; // we'll cast to Ionicons name
 };
 
 const TILES: TileConfig[] = [
   {
     title: 'The Dream Team (Working at B2)',
     path: '/edit/dream-team',
-    icon: 'account-circle',
-    color: '#F54FA5', // pink
+    icon: 'people-circle-outline',
   },
   {
     title: 'Attending Participants',
     path: '/edit/participants',
-    icon: 'groups',
-    color: '#EC4899', // pink-ish
+    icon: 'people-outline',
   },
   {
     title: 'Team Daily Assignments',
     path: '/edit/assignments',
-    icon: 'list-alt',
-    color: '#6366F1', // indigo
+    icon: 'list-outline',
   },
   {
     title: 'Floating Assignments (Front Room, Scotty, Twins)',
     path: '/edit/floating',
-    icon: 'shuffle',
-    color: '#0EA5E9', // sky blue
+    icon: 'shuffle-outline',
   },
   {
     title: 'End of Shift Cleaning Assignments',
     path: '/edit/cleaning',
-    icon: 'cleaning-services',
-    color: '#F59E0B', // amber
+    icon: 'construct-outline',
   },
   {
     title: 'Pickups and Dropoffs with Helpers',
     path: '/edit/pickups-dropoffs',
-    icon: 'directions-car',
-    color: '#10B981', // emerald
+    icon: 'bus-outline',
   },
   {
     title: 'End of Shift Checklist',
     path: '/edit/checklist',
-    icon: 'check-circle-outline',
-    color: '#8B5CF6', // violet
+    icon: 'clipboard-outline',
   },
 ];
 
@@ -110,15 +102,15 @@ export default function EditHubScreen() {
             {TILES.map((tile) => (
               <TouchableOpacity
                 key={tile.path}
-                style={[styles.tile, { borderLeftColor: tile.color }]}
+                style={styles.tile}
                 onPress={() => router.push(tile.path)}
-                activeOpacity={0.9}
+                activeOpacity={0.85}
               >
                 <View style={styles.tileContent}>
                   <Ionicons
                     name={tile.icon as any}
                     size={20}
-                    color={tile.color}
+                    color="#F54FA5"
                     style={styles.tileIcon}
                   />
                   <Text style={styles.tileTitle}>{tile.title}</Text>
@@ -174,12 +166,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 18,
     backgroundColor: '#FFE5F4',
-    // subtle shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
   },
   printIcon: {
     marginRight: 8,
@@ -194,16 +180,10 @@ const styles = StyleSheet.create({
   },
   tile: {
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5d9f2',
-    borderLeftWidth: 4,
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
   },
   tileContent: {
     flexDirection: 'row',
