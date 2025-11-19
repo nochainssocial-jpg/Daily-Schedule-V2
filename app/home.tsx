@@ -30,7 +30,7 @@ export default function HomeScreen() {
       {/* Large washed-out background logo – web only */}
       {showWebBranding && (
         <Image
-          source={require('../assets/images/No Chains Pink Horizontal final.svg')}
+          source={require('../assets/images/nochains-bg.png')}
           style={styles.bgLogo}
           resizeMode="contain"
         />
@@ -39,7 +39,7 @@ export default function HomeScreen() {
       {/* Round logo in top-right – web only */}
       {showWebBranding && (
         <Image
-          source={require('../assets/images/No Chains Logo Round.svg')}
+          source={require('../assets/images/nochains-round.png')}
           style={styles.cornerLogo}
           resizeMode="contain"
         />
