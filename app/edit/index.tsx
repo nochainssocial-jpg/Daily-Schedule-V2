@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,8 +78,19 @@ export default function EditHubScreen() {
     router.push('/print');
   };
 
+  const showWebBranding = Platform.OS === 'web';
+
   return (
     <View style={styles.screen}>
+      {/* Large washed-out background logo – web only */}
+      {showWebBranding && (
+        <Image
+          source={require('../../assets/images/No Chains Pink Horizontal final.svg')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>Edit today&apos;s schedule</Text>
@@ -138,6 +150,8 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
+    position: 'relative',
+    overflow: 'hidden',
   },
   scroll: {
     paddingVertical: 24,
@@ -148,6 +162,16 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MAX_WIDTH,
     paddingHorizontal: 24,
+  },
+  // Large washed-out background logo
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.06,
+    left: -260,
+    top: 220,
+    pointerEvents: 'none',
   },
   title: {
     fontSize: 22,
