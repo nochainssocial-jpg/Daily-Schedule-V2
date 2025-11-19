@@ -19,7 +19,6 @@ export default function EditChecklistScreen() {
   } = useSchedule();
   const { push } = useNotifications();
 
-
   // Prefer staff from the schedule (after create), fallback to static constants
   const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
 
@@ -84,21 +83,21 @@ export default function EditChecklistScreen() {
           </View>
 
           {/* Checklist items */}
-<Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
-{DEFAULT_CHECKLIST.map((item) => {
-  const key = String(item.id);
-  const checked = !!finalChecklist?.[key];
-  const label = (item as any).name || (item as any).label || '';
-  return (
-    <View key={key} style={styles.itemRow}>
-      <Checkbox
-        label={label}
-        checked={checked}
-        onToggle={() => handleToggleItem(item.id)}
-      />
-    </View>
-  );
-})}
+          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
+          {DEFAULT_CHECKLIST.map((item) => {
+            const key = String(item.id);
+            const checked = !!finalChecklist?.[key];
+            const label = (item as any).name || (item as any).label || '';
+            return (
+              <View key={key} style={styles.itemRow}>
+                <Checkbox
+                  label={label}
+                  checked={checked}
+                  onToggle={() => handleToggleItem(item.id)}
+                />
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -110,7 +109,7 @@ const MAX_WIDTH = 880;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
+    backgroundColor: '#F5F3FF', // pastel violet for checklist tile
   },
   scroll: {
     paddingVertical: 24,
