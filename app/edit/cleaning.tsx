@@ -67,62 +67,64 @@ export default function CleaningEditScreen() {
   };
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.heading}>Cleaning Duties</Text>
-      <Text style={styles.subheading}>
-        Tap a staff pill to update who is responsible for each task.
-      </Text>
+    <View style={styles.screen}>
+      <View style={styles.wrap}>
+        <Text style={styles.heading}>Cleaning Duties</Text>
+        <Text style={styles.subheading}>
+          Tap a staff pill to update who is responsible for each task.
+        </Text>
 
-      <ScrollView
-        style={{ marginTop: 16 }}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        {chores.map(chore => {
-          const choreId = String(chore.id);
-          const assignedStaffId = cleaningAssignments[choreId];
-          const st = staff.find(s => s.id === assignedStaffId) || null;
+        <ScrollView
+          style={{ marginTop: 16 }}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          {chores.map(chore => {
+            const choreId = String(chore.id);
+            const assignedStaffId = cleaningAssignments[choreId];
+            const st = staff.find(s => s.id === assignedStaffId) || null;
 
-          const label = st ? st.name : 'Not assigned';
-          const isAssigned = !!st;
+            const label = st ? st.name : 'Not assigned';
+            const isAssigned = !!st;
 
-          return (
-            <View key={choreId} style={styles.row}>
-              <View style={styles.taskCol}>
-                <Text style={styles.taskLabel}>{chore.name}</Text>
-              </View>
+            return (
+              <View key={choreId} style={styles.row}>
+                <View style={styles.taskCol}>
+                  <Text style={styles.taskLabel}>{chore.name}</Text>
+                </View>
 
-              <View style={styles.staffCol}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setActiveChoreId(choreId)}
-                  style={[
-                    styles.pill,
-                    isAssigned && styles.pillAssigned,
-                  ]}
-                >
-                  <Text
+                <View style={styles.staffCol}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => setActiveChoreId(choreId)}
                     style={[
-                      styles.pillText,
-                      isAssigned && styles.pillTextAssigned,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.pillChevron,
-                      isAssigned && styles.pillTextAssigned,
+                      styles.pill,
+                      isAssigned && styles.pillAssigned,
                     ]}
                   >
-                    ▾
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.pillText,
+                        isAssigned && styles.pillTextAssigned,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.pillChevron,
+                        isAssigned && styles.pillTextAssigned,
+                      ]}
+                    >
+                      ▾
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          );
-        })}
-      </ScrollView>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* Floating-style staff picker modal */}
       <Modal
@@ -138,13 +140,12 @@ export default function CleaningEditScreen() {
               <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
-                <ScrollView
-                  style={{ marginTop: 16 }}
-                  contentContainerStyle={{
-                    paddingBottom: 140,   // ← more space for mobile safe-area + footer
-                  }}
-                >
-
+            <ScrollView
+              style={{ marginTop: 16 }}
+              contentContainerStyle={{
+                paddingBottom: 140,   // ← more space for mobile safe-area + footer
+              }}
+            >
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
                   {workingStaffList.map(st => {
@@ -206,6 +207,10 @@ export default function CleaningEditScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#FFFAF2', // warm pastel (cleaning tile is amber)
+  },
   wrap: {
     width: '100%',
     maxWidth: 880,
