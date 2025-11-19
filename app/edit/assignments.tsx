@@ -11,6 +11,10 @@ const nm = (x?: string) => (x || '').trim().toLowerCase();
 const isEveryone = (x?: string) => nm(x) === 'everyone';
 const isAntoinette = (x?: string) => nm(x) === 'antoinette';
 
+const MAX_WIDTH = 880;
+const PILL = 999;
+const ACCENT = '#6366F1'; // indigo like Edit Hub tile
+
 export default function EditAssignmentsScreen() {
   const {
     staff: scheduleStaff,
@@ -21,7 +25,6 @@ export default function EditAssignmentsScreen() {
     updateSchedule,
   } = useSchedule();
   const { push } = useNotifications();
-
 
   const staffSource =
     (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) || [];
@@ -197,13 +200,10 @@ export default function EditAssignmentsScreen() {
   );
 }
 
-const MAX_WIDTH = 880;
-const PILL = 999;
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
+    backgroundColor: '#F5F5FF', // soft indigo
   },
   scroll: {
     paddingVertical: 24,
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chipSel: {
-    backgroundColor: '#175CD3',
-    borderColor: '#175CD3',
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
   },
   chipTxt: {
     fontSize: 14,
