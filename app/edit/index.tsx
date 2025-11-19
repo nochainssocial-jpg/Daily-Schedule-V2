@@ -64,7 +64,7 @@ const TILES: TileConfig[] = [
   {
     title: 'End of Shift Checklist',
     path: '/edit/checklist',
-    icon: 'clipboard-outline',
+    icon: 'checkbox-outline',
     color: '#8B5CF6', // violet
   },
 ];
