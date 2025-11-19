@@ -278,7 +278,7 @@ export default function SettingsScreen() {
       {/* Large washed-out background logo – web only */}
       {showWebBranding && (
         <Image
-          source={require('../assets/images/No Chains Pink Horizontal final.svg')}
+          source={require('../assets/images/nochains-bg.png')}
           style={styles.bgLogo}
           resizeMode="contain"
         />
