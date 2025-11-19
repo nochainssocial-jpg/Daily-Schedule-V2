@@ -2,7 +2,14 @@
 // Attending Participants edit screen with chip layout and Participant Pool.
 // Names are always sorted alphabetically.
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import Chip from '@/components/Chip';
@@ -36,7 +43,9 @@ export default function EditParticipantsScreen() {
   const sortedParticipants = useMemo(
     () =>
       [...participants].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' }),
+        (a.name || '').localeCompare(b.name || '', 'en', {
+          sensitivity: 'base',
+        }),
       ),
     [participants],
   );
@@ -83,12 +92,22 @@ export default function EditParticipantsScreen() {
 
   return (
     <View style={styles.screen}>
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="people-outline"
+          size={220}
+          color="#F0CFE3"
+          style={styles.heroIcon}
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>Attending Participants</Text>
           <Text style={styles.subtitle}>
-            Tap participants to mark who is attending Day Program today. Selected participants
-            appear at the top; others remain in the Participant Pool. Alphabetical order is always enforced.
+            Tap participants to mark who is attending Day Program today.
+            Selected participants appear at the top; others remain in the
+            Participant Pool. Alphabetical order is always enforced.
           </Text>
 
           {/* Attending */}
@@ -96,7 +115,9 @@ export default function EditParticipantsScreen() {
             <Text style={styles.sectionTitle}>Attending</Text>
             <View style={styles.chipGrid}>
               {attendingList.length === 0 ? (
-                <Text style={styles.empty}>No attending participants selected.</Text>
+                <Text style={styles.empty}>
+                  No attending participants selected.
+                </Text>
               ) : (
                 attendingList.map((p) => (
                   <Chip
@@ -115,7 +136,9 @@ export default function EditParticipantsScreen() {
             <Text style={styles.sectionTitle}>Participant Pool</Text>
             <View style={styles.chipGrid}>
               {participantPool.length === 0 ? (
-                <Text style={styles.empty}>All participants have been selected.</Text>
+                <Text style={styles.empty}>
+                  All participants have been selected.
+                </Text>
               ) : (
                 participantPool.map((p) => (
                   <Chip
@@ -137,7 +160,14 @@ export default function EditParticipantsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFF7FB', // pastel pink to match tile
+    backgroundColor: '#FFF7FB', // pastel pink
+  },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     flexGrow: 1,
