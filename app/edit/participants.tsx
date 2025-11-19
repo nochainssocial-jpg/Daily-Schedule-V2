@@ -19,7 +19,6 @@ export default function EditParticipantsScreen() {
   } = useSchedule();
   const { push } = useNotifications();
 
-
   // Prefer schedule-attached participants after create, fallback to constants
   const participants = useMemo(
     () =>
@@ -138,7 +137,7 @@ export default function EditParticipantsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
+    backgroundColor: '#FFF7FB', // pastel pink to match tile
   },
   scroll: {
     flexGrow: 1,
