@@ -57,6 +57,13 @@ type ScheduleState = ScheduleSnapshot & {
   setScheduleStep: (step: number) => void;
   setSelectedDate: (date?: string) => void;
   touch: () => void;
+
+  // Auto-init + banner state
+  banner: ScheduleBanner | null;
+  currentInitDate?: string;          // which YYYY-MM-DD we last initialised for
+  hasInitialisedToday: boolean;
+  setBanner: (banner: ScheduleBanner | null) => void;
+  markInitialisedForDate: (date: string) => void;
 };
 
 const makeInitialSnapshot = (): ScheduleSnapshot => ({
@@ -83,6 +90,11 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   scheduleStep: 1,
   selectedDate: undefined,
 
+  // banner / init state
+  banner: null,
+  currentInitDate: undefined,
+  hasInitialisedToday: false,
+
   createSchedule: (snapshot: ScheduleSnapshot) => {
     set(() => ({
       ...snapshot,
@@ -90,6 +102,22 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       scheduleStep: 1,
       selectedDate: snapshot.date ?? get().selectedDate,
     }));
+  },
+
+  updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
+    // <keep your existing implementation here>
+    ...
+  },
+
+  setScheduleStep: (step: number) => set({ scheduleStep: step }),
+  setSelectedDate: (date?: string) => set({ selectedDate: date }),
+
+  setBanner: (banner: ScheduleBanner | null) => set({ banner }),
+  markInitialisedForDate: (date: string) =>
+    set({ currentInitDate: date, hasInitialisedToday: true }),
+
+  touch: () => set((state) => ({ ...state })),
+}));
   },
 
 updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
@@ -199,3 +227,42 @@ export const useCleaningMissing = (chores: { id: string }[]) => {
     .filter((id) => !cleaningAssignments?.[id]);
   return { ok: missing.length === 0, missing };
 };
+import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
+
+/**
+ * Initialise the schedule store when the app starts for a given house.
+ * - If the latest schedule's date is today  → banner = "created"
+ * - Otherwise                              → banner = "loaded" (from previous day)
+ */
+export async function initScheduleForToday(house: string) {
+  const state = useSchedule.getState();
+  const todayKey = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+
+  if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
+    return;
+  }
+
+  const result = await fetchLatestScheduleForHouse(house);
+
+  if (!result.ok || !result.data) {
+    // Nothing saved yet – just mark as initialised with no banner
+    state.markInitialisedForDate(todayKey);
+    state.setBanner(null);
+    return;
+  }
+
+  const { snapshot, scheduleDate } = result.data;
+
+  // Apply the snapshot as the current working schedule
+  await state.createSchedule(snapshot);
+
+  const sourceDate = (scheduleDate || '').slice(0, 10);
+  const isToday = sourceDate === todayKey;
+
+  state.markInitialisedForDate(todayKey);
+  state.setBanner({
+    type: isToday ? 'created' : 'loaded',
+    scheduleDate: todayKey,
+    sourceDate,
+  });
+}
