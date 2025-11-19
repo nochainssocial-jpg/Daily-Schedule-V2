@@ -19,7 +19,8 @@ const MAX_WIDTH = 880;
 type TileConfig = {
   title: string;
   path: string;
-  icon: string; // we'll cast to Ionicons name
+  icon: string;
+  color: string;
 };
 
 const TILES: TileConfig[] = [
@@ -27,36 +28,43 @@ const TILES: TileConfig[] = [
     title: 'The Dream Team (Working at B2)',
     path: '/edit/dream-team',
     icon: 'people-circle-outline',
+    color: '#F54FA5', // pink
   },
   {
     title: 'Attending Participants',
     path: '/edit/participants',
     icon: 'people-outline',
+    color: '#EC4899', // pink-ish
   },
   {
     title: 'Team Daily Assignments',
     path: '/edit/assignments',
     icon: 'list-outline',
+    color: '#6366F1', // indigo
   },
   {
     title: 'Floating Assignments (Front Room, Scotty, Twins)',
     path: '/edit/floating',
     icon: 'shuffle-outline',
+    color: '#0EA5E9', // sky blue
   },
   {
     title: 'End of Shift Cleaning Assignments',
     path: '/edit/cleaning',
     icon: 'construct-outline',
+    color: '#F59E0B', // amber
   },
   {
     title: 'Pickups and Dropoffs with Helpers',
     path: '/edit/pickups-dropoffs',
     icon: 'bus-outline',
+    color: '#10B981', // emerald
   },
   {
     title: 'End of Shift Checklist',
     path: '/edit/checklist',
     icon: 'clipboard-outline',
+    color: '#8B5CF6', // violet
   },
 ];
 
@@ -102,15 +110,15 @@ export default function EditHubScreen() {
             {TILES.map((tile) => (
               <TouchableOpacity
                 key={tile.path}
-                style={styles.tile}
+                style={[styles.tile, { borderLeftColor: tile.color }]}
                 onPress={() => router.push(tile.path)}
-                activeOpacity={0.85}
+                activeOpacity={0.9}
               >
                 <View style={styles.tileContent}>
                   <Ionicons
                     name={tile.icon as any}
                     size={20}
-                    color="#F54FA5"
+                    color={tile.color}
                     style={styles.tileIcon}
                   />
                   <Text style={styles.tileTitle}>{tile.title}</Text>
@@ -166,6 +174,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 18,
     backgroundColor: '#FFE5F4',
+    // subtle shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   printIcon: {
     marginRight: 8,
@@ -180,10 +194,16 @@ const styles = StyleSheet.create({
   },
   tile: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e5d9f2',
+    borderLeftWidth: 4,
     backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tileContent: {
     flexDirection: 'row',
