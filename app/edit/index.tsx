@@ -1,8 +1,10 @@
 // app/edit/index.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import Footer from '@/components/Footer'; // ⬅ add this import
+import Footer from '@/components/Footer';
+import ScheduleBanner from '@/components/ScheduleBanner';
+import { initScheduleForToday } from '@/hooks/schedule-store';
 
 const TILES = [
   { title: 'The Dream Team (Working at B2)', path: '/edit/dream-team' },
@@ -14,7 +16,14 @@ const TILES = [
   { title: 'End of Shift Checklist', path: '/edit/checklist' },
 ] as const;
 
+const MAX_WIDTH = 880;
+
 export default function EditHubScreen() {
+  useEffect(() => {
+    // Safety: if user lands directly on Edit, still initialise for today
+    initScheduleForToday('B2');
+  }, []);
+
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -23,6 +32,8 @@ export default function EditHubScreen() {
           <Text style={styles.subtitle}>
             Tap a category below to review and adjust details captured during the create flow.
           </Text>
+
+          <ScheduleBanner />
 
           <View style={styles.grid}>
             {TILES.map((tile) => (
@@ -39,12 +50,10 @@ export default function EditHubScreen() {
         </View>
       </ScrollView>
 
-      <Footer /> {/* ⬅ add this */}
+      <Footer />
     </View>
   );
 }
-
-const MAX_WIDTH = 880;
 
 const styles = StyleSheet.create({
   screen: {
@@ -52,9 +61,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#faf7fb',
   },
   scroll: {
-  paddingVertical: 24,
-  alignItems: 'center',
-  paddingBottom: 160,   // 👈 added
+    paddingVertical: 24,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
