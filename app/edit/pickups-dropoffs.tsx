@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
   dropoffsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    justifyContent: 'spaceBetween',
+    justifyContent: 'space-Between',
   },
   hideToggle: {
     fontSize: 12,
