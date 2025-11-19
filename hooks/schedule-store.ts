@@ -10,6 +10,16 @@ export type ScheduleSnapshot = {
   staff: Staff[];
   participants: Participant[];
 
+  type BannerType = 'loaded' | 'created' | null;
+
+export type ScheduleBanner = {
+  type: BannerType;
+  // Date we are *using* the schedule for (today)
+  scheduleDate?: string; // 'YYYY-MM-DD'
+  // Original date the schedule was created (for loaded-from-previous)
+  sourceDate?: string;   // 'YYYY-MM-DD'
+};
+
   // Core selections
   workingStaff: ID[];                 // The Dream Team (Working at B2)
   attendingParticipants: ID[];        // Attending Participants
