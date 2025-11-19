@@ -138,10 +138,13 @@ export default function CleaningEditScreen() {
               <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
-            <ScrollView
-              style={{ marginTop: 16, maxHeight: 340 }}
-              contentContainerStyle={{ paddingBottom: 16 }}
-            >
+                <ScrollView
+                  style={{ marginTop: 16 }}
+                  contentContainerStyle={{
+                    paddingBottom: 140,   // ← more space for mobile safe-area + footer
+                  }}
+                >
+
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
                   {workingStaffList.map(st => {
