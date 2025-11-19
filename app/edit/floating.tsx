@@ -1,3 +1,4 @@
+// app/edit/floating.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -237,7 +238,7 @@ export default function FloatingScreen() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#F3FAFF' }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
         <View style={WRAP as any}>
           <Text
@@ -383,13 +384,13 @@ export default function FloatingScreen() {
                 paddingHorizontal: 14,
                 borderRadius: 999,
                 borderWidth: 1,
-                borderColor: '#4f46e5',
-                backgroundColor: '#eef2ff',
+                borderColor: '#0EA5E9',
+                backgroundColor: '#E0F7FF',
               }}
             >
               <Text
                 style={{
-                  color: '#4f46e5',
+                  color: '#0EA5E9',
                   fontWeight: '600',
                 }}
               >
