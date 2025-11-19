@@ -469,9 +469,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dropoffsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-Between',
+  flexDirection: 'row',
+  alignItems: 'baseline',
+  justifyContent: 'space-between', // <-- FIXED
+  width: '100%',
   },
   hideToggle: {
     fontSize: 12,
