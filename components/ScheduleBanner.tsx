@@ -4,11 +4,11 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 
-// 👉 AUS date formatter: "YYYY-MM-DD" → "DD/MM/YYYY"
+// AUS date formatter: "YYYY-MM-DD" → "DD/MM/YYYY"
 const formatAusDate = (iso?: string) => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
-  if (!y || !m || !d) return iso; // fallback
+  if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
 };
 
@@ -19,8 +19,10 @@ export default function ScheduleBanner() {
 
   const isLoaded = banner.type === 'loaded';
 
-  const bgColor = isLoaded ? '#FFF4E5' : '#E6F4EA';   // orange vs green
+  const bgColor = isLoaded ? '#FFF4E5' : '#E6F4EA'; // orange vs green
   const borderColor = isLoaded ? '#F97316' : '#22C55E';
+  const iconName = isLoaded ? 'time-outline' : 'checkmark-circle-outline';
+  const iconColor = isLoaded ? '#F97316' : '#22C55E';
 
   let message = '';
 
@@ -38,9 +40,9 @@ export default function ScheduleBanner() {
     <View style={[styles.box, { backgroundColor: bgColor, borderColor }]}>
       <View style={styles.row}>
         <Ionicons
-          name="time-outline"
+          name={iconName}
           size={18}
-          color="#433F4C"
+          color={iconColor}
           style={styles.icon}
         />
         <Text style={styles.text}>{message}</Text>
