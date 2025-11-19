@@ -11,6 +11,7 @@ export type ScheduleSnapshot = {
   participants: Participant[];
 
   type BannerType = 'loaded' | 'created' | null;
+};
 
 export type ScheduleBanner = {
   type: BannerType;
