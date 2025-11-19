@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
 import { initScheduleForToday } from '@/hooks/schedule-store';
@@ -27,43 +27,43 @@ const TILES: TileConfig[] = [
   {
     title: 'The Dream Team (Working at B2)',
     path: '/edit/dream-team',
-    icon: 'people-circle-outline',
+    icon: 'account-circle',
     color: '#F54FA5', // pink
   },
   {
     title: 'Attending Participants',
     path: '/edit/participants',
-    icon: 'people-outline',
+    icon: 'groups',
     color: '#EC4899', // pink-ish
   },
   {
     title: 'Team Daily Assignments',
     path: '/edit/assignments',
-    icon: 'list-outline',
+    icon: 'list-alt',
     color: '#6366F1', // indigo
   },
   {
     title: 'Floating Assignments (Front Room, Scotty, Twins)',
     path: '/edit/floating',
-    icon: 'shuffle-outline',
+    icon: 'shuffle',
     color: '#0EA5E9', // sky blue
   },
   {
     title: 'End of Shift Cleaning Assignments',
     path: '/edit/cleaning',
-    icon: 'construct-outline',
+    icon: 'cleaning-services',
     color: '#F59E0B', // amber
   },
   {
     title: 'Pickups and Dropoffs with Helpers',
     path: '/edit/pickups-dropoffs',
-    icon: 'bus-outline',
+    icon: 'directions-car',
     color: '#10B981', // emerald
   },
   {
     title: 'End of Shift Checklist',
     path: '/edit/checklist',
-    icon: 'clipboard-outline',
+    icon: 'check-circle-outline',
     color: '#8B5CF6', // violet
   },
 ];
