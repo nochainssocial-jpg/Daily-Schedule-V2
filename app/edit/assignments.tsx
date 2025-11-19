@@ -1,8 +1,19 @@
 // app/edit/assignments.tsx
 import React from 'react';
-import { ScrollView, Text, StyleSheet, View, TouchableOpacity } from 'react-native';
+import {
+  ScrollView,
+  Text,
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
-import { STAFF as STATIC_STAFF, PARTICIPANTS as STATIC_PARTS } from '@/constants/data';
+import {
+  STAFF as STATIC_STAFF,
+  PARTICIPANTS as STATIC_PARTS,
+} from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
@@ -13,7 +24,7 @@ const isAntoinette = (x?: string) => nm(x) === 'antoinette';
 
 const MAX_WIDTH = 880;
 const PILL = 999;
-const ACCENT = '#6366F1'; // indigo like Edit Hub tile
+const ACCENT = '#6366F1'; // indigo
 
 export default function EditAssignmentsScreen() {
   const {
@@ -27,11 +38,12 @@ export default function EditAssignmentsScreen() {
   const { push } = useNotifications();
 
   const staffSource =
-    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) || [];
+    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) ||
+    [];
   const partsSource =
-    (scheduleParts && scheduleParts.length ? scheduleParts : STATIC_PARTS) || [];
+    (scheduleParts && scheduleParts.length ? scheduleParts : STATIC_PARTS) ||
+    [];
 
-  // Working staff set from the schedule (Dream Team @ B2)
   const workingSet = new Set<ID>(
     (workingStaff && workingStaff.length ? (workingStaff as ID[]) : []) as ID[],
   );
@@ -44,16 +56,13 @@ export default function EditAssignmentsScreen() {
 
     if (anto) return false;
     if (workingSet.size) {
-      // When we know the Dream Team, show only them + Everyone
       return inWorking || everyone;
     }
-    // Fallback: if working staff not yet stored (old schedules), show everyone except Antoinette
     return !anto;
   });
 
   const assignmentsMap: Record<ID, ID[]> = (assignments || {}) as any;
 
-  // Attending participants list (or everyone if not set)
   const attendingIds: ID[] =
     (attendingParticipants && attendingParticipants.length
       ? (attendingParticipants as ID[])
@@ -64,7 +73,6 @@ export default function EditAssignmentsScreen() {
   const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-  // participant -> staffId (for uniqueness)
   const assignedByParticipant: Record<ID, ID> = {};
   Object.entries(assignmentsMap).forEach(([sid, pids]) => {
     if (!Array.isArray(pids)) return;
@@ -79,7 +87,6 @@ export default function EditAssignmentsScreen() {
     const current = assignmentsMap || {};
     const next: Record<ID, ID[]> = {};
 
-    // clone first
     Object.entries(current).forEach(([sid, pids]) => {
       next[sid as ID] = Array.isArray(pids) ? [...(pids as ID[])] : [];
     });
@@ -87,16 +94,13 @@ export default function EditAssignmentsScreen() {
     const currentOwner = assignedByParticipant[participantId];
 
     if (currentOwner && currentOwner === staffId) {
-      // unassign from this staff → participant becomes "unassigned"
       next[staffId] = (next[staffId] || []).filter((id) => id !== participantId);
     } else {
-      // remove from previous owner if any
       if (currentOwner) {
         next[currentOwner] = (next[currentOwner] || []).filter(
           (id) => id !== participantId,
         );
       }
-      // assign to this staff
       const arr = next[staffId] || [];
       if (!arr.includes(participantId)) arr.push(participantId);
       next[staffId] = arr;
@@ -108,24 +112,35 @@ export default function EditAssignmentsScreen() {
 
   return (
     <View style={styles.screen}>
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="list-outline"
+          size={220}
+          color="#DCE1FF"
+          style={styles.heroIcon}
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>Team Daily Assignments</Text>
           <Text style={styles.subtitle}>
-            Working staff @ B2 (including Everyone) with their individual participant
-            assignments. Tap a name to move them between staff members.
+            Working staff @ B2 (including Everyone) with their individual
+            participant assignments. Tap a name to move them between staff
+            members.
           </Text>
 
           {rowStaff.length === 0 ? (
             <Text style={styles.helperText}>
-              No working staff found. Create a schedule and select your Dream Team first.
+              No working staff found. Create a schedule and select your Dream
+              Team first.
             </Text>
           ) : (
             <View style={{ gap: 10 }}>
               {rowStaff.map((st) => {
                 const staffId = st.id as ID;
-                const staffAssigned = (assignmentsMap[staffId] || []).filter((pid) =>
-                  attendingSet.has(pid as ID),
+                const staffAssigned = (assignmentsMap[staffId] || []).filter(
+                  (pid) => attendingSet.has(pid as ID),
                 ) as ID[];
 
                 const assignedNames = staffAssigned
@@ -133,9 +148,6 @@ export default function EditAssignmentsScreen() {
                   .filter(Boolean)
                   .join(', ');
 
-                // For this row, participants available to tap:
-                // any attending participant who is either unassigned
-                // or already assigned to this staff member.
                 const availablePids = attendingIds.filter((pid) => {
                   const owner = assignedByParticipant[pid];
                   return !owner || owner === staffId;
@@ -143,7 +155,6 @@ export default function EditAssignmentsScreen() {
 
                 return (
                   <View key={staffId} style={styles.card}>
-                    {/* Staff header */}
                     <View style={styles.cardHeader}>
                       <View
                         style={[
@@ -154,14 +165,12 @@ export default function EditAssignmentsScreen() {
                       <Text style={styles.staffName}>{st.name}</Text>
                     </View>
 
-                    {/* Assigned summary line */}
                     {staffAssigned.length > 0 && (
                       <Text style={styles.assignedSummary}>
                         Assigned: {assignedNames}
                       </Text>
                     )}
 
-                    {/* Chips for available participants */}
                     <View style={styles.chipWrap}>
                       {availablePids.map((pid) => {
                         const isAssigned = staffAssigned.includes(pid);
@@ -204,6 +213,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#F5F5FF', // soft indigo
+  },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     paddingVertical: 24,
