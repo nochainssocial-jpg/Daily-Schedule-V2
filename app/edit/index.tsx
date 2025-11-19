@@ -58,7 +58,7 @@ const TILES: TileConfig[] = [
   {
     title: 'Pickups and Dropoffs with Helpers',
     path: '/edit/pickups-dropoffs',
-    icon: 'bus-outline',
+    icon: 'car-outline',
     color: '#10B981', // emerald
   },
   {
