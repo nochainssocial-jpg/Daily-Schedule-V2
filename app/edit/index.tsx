@@ -1,6 +1,13 @@
 // app/edit/index.tsx
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+} from 'react-native';
 import { router } from 'expo-router';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
@@ -20,9 +27,12 @@ const MAX_WIDTH = 880;
 
 export default function EditHubScreen() {
   useEffect(() => {
-    // Safety: if user lands directly on Edit, still initialise for today
     initScheduleForToday('B2');
   }, []);
+
+  const handlePrint = () => {
+    router.push('/print');
+  };
 
   return (
     <View style={styles.screen}>
@@ -34,6 +44,18 @@ export default function EditHubScreen() {
           </Text>
 
           <ScheduleBanner />
+
+          {Platform.OS === 'web' && (
+            <View style={styles.printRow}>
+              <TouchableOpacity
+                onPress={handlePrint}
+                activeOpacity={0.85}
+                style={styles.printButton}
+              >
+                <Text style={styles.printLabel}>Print loaded schedule</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.grid}>
             {TILES.map((tile) => (
@@ -79,8 +101,25 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     opacity: 0.75,
-    marginBottom: 16,
+    marginBottom: 12,
     color: '#5a486b',
+  },
+  printRow: {
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  printButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    backgroundColor: '#FFE5F4',
+  },
+  printLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F54FA5',
   },
   grid: {
     gap: 12,
