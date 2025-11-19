@@ -52,7 +52,7 @@ const TILES: TileConfig[] = [
   {
     title: 'End of Shift Cleaning Assignments',
     path: '/edit/cleaning',
-    icon: 'construct-outline',
+    icon: 'sparkles-outline',
     color: '#F59E0B', // amber
   },
   {
