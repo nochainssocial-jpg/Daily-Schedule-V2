@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   step: {
     fontSize: 16,
-    marginBottom: 6,
+    marginBottom: 10,
     color: '#2a446e',
   },
   greeting: {
