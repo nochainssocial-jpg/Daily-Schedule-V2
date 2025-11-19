@@ -259,5 +259,399 @@ export default function FloatingScreen() {
             female staff.
           </Text>
 
-          {/* table ... unchanged */}
-          {/* ... rest of file stays exactly as you already have from previous version */}
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              borderRadius: 14,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                backgroundColor: '#f9fafb',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
+              }}
+            >
+              <HeaderCell label="Time" flex={1.1} />
+              <HeaderCell label="Front Room" />
+              <HeaderCell label="Scotty" />
+              <HeaderCell label="Twins" />
+            </View>
+
+            {(TIME_SLOTS || []).map((slot: any, idx: number) => {
+              const slotId = String(slot.id ?? idx);
+              const row = getRow(slotId);
+
+              const frStaff = row.frontRoom ? staffById[row.frontRoom] : undefined;
+              const scStaff = row.scotty ? staffById[row.scotty] : undefined;
+              const twStaff = row.twins ? staffById[row.twins] : undefined;
+
+              const fr = frStaff?.name ?? '';
+              const sc = scStaff?.name ?? '';
+              const tw = twStaff?.name ?? '';
+
+              const fso = isFSOTwinsSlot(slot);
+
+              const baseRowStyle =
+                idx % 2 === 0
+                  ? { backgroundColor: '#ffffff' }
+                  : { backgroundColor: '#f9fafb' };
+
+              return (
+                <View
+                  key={slotId}
+                  style={[
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'stretch',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#e5e7eb',
+                    },
+                    baseRowStyle,
+                  ]}
+                >
+                  {/* Time cell */}
+                  <View
+                    style={{
+                      flex: 1.1,
+                      paddingVertical: 10,
+                      paddingHorizontal: 10,
+                      borderRightWidth: 1,
+                      borderRightColor: '#e5e7eb',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: '#0f172a',
+                      }}
+                    >
+                      {slot.displayTime ||
+                        `${slot.startTime ?? ''} - ${slot.endTime ?? ''}`}
+                    </Text>
+                  </View>
+
+                  {/* Front Room */}
+                  <CellButton
+                    style={{ flex: 1 }}
+                    label={fr || 'Tap to assign'}
+                    gender={frStaff?.gender}
+                    onPress={() => openPicker(slotId, 'frontRoom')}
+                  />
+
+                  {/* Scotty */}
+                  <CellButton
+                    style={{ flex: 1 }}
+                    label={sc || 'Tap to assign'}
+                    gender={scStaff?.gender}
+                    onPress={() => openPicker(slotId, 'scotty')}
+                  />
+
+                  {/* Twins */}
+                  <CellButton
+                    style={[
+                      { flex: 1 },
+                      fso ? { backgroundColor: '#fef2f2' } : null,
+                    ]}
+                    label={
+                      tw
+                        ? fso
+                          ? `${tw} (FSO)`
+                          : tw
+                        : fso
+                        ? 'Tap to assign (FSO)'
+                        : 'Tap to assign'
+                    }
+                    gender={twStaff?.gender}
+                    fsoTag={fso}
+                    onPress={() => openPicker(slotId, 'twins')}
+                  />
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Shuffle button */}
+          <View style={{ marginTop: 12, alignItems: 'flex-end' }}>
+            <TouchableOpacity
+              onPress={handleShuffle}
+              activeOpacity={0.9}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: '#4f46e5',
+                backgroundColor: '#eef2ff',
+              }}
+            >
+              <Text
+                style={{
+                  color: '#4f46e5',
+                  fontWeight: '600',
+                }}
+              >
+                Shuffle all assignments
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Staff picker modal */}
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.25)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#ffffff',
+              width: '100%',
+              maxWidth: 720,
+              borderRadius: 16,
+              padding: 16,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: '800',
+                marginBottom: 10,
+              }}
+            >
+              Assign Staff
+            </Text>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(working || [])
+                .filter(
+                  (s: any) =>
+                    !pick?.fso ||
+                    String(s.gender || '').toLowerCase() === 'female',
+                )
+                .map((s: any) => (
+                  <Chip key={s.id} label={s.name} onPress={() => choose(s.id)} />
+                ))}
+            </View>
+
+            {pick?.fso &&
+              (working || []).every(
+                (s: any) =>
+                  String(s.gender || '').toLowerCase() !== 'female',
+              ) && (
+                <View
+                  style={{
+                    marginTop: 12,
+                    padding: 10,
+                    borderWidth: 1,
+                    borderColor: '#fecaca',
+                    backgroundColor: '#fef2f2',
+                    borderRadius: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#b91c1c',
+                      fontWeight: '600',
+                    }}
+                  >
+                    No eligible female staff on the Dream Team for this slot.
+                  </Text>
+                </View>
+              )}
+
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 16,
+              }}
+            >
+              <TouchableOpacity onPress={clearCell}>
+                <Text
+                  style={{
+                    color: '#ef4444',
+                    fontWeight: '600',
+                  }}
+                >
+                  Clear this cell
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setOpen(false)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
+                }}
+              >
+                <Text style={{ fontWeight: '600' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function HeaderCell({ label, flex = 1 }: { label: string; flex?: number }) {
+  return (
+    <View
+      style={{
+        flex,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        borderRightWidth: 1,
+        borderRightColor: '#e5e7eb',
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: '700',
+          color: '#0f172a',
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+type CellProps = {
+  label: string;
+  onPress: () => void;
+  style?: any;
+  gender?: string;
+  fsoTag?: boolean;
+};
+
+function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
+  const isEmpty = label.toLowerCase().startsWith('tap to assign');
+
+  const genderColor =
+    String(gender || '').toLowerCase() === 'female'
+      ? '#fb7185' // pink
+      : String(gender || '').toLowerCase() === 'male'
+      ? '#60a5fa' // blue
+      : '#cbd5e1'; // neutral grey
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      style={[
+        {
+          paddingVertical: 10,
+          paddingHorizontal: 8,
+          borderLeftWidth: 1,
+          borderLeftColor: '#e5e7eb',
+          justifyContent: 'center',
+          position: 'relative',
+        },
+        style,
+      ]}
+    >
+      {isEmpty ? (
+        <Text
+          style={{
+            color: '#64748b',
+            fontWeight: '400' as any,
+            fontSize: 13,
+          }}
+        >
+          {label}
+        </Text>
+      ) : (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            paddingVertical: 4,
+            paddingHorizontal: 10,
+            borderRadius: 999,
+            backgroundColor: '#f1f5f9',
+            gap: 8,
+          }}
+        >
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              backgroundColor: genderColor,
+            }}
+          />
+          <Text
+            style={{
+              color: '#0f172a',
+              fontWeight: '600' as any,
+              fontSize: 13,
+            }}
+          >
+            {label}
+          </Text>
+        </View>
+      )}
+
+      {fsoTag && (
+        <View
+          style={{
+            position: 'absolute',
+            right: 8,
+            bottom: 6,
+          }}
+        >
+          <Tag>FSO</Tag>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return (
+    <View
+      style={{
+        alignSelf: 'flex-start',
+        paddingVertical: 2,
+        paddingHorizontal: 6,
+        backgroundColor: '#fce7f3',
+        borderRadius: 999,
+      }}
+    >
+      <Text
+        style={{
+          color: '#be185d',
+          fontSize: 11,
+          fontWeight: '700',
+        }}
+      >
+        {children as any}
+      </Text>
+    </View>
+  );
+}
