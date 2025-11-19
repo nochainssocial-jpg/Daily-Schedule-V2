@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { ROUTES } from '@/constants/ROUTES';
@@ -22,8 +23,28 @@ export default function HomeScreen() {
     initScheduleForToday('B2');
   }, []);
 
+  const showWebBranding = Platform.OS === 'web';
+
   return (
     <View style={styles.screen}>
+      {/* Large washed-out background logo – web only */}
+      {showWebBranding && (
+        <Image
+          source={require('../assets/images/No Chains Pink Horizontal final.svg')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+
+      {/* Round logo in top-right – web only */}
+      {showWebBranding && (
+        <Image
+          source={require('../assets/images/No Chains Logo Round.svg')}
+          style={styles.cornerLogo}
+          resizeMode="contain"
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>Daily Schedule</Text>
@@ -82,7 +103,7 @@ export default function HomeScreen() {
               5.)  Choose who completes the End of Shift Checklist.
             </Text>
             <Text style={styles.step}>
-              6.)  Floating and end of shift cleaning assignments 
+              6.)  Floating and end of shift cleaning assignments
               will be automated by the app.
             </Text>
             <Text style={styles.step}>
@@ -102,6 +123,8 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
+    position: 'relative',
+    overflow: 'hidden',
   },
   scroll: {
     paddingVertical: 32,
@@ -112,6 +135,26 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MAX_WIDTH,
     paddingHorizontal: 24,
+  },
+  // Large washed-out background logo
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.06,
+    left: -260,      // partially off-screen
+    top: 220,
+    pointerEvents: 'none',
+  },
+  // Round logo in top-right corner
+  cornerLogo: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    top: 40,
+    right: 100,      // ~100px from right edge
+    opacity: 0.95,
+    pointerEvents: 'none',
   },
   title: {
     fontSize: 28,
