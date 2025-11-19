@@ -6,6 +6,7 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 
 import { persistFinish } from '@/hooks/persist-finish';
 import useSchedule from '@/hooks/schedule-adapter';
+import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/schedule-store';
 import { STAFF, PARTICIPANTS } from '@/constants/data';
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
@@ -729,7 +730,6 @@ export default function CreateScheduleScreen() {
   );
 
   // ---- Step 6: Final checklist staff ---------------------------------------
-  // STEP 6 – Final Checklist Assignment
   const Step6 = () => {
     // Only real working staff (exclude "Everyone") and de-duplicate
     const workingReal = (workingStaff || []).filter(id => {
@@ -769,7 +769,7 @@ export default function CreateScheduleScreen() {
                   <View
                     style={[
                       styles.rect,
-                      { backgroundColor: st.color || '#E6ECF5' },
+                      { backgroundColor: st.color || '#E5ECF5' },
                     ]}
                   />
                   <Text style={[styles.rowTxt, selected && styles.rowTxtSel]}>
@@ -864,39 +864,57 @@ export default function CreateScheduleScreen() {
       console.warn('persistFinish error, continuing anyway:', e);
     }
 
-    // 🔥 After persistFinish, read any derived drafts from the schedule store
-    let cleaningDraft: any = {};
-    let floatingDraft: any = {};
-    let finalChecklistDraft: any = {};
+    // 🔥 After persistFinish, grab the canonical snapshot from the base schedule store
+    let snapshot: ScheduleSnapshot;
+
     try {
-      cleaningDraft = (hook as any).cleaningDraft ?? {};
-      floatingDraft = (hook as any).floatingDraft ?? {};
-      finalChecklistDraft = (hook as any).finalChecklistDraft ?? {};
-    } catch (e) {
-      console.warn(
-        '[create-schedule] unable to read cleaning/floating/finalChecklist drafts from store:',
-        e,
-      );
+      const state = baseSchedule.getState();
+
+      snapshot = {
+        staff: state.staff ?? (staffSource ?? []),
+        participants: state.participants ?? (partsSource ?? []),
+
+        workingStaff: state.workingStaff ?? realWorkers,
+        attendingParticipants: state.attendingParticipants ?? attendingParticipants,
+
+        assignments: state.assignments ?? assignmentsMap,
+        floatingAssignments: state.floatingAssignments ?? {},
+        cleaningAssignments: state.cleaningAssignments ?? {},
+
+        finalChecklist: state.finalChecklist ?? {},
+        finalChecklistStaff: state.finalChecklistStaff ?? finalChecklistStaff,
+
+        pickupParticipants: state.pickupParticipants ?? pickupParticipants,
+        helperStaff: state.helperStaff ?? helperStaff,
+        dropoffAssignments: state.dropoffAssignments ?? dropoffAssignments,
+
+        date: state.date ?? selectedDate,
+        meta: {
+          ...(state.meta || {}),
+          from: (state.meta && state.meta.from) || 'create-wizard',
+        },
+      };
+    } catch (err) {
+      console.warn('[create-schedule] failed to read snapshot from store, falling back:', err);
+
+      // Fallback: minimal snapshot (won't be as rich but avoids total failure)
+      snapshot = {
+        staff: staffSource ?? [],
+        participants: partsSource ?? [],
+        workingStaff: realWorkers,
+        attendingParticipants,
+        assignments: assignmentsMap,
+        floatingAssignments: {},
+        cleaningAssignments: {},
+        finalChecklist: {},
+        finalChecklistStaff,
+        pickupParticipants,
+        helperStaff,
+        dropoffAssignments,
+        date: selectedDate,
+        meta: { from: 'create-wizard' },
+      };
     }
-
-    /** 🔥 NEW — Build snapshot for Supabase */
-    const snapshot = {
-      staff: staffSource ?? [],
-      participants: partsSource ?? [],
-      workingStaff: realWorkers,
-      attendingParticipants,
-      assignments: assignmentsMap,
-      pickupParticipants,
-      helperStaff,
-      dropoffAssignments,
-      finalChecklistStaff,
-      date: selectedDate,
-
-      // Include auto-generated drafts so all devices see the same Cleaning/Floating/Checklist data
-      cleaningDraft,
-      floatingDraft,
-      finalChecklistDraft,
-    };
 
     /** 🔥 NEW — Save to Supabase */
     try {
