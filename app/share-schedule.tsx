@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -26,6 +27,8 @@ export default function ShareScheduleScreen() {
     hydrateFromSnapshot,
     loadSnapshot,
   } = useSchedule() as any;
+
+  const showWebBranding = Platform.OS === 'web';
 
   // Derive initial code from state, with localStorage fallback on web
   const initialCode = (() => {
@@ -216,6 +219,15 @@ export default function ShareScheduleScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* Large washed-out background logo – web only */}
+      {showWebBranding && (
+        <Image
+          source={require('../assets/images/No Chains Pink Horizontal final.svg')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+
       <Stack.Screen options={{ title: "Share Today's Schedule" }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
@@ -296,6 +308,8 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
+    position: 'relative',
+    overflow: 'hidden',
   },
   scroll: {
     paddingVertical: 24,
@@ -307,6 +321,16 @@ const styles = StyleSheet.create({
     maxWidth: MAX_WIDTH,
     paddingHorizontal: 24,
     gap: 16,
+  },
+  // Large washed-out background logo
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.06,
+    left: -260,
+    top: 220,
+    pointerEvents: 'none',
   },
   card: {
     backgroundColor: '#ffffff',
