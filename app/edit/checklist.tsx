@@ -1,6 +1,6 @@
-// app/edit/checklist.tsx
 import React, { useMemo } from 'react';
-import { ScrollView, Text, StyleSheet, View } from 'react-native';
+import { ScrollView, Text, StyleSheet, View, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
@@ -8,6 +8,8 @@ import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
 
 type ID = string;
+
+const MAX_WIDTH = 880;
 
 export default function EditChecklistScreen() {
   const {
@@ -20,15 +22,21 @@ export default function EditChecklistScreen() {
   const { push } = useNotifications();
 
   // Prefer staff from the schedule (after create), fallback to static constants
-  const staff = (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) as typeof STATIC_STAFF;
+  const staff = (scheduleStaff && scheduleStaff.length
+    ? scheduleStaff
+    : STATIC_STAFF) as typeof STATIC_STAFF;
 
   // Last-to-leave options: Dream Team if available, otherwise all staff
   const staffPool = useMemo(
-    () => (workingStaff && workingStaff.length ? staff.filter(s => workingStaff.includes(s.id)) : staff),
+    () =>
+      workingStaff && workingStaff.length
+        ? staff.filter((s) => workingStaff.includes(s.id))
+        : staff,
     [staff, workingStaff],
   );
 
-  const selectedStaff = staffPool.find((s) => s.id === finalChecklistStaff) || null;
+  const selectedStaff =
+    staffPool.find((s) => s.id === finalChecklistStaff) || null;
 
   const handleSelectStaff = (id: ID) => {
     updateSchedule({ finalChecklistStaff: id });
@@ -45,19 +53,29 @@ export default function EditChecklistScreen() {
 
   return (
     <View style={styles.screen}>
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="checkbox-outline"
+          size={220}
+          color="#D9D2FF"
+          style={styles.heroIcon}
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>End of Shift Checklist</Text>
           <Text style={styles.subtitle}>
-            Tick each item as it&apos;s completed and confirm who is last to leave and responsible for closing tasks.
+            Tick each item as it&apos;s completed and confirm who is last to
+            leave and responsible for closing tasks.
           </Text>
 
           {/* Last-to-leave selector */}
           <Text style={styles.sectionTitle}>Who is last to leave?</Text>
           {staffPool.length === 0 ? (
             <Text style={styles.helperText}>
-              No staff available. Create a schedule and select working staff so you can assign the checklist
-              to someone.
+              No staff available. Create a schedule and select working staff so
+              you can assign the checklist to someone.
             </Text>
           ) : (
             <View style={styles.chipRow}>
@@ -83,7 +101,9 @@ export default function EditChecklistScreen() {
           </View>
 
           {/* Checklist items */}
-          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
+            Checklist items
+          </Text>
           {DEFAULT_CHECKLIST.map((item) => {
             const key = String(item.id);
             const checked = !!finalChecklist?.[key];
@@ -104,12 +124,17 @@ export default function EditChecklistScreen() {
   );
 }
 
-const MAX_WIDTH = 880;
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#F5F3FF', // pastel violet for checklist tile
+  },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     paddingVertical: 24,
