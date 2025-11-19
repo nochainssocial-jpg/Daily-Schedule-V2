@@ -8,11 +8,12 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
+  Platform,
 } from 'react-native';
 import { Plus, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSchedule } from '@/hooks/schedule-store';
-// 🔸 Adjust this path if your data.ts lives elsewhere, e.g. '@/components/data'
 import {
   STAFF,
   PARTICIPANTS,
@@ -41,6 +42,8 @@ export default function SettingsScreen() {
   const [activeSection, setActiveSection] =
     useState<SettingsSection>('staff');
   const [newItemText, setNewItemText] = useState('');
+
+  const showWebBranding = Platform.OS === 'web';
 
   // ---------- helpers ----------------------------------------------------
 
@@ -272,6 +275,15 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* Large washed-out background logo – web only */}
+      {showWebBranding && (
+        <Image
+          source={require('../assets/images/No Chains Pink Horizontal final.svg')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <View style={styles.header}>
@@ -295,6 +307,8 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
+    position: 'relative',
+    overflow: 'hidden',
   },
   scroll: {
     paddingVertical: 24,
@@ -304,6 +318,16 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MAX_WIDTH,
     paddingHorizontal: 24,
+  },
+  // Large washed-out background logo
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.06,
+    left: -260,
+    top: 220,
+    pointerEvents: 'none',
   },
   header: {
     paddingBottom: 16,
