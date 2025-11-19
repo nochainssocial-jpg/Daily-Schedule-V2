@@ -9,21 +9,56 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
 import { initScheduleForToday } from '@/hooks/schedule-store';
 
-const TILES = [
-  { title: 'The Dream Team (Working at B2)', path: '/edit/dream-team' },
-  { title: 'Attending Participants', path: '/edit/participants' },
-  { title: 'Team Daily Assignments', path: '/edit/assignments' },
-  { title: 'Floating Assignments (Front Room, Scotty, Twins)', path: '/edit/floating' },
-  { title: 'End of Shift Cleaning Assignments', path: '/edit/cleaning' },
-  { title: 'Pickups and Dropoffs with Helpers', path: '/edit/pickups-dropoffs' },
-  { title: 'End of Shift Checklist', path: '/edit/checklist' },
-] as const;
-
 const MAX_WIDTH = 880;
+
+type TileConfig = {
+  title: string;
+  path: string;
+  icon: string; // we'll cast to Ionicons name
+};
+
+const TILES: TileConfig[] = [
+  {
+    title: 'The Dream Team (Working at B2)',
+    path: '/edit/dream-team',
+    icon: 'people-circle-outline',
+  },
+  {
+    title: 'Attending Participants',
+    path: '/edit/participants',
+    icon: 'people-outline',
+  },
+  {
+    title: 'Team Daily Assignments',
+    path: '/edit/assignments',
+    icon: 'list-outline',
+  },
+  {
+    title: 'Floating Assignments (Front Room, Scotty, Twins)',
+    path: '/edit/floating',
+    icon: 'shuffle-outline',
+  },
+  {
+    title: 'End of Shift Cleaning Assignments',
+    path: '/edit/cleaning',
+    icon: 'construct-outline',
+  },
+  {
+    title: 'Pickups and Dropoffs with Helpers',
+    path: '/edit/pickups-dropoffs',
+    icon: 'bus-outline',
+  },
+  {
+    title: 'End of Shift Checklist',
+    path: '/edit/checklist',
+    icon: 'clipboard-outline',
+  },
+];
 
 export default function EditHubScreen() {
   useEffect(() => {
@@ -52,6 +87,12 @@ export default function EditHubScreen() {
                 activeOpacity={0.85}
                 style={styles.printButton}
               >
+                <Ionicons
+                  name="print-outline"
+                  size={18}
+                  color="#F54FA5"
+                  style={styles.printIcon}
+                />
                 <Text style={styles.printLabel}>Print loaded schedule</Text>
               </TouchableOpacity>
             </View>
@@ -65,7 +106,15 @@ export default function EditHubScreen() {
                 onPress={() => router.push(tile.path)}
                 activeOpacity={0.85}
               >
-                <Text style={styles.tileTitle}>{tile.title}</Text>
+                <View style={styles.tileContent}>
+                  <Ionicons
+                    name={tile.icon as any}
+                    size={20}
+                    color="#F54FA5"
+                    style={styles.tileIcon}
+                  />
+                  <Text style={styles.tileTitle}>{tile.title}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -109,12 +158,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   printButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#F54FA5',
     paddingVertical: 8,
     paddingHorizontal: 18,
     backgroundColor: '#FFE5F4',
+  },
+  printIcon: {
+    marginRight: 8,
   },
   printLabel: {
     fontSize: 14,
@@ -131,9 +185,17 @@ const styles = StyleSheet.create({
     borderColor: '#e5d9f2',
     backgroundColor: '#fff',
   },
+  tileContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tileIcon: {
+    marginRight: 10,
+  },
   tileTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: '#3c234c',
+    flexShrink: 1,
   },
 });
