@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
     width: 1400,
     height: 1400,
     opacity: 0.1,
-    left: -260,
-    top: 220,
+    left: -600,
+    top: 10,
     pointerEvents: 'none',
   },
   title: {
