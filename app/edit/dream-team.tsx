@@ -16,7 +16,6 @@ export default function EditDreamTeamScreen() {
   const { staff: scheduleStaff, workingStaff = [], updateSchedule } = useSchedule();
   const { push } = useNotifications();
 
-
   // Prefer schedule-attached staff after create, fallback to static STAFF
   const staff = useMemo(
     () => (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF),
@@ -128,7 +127,7 @@ export default function EditDreamTeamScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
+    backgroundColor: '#FFF5FB', // pastel pink for Dream Team
   },
   scroll: {
     flexGrow: 1,
