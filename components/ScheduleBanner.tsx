@@ -3,6 +3,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 
+// 👉 AUS date formatter: "YYYY-MM-DD" → "DD/MM/YYYY"
+const formatAusDate = (iso?: string) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso; // fallback
+  return `${d}/${m}/${y}`;
+};
+
 export default function ScheduleBanner() {
   const banner = useSchedule((s) => s.banner);
 
@@ -16,11 +24,13 @@ export default function ScheduleBanner() {
   let message = '';
 
   if (isLoaded) {
-    const created =
+    const createdIso =
       banner.sourceDate || banner.scheduleDate || '';
+    const created = formatAusDate(createdIso);
     message = `Successfully loaded schedule – schedule created ${created}`;
   } else {
-    const date = banner.scheduleDate || '';
+    const dateIso = banner.scheduleDate || '';
+    const date = formatAusDate(dateIso);
     message = `Successfully created schedule – ${date}`;
   }
 
