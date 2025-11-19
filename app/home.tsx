@@ -1,5 +1,5 @@
 // app/home.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,17 @@ import {
 import { router } from 'expo-router';
 import { ROUTES } from '@/constants/ROUTES';
 import Footer from '@/components/Footer';
+import ScheduleBanner from '@/components/ScheduleBanner';
+import { initScheduleForToday } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 880;
 
 export default function HomeScreen() {
+  useEffect(() => {
+    // For now, hard-coded to B2
+    initScheduleForToday('B2');
+  }, []);
+
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -26,13 +33,16 @@ export default function HomeScreen() {
             fine-tune the day from the Edit Hub.
           </Text>
 
+          {/* Banner showing loaded/created schedule status */}
+          <ScheduleBanner />
+
           <View style={styles.startContainer}>
-          <Image
-            source={require('../assets/images/app-start.png')}
-            style={styles.startImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.greeting}>Good morning Dalida! 👋</Text>
+            <Image
+              source={require('../assets/images/app-start.png')}
+              style={styles.startImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.greeting}>Good morning Dalida! 👋</Text>
           </View>
 
           <View style={styles.buttonRow}>
@@ -94,9 +104,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#faf7fb',
   },
   scroll: {
-  paddingVertical: 32,
-  alignItems: 'center',
-  paddingBottom: 160,   // 👈 added
+    paddingVertical: 32,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
@@ -159,27 +169,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 20,
     borderRadius: 12,
-    backgroundColor: '#e3f2fd', // light blue
+    backgroundColor: '#e3f2fd',
     borderWidth: 1,
     borderColor: '#b6d4f0',
   },
   guideTitle: {
-    fontSize: 18, // ~20% larger
+    fontSize: 18,
     fontWeight: '700',
     marginBottom: 10,
     color: '#1e3c64',
     textAlign: 'center',
   },
   step: {
-    fontSize: 16, // ~20% larger
+    fontSize: 16,
     marginBottom: 6,
     color: '#2a446e',
   },
   greeting: {
-  marginTop: 12,
-  fontSize: 18,
-  fontWeight: '600',
-  color: '#332244',
-  textAlign: 'center',
-},
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#332244',
+    textAlign: 'center',
+  },
 });
