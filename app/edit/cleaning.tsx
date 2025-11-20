@@ -7,6 +7,7 @@ import {
   View,
   StyleSheet,
   Platform,
+  useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -21,6 +22,13 @@ import { useNotifications } from '@/hooks/notifications';
 const PINK = '#F54FA5';
 
 export default function CleaningEditScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
   const {
     staff,
     workingStaff,
@@ -69,7 +77,7 @@ export default function CleaningEditScreen() {
 
   return (
     <View style={styles.screen}>
-      {Platform.OS === 'web' && (
+      {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="sparkles-outline"
           size={220}

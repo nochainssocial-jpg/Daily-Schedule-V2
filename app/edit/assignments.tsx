@@ -7,6 +7,7 @@ import {
   View,
   TouchableOpacity,
   Platform,
+  useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -27,6 +28,13 @@ const PILL = 999;
 const ACCENT = '#6366F1'; // indigo
 
 export default function EditAssignmentsScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
   const {
     staff: scheduleStaff,
     participants: scheduleParts,
@@ -112,7 +120,7 @@ export default function EditAssignmentsScreen() {
 
   return (
     <View style={styles.screen}>
-      {Platform.OS === 'web' && (
+      {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="list-outline"
           size={220}

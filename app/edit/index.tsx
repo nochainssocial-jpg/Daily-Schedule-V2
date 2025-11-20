@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   Image,
+  useWindowDimensions
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,6 +71,13 @@ const TILES: TileConfig[] = [
 ];
 
 export default function EditHubScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
   useEffect(() => {
     initScheduleForToday('B2');
   }, []);
@@ -78,7 +86,7 @@ export default function EditHubScreen() {
     router.push('/print');
   };
 
-  const showWebBranding = Platform.OS === 'web';
+  const showWebBranding = Platform.OS === 'web' && !isMobileWeb;
 
   return (
     <View style={styles.screen}>

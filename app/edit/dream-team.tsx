@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -20,6 +21,13 @@ type ID = string;
 const MAX_WIDTH = 880;
 
 export default function EditDreamTeamScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
   const { staff: scheduleStaff, workingStaff = [], updateSchedule } =
     useSchedule();
   const { push } = useNotifications();
@@ -85,7 +93,7 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
-      {Platform.OS === 'web' && (
+      {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="people-circle-outline"
           size={220}

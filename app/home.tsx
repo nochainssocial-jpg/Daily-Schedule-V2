@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { ROUTES } from '@/constants/ROUTES';
@@ -18,12 +19,20 @@ import { initScheduleForToday } from '@/hooks/schedule-store';
 const MAX_WIDTH = 880;
 
 export default function HomeScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
+
   useEffect(() => {
     // For now, hard-coded to B2
     initScheduleForToday('B2');
   }, []);
 
-  const showWebBranding = Platform.OS === 'web';
+  const showWebBranding = Platform.OS === 'web' && !isMobileWeb;
 
   return (
     <View style={styles.screen}>

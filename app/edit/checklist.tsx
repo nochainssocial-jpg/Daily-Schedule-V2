@@ -1,5 +1,12 @@
 import React, { useMemo } from 'react';
-import { ScrollView, Text, StyleSheet, View, Platform } from 'react-native';
+import {
+  ScrollView,
+  Text,
+  StyleSheet,
+  View,
+  Platform,
+  useWindowDimensions
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
@@ -12,6 +19,13 @@ type ID = string;
 const MAX_WIDTH = 880;
 
 export default function EditChecklistScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
   const {
     staff: scheduleStaff,
     workingStaff,
@@ -53,7 +67,7 @@ export default function EditChecklistScreen() {
 
   return (
     <View style={styles.screen}>
-      {Platform.OS === 'web' && (
+      {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="checkbox-outline"
           size={220}
