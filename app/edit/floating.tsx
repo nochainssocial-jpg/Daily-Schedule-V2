@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -133,12 +133,14 @@ function buildAutoAssignments(
 }
 
 export default function FloatingScreen() {
+
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
     ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
+
 
   const { push } = useNotifications();
 
@@ -161,6 +163,13 @@ export default function FloatingScreen() {
   const working = useMemo(
     () => (staff || []).filter((s: any) => (workingStaff || []).includes(s.id)),
     [staff, workingStaff],
+  );
+
+  const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
+
+  const sortedWorking = useMemo(
+    () => (working || []).slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''))),
+    [working],
   );
 
   const [open, setOpen] = useState(false);
@@ -269,6 +278,58 @@ export default function FloatingScreen() {
 
           <View
             style={{
+              marginTop: 8,
+              marginBottom: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '600',
+                marginBottom: 6,
+              }}
+            >
+              Filter by staff
+            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              <Chip
+                label="Show all"
+                selected={!filterStaffId}
+                onPress={() => setFilterStaffId(null)}
+              />
+              {(sortedWorking || []).map((s: any) => (
+                <Chip
+                  key={s.id}
+                  label={s.name}
+                  selected={filterStaffId === s.id}
+                  onPress={() => setFilterStaffId(s.id)}
+                />
+              ))}
+            </View>
+            {filterStaffId && (
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: '#64748b',
+                }}
+              >
+                Showing floating assignments for{' '}
+                {(sortedWorking || []).find((s: any) => s.id === filterStaffId)?.name ||
+                  'selected staff'}
+                . Tap "Show all" to clear.
+              </Text>
+            )}
+          </View>
+
+          <View
+            style={{
               borderWidth: 1,
               borderColor: '#e5e7eb',
               borderRadius: 14,
@@ -297,6 +358,17 @@ export default function FloatingScreen() {
               const frStaff = row.frontRoom ? staffById[row.frontRoom] : undefined;
               const scStaff = row.scotty ? staffById[row.scotty] : undefined;
               const twStaff = row.twins ? staffById[row.twins] : undefined;
+
+              if (filterStaffId) {
+                const matchId = filterStaffId;
+                const hasMatch =
+                  (frStaff && frStaff.id === matchId) ||
+                  (scStaff && scStaff.id === matchId) ||
+                  (twStaff && twStaff.id === matchId);
+                if (!hasMatch) {
+                  return null;
+                }
+              }
 
               const fr = frStaff?.name ?? '';
               const sc = scStaff?.name ?? '';
