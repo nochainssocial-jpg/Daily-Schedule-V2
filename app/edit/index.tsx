@@ -131,7 +131,7 @@ export default function EditHubScreen() {
             ))}
           </View>
 
-          {/* Large print icon at bottom, after menu items (web only) */}
+          {/* Large print icon at bottom, aligned to right of tiles */}
           {Platform.OS === 'web' && (
             <View style={styles.printFooter}>
               <TouchableOpacity
@@ -141,7 +141,7 @@ export default function EditHubScreen() {
               >
                 <Ionicons
                   name="print-outline"
-                  size={40}
+                  size={42}
                   color="#3c234c"
                   style={styles.printFooterIcon}
                 />
