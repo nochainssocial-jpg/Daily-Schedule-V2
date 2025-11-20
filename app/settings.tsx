@@ -311,8 +311,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   scroll: {
-    paddingVertical: 24,
+    paddingVertical: 32,
     alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
