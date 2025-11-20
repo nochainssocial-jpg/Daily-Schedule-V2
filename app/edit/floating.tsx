@@ -359,22 +359,22 @@ export default function FloatingScreen() {
               const scStaff = row.scotty ? staffById[row.scotty] : undefined;
               const twStaff = row.twins ? staffById[row.twins] : undefined;
 
-              if (filterStaffId) {
-                const matchId = filterStaffId;
-                const hasMatch =
-                  (frStaff && frStaff.id === matchId) ||
-                  (scStaff && scStaff.id === matchId) ||
-                  (twStaff && twStaff.id === matchId);
-                if (!hasMatch) {
-                  return null;
-                }
-              }
-
-              const fr = frStaff?.name ?? '';
-              const sc = scStaff?.name ?? '';
-              const tw = twStaff?.name ?? '';
+              let fr = '';
+              let sc = '';
+              let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
+
+              if (!filterStaffId) {
+                fr = frStaff?.name ?? '';
+                sc = scStaff?.name ?? '';
+                tw = twStaff?.name ?? '';
+              } else {
+                const matchId = filterStaffId;
+                if (frStaff && frStaff.id === matchId) fr = frStaff.name ?? '';
+                if (scStaff && scStaff.id === matchId) sc = scStaff.name ?? '';
+                if (twStaff && twStaff.id === matchId) tw = twStaff.name ?? '';
+              }
 
               const baseRowStyle =
                 idx % 2 === 0
@@ -420,7 +420,7 @@ export default function FloatingScreen() {
                   {/* Front Room */}
                   <CellButton
                     style={{ flex: 1 }}
-                    label={fr || 'Tap to assign'}
+                    label={!filterStaffId ? (fr || 'Tap to assign') : fr}
                     gender={frStaff?.gender}
                     onPress={() => openPicker(slotId, 'frontRoom')}
                   />
@@ -428,7 +428,7 @@ export default function FloatingScreen() {
                   {/* Scotty */}
                   <CellButton
                     style={{ flex: 1 }}
-                    label={sc || 'Tap to assign'}
+                    label={!filterStaffId ? (sc || 'Tap to assign') : sc}
                     gender={scStaff?.gender}
                     onPress={() => openPicker(slotId, 'scotty')}
                   />
@@ -440,13 +440,19 @@ export default function FloatingScreen() {
                       fso ? { backgroundColor: '#fef2f2' } : null,
                     ]}
                     label={
-                      tw
+                      !filterStaffId
+                        ? tw
+                          ? fso
+                            ? `${tw} (FSO)`
+                            : tw
+                          : fso
+                          ? 'Tap to assign (FSO)'
+                          : 'Tap to assign'
+                        : tw
                         ? fso
                           ? `${tw} (FSO)`
                           : tw
-                        : fso
-                        ? 'Tap to assign (FSO)'
-                        : 'Tap to assign'
+                        : ''
                     }
                     gender={twStaff?.gender}
                     fsoTag={fso}
