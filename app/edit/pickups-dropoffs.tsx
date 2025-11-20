@@ -418,9 +418,9 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   scroll: {
-    flexGrow: 1,
+    paddingVertical: 32,
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
