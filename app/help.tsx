@@ -184,9 +184,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  scroll: {
-    paddingVertical: 24,
+    scroll: {
+    paddingVertical: 32,
     alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
