@@ -222,16 +222,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5FF', // soft indigo
   },
+    scroll: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    paddingBottom: 160,
+  },
   heroIcon: {
     position: 'absolute',
     top: '25%',
     left: '10%',
     opacity: 1,
     zIndex: 0,
-  },
-  scroll: {
-    paddingVertical: 24,
-    alignItems: 'center',
   },
   inner: {
     width: '100%',
