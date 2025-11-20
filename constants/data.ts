@@ -130,9 +130,8 @@ export const DEFAULT_CHORES: Chore[] = [
   { id: '6', name: 'Wipe Down Lounges with Soapy Water' },
   { id: '7', name: 'Wipe down door handles and light switches' },
   { id: '8', name: 'Wipe Down Kitchen Cupboards' },
-  { id: '9', name: 'Pack sun bed mattresses & covers in gym area' },
-  { id: '10', name: 'Tidy front and back of property with blower' },
-  { id: '11', name: 'Weeding of garden beds' }
+  { id: '9', name: 'Tidy front and back of property with blower' },
+  { id: '10', name: 'Weeding of garden beds' }
 ];
 
 // Final checklist items
