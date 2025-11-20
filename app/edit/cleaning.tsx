@@ -223,6 +223,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFAF2', // warm pastel (cleaning tile is amber)
   },
+    scroll: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    paddingBottom: 160,
+  },
   heroIcon: {
     position: 'absolute',
     top: '25%',
