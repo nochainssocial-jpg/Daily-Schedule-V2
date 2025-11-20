@@ -8,7 +8,7 @@ import {
   ScrollView,
   Platform,
   Image,
-  useWindowDimensions
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -106,26 +106,10 @@ export default function EditHubScreen() {
             Tap a category below to review and adjust details captured during the create flow.
           </Text>
 
+          {/* 🔔 Notification banner sits between subtitle and menu items */}
           <ScheduleBanner />
 
-          {Platform.OS === 'web' && (
-            <View style={styles.printRow}>
-              <TouchableOpacity
-                onPress={handlePrint}
-                activeOpacity={0.85}
-                style={styles.printButton}
-              >
-                <Ionicons
-                  name="print-outline"
-                  size={18}
-                  color="#F54FA5"
-                  style={styles.printIcon}
-                />
-                <Text style={styles.printLabel}>Print loaded schedule</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
+          {/* Main menu tiles */}
           <View style={styles.grid}>
             {TILES.map((tile) => (
               <TouchableOpacity
@@ -146,6 +130,25 @@ export default function EditHubScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Large print icon at bottom, after menu items (web only) */}
+          {Platform.OS === 'web' && (
+            <View style={styles.printFooter}>
+              <TouchableOpacity
+                onPress={handlePrint}
+                activeOpacity={0.85}
+                style={styles.printFooterButton}
+              >
+                <Ionicons
+                  name="print-outline"
+                  size={40}
+                  color="#3c234c"
+                  style={styles.printFooterIcon}
+                />
+                <Text style={styles.printFooterLabel}>Print Schedule</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -193,36 +196,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     color: '#5a486b',
   },
-  printRow: {
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  printButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#F54FA5',
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    backgroundColor: '#FFE5F4',
-    // subtle shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  printIcon: {
-    marginRight: 8,
-  },
-  printLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F54FA5',
-  },
   grid: {
     gap: 12,
+    marginTop: 12,
   },
   tile: {
     padding: 16,
@@ -249,5 +225,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#3c234c',
     flexShrink: 1,
+  },
+
+  // New print footer styles
+  printFooter: {
+    marginTop: 28,
+    alignItems: 'center',
+  },
+  printFooterButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  printFooterIcon: {
+    marginBottom: 6,
+  },
+  printFooterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3c234c',
   },
 });
