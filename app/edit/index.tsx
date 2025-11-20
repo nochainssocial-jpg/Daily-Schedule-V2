@@ -227,21 +227,26 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
-  // New print footer styles
   printFooter: {
-    marginTop: 28,
-    alignItems: 'center',
+    marginTop: 32,
+    width: '100%',
+    alignItems: 'flex-end', // ⭐ right-align whole block
   },
+  
   printFooterButton: {
-    alignItems: 'center',
+    alignItems: 'center',  // ⭐ center icon directly above label
     justifyContent: 'center',
+    marginRight: 4,        // matches tile right padding visually
   },
+  
   printFooterIcon: {
     marginBottom: 6,
   },
+  
   printFooterLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#3c234c',
+    textAlign: 'center',   // ⭐ center label under icon
   },
 });
