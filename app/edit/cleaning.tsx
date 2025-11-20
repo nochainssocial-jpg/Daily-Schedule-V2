@@ -7,7 +7,7 @@ import {
   View,
   StyleSheet,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -38,7 +38,14 @@ export default function CleaningEditScreen() {
 
   const { push } = useNotifications();
 
-  const chores: Chore[] = DEFAULT_CHORES || [];
+  // 🔁 Same style as floating — stable, alphabetical chores list
+  const chores: Chore[] = useMemo(
+    () =>
+      [...(DEFAULT_CHORES || [])].sort((a, b) =>
+        String(a.name).localeCompare(String(b.name), 'en-AU'),
+      ),
+    [],
+  );
 
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
 
@@ -47,10 +54,13 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  const workingStaffList: Staff[] = useMemo(
-    () => staff.filter((s) => workingStaff.includes(s.id)),
-    [staff, workingStaff],
-  );
+  // 🔁 Same style as floating — working staff only, alphabetical
+  const workingStaffList: Staff[] = useMemo(() => {
+    const base = staff.filter((s) => workingStaff.includes(s.id));
+    return base.sort((a, b) =>
+      String(a.name).localeCompare(String(b.name), 'en-AU'),
+    );
+  }, [staff, workingStaff]);
 
   const handleSelectStaff = (staffId: string | null) => {
     if (!activeChoreId) return;
@@ -165,8 +175,7 @@ export default function CleaningEditScreen() {
                 <View style={styles.chipGrid}>
                   {workingStaffList.map((st) => {
                     const selected =
-                      cleaningAssignments[String(activeChoreId ?? '')] ===
-                      st.id;
+                      cleaningAssignments[String(activeChoreId ?? '')] === st.id;
 
                     return (
                       <TouchableOpacity
@@ -223,7 +232,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFAF2', // warm pastel (cleaning tile is amber)
   },
-    scroll: {
+  scroll: {
     paddingVertical: 32,
     alignItems: 'center',
     paddingBottom: 160,
