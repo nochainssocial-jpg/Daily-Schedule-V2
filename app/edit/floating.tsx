@@ -80,9 +80,18 @@ function buildAutoAssignments(
 ): Record<string, { [K in ColKey]?: ID }> {
   if (!Array.isArray(working) || working.length === 0) return {};
 
-  const usage: Record<string, number> = {};
+  const totalUsage: Record<string, number> = {};
+  const roomUsage: Record<string, Record<ColKey, number>> = {};
+  const twinsUsage: Record<string, number> = {};
+
   working.forEach((s) => {
-    usage[s.id] = 0;
+    totalUsage[s.id] = 0;
+    roomUsage[s.id] = {
+      frontRoom: 0,
+      scotty: 0,
+      twins: 0,
+    };
+    twinsUsage[s.id] = 0;
   });
 
   const result: Record<string, { [K in ColKey]?: ID }> = {};
@@ -98,31 +107,62 @@ function buildAutoAssignments(
     ROOM_KEYS.forEach((col) => {
       let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
 
-      if (col === 'twins' && fso) {
-        candidates = candidates.filter(isFemale);
-      }
-
-      candidates = candidates.filter((s) => !isAntoinette(s) || after2);
-
       if (!candidates.length) return;
 
+      if (col === 'twins' && fso) {
+        const females = candidates.filter((s) => isFemale(s));
+        if (females.length) {
+          candidates = females;
+        }
+      }
+
+      // Respect Antoinette-after-2pm rule
+      candidates = candidates.filter((s) => !isAntoinette(s) || after2);
+
+      // Twins fairness: max 2 total per staff where possible
+      if (col === 'twins') {
+        const underCap = candidates.filter((s) => (twinsUsage[s.id] ?? 0) < 2);
+        if (underCap.length) {
+          candidates = underCap;
+        }
+      }
+
+      // Cooldown across slots – prefer staff who were not used in previous slot
       const cooled = candidates.filter((s) => !prevSlotStaff.has(s.id));
       if (cooled.length) {
         candidates = cooled;
       }
 
-      let min = Infinity;
+      if (!candidates.length) return;
+
+      // 1) Global fairness: minimise total assignments
+      let minTotal = Infinity;
       candidates.forEach((s) => {
-        const c = usage[s.id] ?? 0;
-        if (c < min) min = c;
+        const c = totalUsage[s.id] ?? 0;
+        if (c < minTotal) minTotal = c;
       });
-      const leastUsed = candidates.filter((s) => (usage[s.id] ?? 0) === min);
-      const chosen =
-        leastUsed[Math.floor(Math.random() * leastUsed.length)];
+      let best = candidates.filter((s) => (totalUsage[s.id] ?? 0) === minTotal);
+
+      // 2) Room fairness: minimise assignments in this specific room
+      let minRoom = Infinity;
+      best.forEach((s) => {
+        const c = roomUsage[s.id]?.[col] ?? 0;
+        if (c < minRoom) minRoom = c;
+      });
+      best = best.filter((s) => (roomUsage[s.id]?.[col] ?? 0) === minRoom);
+
+      // 3) Tie-breaker: random between equally good options
+      const chosen = best[Math.floor(Math.random() * best.length)];
+      if (!chosen) return;
 
       row[col] = chosen.id;
       thisSlotStaff.add(chosen.id);
-      usage[chosen.id] = (usage[chosen.id] ?? 0) + 1;
+
+      totalUsage[chosen.id] = (totalUsage[chosen.id] ?? 0) + 1;
+      roomUsage[chosen.id][col] = (roomUsage[chosen.id][col] ?? 0) + 1;
+      if (col === 'twins') {
+        twinsUsage[chosen.id] = (twinsUsage[chosen.id] ?? 0) + 1;
+      }
     });
 
     result[slotId] = row;
@@ -131,6 +171,7 @@ function buildAutoAssignments(
 
   return result;
 }
+
 
 export default function FloatingScreen() {
 
