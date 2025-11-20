@@ -133,11 +133,19 @@ export async function persistFinish(params: PersistParams) {
   const floatingPool = (workingStaffList.length ? workingStaffList : staff) as Staff[];
 
   const load: Record<ID, number> = {};
+  const roomLoad: Record<ID, Record<ID, number>> = {};
+  const twinsLoad: Record<ID, number> = {};
+
   for (const s of floatingPool) {
-    load[s.id as ID] = 0;
+    const sid = s.id as ID;
+    load[sid] = 0;
+    roomLoad[sid] = {};
+    twinsLoad[sid] = 0;
   }
 
   const fsoSlotIds: ID[] = ((Data as any).TWIN_FSO_TIME_SLOT_IDS || []) as ID[];
+
+  let prevSlotStaff = new Set<ID>();
 
   for (const slot of timeSlots) {
     const usedThisSlot = new Set<ID>();
@@ -145,11 +153,15 @@ export async function persistFinish(params: PersistParams) {
     for (const room of rooms) {
       let eligible = floatingPool;
 
+      const isTwinsRoom = room.id === ('twins' as ID);
       const isTwinsFSO =
-        room.id === ('twins' as ID) && fsoSlotIds.length && fsoSlotIds.includes(slot.id);
+        isTwinsRoom && fsoSlotIds.length && fsoSlotIds.includes(slot.id);
 
       if (isTwinsFSO) {
-        eligible = floatingPool.filter((s) => s.gender === 'female');
+        const females = floatingPool.filter((s) => s.gender === 'female');
+        if (females.length) {
+          eligible = females;
+        }
       }
 
       if (!eligible.length) {
@@ -157,33 +169,72 @@ export async function persistFinish(params: PersistParams) {
       }
 
       // Prefer staff not already used in this timeslot
-      const candidates = eligible.filter((s) => !usedThisSlot.has(s.id as ID));
-      const considered = candidates.length ? candidates : eligible;
+      let candidates = eligible.filter((s) => !usedThisSlot.has(s.id as ID));
+      if (!candidates.length) {
+        candidates = eligible;
+      }
 
-      let best: Staff | null = null;
-      for (const s of considered) {
-        if (!best) {
-          best = s;
-          continue;
-        }
-        const currentLoad = load[s.id as ID] ?? 0;
-        const bestLoad = load[best.id as ID] ?? 0;
-        if (currentLoad < bestLoad) {
-          best = s;
+      // Twins fairness: max 2 total per staff where possible
+      if (isTwinsRoom) {
+        const underCap = candidates.filter((s) => (twinsLoad[s.id as ID] ?? 0) < 2);
+        if (underCap.length) {
+          candidates = underCap;
         }
       }
 
-      if (!best) continue;
+      // Cooldown across slots – prefer staff who were not used in previous slot
+      const cooled = candidates.filter((s) => !prevSlotStaff.has(s.id as ID));
+      if (cooled.length) {
+        candidates = cooled;
+      }
 
-      const sid = best.id as ID;
+      if (!candidates.length) continue;
+
+      // 1) Global fairness: minimise total assignments
+      let minTotal = Infinity;
+      for (const s of candidates) {
+        const sid = s.id as ID;
+        const c = load[sid] ?? 0;
+        if (c < minTotal) minTotal = c;
+      }
+      let bestCandidates = candidates.filter((s) => {
+        const sid = s.id as ID;
+        return (load[sid] ?? 0) === minTotal;
+      });
+
+      // 2) Room fairness: minimise assignments in this specific room
+      let minRoom = Infinity;
+      for (const s of bestCandidates) {
+        const sid = s.id as ID;
+        const c = roomLoad[sid]?.[room.id] ?? 0;
+        if (c < minRoom) minRoom = c;
+      }
+      bestCandidates = bestCandidates.filter((s) => {
+        const sid = s.id as ID;
+        return (roomLoad[sid]?.[room.id] ?? 0) === minRoom;
+      });
+
+      // 3) Tie-breaker: random between equally good options
+      const chosen =
+        bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+      if (!chosen) continue;
+
+      const sid = chosen.id as ID;
       const key = `${slot.id}|${room.id}`;
       floatingAssignments[key] = sid;
       load[sid] = (load[sid] ?? 0) + 1;
+      roomLoad[sid][room.id] = (roomLoad[sid][room.id] ?? 0) + 1;
+      if (isTwinsRoom) {
+        twinsLoad[sid] = (twinsLoad[sid] ?? 0) + 1;
+      }
       usedThisSlot.add(sid);
     }
+
+    prevSlotStaff = usedThisSlot;
   }
 
   // If the wizard captured any explicit floatingDraft overrides, merge them on top
+, merge them on top
   if (floatingDraft && Object.keys(floatingDraft).length) {
     for (const [key, sid] of Object.entries(floatingDraft)) {
       if (!staffById.has(sid as ID)) continue;
