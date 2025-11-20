@@ -234,7 +234,6 @@ export async function persistFinish(params: PersistParams) {
   }
 
   // If the wizard captured any explicit floatingDraft overrides, merge them on top
-, merge them on top
   if (floatingDraft && Object.keys(floatingDraft).length) {
     for (const [key, sid] of Object.entries(floatingDraft)) {
       if (!staffById.has(sid as ID)) continue;
