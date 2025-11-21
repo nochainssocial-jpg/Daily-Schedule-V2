@@ -842,6 +842,19 @@ export default function CreateScheduleScreen() {
       assignmentsMap[sid] = cleaned;
     });
 
+    // 🔥 NEW — pull recent cleaning snapshots from the base schedule store
+    // so persistFinish can apply “previous day / last week” fairness.
+    let recentCleaningSnapshots: ScheduleSnapshot[] = [];
+    try {
+      const baseState = baseSchedule.getState();
+      recentCleaningSnapshots = baseState.recentCleaningSnapshots || [];
+    } catch (err) {
+      console.warn(
+        '[create-schedule] unable to read recentCleaningSnapshots from store, continuing without history:',
+        err,
+      );
+    }
+
     // First, let persistFinish compute all derived slices (floating, cleaning, etc.)
     try {
       await persistFinish({
@@ -859,6 +872,8 @@ export default function CreateScheduleScreen() {
         helperStaff,
         dropoffAssignments,
         date: selectedDate,
+        // 🔥 pass history into fairness engine
+        recentSnapshots: recentCleaningSnapshots,
       });
     } catch (e) {
       console.warn('persistFinish error, continuing anyway:', e);
