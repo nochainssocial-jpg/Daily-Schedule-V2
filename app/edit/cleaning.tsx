@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   scroll: {
-    alignItems: 'stretch',
+    alignItems: 'center',
     paddingVertical: 32,
     paddingBottom: 160,
   },
