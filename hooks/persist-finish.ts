@@ -31,6 +31,9 @@ type PersistParams = {
   dropoffAssignments?: Record<ID, ID[]>;
 
   date?: string;
+
+  // 🔁 NEW — recent snapshots (previous day / week) for cleaning fairness
+  recentSnapshots?: ScheduleSnapshot[];
 };
 
 export async function persistFinish(params: PersistParams) {
@@ -53,14 +56,19 @@ export async function persistFinish(params: PersistParams) {
     dropoffAssignments = {},
 
     date,
+    recentSnapshots = [],
   } = params;
 
   // ---------- Normalise staff / participants ----------
   const staffById = new Map<ID, Staff>(staff.map((s) => [s.id as ID, s]));
-  const participantsById = new Map<ID, Participant>(participants.map((p) => [p.id as ID, p]));
+  const participantsById = new Map<ID, Participant>(
+    participants.map((p) => [p.id as ID, p]),
+  );
 
   const workingSet = new Set<ID>(
-    (workingStaff && workingStaff.length ? workingStaff : staff.map((s) => s.id)) as ID[],
+    (workingStaff && workingStaff.length
+      ? workingStaff
+      : staff.map((s) => s.id)) as ID[],
   );
 
   const attendingSet = new Set<ID>(attendingParticipants as ID[]);
@@ -99,6 +107,7 @@ export async function persistFinish(params: PersistParams) {
   const cleaningAssignments: Record<string, ID> = {};
 
   if (cleaningDraft && Object.keys(cleaningDraft).length) {
+    // User explicitly edited cleaning – trust the draft
     for (const [choreId, staffId] of Object.entries(cleaningDraft)) {
       const validChore = chores.some((c: any) => c.id === choreId);
       if (!validChore) continue;
@@ -106,22 +115,105 @@ export async function persistFinish(params: PersistParams) {
       cleaningAssignments[choreId] = staffId as ID;
     }
   } else if (chores.length) {
+    // 🔁 NEW — fairness based on recent history (previous day / week)
     const pool = (staff.filter((s) => workingSet.has(s.id as ID)) || staff) as Staff[];
+
     if (pool.length) {
-      let idx = 0;
+      // Look at last up to 7 snapshots for fairness
+      const history = (recentSnapshots || []).slice(-7);
+
+      // For each chore, track how many times each staff has done it recently
+      const historyByChore: Record<string, Record<ID, number>> = {};
+      // Total cleaning load across all chores
+      const totalHistoryByStaff: Record<ID, number> = {};
+
+      for (const snap of history) {
+        const ca = (snap as any).cleaningAssignments as
+          | Record<string, ID>
+          | undefined;
+        if (!ca) continue;
+
+        for (const [choreId, staffId] of Object.entries(ca)) {
+          const sid = staffId as ID;
+
+          totalHistoryByStaff[sid] = (totalHistoryByStaff[sid] ?? 0) + 1;
+
+          if (!historyByChore[choreId]) {
+            historyByChore[choreId] = {} as Record<ID, number>;
+          }
+          const map = historyByChore[choreId] as Record<ID, number>;
+          map[sid] = (map[sid] ?? 0) + 1;
+        }
+      }
+
+      // Track today's cleaning load so we don't stack the same person repeatedly
+      const todayCounts: Record<ID, number> = {};
+
       for (const chore of chores) {
-        const s = pool[idx % pool.length];
-        cleaningAssignments[chore.id] = s.id as ID;
-        idx++;
+        const choreId = String(chore.id);
+
+        // Candidate staff = workingPool (already filtered above)
+        const candidates = pool.filter((s) => workingSet.has(s.id as ID));
+        if (!candidates.length) continue;
+
+        // 1) Chore-specific fairness: minimise how often they've had THIS chore
+        let minChore = Infinity;
+        for (const s of candidates) {
+          const sid = s.id as ID;
+          const c = historyByChore[choreId]?.[sid] ?? 0;
+          if (c < minChore) minChore = c;
+        }
+
+        let best = candidates.filter((s) => {
+          const sid = s.id as ID;
+          return (historyByChore[choreId]?.[sid] ?? 0) === minChore;
+        });
+
+        // 2) Overall cleaning load fairness (history + today)
+        let minTotal = Infinity;
+        for (const s of best) {
+          const sid = s.id as ID;
+          const c =
+            (totalHistoryByStaff[sid] ?? 0) + (todayCounts[sid] ?? 0);
+          if (c < minTotal) minTotal = c;
+        }
+
+        best = best.filter((s) => {
+          const sid = s.id as ID;
+          return (
+            (totalHistoryByStaff[sid] ?? 0) + (todayCounts[sid] ?? 0) ===
+            minTotal
+          );
+        });
+
+        // 3) Tie-breaker: random between equally good options
+        const chosen =
+          best[Math.floor(Math.random() * Math.max(best.length, 1))];
+        if (!chosen) continue;
+
+        const sid = chosen.id as ID;
+        cleaningAssignments[choreId] = sid;
+        todayCounts[sid] = (todayCounts[sid] ?? 0) + 1;
+      }
+
+      // Safety: if for some reason nothing got assigned, fall back to classic round-robin
+      if (!Object.keys(cleaningAssignments).length) {
+        let idx = 0;
+        for (const chore of chores) {
+          const s = pool[idx % pool.length];
+          cleaningAssignments[String(chore.id)] = s.id as ID;
+          idx++;
+        }
       }
     }
   }
 
   // ---------- AUTO-FLOATING ENGINE ----------
-  const timeSlots: { id: ID }[] = ((Data as any).TIME_SLOTS || []) as { id: ID }[];
+  const timeSlots: { id: ID }[] = ((Data as any).TIME_SLOTS || []) as {
+    id: ID;
+  }[];
   const rooms: { id: ID }[] =
-    ((Data as any).FLOATING_ROOMS as { id: ID }[] | undefined) ||
-    [
+    ((Data as any).FLOATING_ROOMS as { id: ID }[] | undefined) || [
       { id: 'front-room' as ID },
       { id: 'scotty' as ID },
       { id: 'twins' as ID },
@@ -130,7 +222,9 @@ export async function persistFinish(params: PersistParams) {
   const floatingAssignments: Record<string, ID> = {};
 
   const workingStaffList = staff.filter((s) => workingSet.has(s.id as ID));
-  const floatingPool = (workingStaffList.length ? workingStaffList : staff) as Staff[];
+  const floatingPool = (workingStaffList.length
+    ? workingStaffList
+    : staff) as Staff[];
 
   const load: Record<ID, number> = {};
   const roomLoad: Record<ID, Record<ID, number>> = {};
@@ -143,7 +237,8 @@ export async function persistFinish(params: PersistParams) {
     twinsLoad[sid] = 0;
   }
 
-  const fsoSlotIds: ID[] = ((Data as any).TWIN_FSO_TIME_SLOT_IDS || []) as ID[];
+  const fsoSlotIds: ID[] = ((Data as any).TWIN_FSO_TIME_SLOT_IDS ||
+    []) as ID[];
 
   let prevSlotStaff = new Set<ID>();
 
@@ -176,14 +271,18 @@ export async function persistFinish(params: PersistParams) {
 
       // Twins fairness: max 2 total per staff where possible
       if (isTwinsRoom) {
-        const underCap = candidates.filter((s) => (twinsLoad[s.id as ID] ?? 0) < 2);
+        const underCap = candidates.filter(
+          (s) => (twinsLoad[s.id as ID] ?? 0) < 2,
+        );
         if (underCap.length) {
           candidates = underCap;
         }
       }
 
       // Cooldown across slots – prefer staff who were not used in previous slot
-      const cooled = candidates.filter((s) => !prevSlotStaff.has(s.id as ID));
+      const cooled = candidates.filter(
+        (s) => !prevSlotStaff.has(s.id as ID),
+      );
       if (cooled.length) {
         candidates = cooled;
       }
@@ -254,14 +353,17 @@ export async function persistFinish(params: PersistParams) {
     participantsById.has(pid as ID),
   ) as ID[];
 
-  const validHelpers = (helperStaff || []).filter((sid) => staffById.has(sid as ID)) as ID[];
+  const validHelpers = (helperStaff || []).filter((sid) =>
+    staffById.has(sid as ID),
+  ) as ID[];
 
   const cleanedDropoffs: Record<ID, ID[]> = {};
   if (dropoffAssignments) {
     for (const [sid, partIds] of Object.entries(dropoffAssignments)) {
       if (!staffById.has(sid as ID)) continue;
       const cleaned = (partIds || []).filter(
-        (pid) => participantsById.has(pid as ID) && !validPickup.includes(pid as ID),
+        (pid) =>
+          participantsById.has(pid as ID) && !validPickup.includes(pid as ID),
       ) as ID[];
       cleanedDropoffs[sid as ID] = cleaned;
     }
