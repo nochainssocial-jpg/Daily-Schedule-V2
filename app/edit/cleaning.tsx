@@ -102,9 +102,11 @@ export default function CleaningEditScreen() {
           Tap a staff pill to update who is responsible for each task.
         </Text>
 
+        {/* Main chores list */}
         <ScrollView
           style={{ marginTop: 16 }}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 80 }}
+          showsVerticalScrollIndicator={true}
         >
           {chores.map((chore) => {
             const choreId = String(chore.id);
@@ -165,7 +167,12 @@ export default function CleaningEditScreen() {
               <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
-              <ScrollView contentContainerStyle={styles.scroll}>
+            {/* Scrollable staff list inside modal */}
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.scroll}
+              showsVerticalScrollIndicator={true}
+            >
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
                   {workingStaffList.map((st) => {
@@ -226,11 +233,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFFAF2', // warm pastel (cleaning tile is amber)
-  },
-    scroll: {
-    paddingVertical: 32,
-    alignItems: 'center',
-    paddingBottom: 160,
   },
   heroIcon: {
     position: 'absolute',
@@ -317,6 +319,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 560,
+    maxHeight: '80%',         // 🔹 keeps card within screen so ScrollView can scroll
     borderRadius: 26,
     backgroundColor: '#FFFFFF',
     paddingVertical: 20,
@@ -332,6 +335,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
   },
+
+  // ScrollView *content* inside modal
+  scroll: {
+    paddingVertical: 16,
+    paddingBottom: 160,
+  },
+  modalScroll: {
+    marginTop: 16,
+  },
+
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
