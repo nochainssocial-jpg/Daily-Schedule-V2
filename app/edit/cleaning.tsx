@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   wrap: {
     width: '100%',
     maxWidth: 880,
-    alignSelf: 'center',
+    alignItems: 'stretch',
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
@@ -338,7 +338,10 @@ const styles = StyleSheet.create({
   modalScroll: {
     marginTop: 16,
   },
-
+  scroll: {
+    paddingVertical: 32,
+    paddingBottom: 160,
+  },
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
