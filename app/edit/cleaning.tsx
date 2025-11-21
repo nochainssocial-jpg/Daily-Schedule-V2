@@ -165,10 +165,7 @@ export default function CleaningEditScreen() {
               <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
-              <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={{ paddingBottom: 160 }} // or omit completely
-              >
+              <ScrollView contentContainerStyle={styles.scroll}>
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
                   {workingStaffList.map((st) => {
@@ -229,6 +226,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFFAF2', // warm pastel (cleaning tile is amber)
+  },
+    scroll: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
   heroIcon: {
     position: 'absolute',
