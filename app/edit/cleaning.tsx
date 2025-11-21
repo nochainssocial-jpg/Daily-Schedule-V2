@@ -244,7 +244,6 @@ const styles = StyleSheet.create({
   wrap: {
     width: '100%',
     maxWidth: 880,
-    alignItems: 'stretch',
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
@@ -339,6 +338,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   scroll: {
+    alignItems: 'stretch',
     paddingVertical: 32,
     paddingBottom: 160,
   },
