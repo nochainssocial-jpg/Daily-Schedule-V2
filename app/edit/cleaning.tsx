@@ -104,8 +104,9 @@ export default function CleaningEditScreen() {
 
         {/* Main chores list */}
         <ScrollView
-          style={{ marginTop: 16 }}
+          style={styles.list}
           contentContainerStyle={{ paddingBottom: 160 }}
+          showsVerticalScrollIndicator={true}
         >
           {chores.map((chore) => {
             const choreId = String(chore.id);
@@ -241,11 +242,18 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   wrap: {
+    flex: 1,                 // 🔹 let this area take full height
     width: '100%',
     maxWidth: 880,
+    alignSelf: 'center',     // 🔹 centre on desktop
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
+  list: {
+    flex: 1,                 // 🔹 ScrollView owns vertical space → scrolls on iPhone
+    marginTop: 16,
+  },
+
   heading: {
     fontSize: 22,
     fontWeight: '700',
@@ -317,7 +325,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 560,
-    maxHeight: '80%',         // 🔹 keeps card within screen so ScrollView can scroll
+    maxHeight: '80%',         // keeps card within screen so ScrollView can scroll
     borderRadius: 26,
     backgroundColor: '#FFFFFF',
     paddingVertical: 20,
@@ -337,7 +345,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   scroll: {
-    alignItems: 'center',
     paddingVertical: 32,
     paddingBottom: 160,
   },
