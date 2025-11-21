@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
@@ -172,16 +173,13 @@ function buildAutoAssignments(
   return result;
 }
 
-
 export default function FloatingScreen() {
-
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
     ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
-
 
   const { push } = useNotifications();
 
@@ -191,6 +189,7 @@ export default function FloatingScreen() {
     floatingAssignments = {},
     updateSchedule,
     touch,
+    selectedDate,
   } = useSchedule() as any;
 
   const staffById = useMemo(() => {
@@ -209,7 +208,12 @@ export default function FloatingScreen() {
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
 
   const sortedWorking = useMemo(
-    () => (working || []).slice().sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''))),
+    () =>
+      (working || [])
+        .slice()
+        .sort((a: any, b: any) =>
+          String(a.name || '').localeCompare(String(b.name || '')),
+        ),
     [working],
   );
 
@@ -281,6 +285,24 @@ export default function FloatingScreen() {
     const next = buildAutoAssignments(working, TIME_SLOTS);
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
+  };
+
+  // 🔹 Print handler — navigate to /print-floating with staff + date
+  const handlePrintFloating = () => {
+    const staffParam = filterStaffId || 'ALL';
+    let dateParam = '';
+
+    if (selectedDate) {
+      const d = new Date(selectedDate);
+      if (!isNaN(d.getTime())) {
+        dateParam = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      }
+    }
+
+    router.push({
+      pathname: '/print-floating',
+      params: { staff: staffParam, date: dateParam },
+    });
   };
 
   return (
@@ -362,8 +384,8 @@ export default function FloatingScreen() {
                 }}
               >
                 Showing floating assignments for{' '}
-                {(sortedWorking || []).find((s: any) => s.id === filterStaffId)?.name ||
-                  'selected staff'}
+                {(sortedWorking || []).find((s: any) => s.id === filterStaffId)
+                  ?.name || 'selected staff'}
                 . Tap "Show all" to clear.
               </Text>
             )}
@@ -528,6 +550,44 @@ export default function FloatingScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Print Floating Assignment – web only, right-aligned like Edit Hub */}
+          {Platform.OS === 'web' && (
+            <View
+              style={{
+                marginTop: 28,
+                width: '100%',
+                alignItems: 'flex-end',
+              }}
+            >
+              <TouchableOpacity
+                onPress={handlePrintFloating}
+                activeOpacity={0.85}
+                style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 4,
+                }}
+              >
+                <Ionicons
+                  name="print-outline"
+                  size={42}
+                  color="#3c234c"
+                  style={{ marginBottom: 6 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: '#3c234c',
+                    textAlign: 'center',
+                  }}
+                >
+                  Print Floating Assignment
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
 
