@@ -335,12 +335,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
   },
-
-  // ScrollView *content* inside modal
-  scroll: {
-    paddingVertical: 16,
-    paddingBottom: 160,
-  },
   modalScroll: {
     marginTop: 16,
   },
