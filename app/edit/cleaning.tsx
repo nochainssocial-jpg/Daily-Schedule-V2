@@ -103,12 +103,10 @@ export default function CleaningEditScreen() {
         </Text>
 
         {/* Main chores list */}
-            <ScrollView
-              style={{ marginTop: 16 }}
-              contentContainerStyle={{
-                paddingBottom: 160, // more space for mobile safe-area + footer
-              }}
-            >
+        <ScrollView
+          style={{ marginTop: 16 }}
+          contentContainerStyle={{ paddingBottom: 160 }}
+        >
           {chores.map((chore) => {
             const choreId = String(chore.id);
             const assignedStaffId = cleaningAssignments[choreId];
