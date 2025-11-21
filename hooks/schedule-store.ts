@@ -15,7 +15,6 @@ export type ScheduleBanner = {
   sourceDate?: string;   // YYYY-MM-DD (original creation date)
 };
 
-// Snapshot of a single saved schedule
 export type ScheduleSnapshot = {
   staff: Staff[];
   participants: Participant[];
@@ -64,6 +63,10 @@ type ScheduleState = ScheduleSnapshot & {
   setBanner: (banner: ScheduleBanner | null) => void;
   markInitialisedForDate: (date: string) => void;
 
+  // Cleaning history for fairness-aware auto-assignments
+  recentCleaningSnapshots: ScheduleSnapshot[];
+  setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) => void;
+
   touch: () => void;
 };
 
@@ -97,6 +100,9 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   currentInitDate: undefined,
   hasInitialisedToday: false,
 
+  // Cleaning history for fairness-aware auto-assignments
+  recentCleaningSnapshots: [],
+
   createSchedule: (snapshot: ScheduleSnapshot) => {
     set(() => ({
       ...snapshot,
@@ -107,11 +113,12 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
     set((state) => {
-      const next: ScheduleSnapshot & {
-        [key: string]: any;
-      } = { ...state, ...patch };
+      const next: ScheduleState = {
+        ...state,
+        ...patch,
+      };
 
-      // If working staff changed, clean dependent assignments
+      // If workingStaff changed, clean dependent assignments
       if (patch.workingStaff) {
         const oldStaff = state.workingStaff;
         const newStaff = patch.workingStaff;
@@ -177,31 +184,32 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   markInitialisedForDate: (date: string) =>
     set({ currentInitDate: date, hasInitialisedToday: true }),
 
+  setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) =>
+    set({ recentCleaningSnapshots: snaps }),
+
   touch: () => set((state) => ({ ...state })),
 }));
 
 // Helper hooks to check if there are missing floating or cleaning assignments
 
 export const useFloatingMissing = (rooms: { id: string }[]) => {
-  const floatingAssignments = useSchedule((s) => s.floatingAssignments);
-
   return useMemo(() => {
-    if (!rooms.length) return false;
+    const { floatingAssignments } = useSchedule.getState();
 
-    for (const slot of TIME_SLOTS) {
-      for (const room of rooms) {
-        const key = `${slot.id}|${room.id}`;
-        if (!floatingAssignments[key]) {
-          return true; // missing assignment
-        }
-      }
-    }
-    return false;
-  }, [floatingAssignments, rooms]);
+    const keys = TIME_SLOTS.flatMap((slot) =>
+      rooms.map((room) => `${slot.id}|${room.id}`)
+    );
+
+    return keys.some((key) => !floatingAssignments[key]);
+  }, [rooms]);
 };
 
-export const useCleaningMissing = (choreIds: (string | number)[]) => {
-  const cleaningAssignments = useSchedule((s) => s.cleaningAssignments);
+export const useCleaningMissing = () => {
+  const { cleaningAssignments } = useSchedule();
+
+  const choreIds = (Object.values((require('@/constants/data') as any).DEFAULT_CHORES ?? []) as {
+    id: string;
+  }[]).map((chore) => chore.id);
 
   return useMemo(
     () => choreIds.some((id) => !cleaningAssignments[String(id)]),
