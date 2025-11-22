@@ -120,11 +120,6 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         ...patch,
       };
 
-      // Safety: older snapshots from Supabase may not have this yet
-      if (!next.dropoffLocations) {
-        (next as any).dropoffLocations = {};
-      }
-
       // If workingStaff changed, clean dependent assignments
       if (patch.workingStaff) {
         const oldStaff = state.workingStaff;
@@ -219,7 +214,9 @@ export const useCleaningMissing = (choreIds: string[]) => {
   }, [choreIds]);
 };
 
-export async function initScheduleForToday(state: ScheduleState, houseId: string) {
+// 🔁 Auto-init on app load / day change
+export async function initScheduleForToday(houseId: string) {
+  const state = useSchedule.getState();
   const todayKey = new Date().toISOString().slice(0, 10);
 
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
