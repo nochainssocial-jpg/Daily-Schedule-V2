@@ -11,7 +11,7 @@ type BannerType = 'loaded' | 'created' | null;
 
 export type ScheduleBanner = {
   type: BannerType;
-  scheduleDate?: string; // YYYY-MM-DD (today we're using it for)
+  scheduleDate?: string; // YYYY-MM-DD (today we’re using it for)
   sourceDate?: string;   // YYYY-MM-DD (original creation date)
 };
 
@@ -23,7 +23,7 @@ export type ScheduleSnapshot = {
   workingStaff: ID[];          // The Dream Team (Working at B2)
   attendingParticipants: ID[]; // Attending Participants
 
-  // Daily assignments (staff -> participantIds)
+  // Team daily assignments (staff -> participantIds)
   assignments: Record<ID, ID[]>;
 
   // Floating: key is `${timeSlotId}|${roomId}` -> staffId
@@ -40,14 +40,15 @@ export type ScheduleSnapshot = {
   pickupParticipants: ID[];             // participantIds being picked up by third parties
   helperStaff: ID[];                    // helpers joining dropoffs
   dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
-  dropoffLocations: Record<ID, number>;   // participantId -> index in DROPOFF_OPTIONS
+  dropoffLocations: Record<ID, number>; // participantId -> index in DROPOFF_OPTIONS
 
   // Meta
-  date?: string;
+  date?: string;                        // schedule date (YYYY-MM-DD)
   meta?: Record<string, any>;
 };
 
 type ScheduleState = ScheduleSnapshot & {
+  // Core actions
   createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
 
@@ -68,10 +69,11 @@ type ScheduleState = ScheduleSnapshot & {
   recentCleaningSnapshots: ScheduleSnapshot[];
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) => void;
 
+  // Force subscribers to re-render
   touch: () => void;
 };
 
-// Initial snapshot
+// Base, safe default snapshot – used both for a new day and to layer under loaded snapshots
 const makeInitialSnapshot = (): ScheduleSnapshot => ({
   staff: [],
   participants: [],
@@ -85,7 +87,7 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   pickupParticipants: [],
   helperStaff: [],
   dropoffAssignments: {},
-  dropoffLocations: {},
+  dropoffLocations: {},   // important: default to empty object
   date: undefined,
   meta: {},
 });
@@ -93,22 +95,32 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
 export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
 
+  // Wizard / UI
   scheduleStep: 1,
   selectedDate: undefined,
 
+  // Auto-init + banner
   banner: null,
   currentInitDate: undefined,
   hasInitialisedToday: false,
   recentCleaningSnapshots: [],
 
+  // Create / replace whole schedule snapshot
   createSchedule: (snapshot: ScheduleSnapshot) => {
+    // Layer the loaded snapshot on top of a clean initial snapshot.
+    // This protects us when we add new fields (like dropoffLocations) that
+    // older Supabase snapshots don’t know about yet.
+    const base = makeInitialSnapshot();
+
     set(() => ({
+      ...base,
       ...snapshot,
       scheduleStep: 1,
       selectedDate: snapshot.date ?? get().selectedDate,
     }));
   },
 
+  // Patch update – used by all edit screens
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
     set((state) => {
       const next: ScheduleState = {
@@ -171,6 +183,11 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         }
       }
 
+      // Safety: always ensure dropoffLocations exists
+      if (!next.dropoffLocations) {
+        next.dropoffLocations = {};
+      }
+
       return next;
     });
   },
@@ -188,14 +205,14 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   touch: () => set((state) => ({ ...state })),
 }));
 
-// Helper hooks to check if there are missing floating or cleaning assignments
+// --- Helpers used in the Create flow & status banner ---
 
 export const useFloatingMissing = (rooms: { id: string }[]) => {
   return useMemo(() => {
     const { floatingAssignments } = useSchedule.getState();
 
     const keys = TIME_SLOTS.flatMap((slot) =>
-      rooms.map((room) => `${slot.id}|${room.id}`)
+      rooms.map((room) => `${slot.id}|${room.id}`),
     );
 
     return keys.some((key) => !floatingAssignments[key]);
@@ -210,16 +227,22 @@ export const useCleaningMissing = (choreIds: string[]) => {
   }, [choreIds]);
 };
 
+// --- Auto-init on app load / day change ---
+
 export async function initScheduleForToday(state: ScheduleState, houseId: string) {
+  // We store / compare dates as YYYY-MM-DD in UTC to keep it consistent.
   const todayKey = new Date().toISOString().slice(0, 10);
 
+  // Guard: don’t re-initialise twice in one day on the same client.
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
     return;
   }
 
+  // Try to fetch the latest saved schedule for this house
   const result = await fetchLatestScheduleForHouse(houseId);
 
   if (!result.ok || !result.data) {
+    // Nothing saved yet → treat as "created" schedule for today (empty snapshot).
     state.markInitialisedForDate(todayKey);
     state.setBanner({
       type: 'created',
@@ -230,7 +253,14 @@ export async function initScheduleForToday(state: ScheduleState, houseId: string
   }
 
   const { snapshot, scheduleDate } = result.data;
-  await state.createSchedule(snapshot);
+
+  // Safety: layer snapshot over initial defaults on the way *in*
+  // (mirrors what createSchedule does).
+  const base = makeInitialSnapshot();
+  await state.createSchedule({
+    ...base,
+    ...snapshot,
+  });
 
   const sourceDate = (scheduleDate || '').slice(0, 10);
   const isToday = sourceDate === todayKey;
