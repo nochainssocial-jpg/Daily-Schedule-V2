@@ -40,6 +40,7 @@ export type ScheduleSnapshot = {
   pickupParticipants: ID[];             // participantIds being picked up by third parties
   helperStaff: ID[];                    // helpers joining dropoffs
   dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
+  dropoffLocations: Record<ID, number>;   // participantId -> index in DROPOFF_OPTIONS
 
   // Meta
   date?: string;
@@ -84,6 +85,7 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   pickupParticipants: [],
   helperStaff: [],
   dropoffAssignments: {},
+  dropoffLocations: {},
   date: undefined,
   meta: {},
 });
@@ -91,16 +93,12 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
 export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
 
-  // wizard / UI state
   scheduleStep: 1,
   selectedDate: undefined,
 
-  // banner/init
   banner: null,
   currentInitDate: undefined,
   hasInitialisedToday: false,
-
-  // Cleaning history for fairness-aware auto-assignments
   recentCleaningSnapshots: [],
 
   createSchedule: (snapshot: ScheduleSnapshot) => {
@@ -159,9 +157,9 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
             newFinalChecklistStaff = undefined;
           }
 
-          // 6) Helper staff
-          const newHelpers = next.helperStaff.filter(
-            (id: ID) => !removed.includes(id)
+          // 6) Helpers that are no longer working
+          const newHelpers = (next.helperStaff || []).filter(
+            (id) => !removed.includes(id),
           );
 
           next.assignments = newAssignments;
@@ -204,37 +202,30 @@ export const useFloatingMissing = (rooms: { id: string }[]) => {
   }, [rooms]);
 };
 
-export const useCleaningMissing = () => {
-  const { cleaningAssignments } = useSchedule();
+export const useCleaningMissing = (choreIds: string[]) => {
+  return useMemo(() => {
+    const { cleaningAssignments } = useSchedule.getState();
 
-  const choreIds = (Object.values((require('@/constants/data') as any).DEFAULT_CHORES ?? []) as {
-    id: string;
-  }[]).map((chore) => chore.id);
-
-  return useMemo(
-    () => choreIds.some((id) => !cleaningAssignments[String(id)]),
-    [choreIds, cleaningAssignments]
-  );
+    return choreIds.some((id) => !cleaningAssignments[id]);
+  }, [choreIds]);
 };
 
-/**
- * Initialise the schedule store when the app starts for a given house.
- * If the latest schedule in Supabase is for today → banner = "created"
- * Otherwise → banner = "loaded" (using a previous day's schedule for today).
- */
-export async function initScheduleForToday(house: string) {
-  const state = useSchedule.getState();
-  const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+export async function initScheduleForToday(state: ScheduleState, houseId: string) {
+  const todayKey = new Date().toISOString().slice(0, 10);
 
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
     return;
   }
 
-  const result = await fetchLatestScheduleForHouse(house);
+  const result = await fetchLatestScheduleForHouse(houseId);
 
   if (!result.ok || !result.data) {
     state.markInitialisedForDate(todayKey);
-    state.setBanner(null);
+    state.setBanner({
+      type: 'created',
+      scheduleDate: todayKey,
+      sourceDate: todayKey,
+    });
     return;
   }
 
