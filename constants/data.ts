@@ -116,6 +116,20 @@ export const PARTICIPANTS: Participant[] = [
   { id: '22', name: 'Zoya' },
 ];
 
+export const DROPOFF_OPTIONS: Record<ID, string[]> = {
+  // Billy (id: '2')
+  '2': [
+    'Billy → Home (B1)',
+    'Billy → Melina\'s',
+    'Billy → Michael\'s',
+  ],
+  // Reema (id: '15')
+  '15': [
+    'Reema → Home',
+    'Reema → Dinner @ Mancini\'s',
+  ],
+};
+
 // End-of-shift chores (tap to assign / unassign)
 export const DEFAULT_CHORES: Chore[] = [
   { id: '1', name: 'Vacuuming' },
