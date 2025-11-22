@@ -40,7 +40,7 @@ export type ScheduleSnapshot = {
   pickupParticipants: ID[];             // participantIds being picked up by third parties
   helperStaff: ID[];                    // helpers joining dropoffs
   dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
-  dropoffLocations: Record<ID, number>; // participantId -> index in DROPOFF_OPTIONS
+  dropoffLocations: Record<ID, number>; // participantId -> index into DROPOFF_OPTIONS
 
   // Meta
   date?: string;
@@ -119,6 +119,11 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         ...state,
         ...patch,
       };
+
+      // Safety: older snapshots from Supabase may not have this yet
+      if (!next.dropoffLocations) {
+        (next as any).dropoffLocations = {};
+      }
 
       // If workingStaff changed, clean dependent assignments
       if (patch.workingStaff) {
