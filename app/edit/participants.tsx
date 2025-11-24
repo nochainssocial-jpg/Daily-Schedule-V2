@@ -15,6 +15,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import Chip from '@/components/Chip';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 const MAX_WIDTH = 880;
@@ -100,6 +101,7 @@ export default function EditParticipantsScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="participants" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="people-outline"

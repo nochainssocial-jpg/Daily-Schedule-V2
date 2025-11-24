@@ -18,6 +18,7 @@ import {
   type Chore,
 } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 const PINK = '#F54FA5';
 
@@ -87,6 +88,7 @@ export default function CleaningEditScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="cleaning" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="sparkles-outline"

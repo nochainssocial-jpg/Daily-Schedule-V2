@@ -15,6 +15,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
@@ -307,6 +308,7 @@ export default function FloatingScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F3FAFF' }}>
+      <SaveExit touchKey="floating" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="shuffle-outline"

@@ -15,6 +15,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 
@@ -93,6 +94,7 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="dreamTeam" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="people-circle-outline"

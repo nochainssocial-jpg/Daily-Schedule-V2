@@ -13,6 +13,7 @@ import type { Participant } from '@/constants/data';
 import { DROPOFF_OPTIONS } from '@/constants/data';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 
@@ -219,6 +220,7 @@ export default function EditPickupsDropoffsScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="pickups" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="car-outline"

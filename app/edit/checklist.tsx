@@ -13,6 +13,7 @@ import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 
@@ -67,6 +68,7 @@ export default function EditChecklistScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="checklist" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="checkbox-outline"

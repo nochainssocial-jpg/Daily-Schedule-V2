@@ -16,6 +16,7 @@ import {
   PARTICIPANTS as STATIC_PARTS,
 } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 
@@ -120,6 +121,7 @@ export default function EditAssignmentsScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="assignments" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="list-outline"
