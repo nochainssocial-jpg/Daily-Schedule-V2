@@ -1,13 +1,25 @@
 import { supabase } from './supabase';
 import type { ScheduleSnapshot } from '@/hooks/schedule-store';
 
-// Generates a simple 6-digit code (e.g. 482193)
+// Single table for all schedules
+const TABLE = 'schedules';
+
+// Simple 6-digit share code
 export function generateShareCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Local "YYYY-MM-DD"
+function toLocalDateKey(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 /**
- * Insert a schedule into Supabase and return a share code.
+ * Insert a schedule into Supabase and return a share code + metadata.
  */
 export async function saveScheduleToSupabase(
   house: string,
@@ -15,37 +27,57 @@ export async function saveScheduleToSupabase(
 ) {
   const code = generateShareCode();
 
-  try {
-    const { error } = await supabase.from('schedules').insert({
-      house,
-      snapshot,
-      code,
-    });
+  // Prefer whatever the wizard/store set, otherwise today's local date
+  const baseDate =
+    (snapshot.date && snapshot.date.slice(0, 10)) || toLocalDateKey(new Date());
 
-    if (error) {
-      console.error('Supabase insert error:', error);
-      // Even if Supabase failed, return the code so the UI can still use it
-      return { ok: false, error, code };
+  const payload = {
+    house,
+    code,
+    snapshot,
+    // Optional: if you have a dedicated schedule_date column, uncomment:
+    // schedule_date: baseDate,
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert(payload)
+      .select('snapshot, code, created_at')
+      .single();
+
+    if (error || !data) {
+      console.error('Supabase save error:', error);
+      return { ok: false, error };
     }
 
-    return { ok: true, code };
+    const createdAt = data.created_at as string | null;
+    const scheduleDate =
+      (snapshot.date && snapshot.date.slice(0, 10)) ||
+      (createdAt ? createdAt.slice(0, 10) : baseDate);
+
+    return {
+      ok: true,
+      data: {
+        snapshot: data.snapshot as ScheduleSnapshot,
+        code: data.code as string | null,
+        createdAt,
+        scheduleDate, // "YYYY-MM-DD"
+      },
+    };
   } catch (error) {
-    console.error('Supabase insert error:', error);
-    // Network / DNS / other fatal error — still return the code
-    return { ok: false, error, code } as any;
+    console.error('Supabase save exception:', error);
+    return { ok: false, error };
   }
 }
 
 /**
- * Fetch the most recently saved schedule for a given house.
- * Used for:
- *  - auto-loading yesterday’s schedule
- *  - knowing if today already has a “created” schedule
+ * Fetch the most recent schedule for a given house.
  */
 export async function fetchLatestScheduleForHouse(house: string) {
   try {
     const { data, error } = await supabase
-      .from('schedules')
+      .from(TABLE)
       .select('snapshot, code, created_at')
       .eq('house', house)
       .order('created_at', { ascending: false })
@@ -58,16 +90,16 @@ export async function fetchLatestScheduleForHouse(house: string) {
     }
 
     if (!data) {
+      // No schedule yet for this house
       return { ok: true, data: null };
     }
 
     const snapshot = data.snapshot as ScheduleSnapshot;
     const createdAt = data.created_at as string | null;
 
-    // Prefer the explicit schedule date from the snapshot; fall back to created_at.
     const scheduleDate =
-      (snapshot as any)?.date ||
-      (createdAt ? createdAt.slice(0, 10) : null);
+      (snapshot.date && snapshot.date.slice(0, 10)) ||
+      (createdAt ? createdAt.slice(0, 10) : toLocalDateKey(new Date()));
 
     return {
       ok: true,
@@ -75,11 +107,11 @@ export async function fetchLatestScheduleForHouse(house: string) {
         snapshot,
         code: data.code as string | null,
         createdAt,
-        scheduleDate, // 'YYYY-MM-DD'
+        scheduleDate, // "YYYY-MM-DD"
       },
     };
   } catch (error) {
-    console.error('Supabase fetch latest error:', error);
+    console.error('Supabase fetch latest exception:', error);
     return { ok: false, error };
   }
 }
