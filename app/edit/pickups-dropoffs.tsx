@@ -9,6 +9,8 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { Participant } from '@/constants/data';
+import { DROPOFF_OPTIONS } from '@/constants/data';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
 
@@ -36,6 +38,7 @@ export default function EditPickupsDropoffsScreen() {
     pickupParticipants,
     helperStaff,
     dropoffAssignments,
+    dropoffLocations,
     updateSchedule,
   } = useSchedule();
   const { push } = useNotifications();
@@ -122,6 +125,31 @@ export default function EditPickupsDropoffsScreen() {
     });
     return map;
   }, [assignments]);
+
+  const getDropoffLabel = (p: Participant): string => {
+    const options = DROPOFF_OPTIONS[p.id as ID];
+    if (!options || options.length === 0) return p.name;
+    const index =
+      (dropoffLocations && dropoffLocations[p.id as ID]) ?? 0;
+    return options[index] ?? options[0];
+  };
+
+  const cycleDropoffLocation = (pid: ID) => {
+    const options = DROPOFF_OPTIONS[pid];
+    if (!options || options.length === 0) return;
+
+    const currentIndex =
+      (dropoffLocations && dropoffLocations[pid]) ?? 0;
+    const nextIndex = (currentIndex + 1) % options.length;
+
+    updateSchedule({
+      dropoffLocations: {
+        ...(dropoffLocations || {}),
+        [pid]: nextIndex,
+      },
+    });
+    push('Dropoff location updated', 'pickups');
+  };
 
   // Hide staff cards with no dropoffs if requested
   const staffForCards = useMemo(() => {
@@ -339,7 +367,7 @@ export default function EditPickupsDropoffsScreen() {
                         <Text style={styles.assignedSummary}>
                           {assigned.length
                             ? `Assigned: ${assigned
-                                .map((p) => p.name)
+                                .map((p) => getDropoffLabel(p as Participant))
                                 .join(', ')}`
                             : 'No dropoff assignments yet.'}
                         </Text>
@@ -372,6 +400,9 @@ export default function EditPickupsDropoffsScreen() {
                             onPress={() =>
                               toggleDropoff(s.id as ID, p.id as ID)
                             }
+                            onLongPress={() =>
+                              cycleDropoffLocation(p.id as ID)
+                            }
                             activeOpacity={0.85}
                             style={[styles.chip, selected && styles.chipSel]}
                           >
@@ -381,7 +412,7 @@ export default function EditPickupsDropoffsScreen() {
                                 selected && styles.chipTxtSel,
                               ]}
                             >
-                              {p.name}
+                              {getDropoffLabel(p as Participant)}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -477,10 +508,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dropoffsHeaderRow: {
-  flexDirection: 'row',
-  alignItems: 'baseline',
-  justifyContent: 'space-between', // <-- FIXED
-  width: '100%',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   hideToggle: {
     fontSize: 12,
