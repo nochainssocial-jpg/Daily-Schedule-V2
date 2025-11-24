@@ -370,6 +370,13 @@ export async function persistFinish(params: PersistParams) {
   }
 
   // ---------- Build final snapshot ----------
+    const now = new Date();
+  const todayKey = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-'); // "YYYY-MM-DD"
+  
   const snapshot: ScheduleSnapshot = {
     staff,
     participants,
@@ -387,7 +394,7 @@ export async function persistFinish(params: PersistParams) {
     helperStaff: validHelpers,
     dropoffAssignments: cleanedDropoffs,
 
-    date: date ?? new Date().toISOString(),
+    date: date ?? todayKey,
     meta: { from: 'create-wizard' },
   };
 
