@@ -29,6 +29,7 @@ type PersistParams = {
   pickupParticipants?: ID[];
   helperStaff?: ID[];
   dropoffAssignments?: Record<ID, ID[]>;
+  dropoffLocations?: Record<ID, number>;
 
   date?: string;
 
@@ -54,10 +55,13 @@ export async function persistFinish(params: PersistParams) {
     pickupParticipants = [],
     helperStaff = [],
     dropoffAssignments = {},
+    dropoffLocations = {},
 
     date,
     recentSnapshots = [],
   } = params;
+
+  const now = new Date();
 
   // ---------- Normalise staff / participants ----------
   const staffById = new Map<ID, Staff>(staff.map((s) => [s.id as ID, s]));
@@ -370,13 +374,6 @@ export async function persistFinish(params: PersistParams) {
   }
 
   // ---------- Build final snapshot ----------
-    const now = new Date();
-  const todayKey = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-'); // "YYYY-MM-DD"
-  
   const snapshot: ScheduleSnapshot = {
     staff,
     participants,
@@ -393,8 +390,16 @@ export async function persistFinish(params: PersistParams) {
     pickupParticipants: validPickup,
     helperStaff: validHelpers,
     dropoffAssignments: cleanedDropoffs,
+    dropoffLocations: dropoffLocations || {},
 
-    date: date ?? todayKey,
+    // Use local calendar date for the schedule
+    date:
+      date ??
+      [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+      ].join('-'),
     meta: { from: 'create-wizard' },
   };
 

@@ -216,6 +216,9 @@ export const useCleaningMissing = (choreIds: string[]) => {
 
 // 🔁 Auto-init on app load / day change
 export async function initScheduleForToday(houseId: string) {
+  const state = useSchedule.getState();
+
+  // Use LOCAL calendar date (Australia time) instead of UTC
   const now = new Date();
   const todayKey = [
     now.getFullYear(),
