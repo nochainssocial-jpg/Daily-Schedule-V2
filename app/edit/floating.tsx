@@ -191,7 +191,7 @@ export default function FloatingScreen() {
     updateSchedule,
     touch,
     selectedDate,
-  } = useSchedule() as any; :contentReference[oaicite:0]{index=0}
+  } = useSchedule() as any;
 
   const staffById = useMemo(() => {
     const m: Record<string, any> = {};
@@ -288,7 +288,7 @@ export default function FloatingScreen() {
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
-  }, [hasFrontRoom, onsiteWorking, updateSchedule]); :contentReference[oaicite:1]{index=1}
+  }, [hasFrontRoom, onsiteWorking, updateSchedule]);
 
   const handleShuffle = () => {
     if (!onsiteWorking.length || !updateSchedule) return;
