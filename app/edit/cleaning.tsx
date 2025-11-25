@@ -34,8 +34,9 @@ export default function CleaningEditScreen() {
     staff,
     workingStaff,
     cleaningAssignments = {},
+    outingGroup = null,
     updateSchedule,
-  } = useSchedule();
+  } = useSchedule() as any; :contentReference[oaicite:2]{index=2}
 
   const { push } = useNotifications();
 
@@ -55,13 +56,22 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  // 🔁 Same style as floating — working staff only, alphabetical
+  // 🔁 Working staff for cleaning = Dream Team minus outing staff
   const workingStaffList: Staff[] = useMemo(() => {
-    const base = staff.filter((s) => workingStaff.includes(s.id));
-    return base.sort((a, b) =>
+    const base = staff.filter((s) => (workingStaff || []).includes(s.id));
+    if (!outingGroup) {
+      return base.sort((a, b) =>
+        String(a.name).localeCompare(String(b.name), 'en-AU'),
+      );
+    }
+
+    const excluded = new Set<string>((outingGroup.staffIds ?? []) as string[]);
+    const onsite = base.filter((s) => !excluded.has(s.id));
+
+    return onsite.sort((a, b) =>
       String(a.name).localeCompare(String(b.name), 'en-AU'),
     );
-  }, [staff, workingStaff]);
+  }, [staff, workingStaff, outingGroup]);
 
   const handleSelectStaff = (staffId: string | null) => {
     if (!activeChoreId) return;
