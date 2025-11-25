@@ -12,6 +12,19 @@ import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type ID = string;
 
+export type OutingGroup = {
+  id: string;              // e.g. "outing-2025-11-26-b2"
+  name: string;            // e.g. "Swimming @ Local Pool"
+
+  staffIds: ID[];          // staff going on the outing
+  participantIds: ID[];    // participants going on the outing
+
+  // Optional metadata for the day
+  startTime?: string;      // "11:00"
+  endTime?: string;        // "15:00"
+  notes?: string;          // "Bring swimmers / towels"
+};
+
 const EDIT_HUB = '/edit';
 
 const nm = (x?: string) => (x || '').trim().toLowerCase();
