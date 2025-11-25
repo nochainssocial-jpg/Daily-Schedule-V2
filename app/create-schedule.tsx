@@ -1,6 +1,11 @@
 // app/create-schedule.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, Platform } from 'react-native';
+// add TextInput
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, Platform, TextInput } from 'react-native';
+
+// add OutingGroup type
+import { useSchedule as baseSchedule, type ScheduleSnapshot, type OutingGroup } from '@/hooks/schedule-store';
+
 import { Stack, router } from 'expo-router';
 import { Check, ChevronLeft } from 'lucide-react-native';
 
@@ -88,6 +93,16 @@ export default function CreateScheduleScreen() {
   const [helperStaff, setHelperStaff] = useState<string[]>([]);
   const [dropoffAssignments, setDropoffAssignments] = useState<Record<string, string[]>>({});
   const [finalChecklistStaff, setFinalChecklistStaff] = useState<string>('');
+
+  // ⭐ Outing group for today (optional)
+  const [outingGroup, setOutingGroup] = useState<OutingGroup | null>(() => {
+    try {
+      const base = baseSchedule.getState();
+      return (base as any).outingGroup ?? null;
+    } catch {
+      return null;
+    }
+  });
 
   // ---- date ----------------------------------------------------------------
   const dateLabel = useMemo(() => {
@@ -195,7 +210,54 @@ export default function CreateScheduleScreen() {
     });
   };
 
-  // ---- Step 1: Working staff -----------------------------------------------
+    const ensureOuting = (): OutingGroup => {
+    if (outingGroup) return outingGroup;
+    const fresh: OutingGroup = {
+      id: `outing-${Date.now()}`,
+      name: '',
+      staffIds: [],
+      participantIds: [],
+      startTime: '',
+      endTime: '',
+      notes: '',
+    };
+    setOutingGroup(fresh);
+    return fresh;
+  };
+
+  const toggleOutingStaff = (id: string) => {
+    setOutingGroup(prev => {
+      const current = prev ?? ensureOuting();
+      const exists = current.staffIds.includes(id);
+      return {
+        ...current,
+        staffIds: exists
+          ? current.staffIds.filter(sid => sid !== id)
+          : [...current.staffIds, id],
+      };
+    });
+  };
+
+  const toggleOutingParticipant = (id: string) => {
+    setOutingGroup(prev => {
+      const current = prev ?? ensureOuting();
+      const exists = current.participantIds.includes(id);
+      return {
+        ...current,
+        participantIds: exists
+          ? current.participantIds.filter(pid => pid !== id)
+          : [...current.participantIds, id],
+      };
+    });
+  };
+
+  const updateOutingField = (field: keyof OutingGroup, value: string) => {
+    setOutingGroup(prev => {
+      const current = prev ?? ensureOuting();
+      return { ...current, [field]: value };
+    });
+  };
+  
   const Step1 = () => {
     const validStaff = staffSource.filter(s => !isEveryone(s.name)); // keep Everyone out of bottom list
     const selected = new Set(workingStaff);
@@ -204,6 +266,9 @@ export default function CreateScheduleScreen() {
       ...(everyone && selected.has(everyone.id) ? [everyone] : []),
       ...validStaff.filter(s => selected.has(s.id)),
     ];
+
+    const outingStaffIds = new Set(outingGroup?.staffIds || []);
+    const outingParticipantIds = new Set(outingGroup?.participantIds || []);
 
     return (
       <View style={styles.section}>
@@ -214,17 +279,102 @@ export default function CreateScheduleScreen() {
         </Text>
 
         {/* Top: selected staff */}
-        <View style={styles.workingWrap}>
-          {selectedTop.length ? (
-            <View style={styles.chipGrid}>
-              {selectedTop.map(st => (
+        {/* ... existing selected staff code ... */}
+
+        {/* Bottom: full pool as tiles */}
+        {/* ... existing tiles code ... */}
+
+        {/* ⭐ Outing group (optional) */}
+        <View
+          style={{
+            marginTop: 24,
+            padding: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: '#E5ECF5',
+            backgroundColor: '#FFF',
+          }}
+        >
+          <Text style={styles.sectionTitle}>Outing group (optional)</Text>
+          <Text style={styles.subTitle}>
+            Use this when some staff and participants are going out (e.g. swimming). They will be
+            treated as &quot;out&quot; for auto-assignments until you remove them from the group.
+          </Text>
+
+          {/* Outing name */}
+          <Text style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}>
+            Outing name
+          </Text>
+          <TextInput
+            placeholder="e.g. Swimming @ Local Pool"
+            value={outingGroup?.name ?? ''}
+            onChangeText={text => updateOutingField('name', text)}
+            style={{
+              borderWidth: 1,
+              borderColor: '#E5ECF5',
+              borderRadius: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              fontSize: 14,
+              marginBottom: 12,
+              backgroundColor: '#F9FAFB',
+            }}
+          />
+
+          {/* Times */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}>
+                Leave time
+              </Text>
+              <TextInput
+                placeholder="11:00"
+                value={outingGroup?.startTime ?? ''}
+                onChangeText={text => updateOutingField('startTime', text)}
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#E5ECF5',
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  fontSize: 14,
+                  backgroundColor: '#F9FAFB',
+                }}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}>
+                Return time
+              </Text>
+              <TextInput
+                placeholder="15:00"
+                value={outingGroup?.endTime ?? ''}
+                onChangeText={text => updateOutingField('endTime', text)}
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#E5ECF5',
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  fontSize: 14,
+                  backgroundColor: '#F9FAFB',
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Staff going on outing */}
+          <Text style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}>
+            Staff on outing
+          </Text>
+          <View style={styles.chipGrid}>
+            {validStaff.map(st => {
+              const sel = outingStaffIds.has(st.id);
+              return (
                 <TouchableOpacity
                   key={st.id}
-                  onPress={() => toggleWorking(st.id)}
-                  style={[
-                    styles.chipTile,
-                    selected.has(st.id) && styles.chipTileSel,
-                  ]}
+                  onPress={() => toggleOutingStaff(st.id)}
+                  style={[styles.chipTile, sel && styles.chipTileSel]}
                   activeOpacity={0.85}
                 >
                   <View
@@ -234,50 +384,55 @@ export default function CreateScheduleScreen() {
                     ]}
                   />
                   <Text
-                    style={[
-                      styles.chipLabel,
-                      selected.has(st.id) && styles.chipLabelSel,
-                    ]}
+                    style={[styles.chipLabel, sel && styles.chipLabelSel]}
                     numberOfLines={1}
                   >
                     {st.name}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.emptyHint}>
-              Select at least one staff member working @ B2 today.
-            </Text>
-          )}
-        </View>
+              );
+            })}
+          </View>
 
-        {/* Bottom: full pool as tiles */}
-        <View style={styles.chipGrid}>
-          {validStaff.map(st => {
-            const sel = selected.has(st.id);
-            return (
-              <TouchableOpacity
-                key={st.id}
-                onPress={() => toggleWorking(st.id)}
-                style={[styles.chipTile, sel && styles.chipTileSel]}
-                activeOpacity={0.85}
-              >
-                <View
-                  style={[
-                    styles.rect,
-                    { backgroundColor: st.color || '#E6ECF5' },
-                  ]}
-                />
-                <Text
-                  style={[styles.chipLabel, sel && styles.chipLabelSel]}
-                  numberOfLines={1}
-                >
-                  {st.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          {/* Participants going on outing */}
+          <Text
+            style={{
+              fontSize: 13,
+              color: '#667085',
+              marginBottom: 4,
+              marginTop: 16,
+            }}
+          >
+            Participants on outing
+          </Text>
+          <View style={styles.chipGrid}>
+            {partsSource
+              .filter(p => attendingParticipants.includes(p.id))
+              .map(p => {
+                const sel = outingParticipantIds.has(p.id);
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => toggleOutingParticipant(p.id)}
+                    style={[styles.chipTile, sel && styles.chipTileSel]}
+                    activeOpacity={0.85}
+                  >
+                    <View
+                      style={[
+                        styles.rect,
+                        { backgroundColor: sel ? '#175CD3' : '#E6ECF5' },
+                      ]}
+                    />
+                    <Text
+                      style={[styles.chipLabel, sel && styles.chipLabelSel]}
+                      numberOfLines={1}
+                    >
+                      {p.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+          </View>
         </View>
       </View>
     );
@@ -868,6 +1023,19 @@ export default function CreateScheduleScreen() {
       );
     }
 
+        // ⭐ Sync outingGroup into the base schedule store before finish
+    try {
+      const baseState = baseSchedule.getState();
+      if (outingGroup && typeof baseState.updateSchedule === 'function') {
+        baseState.updateSchedule({ outingGroup });
+      } else if (!outingGroup && typeof baseState.updateSchedule === 'function') {
+        // explicitly clear it if no outing for today
+        baseState.updateSchedule({ outingGroup: null } as any);
+      }
+    } catch (err) {
+      console.warn('[create-schedule] failed to sync outingGroup into base store:', err);
+    }
+
     // First, let persistFinish compute all derived slices (floating, cleaning, etc.)
     try {
       await persistFinish({
@@ -905,6 +1073,9 @@ export default function CreateScheduleScreen() {
         workingStaff: state.workingStaff ?? realWorkers,
         attendingParticipants: state.attendingParticipants ?? attendingParticipants,
 
+        // ⭐ Outing group from store, falling back to local if needed
+        outingGroup: (state as any).outingGroup ?? outingGroup ?? null,
+
         assignments: state.assignments ?? assignmentsMap,
         floatingAssignments: state.floatingAssignments ?? {},
         cleaningAssignments: state.cleaningAssignments ?? {},
@@ -922,6 +1093,7 @@ export default function CreateScheduleScreen() {
           from: (state.meta && state.meta.from) || 'create-wizard',
         },
       };
+
     } catch (err) {
       console.warn('[create-schedule] failed to read snapshot from store, falling back:', err);
 
@@ -931,6 +1103,7 @@ export default function CreateScheduleScreen() {
         participants: partsSource ?? [],
         workingStaff: realWorkers,
         attendingParticipants,
+        outingGroup: outingGroup ?? null,
         assignments: assignmentsMap,
         floatingAssignments: {},
         cleaningAssignments: {},
@@ -942,7 +1115,6 @@ export default function CreateScheduleScreen() {
         date: selectedDate,
         meta: { from: 'create-wizard' },
       };
-    }
 
     /** 🔥 NEW — Save to Supabase */
     try {
