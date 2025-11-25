@@ -36,11 +36,11 @@ export default function CleaningEditScreen() {
     cleaningAssignments = {},
     outingGroup = null,
     updateSchedule,
-  } = useSchedule() as any; :contentReference[oaicite:2]{index=2}
+  } = useSchedule() as any;
 
   const { push } = useNotifications();
 
-  // 🔁 Same style as floating — stable, alphabetical chores list
+  // 🔁 Stable, alphabetical chores list
   const chores: Chore[] = useMemo(
     () =>
       [...(DEFAULT_CHORES || [])].sort((a, b) =>
@@ -58,7 +58,10 @@ export default function CleaningEditScreen() {
 
   // 🔁 Working staff for cleaning = Dream Team minus outing staff
   const workingStaffList: Staff[] = useMemo(() => {
-    const base = staff.filter((s) => (workingStaff || []).includes(s.id));
+    const base = (staff || []).filter((s: Staff) =>
+      (workingStaff || []).includes(s.id),
+    );
+
     if (!outingGroup) {
       return base.sort((a, b) =>
         String(a.name).localeCompare(String(b.name), 'en-AU'),
@@ -122,8 +125,10 @@ export default function CleaningEditScreen() {
         >
           {chores.map((chore) => {
             const choreId = String(chore.id);
-            const assignedStaffId = cleaningAssignments[choreId];
-            const st = staff.find((s) => s.id === assignedStaffId) || null;
+            const assignedStaffId = (cleaningAssignments as any)[choreId];
+            const st =
+              (staff || []).find((s: Staff) => s.id === assignedStaffId) ||
+              null;
 
             const label = st ? st.name : 'Not assigned';
             const isAssigned = !!st;
@@ -165,7 +170,7 @@ export default function CleaningEditScreen() {
         </ScrollView>
       </View>
 
-      {/* Floating-style staff picker modal */}
+      {/* Staff picker modal */}
       <Modal
         visible={!!activeChore}
         animationType="fade"
@@ -189,7 +194,9 @@ export default function CleaningEditScreen() {
                 <View style={styles.chipGrid}>
                   {workingStaffList.map((st) => {
                     const selected =
-                      cleaningAssignments[String(activeChoreId ?? '')] === st.id;
+                      (cleaningAssignments as any)[
+                        String(activeChoreId ?? '')
+                      ] === st.id;
 
                     return (
                       <TouchableOpacity
@@ -254,15 +261,15 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   wrap: {
-    flex: 1,                 // 🔹 let this area take full height
+    flex: 1, // let this area take full height
     width: '100%',
     maxWidth: 880,
-    alignSelf: 'center',     // 🔹 centre on desktop
+    alignSelf: 'center', // centre on desktop
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
   list: {
-    flex: 1,                 // 🔹 ScrollView owns vertical space → scrolls on iPhone
+    flex: 1, // ScrollView owns vertical space → scrolls on iPhone
     marginTop: 16,
   },
 
@@ -337,7 +344,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 560,
-    maxHeight: '80%',         // keeps card within screen so ScrollView can scroll
+    maxHeight: '80%', // keeps card within screen so ScrollView can scroll
     borderRadius: 26,
     backgroundColor: '#FFFFFF',
     paddingVertical: 20,
