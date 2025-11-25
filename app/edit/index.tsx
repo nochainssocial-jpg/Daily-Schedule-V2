@@ -38,6 +38,13 @@ const TILES: TileConfig[] = [
     icon: 'people-outline',
     color: '#EC4899', // pink-ish
   },
+  // ⭐ NEW – Outings category
+  {
+    title: 'Outings (staff & participants out)',
+    path: '/edit/outings',
+    icon: 'sunny-outline',
+    color: '#06B6D4', // teal / outdoor vibe
+  },
   {
     title: 'Team Daily Assignments',
     path: '/edit/assignments',
@@ -232,21 +239,21 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'flex-end', // ⭐ right-align whole block
   },
-  
+
   printFooterButton: {
-    alignItems: 'center',  // ⭐ center icon directly above label
+    alignItems: 'center', // ⭐ center icon directly above label
     justifyContent: 'center',
-    marginRight: 4,        // matches tile right padding visually
+    marginRight: 4, // matches tile right padding visually
   },
-  
+
   printFooterIcon: {
     marginBottom: 6,
   },
-  
+
   printFooterLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#3c234c',
-    textAlign: 'center',   // ⭐ center label under icon
+    textAlign: 'center', // ⭐ center label under icon
   },
 });
