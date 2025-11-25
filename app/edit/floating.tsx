@@ -1,4 +1,3 @@
-// app/edit/floating.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   Modal,
@@ -188,10 +187,11 @@ export default function FloatingScreen() {
     staff = [],
     workingStaff = [],
     floatingAssignments = {},
+    outingGroup = null,
     updateSchedule,
     touch,
     selectedDate,
-  } = useSchedule() as any;
+  } = useSchedule() as any; :contentReference[oaicite:0]{index=0}
 
   const staffById = useMemo(() => {
     const m: Record<string, any> = {};
@@ -201,21 +201,29 @@ export default function FloatingScreen() {
     return m;
   }, [staff]);
 
+  // All working staff (Dream Team)
   const working = useMemo(
     () => (staff || []).filter((s: any) => (workingStaff || []).includes(s.id)),
     [staff, workingStaff],
   );
 
+  // ⭐ Onsite working staff = working staff NOT on outing
+  const onsiteWorking = useMemo(() => {
+    if (!outingGroup || !Array.isArray(working)) return working || [];
+    const excluded = new Set<string>((outingGroup.staffIds ?? []) as string[]);
+    return (working || []).filter((s: any) => !excluded.has(s.id));
+  }, [working, outingGroup]);
+
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
 
   const sortedWorking = useMemo(
     () =>
-      (working || [])
+      (onsiteWorking || [])
         .slice()
         .sort((a: any, b: any) =>
           String(a.name || '').localeCompare(String(b.name || '')),
         ),
-    [working],
+    [onsiteWorking],
   );
 
   const [open, setOpen] = useState(false);
@@ -274,16 +282,17 @@ export default function FloatingScreen() {
   );
 
   useEffect(() => {
-    if (!hasFrontRoom && working.length && updateSchedule) {
-      const next = buildAutoAssignments(working, TIME_SLOTS);
+    // 🔥 Auto-build using *onsite* working staff only
+    if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
+      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS);
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
-  }, [hasFrontRoom, working, updateSchedule]);
+  }, [hasFrontRoom, onsiteWorking, updateSchedule]); :contentReference[oaicite:1]{index=1}
 
   const handleShuffle = () => {
-    if (!working.length || !updateSchedule) return;
-    const next = buildAutoAssignments(working, TIME_SLOTS);
+    if (!onsiteWorking.length || !updateSchedule) return;
+    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS);
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
@@ -629,7 +638,7 @@ export default function FloatingScreen() {
             </Text>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {(working || [])
+              {(onsiteWorking || [])
                 .filter(
                   (s: any) =>
                     !pick?.fso ||
@@ -641,7 +650,7 @@ export default function FloatingScreen() {
             </View>
 
             {pick?.fso &&
-              (working || []).every(
+              (onsiteWorking || []).every(
                 (s: any) =>
                   String(s.gender || '').toLowerCase() !== 'female',
               ) && (
