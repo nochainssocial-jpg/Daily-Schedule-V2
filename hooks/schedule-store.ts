@@ -23,6 +23,9 @@ export type ScheduleSnapshot = {
   workingStaff: ID[];          // The Dream Team (Working at B2)
   attendingParticipants: ID[]; // Attending Participants
 
+  // ⭐ Outing group (optional for days like pool / outings)
+  outingGroup?: OutingGroup | null;
+
   // Daily assignments (staff -> participantIds)
   assignments: Record<ID, ID[]>;
 
@@ -37,15 +40,16 @@ export type ScheduleSnapshot = {
   finalChecklistStaff?: ID;
 
   // Transport
-  pickupParticipants: ID[];             // participantIds being picked up by third parties
-  helperStaff: ID[];                    // helpers joining dropoffs
-  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
-  dropoffLocations: Record<ID, number>; // participantId -> index into DROPOFF_OPTIONS
+  pickupParticipants: ID[];
+  helperStaff: ID[];
+  dropoffAssignments: Record<ID, ID[]>;
+  dropoffLocations: Record<ID, number>;
 
   // Meta
   date?: string;
   meta?: Record<string, any>;
 };
+
 
 type ScheduleState = ScheduleSnapshot & {
   createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
@@ -77,6 +81,8 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   participants: [],
   workingStaff: [],
   attendingParticipants: [],
+  // ⭐ NEW
+  outingGroup: null,
   assignments: {},
   floatingAssignments: {},
   cleaningAssignments: {},
