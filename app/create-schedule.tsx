@@ -1,46 +1,115 @@
 // app/create-schedule.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-// add TextInput
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, Platform, TextInput } from 'react-native';
-
-// add OutingGroup type
-import { useSchedule as baseSchedule, type ScheduleSnapshot, type OutingGroup } from '@/hooks/schedule-store';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+  Platform,
+  TextInput,
+} from 'react-native';
 
 import { Stack, router } from 'expo-router';
 import { Check, ChevronLeft } from 'lucide-react-native';
 
 import { persistFinish } from '@/hooks/persist-finish';
 import useSchedule from '@/hooks/schedule-adapter';
-import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/schedule-store';
+import {
+  useSchedule as baseSchedule,
+  type ScheduleSnapshot,
+  type OutingGroup,
+} from '@/hooks/schedule-store';
 import { STAFF, PARTICIPANTS } from '@/constants/data';
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type ID = string;
-
-export type OutingGroup = {
-  id: string;              // e.g. "outing-2025-11-26-b2"
-  name: string;            // e.g. "Swimming @ Local Pool"
-
-  staffIds: ID[];          // staff going on the outing
-  participantIds: ID[];    // participants going on the outing
-
-  // Optional metadata for the day
-  startTime?: string;      // "11:00"
-  endTime?: string;        // "15:00"
-  notes?: string;          // "Bring swimmers / towels"
-};
-
 const EDIT_HUB = '/edit';
 
 const nm = (x?: string) => (x || '').trim().toLowerCase();
 const isEveryone = (name?: string) => nm(name) === 'everyone';
 const isAntoinette = (name?: string) => nm(name) === 'antoinette';
 
-// how many steps in the wizard
-const TOTAL_STEPS = 6;
+const STAFF_BY_ID: Record<ID, (typeof STAFF)[number]> = {};
+STAFF.forEach((s) => (STAFF_BY_ID[s.id] = s));
+
+const PARTS_BY_ID: Record<ID, (typeof PARTICIPANTS)[number]> = {};
+PARTICIPANTS.forEach((p) => (PARTS_BY_ID[p.id] = p));
+
+const EVERYONE = STAFF.find((s) => isEveryone(s.name));
+const EVERYONE_ID = EVERYONE?.id ?? '';
+
+const TOTAL = 4;
+
+type AssignmentRow = {
+  staffId: ID;
+  participantIds: ID[];
+};
+
+type DropoffRow = {
+  staffId: ID; // helper or Everyone
+  participantIds: ID[]; // subset of attending
+  locationId: number;
+};
+
+// ---------- Utility helpers -----------
+
+const toRowsFromMap = (map: Record<ID, ID[]>): AssignmentRow[] =>
+  Object.entries(map || {}).map(([staffId, participantIds]) => ({
+    staffId,
+    participantIds: participantIds || [],
+  }));
+
+const toMapFromRows = (rows: AssignmentRow[]): Record<ID, ID[]> => {
+  const out: Record<ID, ID[]> = {};
+  (rows || []).forEach((r) => {
+    if (!r.staffId) return;
+    out[r.staffId] = r.participantIds || [];
+  });
+  return out;
+};
+
+const toDropoffRowsFromMap = (
+  dropoffAssignments: Record<ID, ID[]>,
+  dropoffLocations: Record<ID, number>,
+): DropoffRow[] => {
+  const out: DropoffRow[] = [];
+  Object.entries(dropoffAssignments || {}).forEach(([staffId, participantIds]) => {
+    const locationId = dropoffLocations?.[staffId] ?? 1;
+    out.push({
+      staffId,
+      participantIds: participantIds || [],
+      locationId,
+    });
+  });
+  return out;
+};
+
+const toDropoffMapsFromRows = (
+  rows: DropoffRow[],
+): {
+  dropoffAssignments: Record<ID, ID[]>;
+  dropoffLocations: Record<ID, number>;
+} => {
+  const dropoffAssignments: Record<ID, ID[]> = {};
+  const dropoffLocations: Record<ID, number> = {};
+
+  (rows || []).forEach((row) => {
+    if (!row.staffId) return;
+    dropoffAssignments[row.staffId] = row.participantIds || [];
+    dropoffLocations[row.staffId] =
+      typeof row.locationId === 'number' ? row.locationId : 1;
+  });
+
+  return { dropoffAssignments, dropoffLocations };
+};
+
+const unique = <T,>(arr: T[]): T[] => Array.from(new Set(arr));
+
+// ------------- Component ---------------
 
 export default function CreateScheduleScreen() {
-  // ---- safe hook access ----------------------------------------------------
   let hook: any = {};
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -57,160 +126,170 @@ export default function CreateScheduleScreen() {
     scheduleStep,
     setScheduleStep,
     touch,
-    updateSchedule,
-    meta,
+    workingStaff: baseWorking = [],
+    attendingParticipants: baseAttending = [],
+    assignments: baseAssignments = {},
+    pickupParticipants: basePickup = [],
+    helperStaff: baseHelpers = [],
+    dropoffAssignments: baseDropoffs = {},
+    dropoffLocations: baseDropoffLocs = {},
+    finalChecklistStaff: baseChecklistStaff = '',
+    outingGroup: baseOutingGroup = null,
   } = hook;
 
-  // ---- step state (web-stable) ----------------------------------------
-  const [localStep, setLocalStep] = useState<number>(Number(scheduleStep ?? 1) || 1);
-  const step = Math.min(Math.max(Number(scheduleStep ?? localStep), 1), TOTAL_STEPS);
-  const setStep = (n: number) => {
-    const clamped = Math.min(Math.max(Number(n || 1), 1), TOTAL_STEPS);
-    setLocalStep(clamped);
-    if (typeof setScheduleStep === 'function') {
-      try {
-        setScheduleStep(clamped);
-      } catch {}
-    }
-  };
+  const staffSource = (staff && staff.length ? staff : STAFF) as typeof STAFF;
+  const partsSource = (participants && participants.length
+    ? participants
+    : PARTICIPANTS) as typeof PARTICIPANTS;
 
-  // ---- sources & defaults --------------------------------------------------
-  const staffSource = (Array.isArray(staff) && staff.length ? staff : STAFF) || [];
-  const partsSource =
-    (Array.isArray(participants) && participants.length ? participants : PARTICIPANTS) || [];
-  const everyone = staffSource.find(s => isEveryone(s.name));
-  const everyoneId = everyone?.id;
+  const everyone = EVERYONE;
+  const everyoneId = EVERYONE_ID;
+
+  const [step, setStep] = useState<number>(scheduleStep || 1);
+
+  // ---- Local wizard state ----
 
   const [workingStaff, setWorkingStaff] = useState<string[]>(() =>
-    everyoneId ? [everyoneId] : [],
+    baseWorking && baseWorking.length
+      ? baseWorking
+      : everyoneId
+      ? [everyoneId]
+      : [],
   );
-  const [attendingParticipants, setAttendingParticipants] = useState<string[]>([]);
-  const [assignments, setAssignments] = useState<
-    Array<{ staffId: string; participantIds: string[] }>
-  >([]);
 
-  const [pickupParticipants, setPickupParticipants] = useState<string[]>([]);
-  const [helperStaff, setHelperStaff] = useState<string[]>([]);
-  const [dropoffAssignments, setDropoffAssignments] = useState<Record<string, string[]>>({});
-  const [finalChecklistStaff, setFinalChecklistStaff] = useState<string>('');
+  const [attendingParticipants, setAttendingParticipants] = useState<string[]>(() =>
+    baseAttending && baseAttending.length ? baseAttending : [],
+  );
 
-  // ⭐ Outing group for today (optional)
+  const [assignments, setAssignments] = useState<AssignmentRow[]>(() =>
+    baseAssignments && Object.keys(baseAssignments).length
+      ? toRowsFromMap(baseAssignments)
+      : [],
+  );
+
+  const [pickupParticipants, setPickupParticipants] = useState<string[]>(() =>
+    basePickup && basePickup.length ? basePickup : [],
+  );
+
+  const [helperStaff, setHelperStaff] = useState<string[]>(() =>
+    baseHelpers && baseHelpers.length ? baseHelpers : [],
+  );
+
+  const [dropoffRows, setDropoffRows] = useState<DropoffRow[]>(() =>
+    Object.keys(baseDropoffs || {}).length
+      ? toDropoffRowsFromMap(baseDropoffs, baseDropoffLocs || {})
+      : [],
+  );
+
+  const [finalChecklistStaff, setFinalChecklistStaff] = useState<string>(
+    baseChecklistStaff || '',
+  );
+
+  // ⭐ Outing group – hydrate from base store if present
   const [outingGroup, setOutingGroup] = useState<OutingGroup | null>(() => {
     try {
-      const base = baseSchedule.getState();
-      return (base as any).outingGroup ?? null;
+      return (baseOutingGroup as OutingGroup) ?? null;
     } catch {
       return null;
     }
   });
 
-  // ---- date ----------------------------------------------------------------
-  const dateLabel = useMemo(() => {
-    if (!selectedDate) return 'Today';
+  // keep adapter step in sync
+  useEffect(() => {
     try {
-      const d = new Date(selectedDate);
-      return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-    } catch {
-      return 'Today';
-    }
-  }, [selectedDate]);
+      setScheduleStep?.(step);
+    } catch {}
+  }, [step, setScheduleStep]);
 
-  // keep working staff always sorted + Everyone at top if present
+  // ---- Derived helpers ----
+
+  const staffById = useMemo(() => {
+    const map: Record<string, (typeof STAFF)[number]> = {};
+    (staffSource || []).forEach((s) => {
+      map[s.id] = s;
+    });
+    return map;
+  }, [staffSource]);
+
+  const partsById = useMemo(() => {
+    const map: Record<string, (typeof PARTICIPANTS)[number]> = {};
+    (partsSource || []).forEach((p) => {
+      map[p.id] = p;
+    });
+    return map;
+  }, [partsSource]);
+
+  const selectedStaff = useMemo(
+    () =>
+      (workingStaff || [])
+        .map((id) => staffById[id] || STAFF_BY_ID[id])
+        .filter(Boolean),
+    [workingStaff, staffById],
+  );
+
+  const selectedParticipants = useMemo(
+    () =>
+      (attendingParticipants || [])
+        .map((id) => partsById[id] || PARTS_BY_ID[id])
+        .filter(Boolean),
+    [attendingParticipants, partsById],
+  );
+
+  const pickupParticipantObjs = useMemo(
+    () =>
+      (pickupParticipants || [])
+        .map((id) => partsById[id] || PARTS_BY_ID[id])
+        .filter(Boolean),
+    [pickupParticipants, partsById],
+  );
+
+  const helperStaffObjs = useMemo(
+    () =>
+      (helperStaff || [])
+        .map((id) => staffById[id] || STAFF_BY_ID[id])
+        .filter(Boolean),
+    [helperStaff, staffById],
+  );
+
+  const attendingSet = useMemo(
+    () => new Set(attendingParticipants || []),
+    [attendingParticipants],
+  );
+
+  // ensure assignments only refer to attending participants
   useEffect(() => {
-    setWorkingStaff(prev => {
-      const ids = [...new Set(prev)];
-      const staffMap = new Map(staffSource.map(s => [s.id, s]));
-      const normalised = ids
-        .filter(id => staffMap.has(id))
-        .sort((a, b) => {
-          const sa = staffMap.get(a)?.name || '';
-          const sb = staffMap.get(b)?.name || '';
-          return sa.localeCompare(sb);
-        });
-
-      // Keep Everyone at the front if present
-      if (everyoneId) {
-        const rest = normalised.filter(id => id !== everyoneId);
-        return [everyoneId, ...rest];
-      }
-      return normalised;
-    });
-  }, [staffSource, everyoneId]);
-
-  const toggleWorking = (id: string) =>
-    setWorkingStaff(prev => {
-      const exists = prev.includes(id);
-      if (exists) {
-        return prev.filter(x => x !== id);
-      }
-      if (everyoneId && id === everyoneId) {
-        // when selecting "Everyone", ensure it's at the front
-        return [everyoneId, ...prev.filter(x => x !== everyoneId)];
-      }
-      if (everyoneId && prev.includes(everyoneId)) {
-        // keep Everyone at the front
-        const without = prev.filter(x => x !== id);
-        return [everyoneId, ...without, id];
-      }
-      return [...prev, id];
-    });
-
-  const toggleParticipant = (id: string) =>
-    setAttendingParticipants(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
+    setAssignments((rows) =>
+      (rows || []).map((r) => ({
+        ...r,
+        participantIds: (r.participantIds || []).filter((pid) =>
+          attendingSet.has(pid),
+        ),
+      })),
     );
+  }, [attendingSet]);
 
-  // keep assignment rows synced (EXCLUDE Antoinette ONLY)
+  // ensure pickup participants ⊆ attending
   useEffect(() => {
-    const filteredWorking = (workingStaff || []).filter(sid => {
-      const st = staffSource.find(s => s.id === sid);
-      return !isAntoinette(st?.name);
-    });
-    setAssignments(prev => {
-      const keep = new Set(filteredWorking);
-      const next = prev.filter(r => keep.has(r.staffId));
-      const existingIds = new Set(next.map(r => r.staffId));
-      for (const sid of filteredWorking) {
-        if (!existingIds.has(sid)) {
-          next.push({ staffId: sid, participantIds: [] });
-        }
-      }
-      return next;
-    });
-  }, [workingStaff, staffSource]);
+    setPickupParticipants((prev) =>
+      (prev || []).filter((pid) => attendingSet.has(pid)),
+    );
+  }, [attendingSet]);
 
-  // Ensure each participant can only belong to ONE staff row
-  const assignTo = (staffId: string, participantId: string) => {
-    setAssignments(prev => {
-      // clone rows
-      const next = prev.map(row => ({
+  // ensure dropoff participants ⊆ attending
+  useEffect(() => {
+    setDropoffRows((rows) =>
+      (rows || []).map((row) => ({
         ...row,
-        participantIds: [...(row.participantIds || [])],
-      }));
+        participantIds: (row.participantIds || []).filter((pid) =>
+          attendingSet.has(pid),
+        ),
+      })),
+    );
+  }, [attendingSet]);
 
-      // remove participant from all rows, track where it was
-      let previousOwner: string | undefined;
-      for (const row of next) {
-        if (row.participantIds.includes(participantId)) {
-          previousOwner = row.staffId;
-          row.participantIds = row.participantIds.filter(id => id !== participantId);
-        }
-      }
+  // ---- Outing helpers ----
 
-      // If tapping the same staff again -> toggle OFF (unassign)
-      if (previousOwner === staffId) {
-        return next;
-      }
-
-      // Otherwise assign to the new staff
-      const target = next.find(r => r.staffId === staffId);
-      if (!target) return prev;
-      target.participantIds.push(participantId);
-      return next;
-    });
-  };
-
-    const ensureOuting = (): OutingGroup => {
+  const ensureOuting = (): OutingGroup => {
     if (outingGroup) return outingGroup;
     const fresh: OutingGroup = {
       id: `outing-${Date.now()}`,
@@ -226,45 +305,47 @@ export default function CreateScheduleScreen() {
   };
 
   const toggleOutingStaff = (id: string) => {
-    setOutingGroup(prev => {
+    setOutingGroup((prev) => {
       const current = prev ?? ensureOuting();
       const exists = current.staffIds.includes(id);
       return {
         ...current,
         staffIds: exists
-          ? current.staffIds.filter(sid => sid !== id)
+          ? current.staffIds.filter((sid) => sid !== id)
           : [...current.staffIds, id],
       };
     });
   };
 
   const toggleOutingParticipant = (id: string) => {
-    setOutingGroup(prev => {
+    setOutingGroup((prev) => {
       const current = prev ?? ensureOuting();
       const exists = current.participantIds.includes(id);
       return {
         ...current,
         participantIds: exists
-          ? current.participantIds.filter(pid => pid !== id)
+          ? current.participantIds.filter((pid) => pid !== id)
           : [...current.participantIds, id],
       };
     });
   };
 
   const updateOutingField = (field: keyof OutingGroup, value: string) => {
-    setOutingGroup(prev => {
+    setOutingGroup((prev) => {
       const current = prev ?? ensureOuting();
       return { ...current, [field]: value };
     });
   };
-  
+
+  // ---- Step content ----
+
   const Step1 = () => {
-    const validStaff = staffSource.filter(s => !isEveryone(s.name)); // keep Everyone out of bottom list
+    const validStaff = staffSource.filter((s) => !isEveryone(s.name));
     const selected = new Set(workingStaff);
 
     const selectedTop = [
       ...(everyone && selected.has(everyone.id) ? [everyone] : []),
-      ...validStaff.filter(s => selected.has(s.id)),
+      ...validStaff.filter((s) => selected.has(s.id)),
     ];
 
     const outingStaffIds = new Set(outingGroup?.staffIds || []);
@@ -274,15 +355,127 @@ export default function CreateScheduleScreen() {
       <View style={styles.section}>
         <Text style={styles.title}>Dream Team (Working @ B2)</Text>
         <Text style={styles.subTitle}>
-          Select who is working @ B2 today. &quot;Everyone&quot; lets you quickly include the whole
-          team, but you can still toggle individuals on or off.
+          Select who is working @ B2 today. &quot;Everyone&quot; lets you quickly
+          include the whole team, but you can still toggle individuals on or off.
         </Text>
 
-        {/* Top: selected staff */}
-        {/* ... existing selected staff code ... */}
+        {/* Selected staff pills */}
+        <View style={{ marginTop: 16, marginBottom: 12 }}>
+          <Text style={styles.sectionTitle}>Selected staff</Text>
+          {selectedTop.length ? (
+            <View style={styles.chipRow}>
+              {selectedTop.map((s) => {
+                const selected = workingStaff.includes(s.id);
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    onPress={() =>
+                      setWorkingStaff((prev) =>
+                        prev.includes(s.id)
+                          ? prev.filter((id) => id !== s.id)
+                          : [...prev, s.id],
+                      )
+                    }
+                    style={[
+                      styles.chip,
+                      selected && styles.chipSelected,
+                      isEveryone(s.name) && styles.chipEveryone,
+                    ]}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        styles.chipLabel,
+                        selected && styles.chipLabelSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {s.name}
+                    </Text>
+                    {selected && <Check size={16} color="#175CD3" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>
+              No staff selected yet. Use the list below to add them.
+            </Text>
+          )}
+        </View>
 
-        {/* Bottom: full pool as tiles */}
-        {/* ... existing tiles code ... */}
+        {/* Full list with Everyone */}
+        <View style={{ marginTop: 8 }}>
+          <Text style={styles.sectionTitle}>All staff</Text>
+          <View style={styles.list}>
+            {everyone && (
+              <TouchableOpacity
+                key={everyone.id}
+                onPress={() =>
+                  setWorkingStaff((prev) =>
+                    prev.includes(everyone.id)
+                      ? prev.filter((id) => id !== everyone.id)
+                      : unique([everyone.id, ...prev]),
+                  )
+                }
+                style={[
+                  styles.row,
+                  workingStaff.includes(everyone.id) && styles.rowSelected,
+                ]}
+              >
+                <View style={styles.rowLeft}>
+                  <View style={[styles.rect, { backgroundColor: '#FEF3C7' }]} />
+                  <Text
+                    style={[
+                      styles.rowTxt,
+                      workingStaff.includes(everyone.id) && styles.rowTxtSel,
+                    ]}
+                  >
+                    {everyone.name}
+                  </Text>
+                </View>
+                {workingStaff.includes(everyone.id) && (
+                  <Check size={18} color="#175CD3" />
+                )}
+              </TouchableOpacity>
+            )}
+
+            {validStaff.map((st) => {
+              const selected = workingStaff.includes(st.id);
+              return (
+                <TouchableOpacity
+                  key={st.id}
+                  onPress={() =>
+                    setWorkingStaff((prev) =>
+                      prev.includes(st.id)
+                        ? prev.filter((id) => id !== st.id)
+                        : [...prev, st.id],
+                    )
+                  }
+                  style={[styles.row, selected && styles.rowSelected]}
+                >
+                  <View style={styles.rowLeft}>
+                    <View
+                      style={[
+                        styles.rect,
+                        { backgroundColor: st.color || '#E6ECF5' },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.rowTxt,
+                        selected && styles.rowTxtSel,
+                      ]}
+                    >
+                      {st.name}
+                    </Text>
+                  </View>
+                  {selected && <Check size={18} color="#175CD3" />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
         {/* ⭐ Outing group (optional) */}
         <View
@@ -297,8 +490,9 @@ export default function CreateScheduleScreen() {
         >
           <Text style={styles.sectionTitle}>Outing group (optional)</Text>
           <Text style={styles.subTitle}>
-            Use this when some staff and participants are going out (e.g. swimming). They will be
-            treated as &quot;out&quot; for auto-assignments until you remove them from the group.
+            Use this when some staff and participants are going out (e.g.
+            swimming). They will be treated as &quot;out&quot; for
+            auto-assignments until you remove them from the group.
           </Text>
 
           {/* Outing name */}
@@ -308,7 +502,7 @@ export default function CreateScheduleScreen() {
           <TextInput
             placeholder="e.g. Swimming @ Local Pool"
             value={outingGroup?.name ?? ''}
-            onChangeText={text => updateOutingField('name', text)}
+            onChangeText={(text) => updateOutingField('name', text)}
             style={{
               borderWidth: 1,
               borderColor: '#E5ECF5',
@@ -324,13 +518,15 @@ export default function CreateScheduleScreen() {
           {/* Times */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}>
+              <Text
+                style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}
+              >
                 Leave time
               </Text>
               <TextInput
                 placeholder="11:00"
                 value={outingGroup?.startTime ?? ''}
-                onChangeText={text => updateOutingField('startTime', text)}
+                onChangeText={(text) => updateOutingField('startTime', text)}
                 style={{
                   borderWidth: 1,
                   borderColor: '#E5ECF5',
@@ -343,13 +539,15 @@ export default function CreateScheduleScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}>
+              <Text
+                style={{ fontSize: 13, color: '#667085', marginBottom: 4 }}
+              >
                 Return time
               </Text>
               <TextInput
                 placeholder="15:00"
                 value={outingGroup?.endTime ?? ''}
-                onChangeText={text => updateOutingField('endTime', text)}
+                onChangeText={(text) => updateOutingField('endTime', text)}
                 style={{
                   borderWidth: 1,
                   borderColor: '#E5ECF5',
@@ -368,7 +566,7 @@ export default function CreateScheduleScreen() {
             Staff on outing
           </Text>
           <View style={styles.chipGrid}>
-            {validStaff.map(st => {
+            {validStaff.map((st) => {
               const sel = outingStaffIds.has(st.id);
               return (
                 <TouchableOpacity
@@ -407,8 +605,8 @@ export default function CreateScheduleScreen() {
           </Text>
           <View style={styles.chipGrid}>
             {partsSource
-              .filter(p => attendingParticipants.includes(p.id))
-              .map(p => {
+              .filter((p) => attendingParticipants.includes(p.id))
+              .map((p) => {
                 const sel = outingParticipantIds.has(p.id);
                 return (
                   <TouchableOpacity
@@ -438,325 +636,513 @@ export default function CreateScheduleScreen() {
     );
   };
 
-  // ---- Step 2: Attending participants --------------------------------------
   const Step2 = () => {
-    const selected = new Set(attendingParticipants);
+    const selected = selectedParticipants;
 
-    return (
-      <View style={styles.section}>
-        <Text style={styles.title}>Attending Participants</Text>
-        <Text style={styles.subTitle}>
-          Choose which participants are attending today. Only these will appear in the assignment
-          steps.
-        </Text>
-
-        {/* Top: selected participants */}
-        <View style={styles.workingWrap}>
-          {attendingParticipants.length ? (
-            <View style={styles.chipGrid}>
-              {partsSource
-                .filter(p => selected.has(p.id))
-                .map(p => (
-                  <View key={p.id} style={styles.selectedRow}>
-                    <Text style={styles.selectedName}>{p.name}</Text>
-                    <Text style={styles.assignedSummary}>Attending today</Text>
-                  </View>
-                ))}
-            </View>
-          ) : (
-            <Text style={styles.emptyHint}>
-              Select at least one participant attending today.
-            </Text>
-          )}
-        </View>
-
-        {/* Bottom: full pool as tiles */}
-        <View style={styles.chipGrid}>
-          {partsSource.map(p => {
-            const sel = selected.has(p.id);
-            return (
-              <TouchableOpacity
-                key={p.id}
-                onPress={() => toggleParticipant(p.id)}
-                style={[styles.chipTile, sel && styles.chipTileSel]}
-                activeOpacity={0.85}
-              >
-                <View
-                  style={[
-                    styles.rect,
-                    { backgroundColor: sel ? '#175CD3' : '#E6ECF5' },
-                  ]}
-                />
-                <Text
-                  style={[styles.chipLabel, sel && styles.chipLabelSel]}
-                  numberOfLines={1}
-                >
-                  {p.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+    const assignableStaff = selectedStaff.filter(
+      (st) => !isEveryone(st.name) && !isAntoinette(st.name),
     );
-  };
 
-  // ---- Step 3: Team Daily Assignments --------------------------------------
-  const Step3 = () => {
-    // Exclude Antoinette from assignment rows
-    const rows = (assignments || []).filter(a => {
-      const st = staffSource.find(s => s.id === a.staffId);
-      return !isAntoinette(st?.name);
-    });
+    const rows = assignments;
 
-    // Map: participantId -> staffId (who they are assigned to)
-    const assignedByParticipant: Record<string, string> = {};
-    for (const row of rows) {
-      (row.participantIds || []).forEach(pid => {
-        assignedByParticipant[pid] = row.staffId;
+    const handleAssign = (participantId: ID, staffId: ID) => {
+      setAssignments((prev) => {
+        const copy = [...prev];
+        const idx = copy.findIndex((r) => r.staffId === staffId);
+        const allIds = new Set(copy.flatMap((r) => r.participantIds || []));
+        allIds.delete(participantId);
+
+        if (idx === -1) {
+          copy.push({
+            staffId,
+            participantIds: [participantId],
+          });
+        } else {
+          const row = copy[idx];
+          const set = new Set(row.participantIds || []);
+          set.add(participantId);
+          row.participantIds = Array.from(set);
+        }
+
+        const everyoneIndex = copy.findIndex(
+          (r) => isEveryone(STAFF_BY_ID[r.staffId]?.name),
+        );
+        if (everyoneIndex !== -1) {
+          const everyoneRow = copy[everyoneIndex];
+          everyoneRow.participantIds = (everyoneRow.participantIds || []).filter(
+            (pid) => pid !== participantId,
+          );
+        }
+
+        return copy.map((row) => ({
+          ...row,
+          participantIds: (row.participantIds || []).filter((pid) =>
+            allIds.has(pid) || row.staffId === staffId,
+          ),
+        }));
       });
-    }
+      touch?.();
+    };
+
+    const handleClear = (participantId: ID) => {
+      setAssignments((prev) =>
+        (prev || []).map((row) => ({
+          ...row,
+          participantIds: (row.participantIds || []).filter(
+            (pid) => pid !== participantId,
+          ),
+        })),
+      );
+      touch?.();
+    };
+
+    const staffForParticipant = (participantId: ID) => {
+      const row = (assignments || []).find((r) =>
+        (r.participantIds || []).includes(participantId),
+      );
+      return row ? row.staffId : null;
+    };
 
     return (
       <View style={styles.section}>
-        <Text style={styles.title}>Team Daily Assignments</Text>
+        <Text style={styles.title}>Participant Assignments</Text>
         <Text style={styles.subTitle}>
-          Assign each attending participant to a working staff member. Once a participant is assigned
-          they will disappear from the other staff lists, so each participant only appears in one
-          place at a time.
+          Assign each attending participant to one staff member. Participants
+          can be moved between staff as needed.
         </Text>
 
-        {rows.length === 0 ? (
-          <Text style={styles.emptyHint}>
-            Select at least one working staff member (excluding Antoinette) in Step 1.
-          </Text>
-        ) : !attendingParticipants.length ? (
-          <Text style={styles.emptyHint}>
-            Participants will appear here after you select at least one attending participant.
-          </Text>
-        ) : (
-          <View style={styles.assignmentsWrap}>
-            {rows.map(row => {
-              const st = staffSource.find(s => s.id === row.staffId);
-              if (!st) return null;
-
-              const assignedSet = new Set(row.participantIds || []);
-
-              // Only show participants that are either unassigned,
-              // or already assigned to THIS staff member.
-              const visibleParticipantIds = attendingParticipants.filter(pid => {
-                const assignedTo = assignedByParticipant[pid];
-                return !assignedTo || assignedTo === row.staffId;
-              });
+        <ScrollView
+          style={{ marginTop: 16 }}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        >
+          {selected.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No participants selected. Go back to step 1 and add them first.
+            </Text>
+          ) : (
+            selected.map((p) => {
+              const assignedStaffId = staffForParticipant(p.id);
+              const staffLabel = assignedStaffId
+                ? staffById[assignedStaffId]?.name || 'Unknown'
+                : 'Not assigned';
 
               return (
-                <View key={row.staffId} style={styles.assignmentCard}>
-                  <View style={styles.assignmentHeader}>
-                    <View
-                      style={[
-                        styles.rect,
-                        { backgroundColor: st.color || '#E6ECF5' },
-                      ]}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.assignmentName}>{st.name}</Text>
-                      <Text style={styles.assignedSummary}>
-                        {assignedSet.size
-                          ? `${assignedSet.size} participant${assignedSet.size > 1 ? 's' : ''} assigned`
-                          : 'No participants assigned yet'}
-                      </Text>
+                <View key={p.id} style={styles.assignmentRow}>
+                  <View style={{ flex: 1.5 }}>
+                    <Text style={styles.assignmentName}>{p.name}</Text>
+                  </View>
+                  <View style={{ flex: 2 }}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                    >
+                      {assignableStaff.map((st) => {
+                        const active = st.id === assignedStaffId;
+                        return (
+                          <TouchableOpacity
+                            key={st.id}
+                            onPress={() => handleAssign(p.id, st.id)}
+                            style={[
+                              styles.assignChip,
+                              active && styles.assignChipActive,
+                            ]}
+                            activeOpacity={0.85}
+                          >
+                            <Text
+                              style={[
+                                styles.assignChipLabel,
+                                active && styles.assignChipLabelActive,
+                              ]}
+                            >
+                              {st.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                    <View style={{ marginTop: 4 }}>
+                      <TouchableOpacity
+                        onPress={() => handleClear(p.id)}
+                        style={styles.clearLinkWrapper}
+                      >
+                        <Text style={styles.clearLinkText}>Clear</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
-
-                  <View style={styles.chipRow}>
-                    {visibleParticipantIds.map(pid => {
-                      const p = partsSource.find(x => x.id === pid);
-                      if (!p) return null;
-                      const isAssigned = assignedSet.has(pid);
-
-                      return (
-                        <TouchableOpacity
-                          key={pid}
-                          onPress={() => assignTo(row.staffId, pid)}
-                          style={[styles.chip, isAssigned && styles.chipSel]}
-                          activeOpacity={0.85}
-                        >
-                          <Text
-                            style={[
-                              styles.chipTxt,
-                              isAssigned && styles.chipTxtSel,
-                            ]}
-                          >
-                            {p.name}
-                          </Text>
-                          {isAssigned && <Check size={14} color="#fff" />}
-                        </TouchableOpacity>
-                      );
-                    })}
+                  <View style={{ flex: 1, paddingLeft: 8 }}>
+                    <Text style={styles.currentAssigneeLabel}>Assigned to</Text>
+                    <Text style={styles.currentAssigneeValue}>
+                      {staffLabel}
+                    </Text>
                   </View>
                 </View>
               );
-            })}
-          </View>
-        )}
+            })
+          )}
+        </ScrollView>
       </View>
     );
   };
 
-  // ---- Step 4: Pickups & dropoffs ------------------------------------------
-  const Step4 = () => {
-    const pickupSet = new Set(pickupParticipants || []);
-    const helperSet = new Set(helperStaff || []);
+  const Step3 = () => {
+    const selected = selectedParticipants;
 
-    const attending = partsSource
-      .filter(p => attendingParticipants.includes(p.id))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const workingList = staffSource
-      .filter(s => workingStaff.includes(s.id) && !isEveryone(s.name))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const helperCandidates = staffSource
-      .filter(s => !workingStaff.includes(s.id) && !isEveryone(s.name))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const dropoffEligible = attending.filter(p => !pickupSet.has(p.id));
-
-    // Build a map of participantId -> staffId from current assignments
-    const assignedTo = new Map<string, string>();
-    Object.entries(dropoffAssignments || {}).forEach(([sid, pids]) => {
-      (pids || []).forEach(pid => {
-        assignedTo.set(pid, sid);
-      });
-    });
-
-    const [showHelpers, setShowHelpers] = useState(false);
-    const [collapsedDropoffs, setCollapsedDropoffs] = useState<Record<string, boolean>>({});
-
-    const togglePickupLocal = (pid: string) => {
-      setPickupParticipants(prev =>
-        prev.includes(pid) ? prev.filter(id => id !== pid) : [...prev, pid],
+    const handleTogglePickup = (id: ID) => {
+      setPickupParticipants((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
       );
+      touch?.();
     };
 
-    const toggleHelperLocal = (sid: string) => {
-      setHelperStaff(prev =>
-        prev.includes(sid) ? prev.filter(id => id !== sid) : [...prev, sid],
+    const handleToggleHelper = (id: ID) => {
+      setHelperStaff((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
       );
+      touch?.();
     };
 
-    const toggleDropoffLocal = (staffId: string, participantId: string) => {
-      setDropoffAssignments(prevRaw => {
-        const prev = prevRaw || {};
-        const next: Record<string, string[]> = {};
+    const allRows = dropoffRows;
+    const ensureRowForStaff = (staffId: ID): DropoffRow => {
+      const existing = allRows.find((r) => r.staffId === staffId);
+      if (existing) return existing;
+      const row: DropoffRow = {
+        staffId,
+        participantIds: [],
+        locationId: 1,
+      };
+      allRows.push(row);
+      return row;
+    };
 
-        // clone
-        for (const [sid, pids] of Object.entries(prev)) {
-          next[sid] = [...(pids || [])];
+    const handleDropoffToggle = (staffId: ID, participantId: ID) => {
+      setDropoffRows((prev) => {
+        const rowsCopy = [...prev];
+        const rowIndex = rowsCopy.findIndex((r) => r.staffId === staffId);
+        const row =
+          rowIndex !== -1
+            ? rowsCopy[rowIndex]
+            : {
+                staffId,
+                participantIds: [],
+                locationId: 1,
+              };
+
+        const set = new Set(row.participantIds || []);
+        if (set.has(participantId)) {
+          set.delete(participantId);
+        } else {
+          set.add(participantId);
         }
 
-        // find current owner from *prev*
-        let currentlyAssignedTo: string | undefined;
-        for (const [sid, pids] of Object.entries(prev)) {
-          if ((pids || []).includes(participantId)) {
-            currentlyAssignedTo = sid;
-            break;
-          }
+        const allRows = [...rowsCopy];
+        if (rowIndex === -1) {
+          allRows.push({
+            ...row,
+            participantIds: Array.from(set),
+          });
+        } else {
+          allRows[rowIndex] = {
+            ...row,
+            participantIds: Array.from(set),
+          };
         }
 
-        // remove participant from everyone in next
-        for (const [sid, pids] of Object.entries(next)) {
-          next[sid] = (pids || []).filter(pid => pid !== participantId);
-        }
-
-        // if tapping same staff → just unassign
-        if (currentlyAssignedTo === staffId) {
-          return next;
-        }
-
-        if (!next[staffId]) next[staffId] = [];
-        next[staffId].push(participantId);
-        return next;
+        return allRows;
       });
+      touch?.();
     };
+
+    const handleLocationChange = (staffId: ID, locationId: number) => {
+      setDropoffRows((prev) => {
+        const copy = [...prev];
+        const idx = copy.findIndex((r) => r.staffId === staffId);
+        if (idx === -1) {
+          copy.push({
+            staffId,
+            participantIds: [],
+            locationId,
+          });
+        } else {
+          copy[idx] = {
+            ...copy[idx],
+            locationId,
+          };
+        }
+        return copy;
+      });
+      touch?.();
+    };
+
+    const helperRows: DropoffRow[] = useMemo(() => {
+      const helperSet = new Set(helperStaff || []);
+      return (dropoffRows || []).filter((row) => helperSet.has(row.staffId));
+    }, [dropoffRows, helperStaff]);
+
+    const participantsByHelper: Record<ID, ID[]> = useMemo(() => {
+      const out: Record<ID, ID[]> = {};
+      (helperRows || []).forEach((row) => {
+        out[row.staffId] = row.participantIds || [];
+      });
+      return out;
+    }, [helperRows]);
+
+    const locationByHelper: Record<ID, number> = useMemo(() => {
+      const out: Record<ID, number> = {};
+      (helperRows || []).forEach((row) => {
+        out[row.staffId] = row.locationId ?? 1;
+      });
+      return out;
+    }, [helperRows]);
+
+    const allStaff = selectedStaff;
+    const helpersOnly = allStaff.filter((st) => helperStaff.includes(st.id));
+
+    const dropoffLocations = [
+      { id: 1, name: 'Belmore' },
+      { id: 2, name: 'Bankstown' },
+      { id: 3, name: 'Other / Mixed' },
+    ];
 
     return (
       <View style={styles.section}>
         <Text style={styles.title}>Pickups & Dropoffs</Text>
         <Text style={styles.subTitle}>
-          Choose which participants are picked up by external transport, which
-          staff will assist, and who is responsible for each dropoff. You can
-          adjust everything later in the Edit Hub.
+          Confirm who needs pickup in the morning, who will help with dropoffs,
+          and which participants each helper is responsible for.
         </Text>
 
-        {/* Pickups */}
-        <View style={{ marginTop: 16 }}>
-          <Text style={styles.sectionTitle}>Pickups</Text>
-          <Text style={styles.subTitle}>
-            Select participants being picked up by external transport. These
-            participants will not appear in the dropoff lists.
-          </Text>
-
-          {attending.length ? (
-            <View style={styles.chipGrid}>
-              {attending.map(p => {
-                const sel = pickupSet.has(p.id);
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[styles.chip, sel && styles.chipSel]}
-                    onPress={() => togglePickupLocal(p.id)}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={[styles.chipTxt, sel && styles.chipTxtSel]}>
-                      {p.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <Text style={styles.emptyHint}>
-              Pickups are only available once you have at least one attending
-              participant.
+        <ScrollView
+          style={{ marginTop: 16 }}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        >
+          {/* Pickup participants */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Pickup participants (morning)</Text>
+            <Text style={styles.cardSub}>
+              Tick participants who require pickup in the morning.
             </Text>
-          )}
-        </View>
-
-        {/* Helpers */}
-        <View style={{ marginTop: 24 }}>
-          <View style={styles.helpersToggle}>
-            <View>
-              <Text style={styles.sectionTitle}>Dropoff Helpers (optional)</Text>
-              <Text style={styles.subTitle}>
-                Select staff who will assist with pickups and dropoffs. Only
-                team members not working at B2 are shown here.
-              </Text>
-            </View>
-            {helperCandidates.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setShowHelpers(v => !v)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.helpersToggleText}>
-                  {showHelpers ? 'Hide helpers' : 'Show helpers'}
+            <View style={styles.chipGrid}>
+              {selected.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No participants selected. Go back to step 1 and add them
+                  first.
                 </Text>
-              </TouchableOpacity>
-            )}
+              ) : (
+                selected.map((p) => {
+                  const active = pickupParticipants.includes(p.id);
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => handleTogglePickup(p.id)}
+                      style={[
+                        styles.chip,
+                        active && styles.chipSelectedStrong,
+                      ]}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLabel,
+                          active && styles.chipLabelSelectedStrong,
+                        ]}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
           </View>
 
-          {showHelpers && helperCandidates.length > 0 && (
+          {/* Helper staff */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Helpers for dropoffs</Text>
+            <Text style={styles.cardSub}>
+              Select staff who will help with afternoon dropoffs.
+            </Text>
             <View style={styles.chipGrid}>
-              {helperCandidates.map(st => {
-                const sel = helperSet.has(st.id);
+              {allStaff.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No staff selected. Go back to step 1 and add them first.
+                </Text>
+              ) : (
+                allStaff.map((st) => {
+                  const active = helperStaff.includes(st.id);
+                  return (
+                    <TouchableOpacity
+                      key={st.id}
+                      onPress={() => handleToggleHelper(st.id)}
+                      style={[
+                        styles.chip,
+                        active && styles.chipSelectedStrong,
+                      ]}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLabel,
+                          active && styles.chipLabelSelectedStrong,
+                        ]}
+                      >
+                        {st.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+          </View>
+
+          {/* Dropoff assignments per helper */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Dropoff details</Text>
+            <Text style={styles.cardSub}>
+              For each helper, choose which participants they are dropping off
+              and which location applies.
+            </Text>
+
+            {helpersOnly.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No helpers selected yet. Choose at least one helper above to
+                assign dropoffs.
+              </Text>
+            ) : (
+              helpersOnly.map((st) => {
+                const assignedParticipants =
+                  participantsByHelper[st.id] || [];
+                const locationId = locationByHelper[st.id] ?? 1;
+                const collapsed =
+                  (dropoffRows.find((r) => r.staffId === st.id)?.locationId ??
+                    1) === -999;
+
+                return (
+                  <View key={st.id} style={styles.dropRow}>
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={styles.dropHelperName}>{st.name}</Text>
+                    </View>
+
+                    <View style={styles.dropLocationRow}>
+                      <Text style={styles.dropLocationLabel}>
+                        Dropoff location:
+                      </Text>
+                      <View style={styles.dropLocationChips}>
+                        {dropoffLocations.map((loc) => {
+                          const active = loc.id === locationId;
+                          return (
+                            <TouchableOpacity
+                              key={loc.id}
+                              onPress={() =>
+                                handleLocationChange(st.id, loc.id)
+                              }
+                              style={[
+                                styles.locChip,
+                                active && styles.locChipActive,
+                              ]}
+                              activeOpacity={0.85}
+                            >
+                              <Text
+                                style={[
+                                  styles.locChipLabel,
+                                  active && styles.locChipLabelActive,
+                                ]}
+                              >
+                                {loc.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={{ marginTop: 6 }}>
+                      <Text style={styles.dropParticipantsLabel}>
+                        Participants:
+                      </Text>
+                      <View style={styles.chipGrid}>
+                        {selected.map((p) => {
+                          const active = assignedParticipants.includes(p.id);
+                          return (
+                            <TouchableOpacity
+                              key={p.id}
+                              onPress={() =>
+                                handleDropoffToggle(st.id, p.id)
+                              }
+                              style={[
+                                styles.chip,
+                                active && styles.chipSelected,
+                              ]}
+                              activeOpacity={0.85}
+                            >
+                              <Text
+                                style={[
+                                  styles.chipLabel,
+                                  active && styles.chipLabelSelected,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {p.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const Step4 = () => {
+    const realWorkers = selectedStaff.filter((st) => !isEveryone(st.name));
+    const responsibleStaff = finalChecklistStaff
+      ? staffById[finalChecklistStaff] || STAFF_BY_ID[finalChecklistStaff]
+      : null;
+
+    const handleSelect = (id: ID) => {
+      setFinalChecklistStaff(id);
+      touch?.();
+    };
+
+    return (
+      <View style={styles.section}>
+        <Text style={styles.title}>Final Checklist</Text>
+        <Text style={styles.subTitle}>
+          Choose one working staff member to be responsible for the end-of-shift
+          checklist.
+        </Text>
+
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.sectionTitle}>Responsible staff</Text>
+          {realWorkers.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No working staff selected. Go back to step 1 and add them first.
+            </Text>
+          ) : (
+            <View style={styles.chipGrid}>
+              {realWorkers.map((st) => {
+                const active = st.id === finalChecklistStaff;
                 return (
                   <TouchableOpacity
                     key={st.id}
-                    style={[styles.chip, sel && styles.chipSel]}
-                    onPress={() => toggleHelperLocal(st.id)}
-                    activeOpacity={0.9}
+                    onPress={() => handleSelect(st.id)}
+                    style={[
+                      styles.chip,
+                      active && styles.chipSelectedStrong,
+                    ]}
+                    activeOpacity={0.85}
                   >
-                    <Text style={[styles.chipTxt, sel && styles.chipTxtSel]}>
+                    <Text
+                      style={[
+                        styles.chipLabel,
+                        active && styles.chipLabelSelectedStrong,
+                      ]}
+                    >
                       {st.name}
                     </Text>
                   </TouchableOpacity>
@@ -766,200 +1152,33 @@ export default function CreateScheduleScreen() {
           )}
         </View>
 
-        {/* Dropoffs */}
-        <View style={{ marginTop: 24 }}>
-          <Text style={styles.sectionTitle}>Dropoffs</Text>
-          <Text style={styles.subTitle}>
-            Assign each dropoff participant to one staff member. Participants in
-            Pickups won&apos;t appear here. Once a participant is assigned for dropoff,
-            they will disappear from the other staff lists.
-          </Text>
-
-          {workingList.length === 0 ? (
-            <Text style={styles.emptyHint}>
-              Set your Dream Team in Step 1 before assigning dropoffs.
+        {responsibleStaff && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTitle}>Checklist owner</Text>
+            <Text style={styles.infoBody}>
+              {responsibleStaff.name} will complete the end-of-shift checklist
+              in the Daily Schedule app and confirm all tasks are done.
             </Text>
-          ) : dropoffEligible.length === 0 ? (
-            <Text style={styles.emptyHint}>
-              Once you have attending participants who are not in Pickups,
-              you&apos;ll be able to assign their dropoffs here.
-            </Text>
-          ) : (
-            <View style={{ marginTop: 12, gap: 12 as any }}>
-              {workingList.map(st => {
-                const assigned = dropoffEligible.filter(
-                  p => assignedTo.get(p.id) === st.id,
-                );
-                const anyAssigned = assigned.length > 0;
-
-                // Only show participants that are either unassigned,
-                // or already assigned to THIS staff member.
-                const visibleForStaff = dropoffEligible.filter(p => {
-                  const assignedStaff = assignedTo.get(p.id);
-                  return !assignedStaff || assignedStaff === st.id;
-                });
-
-                const collapsed = !!collapsedDropoffs[st.id];
-
-                return (
-                  <View key={st.id} style={styles.assignmentCard}>
-                    <View style={styles.assignmentHeader}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 8,
-                          flex: 1,
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.rect,
-                            { backgroundColor: st.color || '#E5ECF5' },
-                          ]}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.assignmentName}>{st.name}</Text>
-                          <Text style={styles.assignedSummary}>
-                            {anyAssigned
-                              ? `Assigned: ${assigned
-                                  .map(p => p.name)
-                                  .join(', ')}`
-                              : 'No dropoffs assigned yet.'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={() =>
-                          setCollapsedDropoffs(prev => ({
-                            ...prev,
-                            [st.id]: !collapsed,
-                          }))
-                        }
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.helpersToggleText}>
-                          {collapsed ? 'Show list' : 'Hide list'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {!collapsed && (
-                      <View style={[styles.chipGrid, { marginTop: 8 }]}>
-                        {visibleForStaff.map(p => {
-                          const selectedForStaff =
-                            assignedTo.get(p.id) === st.id;
-                          return (
-                            <TouchableOpacity
-                              key={p.id}
-                              style={[
-                                styles.chip,
-                                selectedForStaff && styles.chipSel,
-                              ]}
-                              onPress={() => toggleDropoffLocal(st.id, p.id)}
-                              activeOpacity={0.9}
-                            >
-                              <Text
-                                style={[
-                                  styles.chipTxt,
-                                  selectedForStaff && styles.chipTxtSel,
-                                ]}
-                              >
-                                {p.name}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
     );
   };
 
-  // ---- Step 5: Auto-Assignments message -----------------------------------
-  const Step5 = () => (
-    <View style={styles.section}>
-      <Text style={styles.title}>Automatic Floating & Cleaning Assignments</Text>
-      <Text style={styles.subTitle}>
-        Daily Schedule App will now generate auto-assignments for all Floating and Cleaning
-        responsibilities based on today&apos;s Dream Team and Attending Participants.
-        {'\n\n'}
-        Press <Text style={{ fontWeight: '700' }}>Finish &amp; go to Edit Hub</Text> to complete
-        the schedule and review or adjust these assignments.
-      </Text>
-    </View>
-  );
-
-  // ---- Step 6: Final checklist staff ---------------------------------------
-  const Step6 = () => {
-    // Only real working staff (exclude "Everyone") and de-duplicate
-    const workingReal = (workingStaff || []).filter(id => {
-      const st = staffSource.find(s => s.id === id);
-      if (!st) return false;
-      return (st.name || '').trim().toLowerCase() !== 'everyone';
-    });
-
-    const uniqueWorkingReal = Array.from(new Set(workingReal));
-
-    return (
-      <View style={styles.section}>
-        <Text style={styles.title}>Final Checklist Assignment</Text>
-        <Text style={styles.subTitle}>
-          Choose who is last to leave and responsible for completing the End-of-Shift checklist.
-        </Text>
-
-        <View style={styles.workingWrap}>
-          {uniqueWorkingReal.length === 0 ? (
-            <Text style={styles.emptyHint}>
-              Select at least one working staff member in Step 1 before assigning the final checklist.
-            </Text>
-          ) : (
-            uniqueWorkingReal.map(id => {
-              const st = staffSource.find(s => s.id === id);
-              if (!st) return null;
-
-              const selected = finalChecklistStaff === id;
-
-              return (
-                <TouchableOpacity
-                  key={id}
-                  style={[styles.row, selected && styles.rowSel]}
-                  onPress={() => setFinalChecklistStaff(id)}
-                  activeOpacity={0.85}
-                >
-                  <View
-                    style={[
-                      styles.rect,
-                      { backgroundColor: st.color || '#E5ECF5' },
-                    ]}
-                  />
-                  <Text style={[styles.rowTxt, selected && styles.rowTxtSel]}>
-                    {st.name}
-                  </Text>
-                  {selected && <Check size={18} color="#175CD3" />}
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
-
-        <Text style={[styles.subTitle, { marginTop: 12 }]}>
-          The selected staff member will be responsible for completing the End-of-Shift checklist.
-        </Text>
-      </View>
-    );
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return <Step1 />;
+      case 2:
+        return <Step2 />;
+      case 3:
+        return <Step3 />;
+      case 4:
+      default:
+        return <Step4 />;
+    }
   };
 
-  const TOTAL = TOTAL_STEPS;
-
-  // ---- validation + finish -------------------------------------------------
   const onComplete = async () => {
     if (!workingStaff || workingStaff.length === 0) {
       Alert.alert(
@@ -976,8 +1195,8 @@ export default function CreateScheduleScreen() {
       return;
     }
 
-    const realWorkers = workingStaff.filter(id => {
-      const st = staffSource.find(s => s.id === id);
+    const realWorkers = workingStaff.filter((id) => {
+      const st = staffSource.find((s) => s.id === id);
       return !!st && !isEveryone(st.name);
     });
 
@@ -998,24 +1217,23 @@ export default function CreateScheduleScreen() {
     }
 
     // 🔹 convert wizard rows → map<ID, ID[]> for persistFinish
-    const attendingSet = new Set(attendingParticipants || []);
+    const attendingSet2 = new Set(attendingParticipants || []);
     const assignmentsMap: Record<ID, ID[]> = {};
 
-    (assignments || []).forEach(row => {
+    (assignments || []).forEach((row) => {
       const sid = row.staffId as ID;
       if (!sid) return;
-      const cleaned = (row.participantIds || []).filter(pid =>
-        attendingSet.has(pid),
+      const cleaned = (row.participantIds || []).filter((pid) =>
+        attendingSet2.has(pid),
       );
       assignmentsMap[sid] = cleaned;
     });
 
-    // 🔥 NEW — pull recent cleaning snapshots from the base schedule store
-    // so persistFinish can apply “previous day / last week” fairness.
+    // 🔥 pull recent cleaning snapshots from the base schedule store
     let recentCleaningSnapshots: ScheduleSnapshot[] = [];
     try {
-      const baseState = baseSchedule.getState();
-      recentCleaningSnapshots = baseState.recentCleaningSnapshots || [];
+      const state = baseSchedule.getState();
+      recentCleaningSnapshots = state.recentCleaningSnapshots || [];
     } catch (err) {
       console.warn(
         '[create-schedule] unable to read recentCleaningSnapshots from store, continuing without history:',
@@ -1023,17 +1241,20 @@ export default function CreateScheduleScreen() {
       );
     }
 
-        // ⭐ Sync outingGroup into the base schedule store before finish
+    // ⭐ Sync outingGroup into the base schedule store before finish
     try {
-      const baseState = baseSchedule.getState();
-      if (outingGroup && typeof baseState.updateSchedule === 'function') {
-        baseState.updateSchedule({ outingGroup });
-      } else if (!outingGroup && typeof baseState.updateSchedule === 'function') {
+      const state = baseSchedule.getState();
+      if (outingGroup && typeof state.updateSchedule === 'function') {
+        state.updateSchedule({ outingGroup });
+      } else if (!outingGroup && typeof state.updateSchedule === 'function') {
         // explicitly clear it if no outing for today
-        baseState.updateSchedule({ outingGroup: null } as any);
+        state.updateSchedule({ outingGroup: null } as any);
       }
     } catch (err) {
-      console.warn('[create-schedule] failed to sync outingGroup into base store:', err);
+      console.warn(
+        '[create-schedule] failed to sync outingGroup into base store:',
+        err,
+      );
     }
 
     // First, let persistFinish compute all derived slices (floating, cleaning, etc.)
@@ -1051,16 +1272,17 @@ export default function CreateScheduleScreen() {
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments,
+        dropoffAssignments: toDropoffMapsFromRows(dropoffRows)
+          .dropoffAssignments,
         date: selectedDate,
-        // 🔥 pass history into fairness engine
+        // pass history into fairness engine
         recentSnapshots: recentCleaningSnapshots,
       });
     } catch (e) {
       console.warn('persistFinish error, continuing anyway:', e);
     }
 
-    // 🔥 After persistFinish, grab the canonical snapshot from the base schedule store
+    // After persistFinish, grab the canonical snapshot from the base schedule store
     let snapshot: ScheduleSnapshot;
 
     try {
@@ -1071,9 +1293,10 @@ export default function CreateScheduleScreen() {
         participants: state.participants ?? (partsSource ?? []),
 
         workingStaff: state.workingStaff ?? realWorkers,
-        attendingParticipants: state.attendingParticipants ?? attendingParticipants,
+        attendingParticipants:
+          state.attendingParticipants ?? attendingParticipants,
 
-        // ⭐ Outing group from store, falling back to local if needed
+        // Outing group from store, falling back to local if needed
         outingGroup: (state as any).outingGroup ?? outingGroup ?? null,
 
         assignments: state.assignments ?? assignmentsMap,
@@ -1081,11 +1304,15 @@ export default function CreateScheduleScreen() {
         cleaningAssignments: state.cleaningAssignments ?? {},
 
         finalChecklist: state.finalChecklist ?? {},
-        finalChecklistStaff: state.finalChecklistStaff ?? finalChecklistStaff,
+        finalChecklistStaff:
+          state.finalChecklistStaff ?? finalChecklistStaff,
 
         pickupParticipants: state.pickupParticipants ?? pickupParticipants,
         helperStaff: state.helperStaff ?? helperStaff,
-        dropoffAssignments: state.dropoffAssignments ?? dropoffAssignments,
+        dropoffAssignments: state.dropoffAssignments ?? toDropoffMapsFromRows(dropoffRows).dropoffAssignments,
+        dropoffLocations:
+          state.dropoffLocations ??
+          toDropoffMapsFromRows(dropoffRows).dropoffLocations,
 
         date: state.date ?? selectedDate,
         meta: {
@@ -1093,11 +1320,15 @@ export default function CreateScheduleScreen() {
           from: (state.meta && state.meta.from) || 'create-wizard',
         },
       };
-
     } catch (err) {
-      console.warn('[create-schedule] failed to read snapshot from store, falling back:', err);
+      console.warn(
+        '[create-schedule] failed to read snapshot from store, falling back:',
+        err,
+      );
 
       // Fallback: minimal snapshot (won't be as rich but avoids total failure)
+      const maps = toDropoffMapsFromRows(dropoffRows);
+
       snapshot = {
         staff: staffSource ?? [],
         participants: partsSource ?? [],
@@ -1111,12 +1342,14 @@ export default function CreateScheduleScreen() {
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments,
+        dropoffAssignments: maps.dropoffAssignments,
+        dropoffLocations: maps.dropoffLocations,
         date: selectedDate,
         meta: { from: 'create-wizard' },
       };
+    }
 
-    /** 🔥 NEW — Save to Supabase */
+    // Save to Supabase
     try {
       const result = await saveScheduleToSupabase('B2', snapshot);
 
@@ -1126,13 +1359,13 @@ export default function CreateScheduleScreen() {
         console.log('Supabase schedule saved with code:', result.code);
       }
 
-      // 🧠 Persist the share code into the store so Share screen can use it,
-      // even if Supabase failed, as long as we have a code.
+      // Persist the share code into the store so Share screen can use it
       if (result && result.code) {
         try {
-          const currentMeta = (meta || {}) as Record<string, any>;
-          if (typeof updateSchedule === 'function') {
-            updateSchedule({
+          const state = baseSchedule.getState();
+          const currentMeta = (state.meta || {}) as Record<string, any>;
+          if (typeof state.updateSchedule === 'function') {
+            state.updateSchedule({
               meta: {
                 ...currentMeta,
                 shareCode: result.code,
@@ -1140,13 +1373,19 @@ export default function CreateScheduleScreen() {
             } as any);
           }
         } catch (err) {
-          console.warn('[create-schedule] failed to store shareCode in meta:', err);
+          console.warn(
+            '[create-schedule] failed to store shareCode in meta:',
+            err,
+          );
         }
 
         // Also persist to localStorage on web so Share screen can always recover it
         try {
           if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('nc_share_code', String(result.code));
+            window.localStorage.setItem(
+              'nc_share_code',
+              String(result.code),
+            );
             // Store the full snapshot as well for same-device import fallback
             window.localStorage.setItem(
               'nc_schedule_' + String(result.code),
@@ -1164,7 +1403,7 @@ export default function CreateScheduleScreen() {
       console.warn('Supabase insert failed:', e);
     }
 
-    /** Continue as normal */
+    // Continue as normal
     try {
       router.replace(EDIT_HUB);
     } catch {}
@@ -1173,316 +1412,520 @@ export default function CreateScheduleScreen() {
   const onNext = () => (step < TOTAL ? setStep(step + 1) : onComplete());
   const onBack = () => setStep(step > 1 ? step - 1 : 1);
 
-  // ---- UI ------------------------------------------------------------------
+  // ---- UI --------
+
   return (
-    <>
+    <View style={styles.screen}>
       <Stack.Screen
         options={{
-          header: () => (
-            <View style={styles.header}>
-              <TouchableOpacity
-                onPress={() => {
-                  try {
-                    touch?.();
-                  } catch {}
-                  if (step === 1) router.back();
-                  else onBack();
-                }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-              >
-                <ChevronLeft size={20} color="#667085" />
-                <Text style={{ color: '#667085', fontSize: 14 }}>Back</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.headerTitle}>Create Today’s Schedule</Text>
-              <Text style={styles.headerStep}>
-                Step {step} of {TOTAL}
-              </Text>
-
-              <View style={styles.progressOuter}>
-                <View
-                  style={[
-                    styles.progressInner,
-                    { width: `${(step / TOTAL) * 100}%` },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.datePill}>
-                <Text style={styles.dateTxt}>{dateLabel}</Text>
-              </View>
-            </View>
+          headerTitle: 'Create Schedule',
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  router.back();
+                } catch {}
+              }}
+              style={styles.headerBack}
+            >
+              <ChevronLeft size={20} color="#111827" />
+              <Text style={styles.headerBackLabel}>Back</Text>
+            </TouchableOpacity>
           ),
         }}
       />
 
-      <View style={styles.container}>
-        <ScrollView
-          style={styles.page}
-          contentContainerStyle={{
-            paddingBottom: 80,
-            alignItems: 'center',
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.inner}>
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 13, color: '#667085' }}>
-                Follow the steps below to create today&apos;s schedule. You can make adjustments
-                later from the Edit Hub.
-              </Text>
-            </View>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>
+          Create Daily Schedule{selectedDate ? ` — ${selectedDate}` : ''}
+        </Text>
+        <Text style={styles.headerSubtitle}>
+          Work through each step to set the Dream Team, participants, pickups,
+          and responsibilities for the day.
+        </Text>
+      </View>
 
-            {step === 1 && <Step1 />}
-            {step === 2 && <Step2 />}
-            {step === 3 && <Step3 />}
-            {step === 4 && <Step4 />}
-            {step === 5 && <Step5 />}
-            {step === 6 && <Step6 />}
-          </View>
-        </ScrollView>
+      <View style={styles.stepperWrap}>
+        <View style={styles.stepperRow}>
+          {Array.from({ length: TOTAL }, (_, i) => i + 1).map((num) => {
+            const active = num === step;
+            const complete = num < step;
+            return (
+              <View key={num} style={styles.stepWrapper}>
+                <View
+                  style={[
+                    styles.stepCircle,
+                    complete && styles.stepCircleComplete,
+                    active && styles.stepCircleActive,
+                  ]}
+                >
+                  {complete ? (
+                    <Check size={16} color="#FFF" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.stepNumber,
+                        active && styles.stepNumberActive,
+                      ]}
+                    >
+                      {num}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.stepBarContainer}>
+                  {num < TOTAL && (
+                    <View
+                      style={[
+                        styles.stepBar,
+                        step > num && styles.stepBarActive,
+                      ]}
+                    />
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
 
-        <View style={styles.footer}>
-          <View style={styles.footerInner}>
-            <TouchableOpacity
-              onPress={onBack}
-              style={[styles.btnBase, styles.backBtn]}
-              activeOpacity={0.95}
-            >
-              <Text style={styles.backTxt}>Back</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={onNext}
-              style={[styles.btnBase, styles.nextBtn]}
-              activeOpacity={0.95}
-            >
-              <Text style={styles.nextTxt}>
-                {step < TOTAL ? 'Next' : 'Finish & go to Edit Hub'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.stepLabels}>
+          <Text
+            style={[
+              styles.stepLabel,
+              step === 1 && styles.stepLabelActive,
+            ]}
+          >
+            Dream Team
+          </Text>
+          <Text
+            style={[
+              styles.stepLabel,
+              step === 2 && styles.stepLabelActive,
+            ]}
+          >
+            Assignments
+          </Text>
+          <Text
+            style={[
+              styles.stepLabel,
+              step === 3 && styles.stepLabelActive,
+            ]}
+          >
+            Pickups & Dropoffs
+          </Text>
+          <Text
+            style={[
+              styles.stepLabel,
+              step === 4 && styles.stepLabelActive,
+            ]}
+          >
+            Checklist
+          </Text>
         </View>
       </View>
-    </>
+
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderStep()}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          onPress={onBack}
+          style={[styles.navBtn, styles.backBtn]}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.backTxt}>
+            {step === 1 ? 'Cancel' : 'Back'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onNext}
+          style={[styles.navBtn, styles.nextBtn]}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.nextTxt}>
+            {step < TOTAL ? 'Next step' : 'Finish & Save'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
-const PILL = 999;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F7F9FC' },
-  page: { flex: 1, paddingHorizontal: 16 },
-  inner: { width: '100%', maxWidth: 880, flex: 1 },
-
+  screen: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
   header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5ECF5',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  headerBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerBackLabel: {
+    marginLeft: 4,
+    fontSize: 14,
+    color: '#111827',
+  },
+  stepperWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stepWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FFF',
   },
-  headerTitle: { fontSize: 20, fontWeight: '900', color: '#101828' },
-  headerStep: { marginTop: 6, fontSize: 12, color: '#667085' },
-  progressOuter: {
-    marginTop: 8,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: '#E5ECF5',
-    overflow: 'hidden',
+  stepCircleActive: {
+    borderColor: '#175CD3',
+    backgroundColor: '#EFF6FF',
   },
-  progressInner: {
-    height: '100%',
-    borderRadius: 999,
+  stepCircleComplete: {
+    borderColor: '#175CD3',
     backgroundColor: '#175CD3',
   },
-  datePill: {
-    marginTop: 16,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: PILL,
-    backgroundColor: '#EEF4FF',
-  },
-  dateTxt: { fontSize: 12, color: '#175CD3', fontWeight: '600' },
-
-  section: { marginTop: 16, paddingBottom: 24 },
-  title: { fontSize: 18, fontWeight: '800', color: '#101828', marginBottom: 8 },
-  subTitle: { fontSize: 13, color: '#667085', marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#101828', marginBottom: 6 },
-
-  workingWrap: {
-    minHeight: 120,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#EEF2F7',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  emptyHint: { fontSize: 13, color: '#98A2B3' },
-
-  tiles: {
-    marginTop: 8,
-    gap: 8,
-  },
-  tile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5ECF5',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: '#FFF',
-    gap: 8,
-  },
-  tileSel: {
-    backgroundColor: '#EEF4FF',
-    borderColor: '#D1E0FF',
-  },
-
-  rect: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: '#E6ECF5',
-  },
-  tileName: { fontSize: 14, fontWeight: '600', color: '#101828' },
-
-  helpersToggle: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  helpersToggleText: {
-    fontSize: 12,
-    color: '#175CD3',
+  stepNumber: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#6B7280',
   },
-
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E6ECF5',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+  stepNumberActive: {
+    color: '#1D4ED8',
+  },
+  stepBarContainer: {
+    flex: 1,
+    paddingHorizontal: 4,
+  },
+  stepBar: {
+    height: 3,
     borderRadius: 999,
-    gap: 6,
+    backgroundColor: '#E5E7EB',
   },
-  chipSel: { backgroundColor: '#175CD3', borderColor: '#175CD3' },
-  chipTxt: { fontSize: 14, color: '#101828' },
-  chipTxtSel: { color: '#FFF' },
-
-  chipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+  stepBarActive: {
+    backgroundColor: '#175CD3',
   },
-  chipTile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#E5ECF5',
-    backgroundColor: '#FFF',
-    minWidth: 160,
-    maxWidth: 220,
-    gap: 6,
-  },
-  chipTileSel: {
-    backgroundColor: '#EEF4FF',
-    borderColor: '#D1E0FF',
-  },
-  chipLabel: {
-    fontSize: 14,
-    color: '#101828',
-    flexShrink: 1,
-  },
-  chipLabelSel: {
-    color: '#175CD3',
-    fontWeight: '600',
-  },
-
-  assignedSummary: {
-    fontSize: 12,
-    color: '#667085',
-    marginBottom: 2,
-  },
-
-  selectedRow: {
+  stepLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    marginTop: 4,
   },
-  selectedName: { fontSize: 14, color: '#101828' },
-
-  assignmentsWrap: {
-    marginTop: 12,
-    gap: 12,
+  stepLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    flex: 1,
+    textAlign: 'center',
   },
-  assignmentCard: {
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E5ECF5',
-    borderRadius: 12,
-    padding: 10,
+  stepLabelActive: {
+    color: '#1D4ED8',
+    fontWeight: '600',
   },
-  assignmentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+  body: {
+    flex: 1,
   },
-  assignmentName: {
-    fontSize: 15,
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  title: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#101828',
+    color: '#111827',
+  },
+  subTitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 6,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-
+  chipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  chip: {
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+  },
+  chipSelected: {
+    borderColor: '#175CD3',
+    backgroundColor: '#EFF6FF',
+  },
+  chipSelectedStrong: {
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
+  },
+  chipEveryone: {
+    borderColor: '#FBBF24',
+    backgroundColor: '#FFFBEB',
+  },
+  chipLabel: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  chipLabelSelected: {
+    color: '#1D4ED8',
+    fontWeight: '600',
+  },
+  chipLabelSelectedStrong: {
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  list: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+  },
+  rowSelected: {
+    backgroundColor: '#F3F4FF',
+  },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rowTxt: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  rowTxtSel: {
+    fontWeight: '600',
+    color: '#111827',
+  },
+  rect: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 8,
+  },
+  assignmentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  assignmentName: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  assignChip: {
+    paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#E5ECF5',
-    backgroundColor: '#FFF',
-    gap: 8,
+    borderColor: '#E5E7EB',
+    marginRight: 8,
     marginBottom: 6,
-  },
-  rowSel: {
-    backgroundColor: '#EEF4FF',
-    borderColor: '#D1E0FF',
-  },
-  rowTxt: { flex: 1, fontSize: 14, color: '#101828' },
-  rowTxtSel: { color: '#175CD3', fontWeight: '600' },
-
-  footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5ECF5',
     backgroundColor: '#FFF',
   },
-  footerInner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    maxWidth: 880,
-    alignSelf: 'center',
-    width: '100%',
-    gap: 12,
+  assignChipActive: {
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
   },
-  btnBase: {
+  assignChipLabel: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  assignChipLabelActive: {
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  clearLinkWrapper: {
+    alignSelf: 'flex-start',
+  },
+  clearLinkText: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  currentAssigneeLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  currentAssigneeValue: {
+    fontSize: 13,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  card: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: '#FFF',
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  cardSub: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  dropRow: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E7EB',
+  },
+  dropHelperName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  dropLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  dropLocationLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginRight: 6,
+  },
+  dropLocationChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  locChip: {
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+  },
+  locChipActive: {
+    borderColor: '#F97316',
+    backgroundColor: '#FFEDD5',
+  },
+  locChipLabel: {
+    fontSize: 12,
+    color: '#374151',
+  },
+  locChipLabelActive: {
+    color: '#C2410C',
+    fontWeight: '600',
+  },
+  dropParticipantsLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  chipTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  chipTileSel: {
+    borderColor: '#175CD3',
+    backgroundColor: '#EFF6FF',
+  },
+  chipLabelSel: {
+    color: '#1D4ED8',
+    fontWeight: '600',
+  },
+  infoBox: {
+    marginTop: 20,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E3A8A',
+  },
+  infoBody: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#1E293B',
+  },
+  footer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFF',
+  },
+  navBtn: {
     flex: 1,
     paddingVertical: Platform.select({ ios: 10, android: 10, default: 8 }),
     borderRadius: 999,
@@ -1493,8 +1936,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D0D5DD',
     backgroundColor: '#FFF',
+    marginRight: 8,
   },
   backTxt: { fontSize: 14, color: '#344054', fontWeight: '600' },
-  nextBtn: { backgroundColor: '#175CD3' },
+  nextBtn: { backgroundColor: '#175CD3', marginLeft: 8 },
   nextTxt: { fontSize: 14, color: '#FFF', fontWeight: '600' },
 });
