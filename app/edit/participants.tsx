@@ -82,6 +82,17 @@ export default function EditParticipantsScreen() {
 
   return (
     <View style={styles.screen}>
+      <SaveExit touchKey="participants" />
+      {Platform.OS === 'web' && !isMobileWeb && (
+        <Ionicons
+          name="people-outline"
+          size={220}
+          color="#F0CFE3"
+          style={styles.heroIcon}
+        />
+      )}
+      
+    <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>Attending Participants</Text>
@@ -149,6 +160,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#fef5fb',
+  },
+heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     paddingHorizontal: 16,
