@@ -14,113 +14,6 @@ import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
 import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 
-const MAX_WIDTH = 880;
-
-type Card = {
-  title: string;
-  path: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-};
-
-const CARDS: Card[] = [
-  {
-    title: 'The Dream Team (Working at B2)',
-    path: '/edit/dream-team',
-    icon: 'people-circle-outline',
-    color: '#ec4899',
-  },
-  {
-    title: 'Attending Participants',
-    path: '/edit/participants',
-    icon: 'people-outline',
-    color: '#a855f7',
-  },
-  // 👉 NEW: Outings card
-  {
-    title: 'Drive / Outing - Off-Site',
-    path: '/edit/outings',
-    icon: 'sunny-outline',
-    color: '#fb923c',
-  },
-  {
-    title: 'Team Daily Assignments',
-    path: '/edit/assignments',
-    icon: 'list-outline',
-    color: '#3b82f6',
-  },
-  {
-    title: 'Floating Assignments (Front Room, Scotty, Twins)',
-    path: '/edit/floating',
-    icon: 'shuffle-outline',
-    color: '#0ea5e9',
-  },
-  {
-    title: 'End of Shift Cleaning Assignments',
-    path: '/edit/cleaning',
-    icon: 'sparkles-outline' as any, // fallback if your Ionicons version lacks this
-    color: '#f59e0b',
-  },
-  {
-    title: 'Pickups and Dropoffs with Helpers',
-    path: '/edit/pickups-dropoffs',
-    icon: 'car-outline',
-    color: '#22c55e',
-  },
-  {
-    title: 'End of Shift Checklist',
-    path: '/edit/checklist',
-    icon: 'checkbox-outline',
-    color: '#6366f1',
-  },
-];
-
-export default function EditHubScreen() {
-  const router = useRouter();
-
-  useEffect(() => {
-    initScheduleForToday('B2');
-  }, []);
-
-  const { outingGroup } = useSchedule();
-
-  // Ensure today’s schedule is loaded into the store
-  useEffect(() => {
-    initScheduleForToday('B2');
-  }, []);
-
-  const { outingGroup } = useSchedule();
-
-  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
-  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
-  const hasOutingToday =
-    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
-
-  const timeRange =
-    outingGroup?.startTime && outingGroup?.endTime
-      ? `${outingGroup.startTime}–${outingGroup.endTime}`
-      : outingGroup?.startTime
-      ? `from ${outingGroup.startTime}`
-      : outingGroup?.endTime
-      ? `until ${outingGroup.endTime}`
-      : null;
-
- // app/edit/index.tsx
-import React, { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
-import {
-  ScrollView,
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-
-import Footer from '@/components/Footer';
-import ScheduleBanner from '@/components/ScheduleBanner';
-import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
-
 const MAX_WIDTH = 960;
 
 type CardConfig = {
@@ -129,7 +22,7 @@ type CardConfig = {
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconBg: string;
-  route: string;
+  route: string; // relative route from /edit
 };
 
 const CARDS: CardConfig[] = [
@@ -180,7 +73,7 @@ const CARDS: CardConfig[] = [
     title: 'End of Shift Cleaning Assignments',
     description:
       'Distribute cleaning tasks fairly so no one is stuck with the same jobs.',
-    icon: 'sparkles-outline' as any,
+    icon: 'sparkles-outline' as keyof typeof Ionicons.glyphMap,
     iconBg: '#DCFCE7',
     route: 'cleaning',
   },
@@ -208,18 +101,16 @@ export default function EditHubScreen() {
   const router = useRouter();
   const { outingGroup } = useSchedule();
 
+  // Auto-hydrate today on first load
   useEffect(() => {
-    // Auto-hydrate today on first load
     initScheduleForToday('B2');
   }, []);
 
-  const hasOuting =
-    !!outingGroup &&
-    ((outingGroup.staffIds && outingGroup.staffIds.length > 0) ||
-      (outingGroup.participantIds && outingGroup.participantIds.length > 0));
-
   const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
   const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
+
+  const hasOuting =
+    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
 
   const hasTime =
     (outingGroup?.startTime && outingGroup.startTime.trim() !== '') ||
@@ -246,7 +137,7 @@ export default function EditHubScreen() {
           {/* Schedule banner (created / loaded) */}
           <ScheduleBanner />
 
-          {/* Outing summary card */}
+          {/* Outing summary card, when an outing exists */}
           {hasOuting && (
             <View style={styles.outingSummary}>
               <View style={styles.outingSummaryInner}>
@@ -346,6 +237,11 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 0.997 }],
   },
+  cardTitle: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '500',
+  },
   cardDescription: {
     marginTop: 2,
     fontSize: 12,
@@ -358,11 +254,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
-  },
-  cardTitle: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
   },
   outingSummary: {
     width: '100%',
