@@ -7,6 +7,16 @@ import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
 
 export type ID = string;
 
+export type OutingGroup = {
+  id: string;
+  name: string;
+  staffIds: ID[];
+  participantIds: ID[];
+  startTime?: string; // e.g. '11:00'
+  endTime?: string;   // e.g. '15:00'
+  notes?: string;
+};
+
 type BannerType = 'loaded' | 'created' | null;
 
 export type ScheduleBanner = {
@@ -18,6 +28,9 @@ export type ScheduleBanner = {
 export type ScheduleSnapshot = {
   staff: Staff[];
   participants: Participant[];
+
+  // Outings
+  outingGroup?: OutingGroup | null;
 
   // Core selections
   workingStaff: ID[];          // The Dream Team (Working at B2)
@@ -86,6 +99,7 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   helperStaff: [],
   dropoffAssignments: {},
   dropoffLocations: {},
+  outingGroup: null,
   date: undefined,
   meta: {},
 });
@@ -132,46 +146,82 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
           for (const staffId of removed) {
             delete newAssignments[staffId];
           }
+          next.assignments = newAssignments;
 
-          // 2) Dropoffs
-          const newDropoffs = { ...next.dropoffAssignments };
-          for (const staffId of removed) {
-            delete newDropoffs[staffId];
-          }
-
-          // 3) Floating assignments
+          // 2) Floating assignments
           const newFloating = { ...next.floatingAssignments };
-          for (const key of Object.keys(newFloating)) {
-            if (removed.includes(newFloating[key])) {
+          for (const [key, staffId] of Object.entries(newFloating)) {
+            if (removed.includes(staffId)) {
               delete newFloating[key];
             }
           }
+          next.floatingAssignments = newFloating;
 
-          // 4) Cleaning assignments
+          // 3) Cleaning assignments
           const newCleaning = { ...next.cleaningAssignments };
-          for (const choreId of Object.keys(newCleaning)) {
-            if (removed.includes(newCleaning[choreId])) {
+          for (const [choreId, staffId] of Object.entries(newCleaning)) {
+            if (removed.includes(staffId)) {
               delete newCleaning[choreId];
             }
           }
+          next.cleaningAssignments = newCleaning;
 
-          // 5) End-of-shift checklist staff
-          let newFinalChecklistStaff = next.finalChecklistStaff;
-          if (newFinalChecklistStaff && removed.includes(newFinalChecklistStaff)) {
-            newFinalChecklistStaff = undefined;
+          // 4) Final checklist staff
+          if (
+            next.finalChecklistStaff &&
+            removed.includes(next.finalChecklistStaff)
+          ) {
+            next.finalChecklistStaff = undefined;
           }
 
-          // 6) Helper staff
-          const newHelpers = next.helperStaff.filter(
-            (id: ID) => !removed.includes(id)
-          );
+          // 5) Transport: helperStaff, dropoffAssignments, dropoffLocations
+          if (next.helperStaff?.length) {
+            next.helperStaff = next.helperStaff.filter(
+              (id) => !removed.includes(id)
+            );
+          }
 
-          next.assignments = newAssignments;
-          next.dropoffAssignments = newDropoffs;
-          next.floatingAssignments = newFloating;
-          next.cleaningAssignments = newCleaning;
-          next.finalChecklistStaff = newFinalChecklistStaff;
-          next.helperStaff = newHelpers;
+          if (next.dropoffAssignments) {
+            const newDrops: Record<ID, ID[]> = {};
+            for (const [staffId, partIds] of Object.entries(
+              next.dropoffAssignments
+            )) {
+              if (!removed.includes(staffId)) {
+                newDrops[staffId] = partIds;
+              }
+            }
+            next.dropoffAssignments = newDrops;
+          }
+        }
+      }
+
+      // If attendingParticipants changed, clean dropoffAssignments + dropoffLocations
+      if (patch.attendingParticipants) {
+        const oldParts = state.attendingParticipants;
+        const newParts = patch.attendingParticipants;
+        const removedParts = oldParts.filter((id) => !newParts.includes(id));
+
+        if (removedParts.length > 0) {
+          const newDrops: Record<ID, ID[]> = {};
+          for (const [staffId, partIds] of Object.entries(
+            next.dropoffAssignments ?? {}
+          )) {
+            const filtered = partIds.filter(
+              (pid) => !removedParts.includes(pid)
+            );
+            if (filtered.length > 0) {
+              newDrops[staffId] = filtered;
+            }
+          }
+          next.dropoffAssignments = newDrops;
+
+          const newLocs: Record<ID, number> = {};
+          for (const [pid, idx] of Object.entries(next.dropoffLocations ?? {})) {
+            if (!removedParts.includes(pid)) {
+              newLocs[pid as ID] = idx as number;
+            }
+          }
+          next.dropoffLocations = newLocs;
         }
       }
 
@@ -184,13 +234,21 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
   setBanner: (banner: ScheduleBanner | null) => set({ banner }),
   markInitialisedForDate: (date: string) =>
-    set({ currentInitDate: date, hasInitialisedToday: true }),
+    set({
+      currentInitDate: date,
+      hasInitialisedToday: true,
+    }),
 
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) =>
     set({ recentCleaningSnapshots: snaps }),
 
   touch: () => set((state) => ({ ...state })),
 }));
+
+// Hook wrapper for components
+export function useScheduleStore() {
+  return useSchedule;
+}
 
 // Helper hooks to check if there are missing floating or cleaning assignments
 
@@ -209,36 +267,26 @@ export const useFloatingMissing = (rooms: { id: string }[]) => {
 export const useCleaningMissing = (choreIds: string[]) => {
   return useMemo(() => {
     const { cleaningAssignments } = useSchedule.getState();
-
     return choreIds.some((id) => !cleaningAssignments[id]);
   }, [choreIds]);
 };
 
-// 🔁 Auto-init on app load / day change
-export async function initScheduleForToday(houseId: string) {
+// Auto-init for today (B2) when app starts
+export async function initialiseScheduleForTodayIfNeeded(
+  houseId: string,
+  todayKey: string
+) {
   const state = useSchedule.getState();
 
-  // Use LOCAL calendar date (Australia time) instead of UTC
-  const now = new Date();
-  const todayKey = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-'); // "YYYY-MM-DD"
-
+  // Avoid re-initialising for the same day
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
     return;
   }
 
-  const result = await fetchLatestScheduleForHouse(houseId);
-
+  const result = await fetchLatestScheduleForHouse(houseId, todayKey);
   if (!result.ok || !result.data) {
+    // Nothing to hydrate; mark as initialised (so we don't retry)
     state.markInitialisedForDate(todayKey);
-    state.setBanner({
-      type: 'created',
-      scheduleDate: todayKey,
-      sourceDate: todayKey,
-    });
     return;
   }
 
