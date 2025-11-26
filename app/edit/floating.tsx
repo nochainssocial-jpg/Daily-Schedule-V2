@@ -322,7 +322,7 @@ export default function FloatingScreen() {
         <Ionicons
           name="shuffle-outline"
           size={220}
-          color="#FO7857"
+          color="#3333FF"
           style={{
             position: 'absolute',
             top: '25%',
