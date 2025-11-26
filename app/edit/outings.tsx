@@ -88,9 +88,8 @@ export default function EditOutingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="Drive / Outing" />
-
-      {Platform.OS === 'web' && (
+      <SaveExit touchKey="drive/outing" />
+      {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="sunny-outline"
           size={220}
