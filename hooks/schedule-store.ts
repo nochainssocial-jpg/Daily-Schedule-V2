@@ -7,16 +7,6 @@ import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
 
 export type ID = string;
 
-export type OutingGroup = {
-  id: string;
-  name: string;
-  staffIds: ID[];
-  participantIds: ID[];
-  startTime?: string; // e.g. '11:00'
-  endTime?: string;   // e.g. '15:00'
-  notes?: string;
-};
-
 type BannerType = 'loaded' | 'created' | null;
 
 export type ScheduleBanner = {
@@ -28,9 +18,6 @@ export type ScheduleBanner = {
 export type ScheduleSnapshot = {
   staff: Staff[];
   participants: Participant[];
-
-  // Outings
-  outingGroup?: OutingGroup | null;
 
   // Core selections
   workingStaff: ID[];          // The Dream Team (Working at B2)
@@ -93,7 +80,6 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   assignments: {},
   floatingAssignments: {},
   cleaningAssignments: {},
-  outingGroup: null,
   finalChecklist: {},
   finalChecklistStaff: undefined,
   pickupParticipants: [],
