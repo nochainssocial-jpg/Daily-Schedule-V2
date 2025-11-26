@@ -47,8 +47,8 @@ export default function EditPickupsDropoffsScreen() {
   const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
   const [showHelpers, setShowHelpers] = useState(false);
-  const [showAllPickupCandidates, setShowAllPickupCandidates] =
-    useState(true);
+const [showAllPickupCandidates, setShowAllPickupCandidates] =
+  useState(false);
 
   const staffById = useMemo(
     () => new Map(staff.map((s) => [s.id as ID, s])),
