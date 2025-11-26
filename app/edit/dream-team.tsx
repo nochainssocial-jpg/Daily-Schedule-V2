@@ -135,9 +135,12 @@ export default function EditDreamTeamScreen() {
                   const isOutOnOuting = outingStaffSet.has(s.id as ID);
                   const onSite = !isOutOnOuting;
                   return (
-                    <View>
-                      <View />
-                    </View>
+                    <Chip
+                      key={s.id}
+                      label={s.name}
+                      selected={onSite}
+                      onPress={() => toggleStaff(s.id as ID)}
+                    />
                   );
                 })
               )}
