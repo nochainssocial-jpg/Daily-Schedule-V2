@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
+import { useNotifications } from '@/hooks/notifications';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import SaveExit from '@/components/SaveExit';
@@ -34,15 +35,33 @@ export default function EditDreamTeamScreen() {
   const { width } = useWindowDimensions();
 
   const {
+    staff = [],
+    participants = [],
     workingStaff = [],
-    outingGroup,
+    attendingParticipants = [],
+    outingGroup = null,
     updateSchedule,
   } = useSchedule() as any;
+
+  const { push } = useNotifications();
 
   const staffById = useMemo(makeStaffMap, []);
   const allStaff = useMemo(
     () => sortByName(STATIC_STAFF.slice()),
     []
+  );
+
+  const attendingSet = useMemo(
+    () => new Set<string>((attendingParticipants ?? []) as string[]),
+    [attendingParticipants]
+  );
+
+  const attendingParts = useMemo(
+    () =>
+      (participants || [])
+        .filter((p: any) => attendingSet.has(p.id))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    [participants, attendingSet]
   );
 
   const dreamTeam = useMemo(
@@ -77,16 +96,17 @@ export default function EditDreamTeamScreen() {
     }
     const next = Array.from(current);
     updateSchedule?.({ workingStaff: next });
+    // 🔔 Toast for Dream Team changes
+    push?.('Dream Team updated', 'dream-team');
   };
 
   const contentWidth = Math.min(width - 32, 880);
 
   return (
     <View style={styles.screen}>
-      {/* Save & Exit header for this category */}
       <SaveExit touchKey="dream-team" />
 
-      {/* Web-only hero icon for Dream Team (desktop only) */}
+      {/* Web-only hero icon for Dream Team */}
       {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
           name="people-circle-outline"
@@ -130,19 +150,23 @@ export default function EditDreamTeamScreen() {
             <Text style={styles.empty}>Everyone is working at B2 today.</Text>
           ) : (
             <View style={styles.chipGrid}>
-              {staffPool.map((s) => (
-                <Chip
-                  key={s.id}
-                  label={s.name}
-                  mode="default"
-                  onPress={() => toggleStaff(s.id as ID)}
-                />
-              ))}
+              {staffPool.map((s) => {
+                const isOutOnOuting = outingStaffSet.has(s.id as ID);
+                const mode = isOutOnOuting ? 'offsite' : 'onsite';
+                return (
+                  <Chip
+                    key={s.id}
+                    label={s.name}
+                    mode={mode as any}
+                    onPress={() => toggleStaff(s.id as ID)}
+                  />
+                );
+              })}
             </View>
           )}
 
           <View style={styles.legend}>
-            <View className="legendItem">
+            <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
               <Text style={styles.legendLabel}>On-site</Text>
             </View>
@@ -151,6 +175,23 @@ export default function EditDreamTeamScreen() {
               <Text style={styles.legendLabel}>On outing</Text>
             </View>
           </View>
+
+          {attendingParts.length > 0 && (
+            <View style={{ marginTop: 24 }}>
+              <Text style={styles.sectionTitle}>Attending participants</Text>
+              <Text style={styles.subtitleSmall}>
+                These participants are shown on the Participants screen and used for
+                assignments, floating, pickups and dropoffs.
+              </Text>
+              <View style={styles.attendingRow}>
+                {attendingParts.map((p: any) => (
+                  <View key={p.id} style={styles.attendingPill}>
+                    <Text style={styles.attendingText}>{p.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -172,6 +213,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 16,
     paddingVertical: Platform.select({ ios: 24, android: 24, default: 24 }),
+    paddingBottom: 160,
   },
   inner: {
     alignSelf: 'center',
@@ -186,6 +228,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginBottom: 16,
+  },
+  subtitleSmall: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 16,
@@ -229,6 +276,22 @@ const styles = StyleSheet.create({
     borderColor: '#F54FA5',
   },
   legendLabel: {
+    fontSize: 12,
+    color: '#4b164c',
+  },
+  attendingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  attendingPill: {
+    borderRadius: 999,
+    backgroundColor: '#FFF7D1',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  attendingText: {
     fontSize: 12,
     color: '#4b164c',
   },

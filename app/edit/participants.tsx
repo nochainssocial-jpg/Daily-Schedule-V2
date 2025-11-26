@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
+import { useNotifications } from '@/hooks/notifications';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
@@ -41,28 +42,29 @@ export default function EditParticipantsScreen() {
     updateSchedule,
   } = useSchedule() as any;
 
+  const { push } = useNotifications();
+
   const partById = useMemo(makePartMap, []);
   const allParts = useMemo(
     () => sortByName(STATIC_PARTICIPANTS.slice()),
     []
   );
 
+  const attendingSet = useMemo(
+    () => new Set<string>((attendingParticipants ?? []) as string[]),
+    [attendingParticipants]
+  );
+
   const attendingList = useMemo(
     () =>
-      sortByName(
-        (attendingParticipants as ID[])
-          .map((id) => partById[id])
-          .filter(Boolean)
-      ),
-    [attendingParticipants, partById]
+      allParts.filter((p) => attendingSet.has(p.id as ID)),
+    [allParts, attendingSet]
   );
 
   const poolList = useMemo(
     () =>
-      sortByName(
-        allParts.filter((p) => !(attendingParticipants as ID[]).includes(p.id))
-      ),
-    [allParts, attendingParticipants]
+      allParts.filter((p) => !attendingSet.has(p.id as ID)),
+    [allParts, attendingSet]
   );
 
   const outingParticipantSet = useMemo(
@@ -79,6 +81,8 @@ export default function EditParticipantsScreen() {
     }
     const next = Array.from(current);
     updateSchedule?.({ attendingParticipants: next });
+    // 🔔 Toast for participant changes
+    push?.('Attending participants updated', 'participants');
   };
 
   const contentWidth = Math.min(width - 32, MAX_WIDTH);
@@ -102,9 +106,8 @@ export default function EditParticipantsScreen() {
         <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>Attending Participants</Text>
           <Text style={styles.subtitle}>
-            Tap participants to mark who is attending Day Program today. Selected
-            participants appear at the top; others remain in the Participant Pool.
-            Alphabetical order is always enforced.
+            Tap participants to mark who is attending at B2 today. Attending participants
+            show up in Assignments, Floating, Pickups and Dropoffs screens.
           </Text>
 
           <Text style={styles.sectionTitle}>Attending</Text>
@@ -176,26 +179,27 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 16,
     paddingVertical: 24,
+    paddingBottom: 160,
   },
   inner: {
     alignSelf: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#3c234c',
+    color: '#0F172A',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#6B7280',
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#3c234c',
+    color: '#0F172A',
   },
   chipGrid: {
     flexDirection: 'row',
@@ -205,7 +209,7 @@ const styles = StyleSheet.create({
   empty: {
     fontSize: 13,
     opacity: 0.75,
-    color: '#7a688c',
+    color: '#64748B',
   },
   legend: {
     flexDirection: 'row',
@@ -234,6 +238,6 @@ const styles = StyleSheet.create({
   },
   legendLabel: {
     fontSize: 12,
-    color: '#4b164c',
+    color: '#0F172A',
   },
 });

@@ -12,20 +12,23 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
+import { useNotifications } from '@/hooks/notifications';
 import SaveExit from '@/components/SaveExit';
 import { PARTICIPANTS, STAFF } from '@/constants/data';
 
 type ID = string;
 
-const EditOutingsScreen: React.FC = () => {
+export default function OutingsScreen() {
   const {
-    staff = [],
-    participants = [],
+    staff,
+    participants,
     workingStaff = [],
     attendingParticipants = [],
     outingGroup = null,
     updateSchedule,
   } = useSchedule() as any;
+
+  const { push } = useNotifications();
 
   const { width } = useWindowDimensions();
 
@@ -62,6 +65,8 @@ const EditOutingsScreen: React.FC = () => {
   const applyChange = (patch: Partial<typeof current>) => {
     const next = { ...current, ...patch };
     updateSchedule?.({ outingGroup: next });
+    // 🔔 Toast for Drive / Outings changes
+    push?.('Drive / Outings updated', 'outings');
   };
 
   const toggleStaff = (id: ID) => {
@@ -78,8 +83,16 @@ const EditOutingsScreen: React.FC = () => {
     applyChange({ participantIds: Array.from(next) });
   };
 
-  const clearOuting = () => {
-    updateSchedule?.({ outingGroup: null });
+  const handleNameChange = (value: string) => {
+    applyChange({ name: value });
+  };
+
+  const handleTimeChange = (key: 'startTime' | 'endTime', value: string) => {
+    applyChange({ [key]: value });
+  };
+
+  const handleNotesChange = (value: string) => {
+    applyChange({ notes: value });
   };
 
   const workingStaffObjs = staffSource.filter((s) => workingSet.has(s.id));
@@ -111,48 +124,46 @@ const EditOutingsScreen: React.FC = () => {
           <Text style={styles.heading}>Drive / Outings</Text>
           <Text style={styles.subheading}>
             Use this screen when some staff and participants are out on an
-            activity (e.g. swimming). Floating and Cleaning will only use staff
-            who remain on-site.
+            excursion or appointment. Onsite-only logic in other screens will
+            automatically respect who is on outing.
           </Text>
 
-          {/* Outing name */}
+          {/* Outing title + time */}
           <View style={styles.section}>
             <Text style={styles.label}>Outing name</Text>
             <TextInput
-              placeholder="e.g. Swimming @ Local Pool"
-              value={current.name ?? ''}
-              onChangeText={(text) => applyChange({ name: text })}
+              value={current.name}
+              onChangeText={handleNameChange}
+              placeholder="e.g. Shopping with Shatha"
               style={styles.input}
             />
-          </View>
-
-          {/* Times */}
-          <View style={[styles.section, styles.row]}>
-            <View style={{ flex: 1, marginRight: 6 }}>
-              <Text style={styles.label}>Leave time</Text>
-              <TextInput
-                placeholder="11:00"
-                value={current.startTime ?? ''}
-                onChangeText={(text) => applyChange({ startTime: text })}
-                style={styles.input}
-              />
-            </View>
-            <View style={{ flex: 1, marginLeft: 6 }}>
-              <Text style={styles.label}>Return time</Text>
-              <TextInput
-                placeholder="15:00"
-                value={current.endTime ?? ''}
-                onChangeText={(text) => applyChange({ endTime: text })}
-                style={styles.input}
-              />
+            <View style={[styles.row, { marginTop: 8 }]}>
+              <View style={{ flex: 1, marginRight: 6 }}>
+                <Text style={styles.label}>Start time</Text>
+                <TextInput
+                  value={current.startTime}
+                  onChangeText={(v) => handleTimeChange('startTime', v)}
+                  placeholder="11:00"
+                  style={styles.input}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={styles.label}>End time</Text>
+                <TextInput
+                  value={current.endTime}
+                  onChangeText={(v) => handleTimeChange('endTime', v)}
+                  placeholder="15:00"
+                  style={styles.input}
+                />
+              </View>
             </View>
           </View>
 
           {/* Staff on outing */}
           <View style={styles.section}>
-            <Text style={styles.label}>Staff on outing</Text>
-            <Text style={styles.helper}>
-              Only Dream Team staff can be selected here.
+            <Text style={styles.sectionTitle}>Staff on outing</Text>
+            <Text style={styles.sectionSub}>
+              Only staff currently working at B2 can be added to this outing.
             </Text>
 
             {workingStaffObjs.length === 0 ? (
@@ -188,9 +199,9 @@ const EditOutingsScreen: React.FC = () => {
 
           {/* Participants on outing */}
           <View style={styles.section}>
-            <Text style={styles.label}>Participants on outing</Text>
-            <Text style={styles.helper}>
-              Only attending participants can be selected here.
+            <Text style={styles.sectionTitle}>Participants on outing</Text>
+            <Text style={styles.sectionSub}>
+              Only attending participants can be added to this outing.
             </Text>
 
             {attendingPartsObjs.length === 0 ? (
@@ -226,58 +237,48 @@ const EditOutingsScreen: React.FC = () => {
 
           {/* Notes */}
           <View style={styles.section}>
-            <Text style={styles.label}>Notes (optional)</Text>
+            <Text style={styles.sectionTitle}>Notes (optional)</Text>
             <TextInput
-              placeholder="e.g. Bring swimmers, towels, sunscreen"
-              value={current.notes ?? ''}
-              onChangeText={(text) => applyChange({ notes: text })}
-              style={[styles.input, { minHeight: 60 }]}
+              value={current.notes}
+              onChangeText={handleNotesChange}
+              placeholder="Anything important about this outing..."
+              style={[styles.input, styles.notesInput]}
               multiline
             />
-          </View>
-
-          {/* Clear outing */}
-          <View style={styles.section}>
-            <TouchableOpacity
-              onPress={clearOuting}
-              activeOpacity={0.9}
-              style={styles.clearBtn}
-            >
-              <Text style={styles.clearBtnText}>Clear outing for today</Text>
-            </TouchableOpacity>
-            <Text style={styles.clearHint}>
-              This will remove all outing details and treat all staff as on-site
-              again.
-            </Text>
           </View>
         </View>
       </ScrollView>
     </View>
   );
-};
-
-export default EditOutingsScreen;
+}
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFE4CC',
   },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    right: '10%',
+    opacity: 1,
+    zIndex: 0,
+  },
   scroll: {
     flex: 1,
   },
   wrap: {
-    padding: 16,
-    paddingBottom: 32,
+    flex: 1,
     width: '100%',
-    maxWidth: 960,
+    maxWidth: 880,
     alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
   heading: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#4B5563',
-    marginBottom: 4,
+    color: '#7C2D12',
   },
   subheading: {
     fontSize: 14,
@@ -293,80 +294,62 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
+    color: '#78350F',
     marginBottom: 4,
-  },
-  helper: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  empty: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
   },
   input: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#FED7AA',
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF7ED',
     fontSize: 14,
+    color: '#7C2D12',
+  },
+  notesInput: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#7C2D12',
+  },
+  sectionSub: {
+    fontSize: 12,
+    color: '#92400E',
+    marginTop: 4,
+    marginBottom: 8,
   },
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 8,
     marginTop: 4,
   },
   chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
     borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    marginRight: 8,
-    marginBottom: 8,
+    borderColor: '#FED7AA',
+    backgroundColor: '#FFF',
   },
   chipSelected: {
-    backgroundColor: '#F97316',
-    borderColor: '#EA580C',
+    backgroundColor: '#FDBA74',
+    borderColor: '#FB923C',
   },
   chipLabel: {
-    fontSize: 12,
-    color: '#374151',
+    fontSize: 13,
+    color: '#7C2D12',
   },
   chipLabelSelected: {
-    color: '#FFFFFF',
     fontWeight: '600',
+    color: '#7C2D12',
   },
-  clearBtn: {
-    marginTop: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
-    alignSelf: 'flex-start',
-  },
-  clearBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#B91C1C',
-  },
-  clearHint: {
-    marginTop: 4,
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  heroIcon: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
-    opacity: 1,
-    zIndex: 0,
+  empty: {
+    fontSize: 13,
+    color: '#9A3412',
   },
 });
