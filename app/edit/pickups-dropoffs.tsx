@@ -225,7 +225,7 @@ export default function EditPickupsDropoffsScreen() {
         <Ionicons
           name="car-outline"
           size={220}
-          color="#E9D5FF"
+          color="#4E6BA6F"
           style={styles.heroIcon}
         />
       )}
