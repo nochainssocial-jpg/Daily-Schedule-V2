@@ -73,7 +73,7 @@ export default function EditChecklistScreen() {
         <Ionicons
           name="checkbox-outline"
           size={220}
-          color="#D9D2FF"
+          color="#E7E5E4"
           style={styles.heroIcon}
         />
       )}
@@ -143,7 +143,7 @@ export default function EditChecklistScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F5F3FF', // pastel violet for checklist tile
+    backgroundColor: '#F5F5F4', // pastel violet for checklist tile
   },
   heroIcon: {
     position: 'absolute',
