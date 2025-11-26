@@ -85,7 +85,7 @@ export default function EditDreamTeamScreen() {
       {/* Web-only hero icon for Dream Team */}
       {Platform.OS === 'web' && (
         <Ionicons
-          name="sparkles-outline"
+          name="people-circle-outline"
           size={220}
           color="#FDE68A" // warm pastel yellow, different hue to Outings
           style={styles.heroIcon}
