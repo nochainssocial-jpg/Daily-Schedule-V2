@@ -31,7 +31,6 @@ export default function EditParticipantsScreen() {
   const {
     participants: scheduleParticipants,
     attendingParticipants = [],
-    outingGroup,
     updateSchedule,
   } = useSchedule();
   const { push } = useNotifications();
@@ -63,11 +62,6 @@ export default function EditParticipantsScreen() {
   const attendingSet = useMemo(
     () => new Set<ID>(attendingParticipants as ID[]),
     [attendingParticipants],
-  );
-
-  const outingParticipantSet = useMemo(
-    () => new Set<ID>((outingGroup?.participantIds as ID[]) || []),
-    [outingGroup]
   );
 
   const attendingList = useMemo(
@@ -135,18 +129,14 @@ export default function EditParticipantsScreen() {
                   No attending participants selected.
                 </Text>
               ) : (
-                attendingList.map((p) => {
-                  const isOutOnOuting = outingParticipantSet.has(p.id as ID);
-                  const onSite = !isOutOnOuting;
-                  return (
-                    <Chip
-                      key={p.id}
-                      label={p.name}
-                      selected={onSite}
-                      onPress={() => toggleParticipant(p.id as ID)}
-                    />
-                  );
-                })
+                attendingList.map((p) => (
+                  <Chip
+                    key={p.id}
+                    label={p.name}
+                    selected={true}
+                    onPress={() => toggleParticipant(p.id as ID)}
+                  />
+                ))
               )}
             </View>
           </View>

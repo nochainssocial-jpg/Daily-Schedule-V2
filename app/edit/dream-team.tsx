@@ -29,12 +29,8 @@ export default function EditDreamTeamScreen() {
       width < 900 ||
       height < 700);
 
-  const {
-    staff: scheduleStaff,
-    workingStaff = [],
-    outingGroup,
-    updateSchedule,
-  } = useSchedule();
+  const { staff: scheduleStaff, workingStaff = [], updateSchedule } =
+    useSchedule();
   const { push } = useNotifications();
 
   // Prefer schedule-attached staff after create, fallback to static STAFF
@@ -72,11 +68,6 @@ export default function EditDreamTeamScreen() {
   const staffPool = useMemo(
     () => sortedStaff.filter((s) => !workingSet.has(s.id as ID)),
     [sortedStaff, workingSet],
-  );
-
-  const outingStaffSet = useMemo(
-    () => new Set<ID>((outingGroup?.staffIds as ID[]) || []),
-    [outingGroup]
   );
 
   const toggleStaff = (id: ID) => {
@@ -131,18 +122,14 @@ export default function EditDreamTeamScreen() {
                   No staff currently marked as working at B2.
                 </Text>
               ) : (
-                dreamTeam.map((s) => {
-                  const isOutOnOuting = outingStaffSet.has(s.id as ID);
-                  const onSite = !isOutOnOuting;
-                  return (
-                    <Chip
-                      key={s.id}
-                      label={s.name}
-                      selected={onSite}
-                      onPress={() => toggleStaff(s.id as ID)}
-                    />
-                  );
-                })
+                dreamTeam.map((s) => (
+                  <Chip
+                    key={s.id}
+                    label={s.name}
+                    selected={true}
+                    onPress={() => toggleStaff(s.id as ID)}
+                  />
+                ))
               )}
             </View>
           </View>
@@ -174,30 +161,6 @@ export default function EditDreamTeamScreen() {
 }
 
 const styles = StyleSheet.create({
-  pill: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    borderWidth: 1,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  pillOnsite: {
-    backgroundColor: '#F54FA5',
-    borderColor: '#F54FA5',
-  },
-  pillOffsite: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#F54FA5',
-  },
-  pillOnsiteText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  pillOffsiteText: {
-    color: '#F54FA5',
-    fontWeight: '600',
-  },
   screen: {
     flex: 1,
     backgroundColor: '#FFF5FB', // pastel pink
