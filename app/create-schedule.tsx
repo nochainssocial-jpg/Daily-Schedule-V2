@@ -912,24 +912,24 @@ export default function CreateScheduleScreen() {
     } catch (err) {
       console.warn('[create-schedule] failed to read snapshot from store, falling back:', err);
 
-// Fallback: minimal snapshot (won't be as rich but avoids total failure)
-snapshot = {
-  staff: staffSource ?? [],
-  participants: partsSource ?? [],
-  workingStaff: realWorkers,
-  attendingParticipants,
-  assignments: assignmentsMap,
-  floatingAssignments: {},      // still minimal
-  cleaningAssignments: {},      // still minimal
-  finalChecklist: {},           // still minimal
-  finalChecklistStaff,
-  pickupParticipants,
-  helperStaff,
-  dropoffAssignments,
-  outingGroup: outingGroup ?? null,   // ✅ add this line
-  date: selectedDate,
-  meta: { from: 'create-wizard' },
-};
+      // Fallback: minimal snapshot (won't be as rich but avoids total failure)
+      snapshot = {
+        staff: staffSource ?? [],
+        participants: partsSource ?? [],
+        workingStaff: realWorkers,
+        attendingParticipants,
+        assignments: assignmentsMap,
+        floatingAssignments: {},
+        cleaningAssignments: {},
+        finalChecklist: {},
+        finalChecklistStaff,
+        pickupParticipants,
+        helperStaff,
+        dropoffAssignments,
+        date: selectedDate,
+        meta: { from: 'create-wizard' },
+      };
+    }
 
     /** 🔥 NEW — Save to Supabase */
     try {
