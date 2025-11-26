@@ -82,6 +82,16 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* Web-only hero icon for Dream Team */}
+      {Platform.OS === 'web' && (
+        <Ionicons
+          name="sparkles-outline"
+          size={220}
+          color="#FDE68A" // warm pastel yellow, different hue to Outings
+          style={styles.heroIcon}
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>The Dream Team</Text>
@@ -146,7 +156,14 @@ export default function EditDreamTeamScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#fef5fb',
+    backgroundColor: '#FEF5FB', // soft mauve-pink
+  },
+  heroIcon: {
+    position: 'absolute',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     paddingHorizontal: 16,
