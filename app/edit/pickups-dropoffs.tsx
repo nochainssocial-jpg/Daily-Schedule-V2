@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Participant } from '@/constants/data';
@@ -47,6 +47,8 @@ export default function EditPickupsDropoffsScreen() {
   const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
   const [showHelpers, setShowHelpers] = useState(false);
+  const [showAllPickupCandidates, setShowAllPickupCandidates] =
+    useState(true);
 
   const staffById = useMemo(
     () => new Map(staff.map((s) => [s.id as ID, s])),
@@ -64,11 +66,6 @@ export default function EditPickupsDropoffsScreen() {
   const pickupsSet = useMemo(
     () => new Set(pickupParticipants || []),
     [pickupParticipants],
-  );
-
-  const selectedPickupParticipants = useMemo(
-    () => attending.filter((p) => pickupsSet.has(p.id as ID)),
-    [attending, pickupsSet],
   );
 
   const helperSet = useMemo(
@@ -242,27 +239,68 @@ export default function EditPickupsDropoffsScreen() {
 
           {/* PICKUPS */}
           <View style={{ marginTop: 16 }}>
-            <Text style={styles.sectionTitle}>Pickups</Text>
-            <Text style={styles.sectionSub}>
-              Select participants being picked up by external transport.
-            </Text>
-            <View style={styles.chipRow}>
-              {selectedPickupParticipants.map((p) => (
+            <View style={styles.dropoffsHeaderRow}>
+              <Text style={styles.sectionTitle}>Pickups</Text>
+              {attending.length > 0 && (
                 <TouchableOpacity
-                  key={p.id}
-                  onPress={() => togglePickup(p.id as ID)}
+                  onPress={() =>
+                    setShowAllPickupCandidates((v) => !v)
+                  }
                   activeOpacity={0.85}
-                  style={[styles.chip, styles.chipSel]}
                 >
-                  <Text style={[styles.chipTxt, styles.chipTxtSel]}>
-                    {p.name}
+                  <Text style={styles.hideToggle}>
+                    {showAllPickupCandidates
+                      ? 'Show selected only'
+                      : 'Show all attendees'}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              )}
             </View>
-            {selectedPickupParticipants.length === 0 && (
+            <Text style={styles.sectionSub}>
+              Tap participants who will be picked up by external transport. You
+              can add or remove pickups here even after the schedule wizard has
+              been completed.
+            </Text>
+            <View style={styles.chipRow}>
+              {attending
+                .filter(
+                  (p) =>
+                    showAllPickupCandidates ||
+                    pickupsSet.has(p.id as ID),
+                )
+                .map((p) => {
+                  const selected = pickupsSet.has(p.id as ID);
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => togglePickup(p.id as ID)}
+                      activeOpacity={0.85}
+                      style={[
+                        styles.chip,
+                        selected && styles.chipSel,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipTxt,
+                          selected && styles.chipTxtSel,
+                        ]}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+            </View>
+            {attending.length === 0 && (
               <Text style={styles.emptyHint}>
-                No pickups selected yet. Choose pickups in the wizard.
+                No attending participants have been set for today yet.
+              </Text>
+            )}
+            {!pickupsSet.size && attending.length > 0 && !showAllPickupCandidates && (
+              <Text style={styles.emptyHint}>
+                No pickups selected yet. Switch to &quot;Show all attendees&quot;
+                to choose pickups.
               </Text>
             )}
           </View>
