@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Modal,
   ScrollView,
@@ -76,6 +76,31 @@ export default function CleaningEditScreen() {
     );
   }, [staff, workingStaff, outingGroup]);
 
+  // ✅ Set of staff allowed to hold cleaning duties (onsite only)
+  const allowedStaffIds = useMemo(
+    () => new Set<string>(workingStaffList.map((s) => String(s.id))),
+    [workingStaffList],
+  );
+
+  // ✅ Normalise assignments: drop any chores assigned to off-site staff
+  useEffect(() => {
+    if (!cleaningAssignments) return;
+
+    let changed = false;
+    const next: Record<string, string | undefined> = { ...cleaningAssignments };
+
+    Object.entries(cleaningAssignments).forEach(([choreId, staffId]) => {
+      if (staffId && !allowedStaffIds.has(String(staffId))) {
+        next[choreId] = undefined;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      updateSchedule?.({ cleaningAssignments: next });
+    }
+  }, [allowedStaffIds, cleaningAssignments, updateSchedule]);
+
   const handleSelectStaff = (staffId: string | null) => {
     if (!activeChoreId) return;
 
@@ -99,6 +124,28 @@ export default function CleaningEditScreen() {
     setActiveChoreId(null);
   };
 
+  // 🔀 Re-shuffle all chores fairly across onsite staff (round-robin)
+  const reshuffleCleaning = () => {
+    if (!workingStaffList.length) {
+      push('No onsite staff available to assign cleaning duties.', 'cleaning');
+      return;
+    }
+
+    const staffIds = workingStaffList.map((s) => String(s.id));
+    const next: Record<string, string | undefined> = {};
+    let idx = 0;
+
+    chores.forEach((chore) => {
+      const choreId = String(chore.id);
+      const staffId = staffIds[idx % staffIds.length];
+      next[choreId] = staffId;
+      idx += 1;
+    });
+
+    updateSchedule?.({ cleaningAssignments: next });
+    push('Cleaning duties reshuffled across onsite staff.', 'cleaning');
+  };
+
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="cleaning" />
@@ -114,8 +161,21 @@ export default function CleaningEditScreen() {
       <View style={styles.wrap}>
         <Text style={styles.heading}>Cleaning Duties</Text>
         <Text style={styles.subheading}>
-          Tap a staff pill to update who is responsible for each task.
+          Tap a staff pill to update who is responsible for each task. Only staff
+          currently working onsite can be assigned.
         </Text>
+
+        {/* Re-shuffle button */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.shuffleBtn}
+            activeOpacity={0.9}
+            onPress={reshuffleCleaning}
+          >
+            <Ionicons name="shuffle-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.shuffleText}>Re-shuffle duties</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Main chores list */}
         <ScrollView
@@ -126,8 +186,10 @@ export default function CleaningEditScreen() {
           {chores.map((chore) => {
             const choreId = String(chore.id);
             const assignedStaffId = (cleaningAssignments as any)[choreId];
+
+            // Look up staff from full list, but off-site staff are auto-cleared
             const st =
-              (staff || []).find((s: Staff) => s.id === assignedStaffId) ||
+              (staff || []).find((s: Staff) => String(s.id) === String(assignedStaffId)) ||
               null;
 
             const label = st ? st.name : 'Not assigned';
@@ -261,15 +323,15 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   wrap: {
-    flex: 1, // let this area take full height
+    flex: 1,
     width: '100%',
     maxWidth: 880,
-    alignSelf: 'center', // centre on desktop
+    alignSelf: 'center',
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
   list: {
-    flex: 1, // ScrollView owns vertical space → scrolls on iPhone
+    flex: 1,
     marginTop: 16,
   },
 
@@ -282,6 +344,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     color: '#7A7485',
+  },
+
+  actionsRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  shuffleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: PINK,
+    gap: 6,
+  },
+  shuffleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 
   row: {
@@ -344,7 +426,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 560,
-    maxHeight: '80%', // keeps card within screen so ScrollView can scroll
+    maxHeight: '80%',
     borderRadius: 26,
     backgroundColor: '#FFFFFF',
     paddingVertical: 20,
