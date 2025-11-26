@@ -186,8 +186,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef5fb',
   },
   scroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingVertical: 32,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
