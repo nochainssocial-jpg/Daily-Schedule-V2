@@ -106,7 +106,7 @@ export default function CleaningEditScreen() {
         <Ionicons
           name="sparkles-outline"
           size={220}
-          color="#A7F3D0"
+          color="#FED7AA"
           style={styles.heroIcon}
         />
       )}
@@ -251,7 +251,7 @@ export default function CleaningEditScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F0FFF4', // warm pastel (cleaning tile is amber)
+    backgroundColor: '#FFF7ED', // warm pastel (cleaning tile is amber)
   },
   heroIcon: {
     position: 'absolute',
