@@ -88,7 +88,7 @@ const { width, height } = useWindowDimensions();
 
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="dreamTeam" />
+      <SaveExit touchKey="dream-team" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="people-circle-outline"
