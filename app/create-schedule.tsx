@@ -769,7 +769,7 @@ export default function CreateScheduleScreen() {
                   <View
                     style={[
                       styles.rect,
-                      { backgroundColor: st.color || '#E5ECF5' },
+                      { backgroundColor: st.color || '#E6ECF5' },
                     ]}
                   />
                   <Text style={[styles.rowTxt, selected && styles.rowTxtSel]}>
@@ -902,6 +902,10 @@ export default function CreateScheduleScreen() {
         pickupParticipants: state.pickupParticipants ?? pickupParticipants,
         helperStaff: state.helperStaff ?? helperStaff,
         dropoffAssignments: state.dropoffAssignments ?? dropoffAssignments,
+        dropoffLocations: state.dropoffLocations ?? {},
+
+        // ✅ include outingGroup so Outings persists end-to-end
+        outingGroup: state.outingGroup ?? null,
 
         date: state.date ?? selectedDate,
         meta: {
@@ -926,12 +930,14 @@ export default function CreateScheduleScreen() {
         pickupParticipants,
         helperStaff,
         dropoffAssignments,
+        dropoffLocations: {},
+        outingGroup: null,
         date: selectedDate,
         meta: { from: 'create-wizard' },
       };
     }
 
-    /** 🔥 NEW — Save to Supabase */
+    /** 🔥 Save to Supabase */
     try {
       const result = await saveScheduleToSupabase('B2', snapshot);
 
