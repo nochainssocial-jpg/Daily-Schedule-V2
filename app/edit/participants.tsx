@@ -159,9 +159,9 @@ export default function EditParticipantsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#fef5fb',
+    backgroundColor: '#FFF7FB', // pastel pink
   },
-heroIcon: {
+  heroIcon: {
     position: 'absolute',
     top: '25%',
     left: '10%',
@@ -169,16 +169,19 @@ heroIcon: {
     zIndex: 0,
   },
   scroll: {
-    paddingHorizontal: 16,
-    paddingVertical: Platform.select({ ios: 24, android: 24, default: 24 }),
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingVertical: 24,
   },
   inner: {
-    alignSelf: 'center',
+    width: '100%',
+    maxWidth: MAX_WIDTH,
+    paddingHorizontal: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#4b164c',
+    color: '#3c234c',
     marginBottom: 4,
   },
   subtitle: {
