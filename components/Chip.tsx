@@ -8,9 +8,13 @@ type Props = {
   rightAddon?: React.ReactNode;
   disabled?: boolean;
   style?: ViewStyle;
-  /** NEW — controls color mode for outing logic */
+  /** Visual mode used for outings etc. */
   mode?: 'default' | 'onsite' | 'offsite';
 };
+
+const PINK = '#F54FA5';
+const TEXT_DARK = '#111827';
+const BORDER_DEFAULT = '#E5E7EB';
 
 export default function Chip({
   label,
@@ -21,24 +25,29 @@ export default function Chip({
   style,
   mode = 'default',
 }: Props) {
+  const isOnsite = mode === 'onsite';
+  const isOffsite = mode === 'offsite';
+
   return (
     <TouchableOpacity
+      onPress={disabled ? undefined : onPress}
+      activeOpacity={0.8}
       style={[
         styles.container,
-        mode === 'onsite' && styles.onsite,
-        mode === 'offsite' && styles.offsite,
+        mode === 'default' && styles.defaultMode,
+        isOnsite && styles.onsite,
+        isOffsite && styles.offsite,
         selected && styles.selected,
         disabled && styles.disabled,
         style,
       ]}
-      onPress={disabled ? undefined : onPress}
-      activeOpacity={0.8}
     >
       <Text
         style={[
           styles.label,
-          mode === 'onsite' && styles.labelOnsite,
-          mode === 'offsite' && styles.labelOffsite,
+          mode === 'default' && styles.labelDefault,
+          isOnsite && styles.labelOnsite,
+          isOffsite && styles.labelOffsite,
           selected && styles.labelSelected,
         ]}
       >
@@ -49,38 +58,40 @@ export default function Chip({
   );
 }
 
-const PINK = '#e91e63';
-
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#ccc',
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 8,
     marginBottom: 8,
-    backgroundColor: '#fff',
   },
 
-  /** ---------------------------
-   *  NEW STYLES
-   *  --------------------------- */
+  // Default grey pill
+  defaultMode: {
+    backgroundColor: '#FFFFFF',
+    borderColor: BORDER_DEFAULT,
+  },
+  labelDefault: {
+    color: TEXT_DARK,
+  },
 
-  // On-site = solid pink pill + white text
+  // On-site = solid pink pill with white text
   onsite: {
     backgroundColor: PINK,
     borderColor: PINK,
   },
   labelOnsite: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 
-  // Off-site = white background + pink outline + pink text
+  // Off-site (outing) = white pill, pink outline, pink text
   offsite: {
+    backgroundColor: '#FFFFFF',
     borderColor: PINK,
   },
   labelOffsite: {
@@ -88,10 +99,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /** ---------------------------- */
-
+  // Generic selected enhancement (kept for backwards compatibility)
   selected: {
     borderColor: PINK,
+  },
+  labelSelected: {
+    fontWeight: '600',
   },
 
   disabled: {
@@ -100,12 +113,7 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 14,
-    color: '#333',
   },
-  labelSelected: {
-    fontWeight: '600',
-  },
-
   addon: {
     marginLeft: 8,
   },
