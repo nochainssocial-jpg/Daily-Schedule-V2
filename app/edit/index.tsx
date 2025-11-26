@@ -38,7 +38,7 @@ const CARDS: Card[] = [
   },
   // 👉 NEW: Outings card
   {
-    title: 'Outings',
+    title: 'Drive / Outing - Off-Site',
     path: '/edit/outings',
     icon: 'sunny-outline',
     color: '#fb923c',
