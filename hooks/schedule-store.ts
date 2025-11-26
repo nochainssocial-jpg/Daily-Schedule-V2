@@ -7,6 +7,16 @@ import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
 
 export type ID = string;
 
+export type OutingGroup = {
+  id: string;
+  name: string;
+  staffIds: ID[];
+  participantIds: ID[];
+  startTime?: string; // e.g. '11:00'
+  endTime?: string;   // e.g. '15:00'
+  notes?: string;
+};
+
 type BannerType = 'loaded' | 'created' | null;
 
 export type ScheduleBanner = {
@@ -19,12 +29,12 @@ export type ScheduleSnapshot = {
   staff: Staff[];
   participants: Participant[];
 
+  // Outings
+  outingGroup?: OutingGroup | null;
+
   // Core selections
   workingStaff: ID[];          // The Dream Team (Working at B2)
   attendingParticipants: ID[]; // Attending Participants
-
-  // ⭐ Outing group (optional for days like pool / outings)
-  outingGroup?: OutingGroup | null;
 
   // Daily assignments (staff -> participantIds)
   assignments: Record<ID, ID[]>;
@@ -40,16 +50,15 @@ export type ScheduleSnapshot = {
   finalChecklistStaff?: ID;
 
   // Transport
-  pickupParticipants: ID[];
-  helperStaff: ID[];
-  dropoffAssignments: Record<ID, ID[]>;
-  dropoffLocations: Record<ID, number>;
+  pickupParticipants: ID[];             // participantIds being picked up by third parties
+  helperStaff: ID[];                    // helpers joining dropoffs
+  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
+  dropoffLocations: Record<ID, number>; // participantId -> index into DROPOFF_OPTIONS
 
   // Meta
   date?: string;
   meta?: Record<string, any>;
 };
-
 
 type ScheduleState = ScheduleSnapshot & {
   createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
@@ -81,8 +90,6 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   participants: [],
   workingStaff: [],
   attendingParticipants: [],
-  // ⭐ NEW
-  outingGroup: null,
   assignments: {},
   floatingAssignments: {},
   cleaningAssignments: {},
@@ -92,6 +99,7 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   helperStaff: [],
   dropoffAssignments: {},
   dropoffLocations: {},
+  outingGroup: null,
   date: undefined,
   meta: {},
 });
