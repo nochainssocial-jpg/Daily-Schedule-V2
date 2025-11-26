@@ -98,7 +98,7 @@ export default function EditOutingsScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.wrap}>
-          <Text style={styles.heading}>Outings</Text>
+          <Text style={styles.heading}>Drive / Outings</Text>
           <Text style={styles.subheading}>
             Use this screen when some staff and participants are out on an
             activity (e.g. swimming). Floating and Cleaning will only use staff
