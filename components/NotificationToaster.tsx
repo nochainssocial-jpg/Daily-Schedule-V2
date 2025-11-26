@@ -23,36 +23,36 @@ const CATEGORY_STYLES: Record<
 > = {
   'dream-team': {
     title: 'Dream Team Updated',
-    bg: '#FDE68A',
+    bg: '#FBCA04',
   },
   participants: {
     title: 'Attending Participants Updated',
-    bg: '#E0F2FE',
+    bg: '#5DBBFA',
   },
   outings: {
     title: 'Drive / Outings Updated',
-    bg: '#FFE4CC',
+    bg: '#FF8F2E',
   },
   assignments: {
     title: 'Team Daily Assignments Updated',
-    bg: '#E5DEFF',
+    bg: '#7C58FF',
   },
   floating: {
     title: 'Floating Assignments Updated',
-    bg: '#FDF2FF',
+    bg: '#F6C1FF',
   },
   cleaning: {
     title: 'Cleaning Assignments Updated',
-    bg: '#DCFCE7',
+    bg: '#62F194',
   },
   // Pickups tab uses category "pickups" in push(...)
   pickups: {
     title: 'Pickups & Dropoffs Updated',
-    bg: '#FFE4E6',
+    bg: '#FF8A92',
   },
   checklist: {
     title: 'Checklist Updated',
-    bg: '#E0E7FF',
+    bg: '#86A2FF',
   },
 };
 
