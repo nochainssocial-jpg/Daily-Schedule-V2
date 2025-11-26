@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { ROUTES } from '@/constants/ROUTES';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
-import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
+import { initScheduleForToday } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 880;
 
@@ -31,21 +31,6 @@ export default function HomeScreen() {
     // For now, hard-coded to B2
     initScheduleForToday('B2');
   }, []);
-
-  const { outingGroup } = useSchedule();
-
-  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
-  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
-  const hasOutingToday = !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
-
-  const timeRange =
-    outingGroup?.startTime && outingGroup?.endTime
-      ? `${outingGroup.startTime}–${outingGroup.endTime}`
-      : outingGroup?.startTime
-      ? `from ${outingGroup.startTime}`
-      : outingGroup?.endTime
-      ? `until ${outingGroup.endTime}`
-      : null;
 
   const showWebBranding = Platform.OS === 'web' && !isMobileWeb;
 
@@ -144,27 +129,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  outingSummary: {
-    marginTop: 8,
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-  },
-  outingSummaryTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#7C2D12',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  outingSummaryLine: {
-    fontSize: 12,
-    color: '#9A3412',
-    textAlign: 'center',
-  },
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
