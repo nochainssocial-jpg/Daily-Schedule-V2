@@ -87,17 +87,10 @@ export default function EditDreamTeamScreen() {
         <Ionicons
           name="people-circle-outline"
           size={220}
-          color="#FDE68A"
+          color="#FDE68A" // warm pastel yellow, different hue to Outings
           style={styles.heroIcon}
         />
       )}
-
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {/* ... */}
-      </ScrollView>
-    </View>
-  );
-}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { width: contentWidth }]}>
@@ -156,6 +149,7 @@ export default function EditDreamTeamScreen() {
           </View>
         </View>
       </ScrollView>
+    </View>
   );
 }
 
