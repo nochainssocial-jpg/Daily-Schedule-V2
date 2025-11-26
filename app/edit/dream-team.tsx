@@ -136,7 +136,7 @@ export default function EditDreamTeamScreen() {
                   <Chip
                     key={s.id}
                     label={s.name}
-                    mode={mode as any}
+                    mode="default"
                     onPress={() => toggleStaff(s.id as ID)}
                   />
                 );
