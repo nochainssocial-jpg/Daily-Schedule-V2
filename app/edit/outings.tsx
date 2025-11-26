@@ -16,6 +16,14 @@ import { PARTICIPANTS, STAFF } from '@/constants/data';
 
 type ID = string;
 
+export default function EditAssignmentsScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+  
 export default function EditOutingsScreen() {
   const {
     staff = [],
