@@ -14,9 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
+import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
 
 type ID = string;
+
+const MAX_WIDTH = 880;
 
 const makePartMap = () => {
   const map: Record<string, any> = {};
@@ -78,21 +81,23 @@ export default function EditParticipantsScreen() {
     updateSchedule?.({ attendingParticipants: next });
   };
 
-  const contentWidth = Math.min(width - 32, 880);
+  const contentWidth = Math.min(width - 32, MAX_WIDTH);
+  const isMobileWeb = Platform.OS === 'web' && width < 768;
 
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="participants" />
+
+      {/* Web-only hero icon for Participants */}
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="people-outline"
           size={220}
-          color="#F0CFE3"
+          color="#C7D2FE" // soft periwinkle – cool contrast to the warm Outings hero
           style={styles.heroIcon}
         />
       )}
-      
-    <View style={styles.screen}>
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>Attending Participants</Text>
@@ -159,7 +164,7 @@ export default function EditParticipantsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFF7FB', // pastel pink
+    backgroundColor: '#FFF7FB', // pastel pink, distinct from Dream Team + Outings
   },
   heroIcon: {
     position: 'absolute',
@@ -169,14 +174,11 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   scroll: {
-    flexGrow: 1,
-    alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 24,
   },
   inner: {
-    width: '100%',
-    maxWidth: MAX_WIDTH,
-    paddingHorizontal: 16,
+    alignSelf: 'center',
   },
   title: {
     fontSize: 20,
