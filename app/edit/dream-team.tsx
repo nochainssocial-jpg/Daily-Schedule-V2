@@ -29,8 +29,12 @@ export default function EditDreamTeamScreen() {
       width < 900 ||
       height < 700);
 
-  const { staff: scheduleStaff, workingStaff = [], updateSchedule } =
-    useSchedule();
+  const {
+    staff: scheduleStaff,
+    workingStaff = [],
+    outingGroup,
+    updateSchedule,
+  } = useSchedule();
   const { push } = useNotifications();
 
   // Prefer schedule-attached staff after create, fallback to static STAFF
@@ -44,6 +48,12 @@ export default function EditDreamTeamScreen() {
     () => new Map(staff.map((s) => [s.id, s] as const)),
     [staff],
   );
+
+  const outingStaffSet = useMemo(
+    () => new Set<ID>((outingGroup?.staffIds as ID[]) || []),
+    [outingGroup]
+  );
+
 
   const sortedStaff = useMemo(
     () =>
@@ -122,14 +132,17 @@ export default function EditDreamTeamScreen() {
                   No staff currently marked as working at B2.
                 </Text>
               ) : (
-                dreamTeam.map((s) => (
-                  <Chip
-                    key={s.id}
-                    label={s.name}
-                    selected={true}
-                    onPress={() => toggleStaff(s.id as ID)}
-                  />
-                ))
+                dreamTeam.map((s) => {
+                  const isOutOnOuting = outingStaffSet.has(s.id as ID);
+                  return (
+                    <Chip
+                      key={s.id}
+                      label={s.name}
+                      selected={!isOutOnOuting}
+                      onPress={() => toggleStaff(s.id as ID)}
+                    />
+                  );
+                })
               )}
             </View>
           </View>
