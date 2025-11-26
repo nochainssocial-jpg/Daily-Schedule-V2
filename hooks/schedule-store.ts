@@ -14,10 +14,9 @@ export type OutingGroup = {
   participantIds: ID[];
   startTime?: string; // e.g. '11:00'
   endTime?: string;   // e.g. '15:00'
-  notes?: string;
 };
 
-type BannerType = 'loaded' | 'created' | null;
+type BannerType = 'loaded' | 'created' | 'prefilled' | null;
 
 export type ScheduleBanner = {
   type: BannerType;
@@ -42,18 +41,14 @@ export type ScheduleSnapshot = {
   // Floating: key is `${timeSlotId}|${roomId}` -> staffId
   floatingAssignments: Record<string, ID>;
 
-  // Cleaning: key is `choreId` -> staffId
+  // Cleaning: key is `${timeSlotId}|${choreId}` -> staffId
   cleaningAssignments: Record<string, ID>;
 
-  // End-of-shift checklist
-  finalChecklist: Record<string, boolean>;
-  finalChecklistStaff?: ID;
-
   // Transport
-  pickupParticipants: ID[];             // participantIds being picked up by third parties
-  helperStaff: ID[];                    // helpers joining dropoffs
-  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
-  dropoffLocations: Record<ID, number>; // participantId -> index into DROPOFF_OPTIONS
+  pickupParticipants: ID[];               // participants being picked up
+  helperStaff: ID[];                      // helpers joining dropoffs
+  dropoffAssignments: Record<ID, ID[]>;   // staffId -> participantIds they drop off
+  dropoffLocations: Record<ID, number>;   // participantId -> index into DROPOFF_OPTIONS
 
   // Meta
   date?: string;
@@ -84,22 +79,27 @@ type ScheduleState = ScheduleSnapshot & {
   touch: () => void;
 };
 
-// Initial snapshot
+// Initial empty snapshot
 const makeInitialSnapshot = (): ScheduleSnapshot => ({
   staff: [],
   participants: [],
+
+  outingGroup: null,
+
   workingStaff: [],
   attendingParticipants: [],
+
   assignments: {},
+
   floatingAssignments: {},
+
   cleaningAssignments: {},
-  finalChecklist: {},
-  finalChecklistStaff: undefined,
+
   pickupParticipants: [],
   helperStaff: [],
   dropoffAssignments: {},
   dropoffLocations: {},
-  outingGroup: null,
+
   date: undefined,
   meta: {},
 });
@@ -192,6 +192,18 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
             }
             next.dropoffAssignments = newDrops;
           }
+
+          if (next.dropoffLocations) {
+            const newLocs: Record<ID, number> = {};
+            for (const [pid, idx] of Object.entries(
+              next.dropoffLocations ?? {}
+            )) {
+              if (!removed.includes(pid as ID)) {
+                newLocs[pid as ID] = idx as number;
+              }
+            }
+            next.dropoffLocations = newLocs;
+          }
         }
       }
 
@@ -267,11 +279,18 @@ export const useFloatingMissing = (rooms: { id: string }[]) => {
 export const useCleaningMissing = (choreIds: string[]) => {
   return useMemo(() => {
     const { cleaningAssignments } = useSchedule.getState();
-    return choreIds.some((id) => !cleaningAssignments[id]);
+
+    const keys = TIME_SLOTS.flatMap((slot) =>
+      choreIds.map((choreId) => `${slot.id}|${choreId}`)
+    );
+
+    return keys.some((key) => !cleaningAssignments[key]);
   }, [choreIds]);
 };
 
-// Auto-init for today (B2) when app starts
+// ----------------------------------------------------------------------------------
+// Auto-init helpers: load / prefill today's schedule when app starts
+// ----------------------------------------------------------------------------------
 export async function initialiseScheduleForTodayIfNeeded(
   houseId: string,
   todayKey: string
@@ -283,10 +302,12 @@ export async function initialiseScheduleForTodayIfNeeded(
     return;
   }
 
+  // Mark immediately to guard against concurrent inits for the same date
+  state.markInitialisedForDate(todayKey);
+
   const result = await fetchLatestScheduleForHouse(houseId, todayKey);
   if (!result.ok || !result.data) {
-    // Nothing to hydrate; mark as initialised (so we don't retry)
-    state.markInitialisedForDate(todayKey);
+    // Nothing to hydrate for this house/date – leave banner as-is
     return;
   }
 
@@ -294,13 +315,30 @@ export async function initialiseScheduleForTodayIfNeeded(
   await state.createSchedule(snapshot);
 
   const sourceDate = (scheduleDate || '').slice(0, 10);
-  const isToday = sourceDate === todayKey;
+  const isSameDay = sourceDate === todayKey;
 
-  state.markInitialisedForDate(todayKey);
+  let type: BannerType = 'created';
+  let bannerScheduleDate: string | undefined = todayKey;
+  let bannerSourceDate: string | undefined;
+
+  if (!sourceDate) {
+    // No known source date – treat as a freshly created schedule for today
+    type = 'created';
+  } else if (isSameDay) {
+    // We loaded an existing schedule that was already created for today
+    type = 'loaded';
+    bannerScheduleDate = todayKey;
+  } else {
+    // We are using a previous day's schedule as the basis for today
+    type = 'prefilled';
+    bannerScheduleDate = todayKey;
+    bannerSourceDate = sourceDate;
+  }
+
   state.setBanner({
-    type: isToday ? 'created' : 'loaded',
-    scheduleDate: todayKey,
-    sourceDate,
+    type,
+    scheduleDate: bannerScheduleDate,
+    sourceDate: bannerSourceDate,
   });
 }
 
@@ -318,5 +356,3 @@ export async function initScheduleForToday(houseId: string) {
 
   return initialiseScheduleForTodayIfNeeded(houseId, todayKey);
 }
-
-
