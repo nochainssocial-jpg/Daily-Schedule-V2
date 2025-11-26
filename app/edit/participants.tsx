@@ -91,9 +91,9 @@ export default function EditParticipantsScreen() {
       {/* Web-only hero icon for Participants */}
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="people-outline"
+          name="happy-outline"
           size={220}
-          color="#C7D2FE" // soft periwinkle – cool contrast to the warm Outings hero
+          color="#5DBBFA"
           style={styles.heroIcon}
         />
       )}
@@ -164,7 +164,7 @@ export default function EditParticipantsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFF7FB', // pastel pink, distinct from Dream Team + Outings
+    backgroundColor: '#E0F2FE',
   },
   heroIcon: {
     position: 'absolute',

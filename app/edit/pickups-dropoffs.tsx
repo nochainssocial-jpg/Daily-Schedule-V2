@@ -223,9 +223,9 @@ export default function EditPickupsDropoffsScreen() {
       <SaveExit touchKey="pickups" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="car-outline"
+          name="bus-outline"
           size={220}
-          color="#4E6BA6F"
+          color="#FF8A92"
           style={styles.heroIcon}
         />
       )}
@@ -441,7 +441,7 @@ export default function EditPickupsDropoffsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FAF5FF', // pastel emerald
+    backgroundColor: '#FFE4E6',
   },
   heroIcon: {
     position: 'absolute',

@@ -316,13 +316,13 @@ export default function FloatingScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#EFF6FF' }}>
+    <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
       <SaveExit touchKey="floating" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="shuffle-outline"
+          name="swap-vertical-outline"
           size={220}
-          color="#3333FF"
+          color="#F6C1FF"
           style={{
             position: 'absolute',
             top: '25%',

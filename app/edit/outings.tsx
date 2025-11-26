@@ -17,7 +17,7 @@ import { PARTICIPANTS, STAFF } from '@/constants/data';
 
 type ID = string;
 
-export default function EditOutingsScreen() {
+const EditOutingsScreen: React.FC = () => {
   const {
     staff = [],
     participants = [],
@@ -29,6 +29,7 @@ export default function EditOutingsScreen() {
 
   const { width } = useWindowDimensions();
 
+  // Fallback to constants if schedule hasn’t customised staff/participants yet
   const staffSource = (staff && staff.length ? staff : STAFF) as typeof STAFF;
   const partsSource = (participants && participants.length
     ? participants
@@ -88,15 +89,15 @@ export default function EditOutingsScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* Updated label */}
+      {/* Header bar + Save & Exit */}
       <SaveExit touchKey="Drive / Outings" />
 
       {/* Desktop-only hero icon */}
       {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
-          name="sunny-outline"
+          name="car-outline"
           size={220}
-          color="#FFD8A8"
+          color="#FF8F2E"
           style={styles.heroIcon}
         />
       )}
@@ -253,6 +254,119 @@ export default function EditOutingsScreen() {
       </ScrollView>
     </View>
   );
-}
+};
 
-// styles unchanged...
+export default EditOutingsScreen;
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#FFE4CC',
+  },
+  scroll: {
+    flex: 1,
+  },
+  wrap: {
+    padding: 16,
+    paddingBottom: 32,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+  },
+  heading: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#4B5563',
+    marginBottom: 4,
+  },
+  subheading: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  section: {
+    marginTop: 16,
+  },
+  row: {
+    flexDirection: 'row',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  helper: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  empty: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+  input: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    fontSize: 14,
+  },
+  chipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipSelected: {
+    backgroundColor: '#F97316',
+    borderColor: '#EA580C',
+  },
+  chipLabel: {
+    fontSize: 12,
+    color: '#374151',
+  },
+  chipLabelSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  clearBtn: {
+    marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+    alignSelf: 'flex-start',
+  },
+  clearBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#B91C1C',
+  },
+  clearHint: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  heroIcon: {
+    position: 'absolute',
+    right: 60,
+    top: 40,
+    opacity: 0.25,
+    pointerEvents: 'none',
+  },
+});

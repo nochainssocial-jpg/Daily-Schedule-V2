@@ -124,9 +124,9 @@ export default function EditAssignmentsScreen() {
       <SaveExit touchKey="assignments" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="list-outline"
+          name="clipboard-outline"
           size={220}
-          color="#F72585"
+          color="#7C58FF"
           style={styles.heroIcon}
         />
       )}
@@ -222,7 +222,7 @@ export default function EditAssignmentsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F5F5FF', // soft indigo
+    backgroundColor: '#E5DEFF',
   },
     scroll: {
     paddingVertical: 32,

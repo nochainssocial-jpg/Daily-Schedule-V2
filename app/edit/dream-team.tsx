@@ -87,7 +87,7 @@ export default function EditDreamTeamScreen() {
         <Ionicons
           name="people-circle-outline"
           size={220}
-          color="#FDE68A" // warm pastel yellow, different hue to Outings
+          color="#FBCA04"
           style={styles.heroIcon}
         />
       )}
@@ -156,7 +156,7 @@ export default function EditDreamTeamScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FEF5FB', // soft mauve-pink
+    backgroundColor: '#FDE68A',
   },
   heroIcon: {
     position: 'absolute',
