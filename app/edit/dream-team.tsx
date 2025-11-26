@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
+import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 
@@ -82,6 +83,9 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* Save & Exit header for this category */}
+      <SaveExit touchKey="dream-team" />
+
       {/* Web-only hero icon for Dream Team (desktop only) */}
       {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
@@ -138,7 +142,7 @@ export default function EditDreamTeamScreen() {
           )}
 
           <View style={styles.legend}>
-            <View style={styles.legendItem}>
+            <View className="legendItem">
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
               <Text style={styles.legendLabel}>On-site</Text>
             </View>
