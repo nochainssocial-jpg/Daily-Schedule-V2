@@ -583,7 +583,7 @@ export default function FloatingScreen() {
                 <Ionicons
                   name="print-outline"
                   size={42}
-                  color="#3c234c"
+                  color="#OOA86A"
                   style={{ marginBottom: 6 }}
                 />
                 <Text
