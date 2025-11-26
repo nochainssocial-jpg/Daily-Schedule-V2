@@ -29,21 +29,29 @@ export default function HelpScreen() {
             <Text style={styles.body}>
               This Daily Schedule app is designed for the B2 Day Program. It helps
               you:{'\n'}
-              {'\n'}• Choose which staff are working at B2 today (Dream Team).{'\n'}
-              • Choose which participants are attending today.{'\n'}
+              {'\n'}• Choose which staff are working at B2 today (Dream Team), and which staff are away on an outing.{'\n'}
+              • Choose which participants are attending today, including who will be off-site on an outing.{'\n'}
+              • Set up drives / outings so that floating and cleaning only use staff who remain on-site.{'\n'}
               • Assign participants to staff for the main program.{'\n'}
               • Manage floating assignments (Front Room, Scotty, Twins).{'\n'}
               • Allocate cleaning duties and a final end-of-shift checklist.{'\n'}
-              • Record pickups &amp; dropoffs, including helpers and external transport.{'\n'}
+              • Record pickups &amp; dropoffs, including helpers and external transport and locations.{'\n'}
               • Share today&apos;s schedule with staff via a 6-digit code and SMS.{'\n'}
-              • Keep master lists of staff, participants, cleaning duties and checklist items in Settings.
+              • Keep master lists of staff, participants, cleaning duties and checklist items in Settings.{'\n'}
+              {'\n'}
+              Once a schedule is saved, any changes made in the Edit Hub are stored centrally so other devices
+              loading the same day can see the updated version.
             </Text>
 
             {/* 2. Creating Today’s Schedule */}
             <Text style={styles.sectionTitle}>2. Creating today&apos;s schedule</Text>
             <Text style={styles.body}>
-              From the Home screen, tap <Text style={styles.bold}>&quot;Create Schedule&quot;</Text>
-              . The process is a 6-step wizard. You can scroll each step and use the
+              When you open the app, it automatically loads today&apos;s schedule if one already exists, or the most
+              recent schedule if today is empty. You&apos;ll see a banner at the top confirming whether a schedule was
+              created or loaded.{'\n'}
+              {'\n'}
+              From the Home screen, tap <Text style={styles.bold}>&quot;Create Schedule&quot;</Text>.
+              The process is a 6-step wizard. You can scroll each step and use the
               <Text style={styles.bold}> Next</Text> / <Text style={styles.bold}>Back</Text> buttons at the bottom.
             </Text>
 
@@ -101,7 +109,7 @@ export default function HelpScreen() {
               {'\n'}
               When you&apos;re happy:{' '}
               <Text style={styles.bold}>press &quot;Finish&quot;</Text>. The schedule is saved and you&apos;ll be
-              taken back to the Edit Hub.
+              taken back to the Edit Hub. The same schedule can then be opened and adjusted on other devices.
             </Text>
 
             {/* 3. Using the Edit Hub */}
@@ -111,15 +119,17 @@ export default function HelpScreen() {
               today&apos;s schedule without redoing everything from scratch.{'\n'}
               {'\n'}
               In the Edit Hub you&apos;ll see tiles for:{'\n'}
-              {'\n'}• <Text style={styles.bold}>Dream Team</Text> – change which staff are working at B2.{'\n'}
-              • <Text style={styles.bold}>Participants Attending</Text> – add or remove participants for today.{'\n'}
+              {'\n'}• <Text style={styles.bold}>Dream Team</Text> – change which staff are working at B2 or away on an outing.{'\n'}
+              • <Text style={styles.bold}>Participants Attending</Text> – add or remove participants for today and see who is off-site.{'\n'}
+              • <Text style={styles.bold}>Drive / Outing / Off-site</Text> – select which staff and participants are going out, and record outing times and notes. Staff on an outing are treated as off-site for floating and cleaning.{'\n'}
               • <Text style={styles.bold}>Team Daily Assignments</Text> – reshuffle which staff have which participants.{'\n'}
-              • <Text style={styles.bold}>Floating Assignments</Text> – assign staff to Front Room, Scotty and Twins time slots.{'\n'}
+              • <Text style={styles.bold}>Floating Assignments</Text> – assign staff to Front Room, Scotty and Twins time slots (onsite staff only).{'\n'}
               • <Text style={styles.bold}>Cleaning Duties</Text> – fine-tune cleaning tasks for today.{'\n'}
               • <Text style={styles.bold}>Pickups &amp; Dropoffs</Text> – adjust external pickups, helpers and dropoff responsibilities.{'\n'}
               • <Text style={styles.bold}>Final Checklist</Text> – change who is responsible and which closing tasks apply.{'\n'}
               {'\n'}
-              Any change you make in these screens updates today&apos;s schedule immediately.
+              Each Edit screen has a <Text style={styles.bold}>Save &amp; Exit</Text> button at the top. When you tap it,
+              today&apos;s schedule is saved and the changes are available for other devices loading the same date.
             </Text>
 
             {/* 4. Sharing today’s schedule */}
@@ -163,7 +173,9 @@ export default function HelpScreen() {
             <Text style={styles.body}>
               • If something looks wrong after finishing a schedule, use the Edit Hub rather than restarting.{'\n'}
               • Make sure you&apos;ve set both a Dream Team (Step 1) and Attending Participants (Step 2) before doing assignments.{'\n'}
-              • If a participant is missing from Dropoffs, check whether they were marked as a Pickup in Step 4.{'\n'}
+              • If a participant is missing from Dropoffs, check whether they were marked as a Pickup in Step 4, or are on an outing.{'\n'}
+              • If staff or participants don&apos;t show as onsite / off-site as expected, review the Drive / Outing / Off-site screen and then tap Save &amp; Exit.{'\n'}
+              • If another device can&apos;t see recent changes, tap Save &amp; Exit on the Edit screen, go back to the Edit Hub or Home, and then refresh or reopen the app on the other device.{'\n'}
               • If you can&apos;t see the buttons at the bottom of a step, scroll down – the layout keeps them pinned near the bottom of the screen.{'\n'}
               • If codes or data don&apos;t seem to match, regenerate a fresh 6-digit code and share again if needed.{'\n'}
               {'\n'}
