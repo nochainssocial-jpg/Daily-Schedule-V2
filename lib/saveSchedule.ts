@@ -9,7 +9,7 @@ export function generateShareCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Local "YYYY-MM-DD"
+// Local "YYYY-MM-DD" using the device's local time (AUS on your machines)
 function toLocalDateKey(d: Date): string {
   return [
     d.getFullYear(),
@@ -35,7 +35,7 @@ export async function saveScheduleToSupabase(
     house,
     code,
     snapshot,
-    // Optional: if you have a dedicated schedule_date column, uncomment:
+    // Optional: if you add a dedicated schedule_date column, you can keep this:
     // schedule_date: baseDate,
   };
 
@@ -73,13 +73,22 @@ export async function saveScheduleToSupabase(
 
 /**
  * Fetch the most recent schedule for a given house.
+ *
+ * NOTE:
+ *  - We accept an optional todayKey so existing calls
+ *    `fetchLatestScheduleForHouse(houseId, todayKey)` still type-check.
  */
-export async function fetchLatestScheduleForHouse(house: string) {
+export async function fetchLatestScheduleForHouse(
+  house: string,
+  _todayKey?: string
+) {
   try {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('snapshot, code, created_at')
+      .select('snapshot, code, created_at, updated_at')
       .eq('house', house)
+      // Always prefer the most recently updated row, then fall back to newest created
+      .order('updated_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
