@@ -7,8 +7,7 @@ import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type SaveExitProps = {
   onSave?: () => void;
-  // Kept for compatibility with previous version, even though the current
-  // store's `touch` helper does not use this value.
+  // Kept for compatibility with previous version
   touchKey:
     | 'dreamTeam'
     | 'participants'
@@ -19,13 +18,6 @@ type SaveExitProps = {
     | 'transport';
 };
 
-/**
- * Save & Exit bar used at the bottom of edit screens.
- *
- * - Cancel: returns to /edit without saving extra changes.
- * - Save & Exit: builds a fresh ScheduleSnapshot from the current store and
- *   persists it to Supabase for the given house (currently hard-coded to B2).
- */
 export default function SaveExit({ onSave }: SaveExitProps) {
   const schedule = useSchedule();
 
@@ -34,10 +26,10 @@ export default function SaveExit({ onSave }: SaveExitProps) {
   };
 
   const handleSaveExit = async () => {
-    // Allow screen-specific handlers (if any) to run first.
+    // Allow the screen to do any local cleanup first (if needed)
     onSave?.();
 
-    // Build a clean snapshot from the current store state.
+    // Build a clean snapshot from the current store
     const snapshot: ScheduleSnapshot = {
       staff: schedule.staff,
       participants: schedule.participants,
@@ -52,7 +44,7 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       helperStaff: schedule.helperStaff,
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
-      // ✅ NEW: persist outings as part of the schedule snapshot
+      // ✅ make sure outings are persisted when using Save & Exit
       outingGroup: schedule.outingGroup ?? null,
       date: schedule.date,
       meta: schedule.meta ?? {},
