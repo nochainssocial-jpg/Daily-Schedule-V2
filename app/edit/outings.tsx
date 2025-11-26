@@ -81,7 +81,7 @@ export default function EditOutingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="outing" />
+      <SaveExit touchKey="Drive / Outing" />
 
       {Platform.OS === 'web' && (
         <Ionicons
