@@ -225,7 +225,7 @@ export default function EditPickupsDropoffsScreen() {
         <Ionicons
           name="car-outline"
           size={220}
-          color="#6EE7B7"
+          color="#E9D5FF"
           style={styles.heroIcon}
         />
       )}
@@ -441,7 +441,7 @@ export default function EditPickupsDropoffsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F2FBF7', // pastel emerald
+    backgroundColor: '#FAF5FF', // pastel emerald
   },
   heroIcon: {
     position: 'absolute',
