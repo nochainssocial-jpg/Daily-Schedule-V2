@@ -15,8 +15,8 @@ import SaveExit from '@/components/SaveExit';
 import { PARTICIPANTS, STAFF } from '@/constants/data';
 
 type ID = string;
-
-export default function EditAssignmentsScreen() {
+  
+export default function EditOutingsScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
@@ -24,7 +24,6 @@ export default function EditAssignmentsScreen() {
       width < 900 ||
       height < 700);
   
-export default function EditOutingsScreen() {
   const {
     staff = [],
     participants = [],
