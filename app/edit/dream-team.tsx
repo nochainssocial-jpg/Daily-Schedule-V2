@@ -82,15 +82,22 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* Web-only hero icon for Dream Team */}
-      {Platform.OS === 'web' && (
+      {/* Web-only hero icon for Dream Team (desktop only) */}
+      {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
           name="people-circle-outline"
           size={220}
-          color="#FDE68A" // warm pastel yellow, different hue to Outings
+          color="#FDE68A"
           style={styles.heroIcon}
         />
       )}
+
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {/* ... */}
+      </ScrollView>
+    </View>
+  );
+}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { width: contentWidth }]}>
