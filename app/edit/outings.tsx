@@ -364,9 +364,9 @@ const styles = StyleSheet.create({
   },
   heroIcon: {
     position: 'absolute',
-    right: 60,
-    top: 40,
-    opacity: 0.25,
-    pointerEvents: 'none',
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
 });
