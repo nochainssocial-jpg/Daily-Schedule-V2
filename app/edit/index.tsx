@@ -22,7 +22,7 @@ type CardConfig = {
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconBg: string;
-  route: string; // relative route from /edit
+  route: string; // absolute path
 };
 
 const CARDS: CardConfig[] = [
@@ -32,7 +32,7 @@ const CARDS: CardConfig[] = [
     description: 'Choose who is working at B2 today and who is away.',
     icon: 'people-circle-outline',
     iconBg: '#FDE68A',
-    route: 'dream-team',
+    route: '/edit/dream-team',
   },
   {
     key: 'participants',
@@ -40,7 +40,7 @@ const CARDS: CardConfig[] = [
     description: 'Confirm who is attending for the day (onsite or on outing).',
     icon: 'happy-outline',
     iconBg: '#E0F2FE',
-    route: 'participants',
+    route: '/edit/participants',
   },
   {
     key: 'outings',
@@ -49,7 +49,7 @@ const CARDS: CardConfig[] = [
       'Set up any drives or outings so cleaning and floating only use onsite staff.',
     icon: 'car-outline',
     iconBg: '#FFE4CC',
-    route: 'outings',
+    route: '/edit/outings',
   },
   {
     key: 'assignments',
@@ -57,7 +57,7 @@ const CARDS: CardConfig[] = [
     description: 'Assign participants to staff for the day.',
     icon: 'clipboard-outline',
     iconBg: '#E5DEFF',
-    route: 'assignments',
+    route: '/edit/assignments',
   },
   {
     key: 'floating',
@@ -66,7 +66,7 @@ const CARDS: CardConfig[] = [
       'Plan floating support across the key shared spaces throughout the day.',
     icon: 'swap-vertical-outline',
     iconBg: '#FDF2FF',
-    route: 'floating',
+    route: '/edit/floating',
   },
   {
     key: 'cleaning',
@@ -75,7 +75,7 @@ const CARDS: CardConfig[] = [
       'Distribute cleaning tasks fairly so no one is stuck with the same jobs.',
     icon: 'sparkles-outline' as keyof typeof Ionicons.glyphMap,
     iconBg: '#DCFCE7',
-    route: 'cleaning',
+    route: '/edit/cleaning',
   },
   {
     key: 'pickups-dropoffs',
@@ -84,7 +84,7 @@ const CARDS: CardConfig[] = [
       'Organise transport, helpers and dropoff locations for each participant.',
     icon: 'bus-outline',
     iconBg: '#FFE4E6',
-    route: 'pickups-dropoffs',
+    route: '/edit/pickups-dropoffs',
   },
   {
     key: 'checklist',
@@ -93,7 +93,7 @@ const CARDS: CardConfig[] = [
       'Final checklist to confirm everything is complete before handing over.',
     icon: 'checkbox-outline',
     iconBg: '#E0E7FF',
-    route: 'checklist',
+    route: '/edit/checklist',
   },
 ];
 
