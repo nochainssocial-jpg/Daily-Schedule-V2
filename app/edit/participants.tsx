@@ -137,13 +137,23 @@ export default function EditParticipantsScreen() {
               ) : (
                 attendingList.map((p) => {
                   const isOutOnOuting = outingParticipantSet.has(p.id as ID);
+                  const onSite = !isOutOnOuting;
                   return (
-                    <Chip
+                    <TouchableOpacity
                       key={p.id}
-                      label={p.name}
-                      selected={!isOutOnOuting}
                       onPress={() => toggleParticipant(p.id as ID)}
-                    />
+                      activeOpacity={0.85}
+                      style={[
+                        styles.pill,
+                        onSite ? styles.pillOnsite : styles.pillOffsite,
+                      ]}
+                    >
+                      <Text
+                        style={onSite ? styles.pillOnsiteText : styles.pillOffsiteText}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
                   );
                 })
               )}
