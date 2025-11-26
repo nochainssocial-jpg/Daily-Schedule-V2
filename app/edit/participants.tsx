@@ -1,6 +1,6 @@
 // app/edit/participants.tsx
-// Attending Participants edit screen with chip layout and Participant Pool.
-// Names are always sorted alphabetically.
+// Edit screen for attending participants with participant pool.
+// Integrates with outings: participants on outing are shown as outline pills.
 import React, { useMemo } from 'react';
 import {
   View,
@@ -8,157 +8,135 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
 import { useSchedule } from '@/hooks/schedule-store';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import Chip from '@/components/Chip';
-import { useNotifications } from '@/hooks/notifications';
-import SaveExit from '@/components/SaveExit';
 
 type ID = string;
-const MAX_WIDTH = 880;
+
+const makePartMap = () => {
+  const map: Record<string, any> = {};
+  STATIC_PARTICIPANTS.forEach((p) => {
+    map[p.id] = p;
+  });
+  return map;
+};
+
+const sortByName = (list: any[]) =>
+  list.slice().sort((a, b) => a.name.localeCompare(b.name));
 
 export default function EditParticipantsScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
+  const { width } = useWindowDimensions();
 
   const {
-    participants: scheduleParticipants,
     attendingParticipants = [],
+    outingGroup,
     updateSchedule,
-  } = useSchedule();
-  const { push } = useNotifications();
+  } = useSchedule() as any;
 
-  // Prefer schedule-attached participants after create, fallback to constants
-  const participants = useMemo(
-    () =>
-      scheduleParticipants && scheduleParticipants.length
-        ? scheduleParticipants
-        : STATIC_PARTICIPANTS,
-    [scheduleParticipants],
-  );
-
-  const participantsById = useMemo(
-    () => new Map(participants.map((p) => [p.id, p] as const)),
-    [participants],
-  );
-
-  const sortedParticipants = useMemo(
-    () =>
-      [...participants].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', 'en', {
-          sensitivity: 'base',
-        }),
-      ),
-    [participants],
-  );
-
-  const attendingSet = useMemo(
-    () => new Set<ID>(attendingParticipants as ID[]),
-    [attendingParticipants],
+  const partById = useMemo(makePartMap, []);
+  const allParts = useMemo(
+    () => sortByName(STATIC_PARTICIPANTS.slice()),
+    []
   );
 
   const attendingList = useMemo(
-    () => sortedParticipants.filter((p) => attendingSet.has(p.id as ID)),
-    [sortedParticipants, attendingSet],
+    () =>
+      sortByName(
+        (attendingParticipants as ID[])
+          .map((id) => partById[id])
+          .filter(Boolean)
+      ),
+    [attendingParticipants, partById]
   );
 
-  const participantPool = useMemo(
-    () => sortedParticipants.filter((p) => !attendingSet.has(p.id as ID)),
-    [sortedParticipants, attendingSet],
+  const poolList = useMemo(
+    () =>
+      sortByName(
+        allParts.filter((p) => !(attendingParticipants as ID[]).includes(p.id))
+      ),
+    [allParts, attendingParticipants]
+  );
+
+  const outingParticipantSet = useMemo(
+    () => new Set<string>(outingGroup?.participantIds ?? []),
+    [outingGroup]
   );
 
   const toggleParticipant = (id: ID) => {
-    const allIds = participants.map((p) => p.id as ID);
-    if (!allIds.includes(id)) return;
-
-    let next = Array.isArray(attendingParticipants)
-      ? [...(attendingParticipants as ID[])]
-      : [];
-
-    if (next.includes(id)) {
-      next = next.filter((x) => x !== id);
+    const current = new Set<string>(attendingParticipants as ID[]);
+    if (current.has(id)) {
+      current.delete(id);
     } else {
-      next.push(id);
+      current.add(id);
     }
-
-    // Always alphabetical
-    next.sort((a, b) => {
-      const pa = participantsById.get(a)?.name || '';
-      const pb = participantsById.get(b)?.name || '';
-      return pa.localeCompare(pb, 'en', { sensitivity: 'base' });
-    });
-
-    updateSchedule({ attendingParticipants: next });
-    push('Participants attending updated', 'participants');
+    const next = Array.from(current);
+    updateSchedule?.({ attendingParticipants: next });
   };
+
+  const contentWidth = Math.min(width - 32, 880);
 
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="participants" />
-      {Platform.OS === 'web' && !isMobileWeb && (
-        <Ionicons
-          name="people-outline"
-          size={220}
-          color="#F0CFE3"
-          style={styles.heroIcon}
-        />
-      )}
-
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.inner}>
+        <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>Attending Participants</Text>
           <Text style={styles.subtitle}>
-            Tap participants to mark who is attending Day Program today.
-            Selected participants appear at the top; others remain in the
-            Participant Pool. Alphabetical order is always enforced.
+            Tap participants to mark who is attending Day Program today. Selected
+            participants appear at the top; others remain in the Participant Pool.
+            Alphabetical order is always enforced.
           </Text>
 
-          {/* Attending */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attending</Text>
+          <Text style={styles.sectionTitle}>Attending</Text>
+          {attendingList.length === 0 ? (
+            <Text style={styles.empty}>No participants have been selected yet.</Text>
+          ) : (
             <View style={styles.chipGrid}>
-              {attendingList.length === 0 ? (
-                <Text style={styles.empty}>
-                  No attending participants selected.
-                </Text>
-              ) : (
-                attendingList.map((p) => (
+              {attendingList.map((p) => {
+                const isOutOnOuting = outingParticipantSet.has(p.id as ID);
+                const mode = isOutOnOuting ? 'offsite' : 'onsite';
+                return (
                   <Chip
                     key={p.id}
                     label={p.name}
-                    selected={true}
+                    mode={mode as any}
                     onPress={() => toggleParticipant(p.id as ID)}
                   />
-                ))
-              )}
+                );
+              })}
             </View>
-          </View>
+          )}
 
-          {/* Participant Pool */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Participant Pool</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
+            Participant Pool
+          </Text>
+          {poolList.length === 0 ? (
+            <Text style={styles.empty}>Everyone is attending today.</Text>
+          ) : (
             <View style={styles.chipGrid}>
-              {participantPool.length === 0 ? (
-                <Text style={styles.empty}>
-                  All participants have been selected.
-                </Text>
-              ) : (
-                participantPool.map((p) => (
-                  <Chip
-                    key={p.id}
-                    label={p.name}
-                    selected={false}
-                    onPress={() => toggleParticipant(p.id as ID)}
-                  />
-                ))
-              )}
+              {poolList.map((p) => (
+                <Chip
+                  key={p.id}
+                  label={p.name}
+                  mode="default"
+                  onPress={() => toggleParticipant(p.id as ID)}
+                />
+              ))}
+            </View>
+          )}
+
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, styles.legendOnsite]} />
+              <Text style={styles.legendLabel}>On-site</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, styles.legendOffsite]} />
+              <Text style={styles.legendLabel}>On outing</Text>
             </View>
           </View>
         </View>
@@ -170,38 +148,25 @@ export default function EditParticipantsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFF7FB', // pastel pink
-  },
-  heroIcon: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
-    opacity: 1,
-    zIndex: 0,
+    backgroundColor: '#fef5fb',
   },
   scroll: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingVertical: 24,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.select({ ios: 24, android: 24, default: 24 }),
   },
   inner: {
-    width: '100%',
-    maxWidth: MAX_WIDTH,
-    paddingHorizontal: 16,
+    alignSelf: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#3c234c',
+    color: '#4b164c',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#5e4b72',
+    color: '#6b7280',
     marginBottom: 16,
-  },
-  section: {
-    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 16,
@@ -218,5 +183,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.75,
     color: '#7a688c',
+  },
+  legend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendSwatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  legendOnsite: {
+    backgroundColor: '#F54FA5',
+    borderColor: '#F54FA5',
+  },
+  legendOffsite: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#F54FA5',
+  },
+  legendLabel: {
+    fontSize: 12,
+    color: '#4b164c',
   },
 });
