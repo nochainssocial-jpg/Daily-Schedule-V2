@@ -903,8 +903,6 @@ export default function CreateScheduleScreen() {
         helperStaff: state.helperStaff ?? helperStaff,
         dropoffAssignments: state.dropoffAssignments ?? dropoffAssignments,
 
-        outingGroup: state.outingGroup ?? null,
-
         date: state.date ?? selectedDate,
         meta: {
           ...(state.meta || {}),
@@ -928,7 +926,6 @@ export default function CreateScheduleScreen() {
         pickupParticipants,
         helperStaff,
         dropoffAssignments,
-        outingGroup: null,
         date: selectedDate,
         meta: { from: 'create-wizard' },
       };
