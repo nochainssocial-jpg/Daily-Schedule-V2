@@ -154,8 +154,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     // Dropped down so it sits just under the header + SaveExit
     top: 150,
-    right: 20,
-    width: 260,
+    right: 50,
+    width: 320,
     zIndex: 200,
   },
   panel: {
@@ -182,14 +182,14 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   title: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFF',
     textTransform: 'uppercase',
     opacity: 0.9,
   },
   text: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '500',
   },
