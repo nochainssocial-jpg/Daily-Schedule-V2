@@ -273,7 +273,9 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   scroll: {
-    flex: 1,
+    paddingVertical: 32,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
   wrap: {
     width: '100%',
