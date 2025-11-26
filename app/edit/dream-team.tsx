@@ -17,14 +17,6 @@ import { STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 
 type ID = string;
-
-export default function EditAssignmentsScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
   
 const makeStaffMap = () => {
   const map: Record<string, any> = {};
@@ -38,8 +30,14 @@ const sortByName = (list: any[]) =>
   list.slice().sort((a, b) => a.name.localeCompare(b.name));
 
 export default function EditDreamTeamScreen() {
-  const { width } = useWindowDimensions();
+const { width, height } = useWindowDimensions();
 
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+  
   const {
     workingStaff = [],
     outingGroup,
