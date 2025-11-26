@@ -15,15 +15,8 @@ import SaveExit from '@/components/SaveExit';
 import { PARTICIPANTS, STAFF } from '@/constants/data';
 
 type ID = string;
-  
+
 export default function EditOutingsScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
-  
   const {
     staff = [],
     participants = [],
@@ -88,8 +81,9 @@ export default function EditOutingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="drive/outing" />
-        {Platform.OS === 'web' && !isMobileWeb && (
+      <SaveExit touchKey="Drive / Outing" />
+
+      {Platform.OS === 'web' && (
         <Ionicons
           name="sunny-outline"
           size={220}
@@ -271,9 +265,7 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   scroll: {
-    paddingVertical: 32,
-    alignItems: 'center',
-    paddingBottom: 160,
+    flex: 1,
   },
   wrap: {
     width: '100%',

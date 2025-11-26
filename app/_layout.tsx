@@ -10,7 +10,7 @@ import {
   HelpCircle,
 } from 'lucide-react-native';
 
-// 🔔 GLOBAL TOASTER
+// 🔔 ADD THIS
 import NotificationToaster from '@/components/NotificationToaster';
 
 const PINK = '#FF8FC5';
@@ -52,11 +52,16 @@ export default function RootLayout() {
           headerStyle: { backgroundColor: '#FFFFFF' },
         }}
       >
-        {/* EDIT HUB — let the screen itself control the header */}
+                {/* EDIT HUB */}
         <Stack.Screen
           name="edit"
           options={{
-            headerShown: false,
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<Edit3 size={24} color={PINK} />}
+                label="Edit Hub"
+              />
+            ),
           }}
         />
 
@@ -73,14 +78,20 @@ export default function RootLayout() {
           }}
         />
 
-        {/* SHARE */}
+
+
+            ),
+          }}
+        />
+
+        {/* SHARE TODAY'S SCHEDULE */}
         <Stack.Screen
-          name="share"
+          name="share-schedule"
           options={{
             headerTitle: () => (
               <HeaderTitle
                 icon={<Share2 size={24} color={PINK} />}
-                label="Share"
+                label="Share today&apos;s schedule"
               />
             ),
           }}

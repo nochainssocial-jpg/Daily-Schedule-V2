@@ -44,6 +44,8 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       helperStaff: schedule.helperStaff,
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
+      // ✅ NEW: persist outings as part of the schedule snapshot
+      outingGroup: schedule.outingGroup ?? null,
       date: schedule.date,
       meta: schedule.meta ?? {},
     };
