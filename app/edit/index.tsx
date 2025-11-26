@@ -1,154 +1,177 @@
 // app/edit/index.tsx
 import React, { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import {
+  ScrollView,
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  Image,
-  useWindowDimensions,
+  Pressable,
 } from 'react-native';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
-import { initScheduleForToday } from '@/hooks/schedule-store';
+import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 880;
 
-type TileConfig = {
+type Card = {
   title: string;
   path: string;
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   color: string;
 };
 
-const TILES: TileConfig[] = [
+const CARDS: Card[] = [
   {
     title: 'The Dream Team (Working at B2)',
     path: '/edit/dream-team',
     icon: 'people-circle-outline',
-    color: '#F54FA5', // pink
+    color: '#ec4899',
   },
   {
     title: 'Attending Participants',
     path: '/edit/participants',
     icon: 'people-outline',
-    color: '#EC4899', // pink-ish
+    color: '#a855f7',
+  },
+  // 👉 NEW: Outings card
+  {
+    title: 'Outings',
+    path: '/edit/outings',
+    icon: 'sunny-outline',
+    color: '#fb923c',
   },
   {
     title: 'Team Daily Assignments',
     path: '/edit/assignments',
     icon: 'list-outline',
-    color: '#6366F1', // indigo
+    color: '#3b82f6',
   },
   {
     title: 'Floating Assignments (Front Room, Scotty, Twins)',
     path: '/edit/floating',
     icon: 'shuffle-outline',
-    color: '#0EA5E9', // sky blue
+    color: '#0ea5e9',
   },
   {
     title: 'End of Shift Cleaning Assignments',
     path: '/edit/cleaning',
-    icon: 'sparkles-outline',
-    color: '#F59E0B', // amber
+    icon: 'sparkles-outline' as any, // fallback if your Ionicons version lacks this
+    color: '#f59e0b',
   },
   {
     title: 'Pickups and Dropoffs with Helpers',
     path: '/edit/pickups-dropoffs',
     icon: 'car-outline',
-    color: '#10B981', // emerald
+    color: '#22c55e',
   },
   {
     title: 'End of Shift Checklist',
     path: '/edit/checklist',
     icon: 'checkbox-outline',
-    color: '#8B5CF6', // violet
+    color: '#6366f1',
   },
 ];
 
 export default function EditHubScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
+  const router = useRouter();
 
+  // Ensure today’s schedule is loaded into the store
   useEffect(() => {
     initScheduleForToday('B2');
   }, []);
 
-  const handlePrint = () => {
-    router.push('/print');
-  };
+  const { outingGroup } = useSchedule();
 
-  const showWebBranding = Platform.OS === 'web' && !isMobileWeb;
+  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
+  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
+  const hasOutingToday =
+    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
+
+  const timeRange =
+    outingGroup?.startTime && outingGroup?.endTime
+      ? `${outingGroup.startTime}–${outingGroup.endTime}`
+      : outingGroup?.startTime
+      ? `from ${outingGroup.startTime}`
+      : outingGroup?.endTime
+      ? `until ${outingGroup.endTime}`
+      : null;
 
   return (
     <View style={styles.screen}>
-      {/* Large washed-out background logo – web only */}
-      {showWebBranding && (
-        <Image
-          source={require('../../assets/images/nochains-bg.png')}
-          style={styles.bgLogo}
-          resizeMode="contain"
-        />
-      )}
+      <Stack.Screen
+        options={{
+          title: 'Edit Hub',
+          headerShown: true,
+        }}
+      />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           <Text style={styles.title}>Edit today&apos;s schedule</Text>
           <Text style={styles.subtitle}>
-            Tap a category below to review and adjust details captured during the create flow.
+            Tap a category below to review and adjust details captured during
+            the create flow.
           </Text>
 
-          {/* 🔔 Notification banner sits between subtitle and menu items */}
+          {/* Banner for created/updated state */}
           <ScheduleBanner />
 
-          {/* Main menu tiles */}
-          <View style={styles.grid}>
-            {TILES.map((tile) => (
-              <TouchableOpacity
-                key={tile.path}
-                style={[styles.tile, { borderLeftColor: tile.color }]}
-                onPress={() => router.push(tile.path)}
-                activeOpacity={0.9}
-              >
-                <View style={styles.tileContent}>
-                  <Ionicons
-                    name={tile.icon as any}
-                    size={20}
-                    color={tile.color}
-                    style={styles.tileIcon}
-                  />
-                  <Text style={styles.tileTitle}>{tile.title}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Large print icon at bottom, aligned to right of tiles */}
-          {Platform.OS === 'web' && (
-            <View style={styles.printFooter}>
-              <TouchableOpacity
-                onPress={handlePrint}
-                activeOpacity={0.85}
-                style={styles.printFooterButton}
-              >
-                <Ionicons
-                  name="print-outline"
-                  size={42}
-                  color="#3c234c"
-                  style={styles.printFooterIcon}
-                />
-                <Text style={styles.printFooterLabel}>Print Schedule</Text>
-              </TouchableOpacity>
+          {/* 👉 NEW: Outing summary when an outing exists */}
+          {hasOutingToday && (
+            <View style={styles.outingSummary}>
+              <Ionicons
+                name="sunny-outline"
+                size={20}
+                color="#c05621"
+                style={{ marginRight: 10, marginTop: 2 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.outingSummaryTitle}>Outing today</Text>
+                <Text style={styles.outingSummaryLine}>
+                  {outingGroup?.name || 'Unnamed outing'}
+                  {timeRange ? ` · ${timeRange}` : ''}
+                </Text>
+                <Text style={styles.outingSummaryLine}>
+                  {outingStaffCount} staff · {outingParticipantCount} participants
+                </Text>
+              </View>
             </View>
           )}
+
+          {/* Cards */}
+          <View style={styles.cardList}>
+            {CARDS.map((card) => (
+              <Pressable
+                key={card.path}
+                onPress={() => router.push(card.path as any)}
+                style={styles.card}
+              >
+                <View style={styles.cardLeft}>
+                  <View
+                    style={[
+                      styles.iconBubble,
+                      { backgroundColor: `${card.color}22` },
+                    ]}
+                  >
+                    <Ionicons
+                      name={card.icon}
+                      size={20}
+                      color={card.color}
+                    />
+                  </View>
+                  <Text style={styles.cardTitle}>{card.title}</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward-outline"
+                  size={20}
+                  color="#9ca3af"
+                />
+              </Pressable>
+            ))}
+          </View>
         </View>
       </ScrollView>
 
@@ -160,93 +183,81 @@ export default function EditHubScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: '#fef5fb',
   },
   scroll: {
+    paddingHorizontal: 16,
     paddingVertical: 24,
-    alignItems: 'center',
-    paddingBottom: 160,
   },
   inner: {
     width: '100%',
     maxWidth: MAX_WIDTH,
-    paddingHorizontal: 24,
-  },
-  // Large washed-out background logo
-  bgLogo: {
-    position: 'absolute',
-    width: 1400,
-    height: 1400,
-    opacity: 0.1,
-    left: -600,
-    top: 10,
-    pointerEvents: 'none',
+    alignSelf: 'center',
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 6,
-    color: '#332244',
+    color: '#4b164c',
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 13,
-    opacity: 0.75,
+    fontSize: 14,
+    color: '#6b7280',
     marginBottom: 12,
-    color: '#5a486b',
-  },
-  grid: {
-    gap: 12,
-    marginTop: 12,
-  },
-  tile: {
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5d9f2',
-    borderLeftWidth: 4,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tileContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tileIcon: {
-    marginRight: 10,
-  },
-  tileTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#3c234c',
-    flexShrink: 1,
   },
 
-  printFooter: {
-    marginTop: 32,
-    width: '100%',
-    alignItems: 'flex-end', // ⭐ right-align whole block
+  outingSummary: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    marginTop: 8,
+    marginBottom: 8,
   },
-  
-  printFooterButton: {
-    alignItems: 'center',  // ⭐ center icon directly above label
-    justifyContent: 'center',
-    marginRight: 4,        // matches tile right padding visually
-  },
-  
-  printFooterIcon: {
-    marginBottom: 6,
-  },
-  
-  printFooterLabel: {
-    fontSize: 14,
+  outingSummaryTitle: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#3c234c',
-    textAlign: 'center',   // ⭐ center label under icon
+    color: '#7C2D12',
+    marginBottom: 2,
+  },
+  outingSummaryLine: {
+    fontSize: 12,
+    color: '#9A3412',
+  },
+
+  cardList: {
+    marginTop: 12,
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    borderRadius: 999,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  cardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconBubble: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  cardTitle: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '500',
   },
 });
