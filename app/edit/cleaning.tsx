@@ -106,7 +106,7 @@ export default function CleaningEditScreen() {
         <Ionicons
           name="sparkles-outline"
           size={220}
-          color="#FED7AA"
+          color="#D291BC"
           style={styles.heroIcon}
         />
       )}
