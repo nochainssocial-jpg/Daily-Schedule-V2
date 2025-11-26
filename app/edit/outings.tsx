@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   heroIcon: {
     position: 'absolute',
     top: '25%',
-    right: '10%',
+    left: '10%',
     opacity: 1,
     zIndex: 0,
   },
