@@ -18,6 +18,14 @@ import Chip from '@/components/Chip';
 
 type ID = string;
 
+export default function EditAssignmentsScreen() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+  
 const makeStaffMap = () => {
   const map: Record<string, any> = {};
   STATIC_STAFF.forEach((s) => {
