@@ -10,7 +10,51 @@ import {
 import { Bell, X } from 'lucide-react-native';
 import { useNotifications } from '@/hooks/notifications';
 
-const ORANGE = '#F7A534'; // agreed mid-orange
+// Fallback colour if we have no category mapping
+const DEFAULT_ORANGE = '#F7A534';
+
+// Map categories -> title + background colour
+const CATEGORY_STYLES: Record<
+  string,
+  {
+    title: string;
+    bg: string;
+  }
+> = {
+  'dream-team': {
+    title: 'Dream Team Updated',
+    bg: '#FDE68A',
+  },
+  participants: {
+    title: 'Attending Participants Updated',
+    bg: '#E0F2FE',
+  },
+  outings: {
+    title: 'Drive / Outings Updated',
+    bg: '#FFE4CC',
+  },
+  assignments: {
+    title: 'Team Daily Assignments Updated',
+    bg: '#E5DEFF',
+  },
+  floating: {
+    title: 'Floating Assignments Updated',
+    bg: '#FDF2FF',
+  },
+  cleaning: {
+    title: 'Cleaning Assignments Updated',
+    bg: '#DCFCE7',
+  },
+  // Pickups tab uses category "pickups" in push(...)
+  pickups: {
+    title: 'Pickups & Dropoffs Updated',
+    bg: '#FFE4E6',
+  },
+  checklist: {
+    title: 'Checklist Updated',
+    bg: '#E0E7FF',
+  },
+};
 
 export default function NotificationToaster() {
   const { current, clearCurrent } = useNotifications();
@@ -19,9 +63,7 @@ export default function NotificationToaster() {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!current) {
-      return;
-    }
+    if (!current) return;
 
     setVisible(true);
 
@@ -60,6 +102,16 @@ export default function NotificationToaster() {
 
   if (!current || !visible) return null;
 
+  const styleForCategory =
+    (current.category && CATEGORY_STYLES[current.category]) || null;
+
+  const bgColor = styleForCategory?.bg ?? DEFAULT_ORANGE;
+  const title =
+    styleForCategory?.title ||
+    (current.category
+      ? current.category[0].toUpperCase() + current.category.slice(1)
+      : 'Update');
+
   return (
     <Animated.View
       pointerEvents="box-none"
@@ -71,17 +123,14 @@ export default function NotificationToaster() {
         },
       ]}
     >
-      <View style={styles.panel}>
+      <View style={[styles.panel, { backgroundColor: bgColor }]}>
         <View style={styles.iconWrap}>
           <Bell size={18} color="#FFFFFF" />
         </View>
 
         <View style={{ flex: 1 }}>
           <Text style={styles.title} numberOfLines={1}>
-            {current.category
-              ? current.category[0].toUpperCase() +
-                current.category.slice(1)
-              : 'Update'}
+            {title}
           </Text>
           <Text style={styles.text} numberOfLines={2}>
             {current.message}
@@ -103,7 +152,8 @@ export default function NotificationToaster() {
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    top: 30,
+    // Dropped down so it sits just under the header + SaveExit
+    top: 90,
     right: 20,
     width: 260,
     zIndex: 200,
@@ -114,7 +164,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: ORANGE,
+    // backgroundColor is now set dynamically per category
     shadowColor: '#000',
     shadowOpacity: 0.16,
     shadowRadius: 8,
