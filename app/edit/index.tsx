@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
-import { initScheduleForToday } from '@/hooks/schedule-store';
+import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 880;
 
@@ -38,12 +38,11 @@ const TILES: TileConfig[] = [
     icon: 'people-outline',
     color: '#EC4899', // pink-ish
   },
-  // ⭐ NEW – Outings category
   {
-    title: 'Outings (staff & participants out)',
+    title: 'Outings',
     path: '/edit/outings',
     icon: 'sunny-outline',
-    color: '#06B6D4', // teal / outdoor vibe
+    color: '#F97316', // orange
   },
   {
     title: 'Team Daily Assignments',
@@ -88,6 +87,21 @@ export default function EditHubScreen() {
   useEffect(() => {
     initScheduleForToday('B2');
   }, []);
+
+  const { staff, participants, outingGroup } = useSchedule();
+
+  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
+  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
+  const hasOutingToday = !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
+
+  const timeRange =
+    outingGroup?.startTime && outingGroup?.endTime
+      ? `${outingGroup.startTime}–${outingGroup.endTime}`
+      : outingGroup?.startTime
+      ? `from ${outingGroup.startTime}`
+      : outingGroup?.endTime
+      ? `until ${outingGroup.endTime}`
+      : null;
 
   const handlePrint = () => {
     router.push('/print');
@@ -165,6 +179,26 @@ export default function EditHubScreen() {
 }
 
 const styles = StyleSheet.create({
+  outingSummary: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    marginTop: 8,
+  },
+  outingSummaryTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7C2D12',
+    marginBottom: 2,
+  },
+  outingSummaryLine: {
+    fontSize: 12,
+    color: '#9A3412',
+  },
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
@@ -239,21 +273,21 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'flex-end', // ⭐ right-align whole block
   },
-
+  
   printFooterButton: {
-    alignItems: 'center', // ⭐ center icon directly above label
+    alignItems: 'center',  // ⭐ center icon directly above label
     justifyContent: 'center',
-    marginRight: 4, // matches tile right padding visually
+    marginRight: 4,        // matches tile right padding visually
   },
-
+  
   printFooterIcon: {
     marginBottom: 6,
   },
-
+  
   printFooterLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#3c234c',
-    textAlign: 'center', // ⭐ center label under icon
+    textAlign: 'center',   // ⭐ center label under icon
   },
 });
