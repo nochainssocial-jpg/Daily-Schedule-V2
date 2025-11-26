@@ -87,7 +87,7 @@ export default function EditOutingsScreen() {
         <Ionicons
           name="sunny-outline"
           size={220}
-          color="#E0F2FE"
+          color="#fb923c"
           style={styles.heroIcon}
         />
       )}
