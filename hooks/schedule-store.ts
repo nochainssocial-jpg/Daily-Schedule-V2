@@ -25,49 +25,50 @@ export type ScheduleBanner = {
   sourceDate?: string;   // YYYY-MM-DD (original creation date)
 };
 
-/**
- * Core "snapshot" of a schedule that we persist to Supabase.
- * This is the structure that we save & load from the backend.
- */
 export type ScheduleSnapshot = {
-  // Base "who is working / attending"
   staff: Staff[];
   participants: Participant[];
-  workingStaff: ID[];
-  attendingParticipants: ID[];
 
-  // Core assignments
-  assignments: Record<ID, ID[]>; // staffId -> participantIds
-  floatingAssignments: Record<string, ID>; // "slotId|roomId" -> staffId
-  cleaningAssignments: Record<ID, ID>; // choreId -> staffId
+  // Outings
+  outingGroup?: OutingGroup | null;
 
-  // Transport
-  helperStaff: ID[];
-  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds
-  dropoffLocations: Record<ID, number>; // participantId -> index of location
+  // Core selections
+  workingStaff: ID[];          // The Dream Team (Working at B2)
+  attendingParticipants: ID[]; // Attending Participants
 
-  // Final checklist
+  // Daily assignments (staff -> participantIds)
+  assignments: Record<ID, ID[]>;
+
+  // Floating: key is `${timeSlotId}|${roomId}` -> staffId
+  floatingAssignments: Record<string, ID>;
+
+  // Cleaning: key is `choreId` -> staffId
+  cleaningAssignments: Record<string, ID>;
+
+  // End-of-shift checklist
   finalChecklist: Record<string, boolean>;
   finalChecklistStaff?: ID;
 
-  // NEW: Outings
-  outingGroup: OutingGroup | null;
+  // Transport
+  pickupParticipants: ID[];             // participantIds being picked up by third parties
+  helperStaff: ID[];                    // helpers joining dropoffs
+  dropoffAssignments: Record<ID, ID[]>; // staffId -> participantIds they drop off
+  dropoffLocations: Record<ID, number>; // participantId -> index into DROPOFF_OPTIONS
 
-  // Metadata
-  date?: string; // YYYY-MM-DD
-  meta?: {
-    from?: 'create-wizard' | 'edit-hub' | string;
-    [key: string]: any;
-  };
+  // Meta
+  date?: string;
+  meta?: Record<string, any>;
 };
 
-/**
- * Full Zustand store type: snapshot + UI-only stuff + helpers.
- */
-export type ScheduleState = ScheduleSnapshot & {
-  // Wizard/UI state
+type ScheduleState = ScheduleSnapshot & {
+  createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
+  updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
+
+  // Wizard + UI state
   scheduleStep: number;
   selectedDate?: string;
+  setScheduleStep: (step: number) => void;
+  setSelectedDate: (date?: string) => void;
 
   // Auto-init + banner state
   banner: ScheduleBanner | null;
@@ -80,19 +81,10 @@ export type ScheduleState = ScheduleSnapshot & {
   recentCleaningSnapshots: ScheduleSnapshot[];
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) => void;
 
-  // Core actions
-  createSchedule: (snapshot: ScheduleSnapshot) => void;
-  updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
-
-  // Convenience setters
-  setScheduleStep: (step: number) => void;
-  setSelectedDate: (date?: string) => void;
-
-  // tiny helper to force re-render
   touch: () => void;
 };
 
-// Initial snapshot with empty structures
+// Initial snapshot
 const makeInitialSnapshot = (): ScheduleSnapshot => ({
   staff: [],
   participants: [],
@@ -101,6 +93,9 @@ const makeInitialSnapshot = (): ScheduleSnapshot => ({
   assignments: {},
   floatingAssignments: {},
   cleaningAssignments: {},
+  finalChecklist: {},
+  finalChecklistStaff: undefined,
+  pickupParticipants: [],
   helperStaff: [],
   dropoffAssignments: {},
   dropoffLocations: {},
@@ -250,7 +245,7 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   touch: () => set((state) => ({ ...state })),
 }));
 
-// Hook wrapper for components (for compatibility if you want a hook that returns the store object)
+// Hook wrapper for components
 export function useScheduleStore() {
   return useSchedule;
 }
@@ -276,33 +271,22 @@ export const useCleaningMissing = (choreIds: string[]) => {
   }, [choreIds]);
 };
 
-// Auto-init for today (B2) when the app starts.
-export async function hydrateFromBackend(houseId: string, state: ScheduleState) {
-  const now = new Date();
-  const todayKey = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-'); // "YYYY-MM-DD"
+// Auto-init for today (B2) when app starts
+export async function initialiseScheduleForTodayIfNeeded(
+  houseId: string,
+  todayKey: string
+) {
+  const state = useSchedule.getState();
 
   // Avoid re-initialising for the same day
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
     return;
   }
 
-  // 🔁 Use the proven working behaviour:
-  // - call fetchLatestScheduleForHouse(houseId)
-  // - if no data, mark & set "created" banner
-  const result = await fetchLatestScheduleForHouse(houseId);
-
+  const result = await fetchLatestScheduleForHouse(houseId, todayKey);
   if (!result.ok || !result.data) {
     // Nothing to hydrate; mark as initialised (so we don't retry)
     state.markInitialisedForDate(todayKey);
-    state.setBanner({
-      type: 'created',
-      scheduleDate: todayKey,
-      sourceDate: todayKey,
-    });
     return;
   }
 
@@ -319,3 +303,20 @@ export async function hydrateFromBackend(houseId: string, state: ScheduleState) 
     sourceDate,
   });
 }
+
+/**
+ * Legacy helper used by home + edit hub screens.
+ * Computes today's YYYY-MM-DD key and calls initialiseScheduleForTodayIfNeeded.
+ */
+export async function initScheduleForToday(houseId: string) {
+  const now = new Date();
+  const todayKey = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+
+  return initialiseScheduleForTodayIfNeeded(houseId, todayKey);
+}
+
+
