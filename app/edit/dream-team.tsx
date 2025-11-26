@@ -88,12 +88,12 @@ const { width, height } = useWindowDimensions();
 
   return (
     <View style={styles.screen}>
-      {/* Web-only hero icon for Dream Team */}
-      {Platform.OS === 'web' && (
+      <SaveExit touchKey="dream-team" />
+      {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
           name="people-circle-outline"
           size={220}
-          color="#FDE68A" // warm pastel yellow, different hue to Outings
+          color="#FDE68A"
           style={styles.heroIcon}
         />
       )}
