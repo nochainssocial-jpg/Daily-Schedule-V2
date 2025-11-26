@@ -126,7 +126,7 @@ export default function EditAssignmentsScreen() {
         <Ionicons
           name="list-outline"
           size={220}
-          color="#DCE1FF"
+          color="#F72585"
           style={styles.heroIcon}
         />
       )}
