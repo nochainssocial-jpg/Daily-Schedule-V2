@@ -78,6 +78,12 @@ const CARDS: Card[] = [
 export default function EditHubScreen() {
   const router = useRouter();
 
+  useEffect(() => {
+    initScheduleForToday('B2');
+  }, []);
+
+  const { outingGroup } = useSchedule();
+
   // Ensure today’s schedule is loaded into the store
   useEffect(() => {
     initScheduleForToday('B2');
@@ -99,6 +105,130 @@ export default function EditHubScreen() {
       ? `until ${outingGroup.endTime}`
       : null;
 
+ // app/edit/index.tsx
+import React, { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+import Footer from '@/components/Footer';
+import ScheduleBanner from '@/components/ScheduleBanner';
+import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
+
+const MAX_WIDTH = 960;
+
+type CardConfig = {
+  key: string;
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconBg: string;
+  route: string;
+};
+
+const CARDS: CardConfig[] = [
+  {
+    key: 'dream-team',
+    title: 'The Dream Team (Working at B2)',
+    description: 'Choose who is working at B2 today and who is away.',
+    icon: 'people-circle-outline',
+    iconBg: '#FDE68A',
+    route: 'dream-team',
+  },
+  {
+    key: 'participants',
+    title: 'Attending Participants',
+    description: 'Confirm who is attending for the day (onsite or on outing).',
+    icon: 'happy-outline',
+    iconBg: '#E0F2FE',
+    route: 'participants',
+  },
+  {
+    key: 'outings',
+    title: 'Drive / Outing / Off-site',
+    description:
+      'Set up any drives or outings so cleaning and floating only use onsite staff.',
+    icon: 'car-outline',
+    iconBg: '#FFE4CC',
+    route: 'outings',
+  },
+  {
+    key: 'assignments',
+    title: 'Team Daily Assignments',
+    description: 'Assign participants to staff for the day.',
+    icon: 'clipboard-outline',
+    iconBg: '#E5DEFF',
+    route: 'assignments',
+  },
+  {
+    key: 'floating',
+    title: 'Floating Assignments (Front Room, Scotty, Twins)',
+    description:
+      'Plan floating support across the key shared spaces throughout the day.',
+    icon: 'swap-vertical-outline',
+    iconBg: '#FDF2FF',
+    route: 'floating',
+  },
+  {
+    key: 'cleaning',
+    title: 'End of Shift Cleaning Assignments',
+    description:
+      'Distribute cleaning tasks fairly so no one is stuck with the same jobs.',
+    icon: 'sparkles-outline' as any,
+    iconBg: '#DCFCE7',
+    route: 'cleaning',
+  },
+  {
+    key: 'pickups-dropoffs',
+    title: 'Pickups and Dropoffs with Helpers',
+    description:
+      'Organise transport, helpers and dropoff locations for each participant.',
+    icon: 'bus-outline',
+    iconBg: '#FFE4E6',
+    route: 'pickups-dropoffs',
+  },
+  {
+    key: 'checklist',
+    title: 'End of Shift Checklist',
+    description:
+      'Final checklist to confirm everything is complete before handing over.',
+    icon: 'checkbox-outline',
+    iconBg: '#E0E7FF',
+    route: 'checklist',
+  },
+];
+
+export default function EditHubScreen() {
+  const router = useRouter();
+  const { outingGroup } = useSchedule();
+
+  useEffect(() => {
+    // Auto-hydrate today on first load
+    initScheduleForToday('B2');
+  }, []);
+
+  const hasOuting =
+    !!outingGroup &&
+    ((outingGroup.staffIds && outingGroup.staffIds.length > 0) ||
+      (outingGroup.participantIds && outingGroup.participantIds.length > 0));
+
+  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
+  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
+
+  const hasTime =
+    (outingGroup?.startTime && outingGroup.startTime.trim() !== '') ||
+    (outingGroup?.endTime && outingGroup.endTime.trim() !== '');
+
+  const timeRange = hasTime
+    ? `${outingGroup?.startTime || '?'}–${outingGroup?.endTime || '?'}`
+    : '';
+
   return (
     <View style={styles.screen}>
       <Stack.Screen
@@ -108,67 +238,62 @@ export default function EditHubScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.inner}>
-          <Text style={styles.title}>Edit today&apos;s schedule</Text>
-          <Text style={styles.subtitle}>
-            Tap a category below to review and adjust details captured during
-            the create flow.
-          </Text>
-
-          {/* Banner for created/updated state */}
+          {/* Schedule banner (created / loaded) */}
           <ScheduleBanner />
 
-          {/* 👉 NEW: Outing summary when an outing exists */}
-          {hasOutingToday && (
+          {/* Outing summary card */}
+          {hasOuting && (
             <View style={styles.outingSummary}>
-              <Ionicons
-                name="sunny-outline"
-                size={20}
-                color="#c05621"
-                style={{ marginRight: 10, marginTop: 2 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.outingSummaryTitle}>Outing today</Text>
-                <Text style={styles.outingSummaryLine}>
-                  {outingGroup?.name || 'Unnamed outing'}
-                  {timeRange ? ` · ${timeRange}` : ''}
-                </Text>
-                <Text style={styles.outingSummaryLine}>
-                  {outingStaffCount} staff · {outingParticipantCount} participants
-                </Text>
+              <View style={styles.outingSummaryInner}>
+                <View style={styles.outingSummaryIconBubble}>
+                  <Ionicons name="car-outline" size={22} color="#C05621" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.outingSummaryTitle}>Outing today</Text>
+                  <Text style={styles.outingSummaryLine}>
+                    {outingGroup?.name || 'Unnamed outing'}
+                    {timeRange ? ` · ${timeRange}` : ''}
+                  </Text>
+                  <Text style={styles.outingSummaryLine}>
+                    {outingStaffCount} staff · {outingParticipantCount}{' '}
+                    participants
+                  </Text>
+                </View>
               </View>
             </View>
           )}
 
-          {/* Cards */}
+          {/* Category cards */}
           <View style={styles.cardList}>
             {CARDS.map((card) => (
               <Pressable
-                key={card.path}
-                onPress={() => router.push(card.path as any)}
-                style={styles.card}
+                key={card.key}
+                style={({ pressed }) => [
+                  styles.card,
+                  pressed && styles.cardPressed,
+                ]}
+                onPress={() => router.push(card.route)}
               >
-                <View style={styles.cardLeft}>
-                  <View
-                    style={[
-                      styles.iconBubble,
-                      { backgroundColor: `${card.color}22` },
-                    ]}
-                  >
-                    <Ionicons
-                      name={card.icon}
-                      size={20}
-                      color={card.color}
-                    />
-                  </View>
-                  <Text style={styles.cardTitle}>{card.title}</Text>
+                <View
+                  style={[
+                    styles.iconBubble,
+                    { backgroundColor: card.iconBg },
+                  ]}
+                >
+                  <Ionicons name={card.icon} size={20} color="#4B5563" />
                 </View>
-                <Ionicons
-                  name="chevron-forward-outline"
-                  size={20}
-                  color="#9ca3af"
-                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>{card.title}</Text>
+                  <Text style={styles.cardDescription}>
+                    {card.description}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
               </Pressable>
             ))}
           </View>
@@ -185,68 +310,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fef5fb',
   },
-    scroll: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingVertical: 32,
     alignItems: 'center',
-    paddingBottom: 160,
+    paddingBottom: 200, // extra space so the last card clears the footer on mobile
   },
   inner: {
     width: '100%',
     maxWidth: MAX_WIDTH,
     alignSelf: 'center',
+    paddingHorizontal: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#4b164c',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 12,
-  },
-
-  outingSummary: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  outingSummaryTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#7C2D12',
-    marginBottom: 2,
-  },
-  outingSummaryLine: {
-    fontSize: 12,
-    color: '#9A3412',
-  },
-
   cardList: {
-    marginTop: 12,
+    marginTop: 16,
+    width: '100%',
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderRadius: 999,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+  cardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.997 }],
+  },
+  cardDescription: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6B7280',
   },
   iconBubble: {
     width: 32,
@@ -260,5 +363,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#111827',
     fontWeight: '500',
+  },
+  outingSummary: {
+    width: '100%',
+    borderRadius: 16,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  outingSummaryInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  outingSummaryIconBubble: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FED7AA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  outingSummaryTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#9A3412',
+  },
+  outingSummaryLine: {
+    fontSize: 12,
+    color: '#7C2D12',
   },
 });
