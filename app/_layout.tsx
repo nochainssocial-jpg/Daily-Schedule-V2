@@ -52,11 +52,16 @@ export default function RootLayout() {
           headerStyle: { backgroundColor: '#FFFFFF' },
         }}
       >
-        {/* EDIT STACK ROOT – header handled by app/edit/_layout.tsx */}
+                {/* EDIT HUB */}
         <Stack.Screen
           name="edit"
           options={{
-            headerShown: false,
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<Edit3 size={24} color={PINK} />}
+                label="Edit Hub"
+              />
+            ),
           }}
         />
 
@@ -73,15 +78,8 @@ export default function RootLayout() {
           }}
         />
 
-        {/* EDIT HUB */}
-        <Stack.Screen
-          name="edit/index"
-          options={{
-            headerTitle: () => (
-              <HeaderTitle
-                icon={<Edit3 size={24} color={PINK} />}
-                label="Edit Hub"
-              />
+
+
             ),
           }}
         />
