@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   root: {
     position: 'absolute',
     // Dropped down so it sits just under the header + SaveExit
-    top: 90,
+    top: 150,
     right: 20,
     width: 260,
     zIndex: 200,
