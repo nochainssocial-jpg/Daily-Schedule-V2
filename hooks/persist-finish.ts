@@ -392,6 +392,8 @@ export async function persistFinish(params: PersistParams) {
     dropoffAssignments: cleanedDropoffs,
     dropoffLocations: dropoffLocations || {},
 
+    outingGroup: null,
+
     // Use local calendar date for the schedule
     date:
       date ??
