@@ -73,7 +73,7 @@ export default function EditChecklistScreen() {
         <Ionicons
           name="checkbox-outline"
           size={220}
-          color="#E7E5E4"
+          color="#F54FA5"
           style={styles.heroIcon}
         />
       )}
