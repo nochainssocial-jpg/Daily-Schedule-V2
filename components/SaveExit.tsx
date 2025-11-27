@@ -18,6 +18,8 @@ type SaveExitProps = {
     | 'transport';
 };
 
+const MAX_WIDTH = 880;
+
 export default function SaveExit({ onSave }: SaveExitProps) {
   const schedule = useSchedule();
 
@@ -44,7 +46,7 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       helperStaff: schedule.helperStaff,
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
-      // ✅ NEW: persist outings as part of the schedule snapshot
+      // ✅ make sure outings are persisted when using Save & Exit
       outingGroup: schedule.outingGroup ?? null,
       date: schedule.date,
       meta: schedule.meta ?? {},
@@ -52,10 +54,8 @@ export default function SaveExit({ onSave }: SaveExitProps) {
 
     try {
       await saveScheduleToSupabase('B2', snapshot);
-      // You could add a toast here if you like
-      // e.g. useNotifications().push('Changes saved', 'schedule');
-    } catch (err) {
-      console.error('Save & Exit - Supabase error', err);
+    } catch (error) {
+      console.error('Save & Exit: failed to save schedule to Supabase', error);
     }
 
     router.back();
@@ -64,9 +64,6 @@ export default function SaveExit({ onSave }: SaveExitProps) {
   return (
     <View
       style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderTopWidth: 1,
@@ -74,31 +71,44 @@ export default function SaveExit({ onSave }: SaveExitProps) {
         backgroundColor: '#F9FAFB',
       }}
     >
-      <TouchableOpacity
-        onPress={handleCancel}
+      {/* Centered content band, buttons grouped on the right */}
+      <View
         style={{
-          paddingVertical: 8,
-          paddingHorizontal: 14,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor: '#D1D5DB',
-          backgroundColor: '#FFFFFF',
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          maxWidth: MAX_WIDTH,
+          width: '100%',
+          alignSelf: 'center',
         }}
       >
-        <Text style={{ color: '#4B5563', fontWeight: '600' }}>Cancel</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleCancel}
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: '#D1D5DB',
+            backgroundColor: '#FFFFFF',
+          }}
+        >
+          <Text style={{ color: '#4B5563', fontWeight: '600' }}>Cancel</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={handleSaveExit}
-        style={{
-          paddingVertical: 10,
-          paddingHorizontal: 14,
-          borderRadius: 10,
-          backgroundColor: '#10B981',
-        }}
-      >
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleSaveExit}
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            backgroundColor: '#10B981',
+            marginLeft: 12, // gap between buttons
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
