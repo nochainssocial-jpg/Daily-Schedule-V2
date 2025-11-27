@@ -87,7 +87,7 @@ export default function SaveExit({ onSave }: SaveExitProps) {
             paddingHorizontal: 14,
             borderRadius: 10,
             borderWidth: 1,
-            borderColor: '#D1D5DB',
+            borderColor: '#F54927',
             backgroundColor: '#FFFFFF',
           }}
         >
