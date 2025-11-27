@@ -114,18 +114,19 @@ export async function persistFinish(params: PersistParams) {
   ) as ID[];
 
   // ---------- DROPOFFS ----------
+  // Canonical shape: staffId -> participantIds[]
   const cleanedDropoffs: Record<ID, ID[]> = {};
 
-  for (const [partId, locIds] of Object.entries(dropoffAssignments || {})) {
-    if (!attendingSet.has(partId as ID)) continue;
+  for (const [staffId, pids] of Object.entries(dropoffAssignments || {})) {
+    if (!workingSet.has(staffId as ID)) continue;
 
-    const cleanedLocs = (locIds || []).filter(
-      (locId) => typeof dropoffLocations[locId as ID] === 'number',
+    const cleanedPids = (pids || []).filter((pid) =>
+      attendingSet.has(pid as ID),
     ) as ID[];
 
-    if (!cleanedLocs.length) continue;
+    if (!cleanedPids.length) continue;
 
-    cleanedDropoffs[partId as ID] = cleanedLocs;
+    cleanedDropoffs[staffId as ID] = cleanedPids;
   }
 
   // ---------- CLEANING FAIRNESS ----------

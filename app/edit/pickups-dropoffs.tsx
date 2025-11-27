@@ -104,7 +104,39 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
     [staff, helperSet],
   );
 
-  const assignments = (dropoffAssignments || {}) as Record<ID, ID[]>;
+  // Normalise dropoff assignments so values are always ID[]
+  const assignments = React.useMemo(() => {
+    const raw = (dropoffAssignments || {}) as Record<ID, any>;
+    const normalised: Record<ID, ID[]> = {};
+
+    Object.entries(raw).forEach(([sid, pids]) => {
+      if (!pids) {
+        normalised[sid as ID] = [];
+        return;
+      }
+
+      if (Array.isArray(pids)) {
+        normalised[sid as ID] = (pids as ID[]).filter(Boolean) as ID[];
+        return;
+      }
+
+      if (typeof pids === 'object' && 'staffId' in (pids as any)) {
+        // Legacy shape: participantId -> { staffId, locationId }
+        const value = pids as { staffId?: ID | null };
+        if (value.staffId) {
+          const staffId = value.staffId as ID;
+          if (!normalised[staffId]) normalised[staffId] = [];
+          normalised[staffId].push(sid as ID);
+        }
+        return;
+      }
+
+      // Fallback: treat as single participant ID
+      normalised[sid as ID] = [pids as ID];
+    });
+
+    return normalised;
+  }, [dropoffAssignments]);
 
   // Participants that can take dropoffs
   const visibleDropoffParticipants = useMemo(

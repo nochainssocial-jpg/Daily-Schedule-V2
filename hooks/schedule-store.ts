@@ -137,6 +137,51 @@ function makeInitialSnapshot(): ScheduleSnapshot {
   };
 }
 
+function normalizeDropoffAssignments(raw: any): Record<ID, ID[]> {
+  const result: Record<ID, ID[]> = {};
+
+  if (!raw || typeof raw !== 'object') {
+    return result;
+  }
+
+  Object.entries(raw as Record<string, any>).forEach(([key, value]) => {
+    if (!value) {
+      return;
+    }
+
+    // Newer shape: staffId -> participantIds[]
+    if (Array.isArray(value)) {
+      const staffId = key as ID;
+      const pids = (value as ID[]).filter(Boolean) as ID[];
+      if (pids.length) {
+        result[staffId] = pids;
+      }
+      return;
+    }
+
+    // Legacy shape: participantId -> { staffId, locationId }
+    if (typeof value === 'object' && 'staffId' in (value as any)) {
+      const v = value as { staffId?: ID | null };
+      if (v.staffId) {
+        const staffId = v.staffId as ID;
+        if (!result[staffId]) result[staffId] = [];
+        result[staffId].push(key as ID);
+      }
+      return;
+    }
+
+    // Fallback: treat value as a single participantId with key as staffId
+    const staffId = key as ID;
+    const pid = value as ID;
+    if (!result[staffId]) result[staffId] = [];
+    result[staffId].push(pid);
+  });
+
+  return result;
+}
+
+
+
 // Simple helper to turn Date → YYYY-MM-DD in local time
 export function toLocalDateKey(date: Date): string {
   const yr = date.getFullYear();
@@ -166,10 +211,22 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
   // Create / replace full schedule
   createSchedule: (snapshot: ScheduleSnapshot) =>
-    set((state) => ({
-      ...state,
-      ...snapshot,
-    })),
+    set((state) => {
+      const normalizedDropoffs = normalizeDropoffAssignments(
+        (snapshot as any).dropoffAssignments,
+      );
+
+      const normalizedSnapshot: ScheduleSnapshot = {
+        ...makeInitialSnapshot(),
+        ...snapshot,
+        dropoffAssignments: normalizedDropoffs,
+      };
+
+      return {
+        ...state,
+        ...normalizedSnapshot,
+      };
+    }),
 
   // Patch schedule with some changes and clean dependent state
   patchSchedule: (patch: Partial<ScheduleSnapshot>) =>
@@ -405,9 +462,19 @@ export async function initialiseScheduleForTodayIfNeeded(
       bannerSourceDate = sourceDate;
     }
 
+    const normalizedDropoffs = normalizeDropoffAssignments(
+      (snapshot as any).dropoffAssignments,
+    );
+
+    const normalizedSnapshot: ScheduleSnapshot = {
+      ...makeInitialSnapshot(),
+      ...snapshot,
+      dropoffAssignments: normalizedDropoffs,
+    };
+
     useSchedule.setState((s) => ({
       ...s,
-      ...snapshot,
+      ...normalizedSnapshot,
       date: todayKey,
       banner: {
         type,
