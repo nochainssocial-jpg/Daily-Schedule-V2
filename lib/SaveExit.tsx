@@ -61,53 +61,54 @@ export default function SaveExit({ onSave }: SaveExitProps) {
     router.back();
   };
 
-return (
-  <View
-    style={{
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderTopWidth: 1,
-      borderTopColor: '#E5E7EB',
-      backgroundColor: '#F9FAFB',
-    }}
-  >
-    {/* NEW CENTERED WRAPPER */}
+  return (
     <View
       style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        maxWidth: MAX_WIDTH,
-        width: '100%',
-        alignSelf: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        backgroundColor: '#F9FAFB',
       }}
     >
-      <TouchableOpacity
-        onPress={handleCancel}
+      {/* Centered content band, buttons grouped on the right */}
+      <View
         style={{
-          paddingVertical: 8,
-          paddingHorizontal: 14,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor: '#D1D5DB',
-          backgroundColor: '#FFFFFF',
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          maxWidth: MAX_WIDTH,
+          width: '100%',
+          alignSelf: 'center',
         }}
       >
-        <Text style={{ color: '#4B5563', fontWeight: '600' }}>Cancel</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleCancel}
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: '#D1D5DB',
+            backgroundColor: '#FFFFFF',
+          }}
+        >
+          <Text style={{ color: '#4B5563', fontWeight: '600' }}>Cancel</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={handleSaveExit}
-        style={{
-          paddingVertical: 10,
-          paddingHorizontal: 14,
-          borderRadius: 10,
-          backgroundColor: '#10B981',
-        }}
-      >
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleSaveExit}
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            backgroundColor: '#10B981',
+            marginLeft: 12, // gap between buttons
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
+        </TouchableOpacity>
+      </View>
     </View>
-  </View>
-);
-
+  );
+}
