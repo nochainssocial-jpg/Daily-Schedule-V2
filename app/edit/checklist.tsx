@@ -1,3 +1,4 @@
+//app/edit/checklist.tsx
 import React, { useMemo } from 'react';
 import {
   ScrollView,
@@ -97,22 +98,30 @@ export default function EditChecklistScreen() {
               </Text>
             ) : (
               <View style={styles.chipRow}>
-                {staffPool.map((s) => (
-                  <Chip
-                    key={s.id}
-                    label={s.name}
-                    selected={finalChecklistStaff === s.id}
-                    onPress={() => handleSelectStaff(s.id)}
-                    style={styles.staffChip}
-                  />
-                ))}
+            {staffPool.map((s) => {
+              const isSelected = finalChecklistStaff === s.id;
+              return (
+                <Chip
+                  key={s.id}
+                  label={s.name}
+                  selected={isSelected}
+                  mode={isSelected ? 'onsite' : 'default'}
+                  onPress={() => handleSelectStaff(s.id)}
+                  style={styles.staffChip}
+                />
+              );
+            })}
               </View>
             )}
 
             <Text style={styles.sectionTitle}>Last to leave</Text>
             <View style={styles.chipRow}>
               {selectedStaff ? (
-                <Chip label={selectedStaff.name} selected />
+                <Chip
+                  label={selectedStaff.name}
+                  selected
+                  mode="onsite"   // ← apply onsite styling
+                />
               ) : (
                 <Text style={styles.helperText}>Not yet selected</Text>
               )}
