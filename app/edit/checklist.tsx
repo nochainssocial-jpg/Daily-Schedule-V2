@@ -116,7 +116,11 @@ export default function EditChecklistScreen() {
             <Text style={styles.sectionTitle}>Last to leave</Text>
             <View style={styles.chipRow}>
               {selectedStaff ? (
-                <Chip label={selectedStaff.name} selected />
+                <Chip
+                  label={selectedStaff.name}
+                  selected
+                  mode="onsite"   // ← apply onsite styling
+                />
               ) : (
                 <Text style={styles.helperText}>Not yet selected</Text>
               )}
