@@ -344,6 +344,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+        // NEW:
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
   list: {
     flex: 1,
