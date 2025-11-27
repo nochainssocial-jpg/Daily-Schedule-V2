@@ -18,6 +18,8 @@ type SaveExitProps = {
     | 'transport';
 };
 
+const MAX_WIDTH = 880;
+
 export default function SaveExit({ onSave }: SaveExitProps) {
   const schedule = useSchedule();
 
