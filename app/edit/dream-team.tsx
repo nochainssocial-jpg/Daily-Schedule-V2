@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
+import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
@@ -85,7 +85,8 @@ export default function EditDreamTeamScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* Web-only hero icon for Dream Team (desktop only) */}
+      <SaveExit touchKey="dreamTeam" />
+      {/* Web-only hero icon... */}
       {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
           name="people-circle-outline"
