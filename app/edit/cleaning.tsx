@@ -159,12 +159,13 @@ export default function CleaningEditScreen() {
       )}
 
       <View style={styles.wrap}>
+        <View style={styles.card}>    {/* NEW white container */}
         <Text style={styles.heading}>Cleaning Duties</Text>
         <Text style={styles.subheading}>
           Tap a staff pill to update who is responsible for each task. Only staff
           currently working onsite can be assigned.
         </Text>
-
+      
         {/* Re-shuffle button */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
@@ -502,3 +503,16 @@ const styles = StyleSheet.create({
     color: '#222',
   },
 });
+card: {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  paddingVertical: 20,
+  paddingHorizontal: 20,
+  marginTop: 16,
+  marginBottom: 32,
+  shadowColor: '#000',
+  shadowOpacity: 0.04,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 2,
+},

@@ -79,7 +79,8 @@ export default function EditChecklistScreen() {
       )}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.inner}>
+        <View style={styles.card}>     {/* NEW white container */}
+          <View style={styles.inner}>
           <Text style={styles.title}>End of Shift Checklist</Text>
           <Text style={styles.subtitle}>
             Tick each item as it&apos;s completed and confirm who is last to
@@ -135,8 +136,10 @@ export default function EditChecklistScreen() {
             );
           })}
         </View>
+        </View>
       </ScrollView>
     </View>
+  
   );
 }
 
@@ -206,3 +209,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
 });
+card: {
+  width: '100%',
+  maxWidth: MAX_WIDTH,
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  paddingVertical: 24,
+  paddingHorizontal: 24,
+  marginTop: 16,
+  marginBottom: 32,
+  shadowColor: '#000',
+  shadowOpacity: 0.04,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 2,
+},
