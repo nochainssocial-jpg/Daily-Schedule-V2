@@ -61,17 +61,25 @@ export default function SaveExit({ onSave }: SaveExitProps) {
     router.back();
   };
 
-  return (
+return (
+  <View
+    style={{
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: '#E5E7EB',
+      backgroundColor: '#F9FAFB',
+    }}
+  >
+    {/* NEW CENTERED WRAPPER */}
     <View
       style={{
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-        backgroundColor: '#F9FAFB',
+        maxWidth: MAX_WIDTH,
+        width: '100%',
+        alignSelf: 'center',
       }}
     >
       <TouchableOpacity
@@ -100,5 +108,6 @@ export default function SaveExit({ onSave }: SaveExitProps) {
         <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
       </TouchableOpacity>
     </View>
-  );
-}
+  </View>
+);
+
