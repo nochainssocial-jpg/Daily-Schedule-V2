@@ -1,3 +1,4 @@
+// components/SaveExit.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
@@ -28,10 +29,8 @@ export default function SaveExit({ onSave }: SaveExitProps) {
   };
 
   const handleSaveExit = async () => {
-    // Allow the screen to do any local cleanup first (if needed)
     onSave?.();
 
-    // Build a clean snapshot from the current store
     const snapshot: ScheduleSnapshot = {
       staff: schedule.staff,
       participants: schedule.participants,
@@ -46,7 +45,6 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       helperStaff: schedule.helperStaff,
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
-      // ✅ make sure outings are persisted when using Save & Exit
       outingGroup: schedule.outingGroup ?? null,
       date: schedule.date,
       meta: schedule.meta ?? {},
@@ -71,11 +69,11 @@ export default function SaveExit({ onSave }: SaveExitProps) {
         backgroundColor: '#F9FAFB',
       }}
     >
-      {/* Centered content band, buttons grouped on the right */}
+      {/* Centered 880px band with buttons at each end */}
       <View
         style={{
           flexDirection: 'row',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           alignItems: 'center',
           maxWidth: MAX_WIDTH,
           width: '100%',
@@ -103,7 +101,6 @@ export default function SaveExit({ onSave }: SaveExitProps) {
             paddingHorizontal: 14,
             borderRadius: 10,
             backgroundColor: '#10B981',
-            marginLeft: 12, // gap between buttons
           }}
         >
           <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
