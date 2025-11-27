@@ -331,7 +331,7 @@ export async function persistFinish(params: PersistParams) {
 
     outingGroup: null,
 
-    // Use local calendar date for the schedule (always today; do not carry over previous snapshot date)
+    // Use local calendar date for the schedule
     date: [
       now.getFullYear(),
       String(now.getMonth() + 1).padStart(2, '0'),
