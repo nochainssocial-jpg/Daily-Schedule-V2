@@ -9,7 +9,7 @@ export function generateShareCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Local "YYYY-MM-DD" using the device's local time (AUS on your machines)
+// Local "YYYY-MM-DD"
 function toLocalDateKey(d: Date): string {
   return [
     d.getFullYear(),
@@ -35,7 +35,7 @@ export async function saveScheduleToSupabase(
     house,
     code,
     snapshot,
-    // Optional: if you add a dedicated schedule_date column, you can keep this:
+    // If you later add a schedule_date column, you can wire this in:
     // schedule_date: baseDate,
   };
 
@@ -43,7 +43,7 @@ export async function saveScheduleToSupabase(
     const { data, error } = await supabase
       .from(TABLE)
       .insert(payload)
-      .select('snapshot, code, created_at')
+      .select('snapshot, code, created_at, seq_id')
       .single();
 
     if (error || !data) {
@@ -52,6 +52,7 @@ export async function saveScheduleToSupabase(
     }
 
     const createdAt = data.created_at as string | null;
+
     const scheduleDate =
       (snapshot.date && snapshot.date.slice(0, 10)) ||
       (createdAt ? createdAt.slice(0, 10) : baseDate);
@@ -60,9 +61,10 @@ export async function saveScheduleToSupabase(
       ok: true,
       data: {
         snapshot: data.snapshot as ScheduleSnapshot,
-        code: data.code as string | null,
+        code: (data.code as string | null) ?? null,
         createdAt,
         scheduleDate, // "YYYY-MM-DD"
+        seqId: (data.seq_id as number | null) ?? null,
       },
     };
   } catch (error) {
@@ -73,23 +75,15 @@ export async function saveScheduleToSupabase(
 
 /**
  * Fetch the most recent schedule for a given house.
- *
- * NOTE:
- *  - We accept an optional todayKey so existing calls
- *    `fetchLatestScheduleForHouse(houseId, todayKey)` still type-check.
+ * Uses seq_id (auto-increment identity) to guarantee "latest row".
  */
-export async function fetchLatestScheduleForHouse(
-  house: string,
-  _todayKey?: string
-) {
+export async function fetchLatestScheduleForHouse(house: string) {
   try {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('snapshot, code, created_at, updated_at')
+      .select('snapshot, code, created_at, seq_id')
       .eq('house', house)
-      // Always prefer the most recently updated row, then fall back to newest created
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
+      .order('seq_id', { ascending: false }) // ✅ newest schedule first
       .limit(1)
       .maybeSingle();
 
@@ -114,9 +108,10 @@ export async function fetchLatestScheduleForHouse(
       ok: true,
       data: {
         snapshot,
-        code: data.code as string | null,
+        code: (data.code as string | null) ?? null,
         createdAt,
         scheduleDate, // "YYYY-MM-DD"
+        seqId: (data.seq_id as number | null) ?? null,
       },
     };
   } catch (error) {
