@@ -27,15 +27,14 @@ export async function saveScheduleToSupabase(
 ) {
   const code = generateShareCode();
 
-  // Prefer whatever the wizard/store set, otherwise today's local date
-  const baseDate =
-    (snapshot.date && snapshot.date.slice(0, 10)) || toLocalDateKey(new Date());
+  // We still keep a base date, but it's always "today"
+  const baseDate = toLocalDateKey(new Date());
 
   const payload = {
     house,
     code,
     snapshot,
-    // If you later add a schedule_date column, you can wire this in:
+    // Optional: if you have a dedicated schedule_date column, uncomment:
     // schedule_date: baseDate,
   };
 
@@ -43,7 +42,7 @@ export async function saveScheduleToSupabase(
     const { data, error } = await supabase
       .from(TABLE)
       .insert(payload)
-      .select('snapshot, code, created_at, seq_id')
+      .select('snapshot, code, created_at')
       .single();
 
     if (error || !data) {
@@ -52,19 +51,16 @@ export async function saveScheduleToSupabase(
     }
 
     const createdAt = data.created_at as string | null;
-
     const scheduleDate =
-      (snapshot.date && snapshot.date.slice(0, 10)) ||
-      (createdAt ? createdAt.slice(0, 10) : baseDate);
+      (createdAt && createdAt.slice(0, 10)) || baseDate;
 
     return {
       ok: true,
       data: {
         snapshot: data.snapshot as ScheduleSnapshot,
-        code: (data.code as string | null) ?? null,
+        code: data.code as string | null,
         createdAt,
         scheduleDate, // "YYYY-MM-DD"
-        seqId: (data.seq_id as number | null) ?? null,
       },
     };
   } catch (error) {
@@ -75,15 +71,14 @@ export async function saveScheduleToSupabase(
 
 /**
  * Fetch the most recent schedule for a given house.
- * Uses seq_id (auto-increment identity) to guarantee "latest row".
  */
 export async function fetchLatestScheduleForHouse(house: string) {
   try {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('snapshot, code, created_at, seq_id')
+      .select('snapshot, code, created_at')
       .eq('house', house)
-      .order('seq_id', { ascending: false }) // ✅ newest schedule first
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -101,17 +96,15 @@ export async function fetchLatestScheduleForHouse(house: string) {
     const createdAt = data.created_at as string | null;
 
     const scheduleDate =
-      (snapshot.date && snapshot.date.slice(0, 10)) ||
-      (createdAt ? createdAt.slice(0, 10) : toLocalDateKey(new Date()));
+      (createdAt && createdAt.slice(0, 10)) || toLocalDateKey(new Date());
 
     return {
       ok: true,
       data: {
         snapshot,
-        code: (data.code as string | null) ?? null,
+        code: data.code as string | null,
         createdAt,
         scheduleDate, // "YYYY-MM-DD"
-        seqId: (data.seq_id as number | null) ?? null,
       },
     };
   } catch (error) {
