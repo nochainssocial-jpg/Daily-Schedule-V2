@@ -26,7 +26,7 @@ const isAntoinette = (x?: string) => nm(x) === 'antoinette';
 
 const MAX_WIDTH = 880;
 const PILL = 999;
-const ACCENT = '#4862f1e6'; // indigo
+const ACCENT = '#4862f1b3'; // indigo
 
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
@@ -126,7 +126,7 @@ export default function EditAssignmentsScreen() {
         <Ionicons
           name="clipboard-outline"
           size={220}
-          color="#4862f1e6"
+          color="#4862f1b3"
           style={styles.heroIcon}
         />
       )}
