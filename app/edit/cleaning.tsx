@@ -182,7 +182,7 @@ export default function CleaningEditScreen() {
           {/* Main chores list */}
           <ScrollView
             style={styles.list}
-            contentContainerStyle={{ paddingBottom: 160 }}
+            contentContainerStyle={{ paddingBottom: 30 }}
             showsVerticalScrollIndicator={true}
           >
             {chores.map((chore) => {
