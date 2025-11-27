@@ -400,8 +400,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   taskLabel: {
-    fontSize: 14,
-    color: '#433F4C',
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
   },
 
   pill: {
