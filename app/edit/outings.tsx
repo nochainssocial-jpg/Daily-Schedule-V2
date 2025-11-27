@@ -1,4 +1,3 @@
-// app/edit/outings.tsx
 import React, { useMemo } from 'react';
 import {
   ScrollView,
@@ -32,12 +31,20 @@ export default function OutingsScreen() {
   const { push } = useNotifications();
   const { width } = useWindowDimensions();
 
-  // Sources fallback
-  const staffSource = staff?.length ? staff : STAFF;
-  const partsSource = participants?.length ? participants : PARTICIPANTS;
+  // Fallback to constants if schedule hasn’t customised staff/participants yet
+  const staffSource = (staff && staff.length ? staff : STAFF) as typeof STAFF;
+  const partsSource = (participants && participants.length
+    ? participants
+    : PARTICIPANTS) as typeof PARTICIPANTS;
 
-  const workingSet = useMemo(() => new Set(workingStaff), [workingStaff]);
-  const attendingSet = useMemo(() => new Set(attendingParticipants), [attendingParticipants]);
+  const workingSet = useMemo(
+    () => new Set<string>(workingStaff || []),
+    [workingStaff],
+  );
+  const attendingSet = useMemo(
+    () => new Set<string>(attendingParticipants || []),
+    [attendingParticipants],
+  );
 
   const current = outingGroup ?? {
     id: `outing-${Date.now()}`,
@@ -49,84 +56,103 @@ export default function OutingsScreen() {
     notes: '',
   };
 
-  const staffOnOuting = new Set(current.staffIds);
-  const partsOnOuting = new Set(current.participantIds);
+  const staffOnOuting = new Set<string>((current.staffIds ?? []) as string[]);
+  const partsOnOuting = new Set<string>(
+    (current.participantIds ?? []) as string[],
+  );
 
   const applyChange = (patch: Partial<typeof current>) => {
-    updateSchedule?.({ outingGroup: { ...current, ...patch } });
+    const next = { ...current, ...patch };
+    updateSchedule?.({ outingGroup: next });
+    // 🔔 Toast for Drive / Outings changes
     push?.('Drive / Outings updated', 'outings');
   };
 
   const toggleStaff = (id: ID) => {
     const next = new Set(staffOnOuting);
-    next.has(id) ? next.delete(id) : next.add(id);
-    applyChange({ staffIds: [...next] });
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applyChange({ staffIds: Array.from(next) });
   };
 
   const toggleParticipant = (id: ID) => {
     const next = new Set(partsOnOuting);
-    next.has(id) ? next.delete(id) : next.add(id);
-    applyChange({ participantIds: [...next] });
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applyChange({ participantIds: Array.from(next) });
   };
 
-  const workingObjs = staffSource.filter((s) => workingSet.has(s.id));
-  const attendingObjs = partsSource.filter((p) => attendingSet.has(p.id));
+  const handleNameChange = (value: string) => {
+    applyChange({ name: value });
+  };
+
+  const handleTimeChange = (key: 'startTime' | 'endTime', value: string) => {
+    applyChange({ [key]: value });
+  };
+
+  const handleNotesChange = (value: string) => {
+    applyChange({ notes: value });
+  };
+
+  const workingStaffObjs = staffSource.filter((s) => workingSet.has(s.id));
+  const attendingPartsObjs = partsSource.filter((p) =>
+    attendingSet.has(p.id),
+  );
 
   return (
     <View style={styles.screen}>
-      {/* Standard SaveExit header */}
-      <SaveExit touchKey="outings" />
+      {/* Header bar + Save & Exit */}
+      <SaveExit touchKey="Drive / Outings" />
 
-      {/* Web hero icon */}
+      {/* Desktop-only hero icon */}
       {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
           name="car-outline"
           size={220}
-          color="#f5a623"
+          color="#FF8F2E"
           style={styles.heroIcon}
         />
       )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.wrap}>
-          {/* TITLE */}
           <Text style={styles.heading}>Drive / Outings</Text>
           <Text style={styles.subheading}>
-            Use this screen when some staff and participants are out on an excursion or appointment.
-            On-site logic in other screens automatically respects who is on an outing.
+            Use this screen when some staff and participants are out on an
+            excursion or appointment. Onsite-only logic in other screens will
+            automatically respect who is on outing.
           </Text>
 
-          {/* Outing details */}
+          {/* Outing title + time */}
           <View style={styles.section}>
             <Text style={styles.label}>Outing name</Text>
             <TextInput
               value={current.name}
-              onChangeText={(v) => applyChange({ name: v })}
+              onChangeText={handleNameChange}
               placeholder="e.g. Shopping with Shatha"
               style={styles.input}
-              placeholderTextColor="#888"
             />
-
             <View style={[styles.row, { marginTop: 8 }]}>
               <View style={{ flex: 1, marginRight: 6 }}>
                 <Text style={styles.label}>Start time</Text>
                 <TextInput
                   value={current.startTime}
-                  onChangeText={(v) => applyChange({ startTime: v })}
+                  onChangeText={(v) => handleTimeChange('startTime', v)}
                   placeholder="11:00"
                   style={styles.input}
-                  placeholderTextColor="#888"
                 />
               </View>
-
               <View style={{ flex: 1, marginLeft: 6 }}>
                 <Text style={styles.label}>End time</Text>
                 <TextInput
                   value={current.endTime}
-                  onChangeText={(v) => applyChange({ endTime: v })}
+                  onChangeText={(v) => handleTimeChange('endTime', v)}
                   placeholder="15:00"
                   style={styles.input}
-                  placeholderTextColor="#888"
                 />
               </View>
             </View>
@@ -135,21 +161,32 @@ export default function OutingsScreen() {
           {/* Staff on outing */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Staff on outing</Text>
-            <Text style={styles.sectionSub}>Only staff currently working at B2 can be added.</Text>
+            <Text style={styles.sectionSub}>
+              Only staff currently working at B2 can be added to this outing.
+            </Text>
 
-            {workingObjs.length === 0 ? (
-              <Text style={styles.empty}>No working staff set for today.</Text>
+            {workingStaffObjs.length === 0 ? (
+              <Text style={styles.empty}>
+                No working staff set for this schedule yet.
+              </Text>
             ) : (
               <View style={styles.chipGrid}>
-                {workingObjs.map((st) => {
+                {workingStaffObjs.map((st) => {
                   const selected = staffOnOuting.has(st.id);
                   return (
                     <TouchableOpacity
                       key={st.id}
                       onPress={() => toggleStaff(st.id)}
+                      activeOpacity={0.85}
                       style={[styles.chip, selected && styles.chipSelected]}
                     >
-                      <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
+                      <Text
+                        style={[
+                          styles.chipLabel,
+                          selected && styles.chipLabelSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
                         {st.name}
                       </Text>
                     </TouchableOpacity>
@@ -162,21 +199,32 @@ export default function OutingsScreen() {
           {/* Participants on outing */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Participants on outing</Text>
-            <Text style={styles.sectionSub}>Only attending participants can be added.</Text>
+            <Text style={styles.sectionSub}>
+              Only attending participants can be added to this outing.
+            </Text>
 
-            {attendingObjs.length === 0 ? (
-              <Text style={styles.empty}>No attending participants set for today.</Text>
+            {attendingPartsObjs.length === 0 ? (
+              <Text style={styles.empty}>
+                No attending participants set for this schedule yet.
+              </Text>
             ) : (
               <View style={styles.chipGrid}>
-                {attendingObjs.map((p) => {
+                {attendingPartsObjs.map((p) => {
                   const selected = partsOnOuting.has(p.id);
                   return (
                     <TouchableOpacity
                       key={p.id}
                       onPress={() => toggleParticipant(p.id)}
+                      activeOpacity={0.85}
                       style={[styles.chip, selected && styles.chipSelected]}
                     >
-                      <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
+                      <Text
+                        style={[
+                          styles.chipLabel,
+                          selected && styles.chipLabelSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
                         {p.name}
                       </Text>
                     </TouchableOpacity>
@@ -191,9 +239,8 @@ export default function OutingsScreen() {
             <Text style={styles.sectionTitle}>Notes (optional)</Text>
             <TextInput
               value={current.notes}
-              onChangeText={(v) => applyChange({ notes: v })}
+              onChangeText={handleNotesChange}
               placeholder="Anything important about this outing..."
-              placeholderTextColor="#888"
               style={[styles.input, styles.notesInput]}
               multiline
             />
@@ -207,72 +254,73 @@ export default function OutingsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFE4CC', // pastel peach (unchanged)
+    backgroundColor: '#FFE4CC', // keep original peach background
   },
   heroIcon: {
     position: 'absolute',
     top: '25%',
     left: '10%',
-    opacity: 0.4,
+    opacity: 1,
+    zIndex: 0,
   },
-  scroll: { flex: 1 },
+  scroll: {
+    flex: 1,
+  },
   wrap: {
-    maxWidth: 880,
+    flex: 1,
     width: '100%',
+    maxWidth: 880,
     alignSelf: 'center',
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
-
-  // HEADER AREA
   heading: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#4b164c', // Dream Team purple
-    marginBottom: 4,
+    color: '#4B164C', // match Dream Team purple
   },
   subheading: {
     fontSize: 14,
-    color: '#2d2d2d',
-    marginBottom: 20,
+    color: '#111827',
+    marginBottom: 16,
   },
-
-  // TEXT + INPUTS
-  section: { marginTop: 18 },
+  section: {
+    marginTop: 16,
+  },
+  row: {
+    flexDirection: 'row',
+  },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#000',
+    color: '#000', // black labels
     marginBottom: 4,
   },
   input: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#cfcfcf',
-    backgroundColor: '#fff',   // WHITE input fields
+    borderColor: '#D1D5DB', // neutral border
     paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 15,
-    color: '#000',              // BLACK text
+    backgroundColor: '#FFFFFF', // white fields
+    fontSize: 14,
+    color: '#000', // black text
   },
   notesInput: {
-    height: 90,
+    height: 80,
     textAlignVertical: 'top',
   },
-
-  // SECTION HEADINGS
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
+    color: '#000', // black section titles
   },
   sectionSub: {
     fontSize: 12,
-    color: '#555',
+    color: '#111827',
+    marginTop: 4,
     marginBottom: 8,
   },
-
-  // CHIPS
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -283,25 +331,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#d9d9d9',
+    borderColor: '#FED7AA', // keep original chip border colour
+    backgroundColor: '#FFF',
   },
   chipSelected: {
-    backgroundColor: '#F54FA5',    // pink
-    borderColor: '#F54FA5',
+    backgroundColor: '#FDBA74',
+    borderColor: '#FB923C',
   },
   chipLabel: {
-    color: '#333',
     fontSize: 13,
+    color: '#000', // black chip text
   },
   chipLabelSelected: {
-    color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
+    color: '#000', // black chip text even when selected
   },
-
   empty: {
     fontSize: 13,
-    color: '#555',
+    color: '#111827',
   },
 });
