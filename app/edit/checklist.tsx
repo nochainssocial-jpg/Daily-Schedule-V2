@@ -97,15 +97,19 @@ export default function EditChecklistScreen() {
               </Text>
             ) : (
               <View style={styles.chipRow}>
-                {staffPool.map((s) => (
-                  <Chip
-                    key={s.id}
-                    label={s.name}
-                    selected={finalChecklistStaff === s.id}
-                    onPress={() => handleSelectStaff(s.id)}
-                    style={styles.staffChip}
-                  />
-                ))}
+            {staffPool.map((s) => {
+              const isSelected = finalChecklistStaff === s.id;
+              return (
+                <Chip
+                  key={s.id}
+                  label={s.name}
+                  selected={isSelected}
+                  mode={isSelected ? 'onsite' : 'default'}
+                  onPress={() => handleSelectStaff(s.id)}
+                  style={styles.staffChip}
+                />
+              );
+            })}
               </View>
             )}
 
