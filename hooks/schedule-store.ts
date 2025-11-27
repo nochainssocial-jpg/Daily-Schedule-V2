@@ -16,93 +16,141 @@ export type OutingGroup = {
   endTime?: string;   // e.g. '15:00'
 };
 
-type BannerType = 'loaded' | 'created' | 'prefilled' | null;
+export type BannerType = 'created' | 'loaded' | 'prefilled';
 
 export type ScheduleBanner = {
   type: BannerType;
-  scheduleDate?: string; // YYYY-MM-DD (today we're using it for)
-  sourceDate?: string;   // YYYY-MM-DD (original creation date)
+  scheduleDate: string;   // the date we’re editing (today)
+  sourceDate?: string | null; // original schedule date if prefilled
 };
 
 export type ScheduleSnapshot = {
   staff: Staff[];
   participants: Participant[];
 
-  // Outings
-  outingGroup?: OutingGroup | null;
+  // Who is working at B2 today
+  workingStaff: ID[];
 
-  // Core selections
-  workingStaff: ID[];          // The Dream Team (Working at B2)
-  attendingParticipants: ID[]; // Attending Participants
+  // Who is attending B2 today
+  attendingParticipants: ID[];
 
-  // Daily assignments (staff -> participantIds)
-  assignments: Record<ID, ID[]>;
+  // Participant -> staff assignment
+  assignments: Record<ID, ID | null>;
 
-  // Floating: key is `${timeSlotId}|${roomId}` -> staffId
-  floatingAssignments: Record<string, ID>;
+  // Floating assignments (Front room / Scotty / Twins)
+  floatingAssignments: {
+    frontRoom: ID | null;
+    scotty: ID | null;
+    twins: ID | null;
+  };
 
-  // Cleaning: key is `${timeSlotId}|${choreId}` -> staffId
-  cleaningAssignments: Record<string, ID>;
+  // Cleaning assignments (chore slots)
+  cleaningAssignments: Record<ID, ID | null>;
 
-  // Transport
-  pickupParticipants: ID[];               // participants being picked up
-  helperStaff: ID[];                      // helpers joining dropoffs
-  dropoffAssignments: Record<ID, ID[]>;   // staffId -> participantIds they drop off
-  dropoffLocations: Record<ID, number>;   // participantId -> index into DROPOFF_OPTIONS
+  // Final checklist
+  finalChecklist: {
+    isPrinted: boolean;
+    isSigned: boolean;
+  };
 
-  // Meta
+  // Staff responsible for checklist
+  finalChecklistStaff: ID[];
+
+  // Pickups / helpers
+  pickupParticipants: ID[];
+  helperStaff: ID | null;
+
+  // Dropoff assignments and locations
+  dropoffAssignments: Record<
+    ID,
+    {
+      staffId: ID | null;
+      locationId: ID | null;
+    } | null
+  >;
+
+  dropoffLocations: Record<
+    ID,
+    {
+      label: string;
+    }
+  >;
+
+  // Optional outing group (not fully wired yet)
+  outingGroup: OutingGroup | null;
+
+  // Schedule date as YYYY-MM-DD (local calendar date)
   date?: string;
-  meta?: Record<string, any>;
+
+  // Misc metadata
+  meta?: {
+    from?: 'create-wizard' | 'prefill';
+  };
 };
 
-type ScheduleState = ScheduleSnapshot & {
-  createSchedule: (snapshot: ScheduleSnapshot) => void | Promise<void>;
-  updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
-
-  // Wizard + UI state
+export type ScheduleState = ScheduleSnapshot & {
+  // Wizard / UI state
   scheduleStep: number;
   selectedDate?: string;
+
+  // Banner + auto-init state
+  banner: ScheduleBanner | null;
+  currentInitDate?: string;
+  hasInitialisedToday: boolean;
+
+  // Cleaning history snapshots for fairness
+  recentCleaningSnapshots: ScheduleSnapshot[];
+
+  // Core ops
+  createSchedule: (snapshot: ScheduleSnapshot) => Promise<void> | void;
+  patchSchedule: (patch: Partial<ScheduleSnapshot>) => void;
+
   setScheduleStep: (step: number) => void;
   setSelectedDate: (date?: string) => void;
 
-  // Auto-init + banner state
-  banner: ScheduleBanner | null;
-  currentInitDate?: string;          // which YYYY-MM-DD we last initialised for
-  hasInitialisedToday: boolean;
   setBanner: (banner: ScheduleBanner | null) => void;
   markInitialisedForDate: (date: string) => void;
 
-  // Cleaning history for fairness-aware auto-assignments
-  recentCleaningSnapshots: ScheduleSnapshot[];
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) => void;
 
   touch: () => void;
 };
 
-// Initial empty snapshot
-const makeInitialSnapshot = (): ScheduleSnapshot => ({
-  staff: [],
-  participants: [],
+// ----------------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------------
 
-  outingGroup: null,
+function makeInitialSnapshot(): ScheduleSnapshot {
+  return {
+    staff: [],
+    participants: [],
+    workingStaff: [],
+    attendingParticipants: [],
+    assignments: {},
+    floatingAssignments: {
+      frontRoom: null,
+      scotty: null,
+      twins: null,
+    },
+    cleaningAssignments: {},
+    finalChecklist: {
+      isPrinted: false,
+      isSigned: false,
+    },
+    finalChecklistStaff: [],
+    pickupParticipants: [],
+    helperStaff: null,
+    dropoffAssignments: {},
+    dropoffLocations: {},
+    outingGroup: null,
+    date: undefined,
+    meta: {},
+  };
+}
 
-  workingStaff: [],
-  attendingParticipants: [],
-
-  assignments: {},
-
-  floatingAssignments: {},
-
-  cleaningAssignments: {},
-
-  pickupParticipants: [],
-  helperStaff: [],
-  dropoffAssignments: {},
-  dropoffLocations: {},
-
-  date: undefined,
-  meta: {},
-});
+// ----------------------------------------------------------------------------------
+// Store
+// ----------------------------------------------------------------------------------
 
 export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
@@ -119,15 +167,15 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   // Cleaning history for fairness-aware auto-assignments
   recentCleaningSnapshots: [],
 
-  createSchedule: (snapshot: ScheduleSnapshot) => {
-    set(() => ({
+  // create or replace entire snapshot
+  createSchedule: (snapshot: ScheduleSnapshot) =>
+    set((state) => ({
+      ...state,
       ...snapshot,
-      scheduleStep: 1,
-      selectedDate: snapshot.date ?? get().selectedDate,
-    }));
-  },
+    })),
 
-  updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
+  // Patch schedule with some changes and clean dependent state
+  patchSchedule: (patch: Partial<ScheduleSnapshot>) =>
     set((state) => {
       const next: ScheduleState = {
         ...state,
@@ -143,103 +191,87 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         if (removed.length > 0) {
           // 1) Team daily assignments
           const newAssignments = { ...next.assignments };
-          for (const staffId of removed) {
-            delete newAssignments[staffId];
+          for (const [pid, sid] of Object.entries(newAssignments)) {
+            if (sid && removed.includes(sid as ID)) {
+              newAssignments[pid as ID] = null;
+            }
           }
           next.assignments = newAssignments;
 
-          // 2) Floating assignments
+          // 2) Floating
           const newFloating = { ...next.floatingAssignments };
-          for (const [key, staffId] of Object.entries(newFloating)) {
-            if (removed.includes(staffId)) {
-              delete newFloating[key];
+          (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
+            const sid = newFloating[key];
+            if (sid && removed.includes(sid)) {
+              newFloating[key] = null;
             }
-          }
+          });
           next.floatingAssignments = newFloating;
 
-          // 3) Cleaning assignments
+          // 3) Cleaning
           const newCleaning = { ...next.cleaningAssignments };
-          for (const [choreId, staffId] of Object.entries(newCleaning)) {
-            if (removed.includes(staffId)) {
-              delete newCleaning[choreId];
+          for (const [sid, slot] of Object.entries(newCleaning)) {
+            if (removed.includes(sid as ID)) {
+              delete newCleaning[sid as ID];
             }
           }
           next.cleaningAssignments = newCleaning;
 
-          // 4) Final checklist staff
-          if (
-            next.finalChecklistStaff &&
-            removed.includes(next.finalChecklistStaff)
-          ) {
-            next.finalChecklistStaff = undefined;
+          // 4) Helper
+          if (next.helperStaff && removed.includes(next.helperStaff)) {
+            next.helperStaff = null;
           }
 
-          // 5) Transport: helperStaff, dropoffAssignments, dropoffLocations
-          if (next.helperStaff?.length) {
-            next.helperStaff = next.helperStaff.filter(
-              (id) => !removed.includes(id)
-            );
-          }
-
-          if (next.dropoffAssignments) {
-            const newDrops: Record<ID, ID[]> = {};
-            for (const [staffId, partIds] of Object.entries(
+          // 5) Dropoffs – clean staff & reindex locations
+          if (Object.keys(next.dropoffAssignments).length > 0) {
+            const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+            for (const [pid, assignment] of Object.entries(
               next.dropoffAssignments
             )) {
-              if (!removed.includes(staffId)) {
-                newDrops[staffId] = partIds;
+              if (!assignment) {
+                newDropoffs[pid as ID] = null;
+                continue;
               }
+              const { staffId, locationId } = assignment;
+              const keepStaff =
+                staffId && !removed.includes(staffId as ID)
+                  ? (staffId as ID)
+                  : null;
+              newDropoffs[pid as ID] = {
+                staffId: keepStaff,
+                locationId,
+              };
             }
-            next.dropoffAssignments = newDrops;
+            next.dropoffAssignments = newDropoffs;
           }
 
-          if (next.dropoffLocations) {
-            const newLocs: Record<ID, number> = {};
-            for (const [pid, idx] of Object.entries(
-              next.dropoffLocations ?? {}
-            )) {
-              if (!removed.includes(pid as ID)) {
-                newLocs[pid as ID] = idx as number;
-              }
-            }
-            next.dropoffLocations = newLocs;
-          }
+          // Locations themselves don’t depend on staff, but if you ever add
+          // per-staff locations, you’d clean here too.
         }
       }
 
-      // If attendingParticipants changed, clean dropoffAssignments + dropoffLocations
+      // If attendingParticipants changed, clean dropoffAssignments + locations
       if (patch.attendingParticipants) {
         const oldParts = state.attendingParticipants;
         const newParts = patch.attendingParticipants;
         const removedParts = oldParts.filter((id) => !newParts.includes(id));
 
         if (removedParts.length > 0) {
-          const newDrops: Record<ID, ID[]> = {};
-          for (const [staffId, partIds] of Object.entries(
-            next.dropoffAssignments ?? {}
+          const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+          for (const [pid, assignment] of Object.entries(
+            next.dropoffAssignments
           )) {
-            const filtered = partIds.filter(
-              (pid) => !removedParts.includes(pid)
-            );
-            if (filtered.length > 0) {
-              newDrops[staffId] = filtered;
+            if (removedParts.includes(pid as ID)) {
+              continue;
             }
+            newDropoffs[pid as ID] = assignment;
           }
-          next.dropoffAssignments = newDrops;
-
-          const newLocs: Record<ID, number> = {};
-          for (const [pid, idx] of Object.entries(next.dropoffLocations ?? {})) {
-            if (!removedParts.includes(pid)) {
-              newLocs[pid as ID] = idx as number;
-            }
-          }
-          next.dropoffLocations = newLocs;
+          next.dropoffAssignments = newDropoffs;
         }
       }
 
       return next;
-    });
-  },
+    }),
 
   setScheduleStep: (step: number) => set({ scheduleStep: step }),
   setSelectedDate: (date?: string) => set({ selectedDate: date }),
@@ -258,35 +290,89 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 }));
 
 // Hook wrapper for components
-export function useScheduleStore() {
-  return useSchedule;
+export function useScheduleSnapshot() {
+  return useSchedule(
+    ({
+      staff,
+      participants,
+      workingStaff,
+      attendingParticipants,
+      assignments,
+      floatingAssignments,
+      cleaningAssignments,
+      finalChecklist,
+      finalChecklistStaff,
+      pickupParticipants,
+      helperStaff,
+      dropoffAssignments,
+      dropoffLocations,
+      outingGroup,
+      date,
+      meta,
+    }) => ({
+      staff,
+      participants,
+      workingStaff,
+      attendingParticipants,
+      assignments,
+      floatingAssignments,
+      cleaningAssignments,
+      finalChecklist,
+      finalChecklistStaff,
+      pickupParticipants,
+      helperStaff,
+      dropoffAssignments,
+      dropoffLocations,
+      outingGroup,
+      date,
+      meta,
+    })
+  );
 }
 
-// Helper hooks to check if there are missing floating or cleaning assignments
+// Derived helpers for UI (e.g. assignments per staff, per slot, etc.)
+export function useScheduleDerived() {
+  const snapshot = useScheduleSnapshot();
 
-export const useFloatingMissing = (rooms: { id: string }[]) => {
   return useMemo(() => {
-    const { floatingAssignments } = useSchedule.getState();
+    const staffById = new Map<ID, Staff>();
+    snapshot.staff.forEach((s) => staffById.set(s.id as ID, s));
 
-    const keys = TIME_SLOTS.flatMap((slot) =>
-      rooms.map((room) => `${slot.id}|${room.id}`)
+    const participantById = new Map<ID, Participant>();
+    snapshot.participants.forEach((p) =>
+      participantById.set(p.id as ID, p)
     );
 
-    return keys.some((key) => !floatingAssignments[key]);
-  }, [rooms]);
-};
+    const assignmentsByStaff: Record<ID, ID[]> = {};
+    for (const [pid, sid] of Object.entries(snapshot.assignments)) {
+      if (!sid) continue;
+      if (!assignmentsByStaff[sid as ID]) {
+        assignmentsByStaff[sid as ID] = [];
+      }
+      assignmentsByStaff[sid as ID].push(pid as ID);
+    }
 
-export const useCleaningMissing = (choreIds: string[]) => {
-  return useMemo(() => {
-    const { cleaningAssignments } = useSchedule.getState();
+    // Cleaning by slot
+    const cleaningBySlot: Record<string, ID[]> = {};
+    for (const slot of TIME_SLOTS) {
+      cleaningBySlot[slot.id] = [];
+    }
+    for (const [sid, slotId] of Object.entries(snapshot.cleaningAssignments)) {
+      if (!slotId) continue;
+      if (!cleaningBySlot[slotId]) {
+        cleaningBySlot[slotId] = [];
+      }
+      cleaningBySlot[slotId].push(sid as ID);
+    }
 
-    const keys = TIME_SLOTS.flatMap((slot) =>
-      choreIds.map((choreId) => `${slot.id}|${choreId}`)
-    );
-
-    return keys.some((key) => !cleaningAssignments[key]);
-  }, [choreIds]);
-};
+    return {
+      staffById,
+      participantById,
+      assignmentsByStaff,
+      cleaningBySlot,
+    };
+  }, [snapshot]);
+}
 
 // ----------------------------------------------------------------------------------
 // Auto-init helpers: load / prefill today's schedule when app starts
@@ -305,7 +391,7 @@ export async function initialiseScheduleForTodayIfNeeded(
   // Mark immediately to guard against concurrent inits for the same date
   state.markInitialisedForDate(todayKey);
 
-  const result = await fetchLatestScheduleForHouse(houseId, todayKey);
+  const result = await fetchLatestScheduleForHouse(houseId);
   if (!result.ok || !result.data) {
     // Nothing to hydrate for this house/date – leave banner as-is
     return;
@@ -318,12 +404,13 @@ export async function initialiseScheduleForTodayIfNeeded(
   const isSameDay = sourceDate === todayKey;
 
   let type: BannerType = 'created';
-  let bannerScheduleDate: string | undefined = todayKey;
-  let bannerSourceDate: string | undefined;
+  let bannerScheduleDate = todayKey;
+  let bannerSourceDate: string | null = null;
 
-  if (!sourceDate) {
-    // No known source date – treat as a freshly created schedule for today
+  if (!scheduleDate) {
+    // We created a new blank schedule for today
     type = 'created';
+    bannerScheduleDate = todayKey;
   } else if (isSameDay) {
     // We loaded an existing schedule that was already created for today
     type = 'loaded';
