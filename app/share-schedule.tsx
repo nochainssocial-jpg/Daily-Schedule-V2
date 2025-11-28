@@ -437,7 +437,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 4,
     columnGap: 12,
+  },
+  label: {
+    marginBottom: 4,
   },
   input: {
     flex: 1,
