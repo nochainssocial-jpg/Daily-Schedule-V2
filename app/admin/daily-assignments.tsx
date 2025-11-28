@@ -457,10 +457,10 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   staffHeaderCell: {
-    width: 220,   // Excel-like fixed width
+    width: 100,   // Excel-like fixed width
   },
   dayHeaderCell: {
-    width: 180,
+    width: 150,
   },
   staffCell: {
     backgroundColor: '#F9FAFB',
@@ -470,5 +470,6 @@ const styles = StyleSheet.create({
   },
   dataCell: {
     backgroundColor: '#FFFFFF',
+    width: 150,
   },
 });
