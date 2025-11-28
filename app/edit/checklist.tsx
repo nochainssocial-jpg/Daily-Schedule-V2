@@ -112,7 +112,8 @@ export default function EditChecklistScreen() {
                   <Chip
                     key={s.id}
                     label={s.name}
-                    selected={finalChecklistStaff === s.id}
+                    // Always use the outline style here, even for the chosen one
+                    selected={false}
                     onPress={() => handleSelectStaff(s.id)}
                     style={styles.staffChip}
                   />
@@ -123,6 +124,7 @@ export default function EditChecklistScreen() {
             <Text style={styles.sectionTitle}>Last to leave</Text>
             <View style={styles.chipRow}>
               {selectedStaff ? (
+                // Keep this one solid pink (selected)
                 <Chip label={selectedStaff.name} selected />
               ) : (
                 <Text style={styles.helperText}>Not yet selected</Text>
@@ -224,12 +226,12 @@ const styles = StyleSheet.create({
   },
   currentStaff: {
     fontSize: 13,
-    color: '#f54fa5',
+    color: '#5a486b',
     marginTop: 4,
   },
   currentStaffName: {
     fontWeight: '600',
-    color: '#f54fa5',
+    color: '#3c234c',
   },
   itemRow: {
     paddingVertical: 4,
