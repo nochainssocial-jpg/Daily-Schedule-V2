@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cellText: {
-    fontSize: 13,
+    fontSize: 15,
     lineHeight: 20,
     color: '#111827',
     textAlign: 'left',
