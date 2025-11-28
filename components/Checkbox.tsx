@@ -31,8 +31,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   boxChecked: {
-    backgroundColor: '#86a2fe',
-    borderColor: '#38446d',
+    backgroundColor: '#e91e63',
+    borderColor: '#e91e63',
   },
   label: {
     fontSize: 14,

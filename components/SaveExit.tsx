@@ -3,6 +3,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
+import { useIsAdmin } from '@/hooks/access-control';
+import { useNotifications } from '@/hooks/notifications';
 import type { ScheduleSnapshot } from '@/hooks/schedule-store';
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
@@ -22,6 +24,9 @@ type SaveExitProps = {
 const MAX_WIDTH = 880;
 
 export default function SaveExit({ onSave }: SaveExitProps) {
+  const isAdmin = useIsAdmin();
+  const { push } = useNotifications();
+
   const schedule = useSchedule();
 
   const handleCancel = () => {
@@ -29,6 +34,14 @@ export default function SaveExit({ onSave }: SaveExitProps) {
   };
 
   const handleSaveExit = async () => {
+    if (!isAdmin) {
+      push(
+        'B2 read-only mode: Save & Exit is disabled on this device',
+        'general',
+      );
+      return;
+    }
+
     onSave?.();
 
     const snapshot: ScheduleSnapshot = {
@@ -96,6 +109,7 @@ export default function SaveExit({ onSave }: SaveExitProps) {
 
         <TouchableOpacity
           onPress={handleSaveExit}
+          disabled={!isAdmin}
           style={{
             paddingVertical: 10,
             paddingHorizontal: 14,
