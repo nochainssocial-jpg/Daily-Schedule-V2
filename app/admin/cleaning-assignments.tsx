@@ -10,24 +10,24 @@ import {
 } from 'react-native';
 import { useIsAdmin } from '@/hooks/access-control';
 import { supabase } from '@/lib/supabase';
+import { DEFAULT_CHORES } from '@/constants/data';
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
-type SnapshotCleaningAssignments = Record<string, string>; // taskId -> staffId
+type SnapshotCleaningAssignments = Record<string, string>; // choreId -> staffId
 
 type Snapshot = {
-  date: string;
+  date?: string;
   staff?: SnapshotStaff[];
   cleaningAssignments?: SnapshotCleaningAssignments;
 };
 
-type CleaningSummaryRow = {
+type CleaningRow = {
   staffId: string;
   name: string;
   byDay: Record<WeekDayLabel, string[]>; // task labels
-  totalJobs: number;
 };
 
 type ScheduleRow = {
@@ -38,18 +38,13 @@ type ScheduleRow = {
   seq_id: number | null;
 };
 
-// 🔧 Update these labels to match your cleaning.tsx task order if needed
-const CLEANING_TASK_LABELS: Record<string, string> = {
-  '1': 'Vacuum front room',
-  '2': 'Vacuum back room',
-  '3': 'Mop all floors',
-  '4': 'Clean toilets & bathroom',
-  '5': 'Wipe kitchen benches',
-  '6': 'Empty all bins',
-  '7': 'Clean fridge / microwave',
-  '8': 'Dust & wipe surfaces',
-  // any unknown id will fall back to "Task X"
-};
+const CHORE_LABEL_BY_ID: Record<string, string> = DEFAULT_CHORES.reduce(
+  (acc, chore) => {
+    acc[chore.id] = chore.name;
+    return acc;
+  },
+  {} as Record<string, string>,
+);
 
 function getWeekStart(weekOffset: number): Date {
   const now = new Date();
@@ -62,22 +57,11 @@ function getWeekStart(weekOffset: number): Date {
     0,
     0,
   );
+
   const day = base.getDay();
   const diffToMonday = (day + 6) % 7;
   base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
   return base;
-}
-
-function getWeekDays(weekStart: Date): { label: WeekDayLabel; iso: string }[] {
-  const result: { label: WeekDayLabel; iso: string }[] = [];
-  for (let i = 0; i < 5; i++) {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    const label = WEEK_DAYS[i];
-    result.push({ label, iso });
-  }
-  return result;
 }
 
 function formatWeekLabel(weekStart: Date): string {
@@ -93,11 +77,21 @@ function formatWeekLabel(weekStart: Date): string {
   return `Week: ${startStr} – ${endStr}`;
 }
 
+function getLabelFromDateString(dateStr: string): WeekDayLabel | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const jsDay = d.getDay();
+  const idx = (jsDay + 6) % 7;
+  if (idx < 0 || idx > 4) return null;
+  return WEEK_DAYS[idx];
+}
+
 function normaliseSnapshot(raw: any): Snapshot | null {
   if (!raw) return null;
   try {
     const snap: any = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!snap.date) return null;
     return {
       date: snap.date,
       staff: snap.staff ?? [],
@@ -113,10 +107,9 @@ export default function CleaningAssignmentsReportScreen() {
   const [weekOffset, setWeekOffset] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<CleaningSummaryRow[]>([]);
+  const [rows, setRows] = useState<CleaningRow[]>([]);
 
   const weekStart = useMemo(() => getWeekStart(weekOffset), [weekOffset]);
-  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const weekLabel = useMemo(() => formatWeekLabel(weekStart), [weekStart]);
 
   useEffect(() => {
@@ -146,28 +139,27 @@ export default function CleaningAssignmentsReportScreen() {
 
         const rowsRaw = (data ?? []) as ScheduleRow[];
 
-        const byDay: Record<
+        // 1) latest snapshot per calendar day (by created_at date)
+        const latestByDay: Record<
           string,
-          { snapshot: Snapshot; seq: number; created_at: string }
+          { snapshot: Snapshot; created_at: string; seq: number }
         > = {};
 
         for (const row of rowsRaw) {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
-          const dateKey = snap.date.slice(0, 10);
+
+          const createdKey = row.created_at.slice(0, 10);
           const seq = row.seq_id ?? 0;
-          const existing = byDay[dateKey];
+          const existing = latestByDay[createdKey];
           if (!existing || seq > existing.seq) {
-            byDay[dateKey] = { snapshot: snap, seq, created_at: row.created_at };
+            latestByDay[createdKey] = {
+              snapshot: snap,
+              created_at: row.created_at,
+              seq,
+            };
           }
         }
-
-        const staffById: Record<string, string> = {};
-        Object.values(byDay).forEach(({ snapshot }) => {
-          (snapshot.staff ?? []).forEach((s) => {
-            if (s?.id && s?.name) staffById[s.id] = s.name;
-          });
-        });
 
         const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Mon: [],
@@ -177,39 +169,44 @@ export default function CleaningAssignmentsReportScreen() {
           Fri: [],
         });
 
-        const summaryByStaff: Record<string, CleaningSummaryRow> = {};
+        const staffSummary: Record<string, CleaningRow> = {};
 
-        for (const { label, iso } of weekDays) {
-          const dayEntry = byDay[iso];
-          if (!dayEntry) continue;
+        for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
+          const label = getLabelFromDateString(dayKey);
+          if (!label) continue;
 
-          const snap = dayEntry.snapshot;
-          const cleaningAssignments = snap.cleaningAssignments ?? {};
+          const staffById: Record<string, string> = {};
+          (snapshot.staff ?? []).forEach((s) => {
+            if (s?.id && s?.name) staffById[s.id] = s.name;
+          });
 
-          Object.entries(cleaningAssignments).forEach(([taskId, staffId]) => {
+          const cleaningAssignments = snapshot.cleaningAssignments ?? {};
+
+          // cleaningAssignments: choreId -> staffId
+          Object.entries(cleaningAssignments).forEach(([choreId, staffId]) => {
             if (!staffId) return;
 
-            const taskLabel =
-              CLEANING_TASK_LABELS[taskId] ?? `Task ${taskId}`;
+            const staffName = staffById[staffId];
+            if (!staffName) return;
 
-            if (!summaryByStaff[staffId]) {
-              summaryByStaff[staffId] = {
+            const choreLabel =
+              CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
+
+            if (!staffSummary[staffId]) {
+              staffSummary[staffId] = {
                 staffId,
-                name: staffById[staffId] ?? staffId,
+                name: staffName,
                 byDay: makeEmptyDays(),
-                totalJobs: 0,
               };
             }
 
-            summaryByStaff[staffId].byDay[label].push(taskLabel);
-            summaryByStaff[staffId].totalJobs += 1;
+            staffSummary[staffId].byDay[label].push(choreLabel);
           });
         }
 
-        const summaryArr = Object.values(summaryByStaff).sort((a, b) => {
-          if (b.totalJobs !== a.totalJobs) return b.totalJobs - a.totalJobs;
-          return a.name.localeCompare(b.name);
-        });
+        const summaryArr = Object.values(staffSummary).sort((a, b) =>
+          a.name.localeCompare(b.name, 'en-AU'),
+        );
 
         if (!cancelled) {
           setRows(summaryArr);
@@ -228,7 +225,7 @@ export default function CleaningAssignmentsReportScreen() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, weekStart, weekDays]);
+  }, [isAdmin, weekStart]);
 
   const handlePrint = () => {
     if (Platform.OS === 'web') {
@@ -245,8 +242,8 @@ export default function CleaningAssignmentsReportScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>Cleaning – Weekly Report</Text>
           <Text style={styles.subtitle}>
-            Admin Mode is required to view this report. Enable Admin Mode with
-            your PIN on the Share screen.
+            Admin Mode is required to view this report. Enable Admin Mode on the
+            Share screen.
           </Text>
         </View>
       </View>
@@ -292,7 +289,7 @@ export default function CleaningAssignmentsReportScreen() {
 
           {!loading && !error && rows.length === 0 && (
             <Text style={styles.helper}>
-              No cleaning data found for this week.
+              No cleaning assignment data found for this week.
             </Text>
           )}
 
@@ -312,11 +309,6 @@ export default function CleaningAssignmentsReportScreen() {
                     </Text>
                   </View>
                 ))}
-                <View style={[styles.cell, styles.dayHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>
-                    Total cleaning jobs
-                  </Text>
-                </View>
               </View>
 
               {/* Data rows */}
@@ -337,9 +329,6 @@ export default function CleaningAssignmentsReportScreen() {
                       </View>
                     );
                   })}
-                  <View style={[styles.cell, styles.dataCell]}>
-                    <Text style={styles.cellText}>{row.totalJobs}</Text>
-                  </View>
                 </View>
               ))}
             </View>
@@ -446,7 +435,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
-    minWidth: 90,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
     justifyContent: 'flex-start',
   },
   cellText: {
@@ -459,10 +449,14 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   staffHeaderCell: {
-    minWidth: 180,
+    minWidth: 190,
+    maxWidth: 190,
+    flexShrink: 0,
   },
   dayHeaderCell: {
-    alignItems: 'flex-start',
+    minWidth: 150,
+    maxWidth: 150,
+    flexShrink: 0,
   },
   staffCell: {
     backgroundColor: '#F9FAFB',
