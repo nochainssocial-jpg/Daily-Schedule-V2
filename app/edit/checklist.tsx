@@ -224,12 +224,12 @@ const styles = StyleSheet.create({
   },
   currentStaff: {
     fontSize: 13,
-    color: '#5a486b',
+    color: '#f54fa5',
     marginTop: 4,
   },
   currentStaffName: {
     fontWeight: '600',
-    color: '#3c234c',
+    color: '#f54fa5',
   },
   itemRow: {
     paddingVertical: 4,
