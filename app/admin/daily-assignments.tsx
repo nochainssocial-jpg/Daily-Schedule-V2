@@ -439,26 +439,28 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
+    flexShrink: 0, 
+    flexGrow: 0,
+    overflow: 'hidden',
   },
   cellText: {
     fontSize: 13,
     lineHeight: 20,
     color: '#111827',
     textAlign: 'left',
+    flexWrap: 'wrap',
+    wordBreak: 'break-word',
+    whiteSpace: 'normal',   // This is the BIG one
   },
   headerCellText: {
     fontWeight: '600',
     color: '#111827',
   },
   staffHeaderCell: {
-    minWidth: 220,
-    maxWidth: 220,
-    flexShrink: 0,
+    width: 220,   // Excel-like fixed width
   },
   dayHeaderCell: {
-    minWidth: 180,
-    maxWidth: 180,
-    flexShrink: 0,
+    width: 180,
   },
   staffCell: {
     backgroundColor: '#F9FAFB',
