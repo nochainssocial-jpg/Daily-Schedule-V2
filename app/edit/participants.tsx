@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
@@ -35,6 +36,8 @@ const sortByName = (list: any[]) =>
 
 export default function EditParticipantsScreen() {
   const { width } = useWindowDimensions();
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   const {
     attendingParticipants = [],
@@ -73,6 +76,10 @@ export default function EditParticipantsScreen() {
   );
 
   const toggleParticipant = (id: ID) => {
+    if (readOnly) {
+      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const current = new Set<string>(attendingParticipants as ID[]);
     if (current.has(id)) {
       current.delete(id);

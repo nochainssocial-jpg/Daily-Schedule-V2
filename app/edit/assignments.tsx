@@ -16,6 +16,7 @@ import {
   PARTICIPANTS as STATIC_PARTS,
 } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 
 type ID = string;
@@ -35,6 +36,9 @@ export default function EditAssignmentsScreen() {
     ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
+
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   const {
     staff: scheduleStaff,
@@ -93,6 +97,10 @@ export default function EditAssignmentsScreen() {
   });
 
   const handleToggle = (staffId: ID, participantId: ID) => {
+    if (readOnly) {
+      push('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const current = assignmentsMap || {};
     const next: Record<ID, ID[]> = {};
 

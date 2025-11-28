@@ -13,6 +13,7 @@ import type { Participant } from '@/constants/data';
 import { DROPOFF_OPTIONS } from '@/constants/data';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 
 type ID = string;
@@ -30,6 +31,9 @@ export default function EditPickupsDropoffsScreen() {
     ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
+
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   const {
     staff,
@@ -205,6 +209,10 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   }, [workingStaffList, helperStaffList, assignments, hideEmptyStaff, staff]);
 
   const togglePickup = (pid: ID) => {
+    if (readOnly) {
+      push('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const current = new Set(pickupParticipants || []);
     if (current.has(pid)) current.delete(pid);
     else current.add(pid);
@@ -213,6 +221,10 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   };
 
   const toggleHelper = (sid: ID) => {
+    if (readOnly) {
+      push('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const current = new Set(helperStaff || []);
     if (current.has(sid)) current.delete(sid);
     else current.add(sid);
@@ -221,6 +233,10 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   };
 
   const toggleDropoff = (sid: ID, pid: ID) => {
+    if (readOnly) {
+      push('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const current = { ...(dropoffAssignments || {}) } as Record<ID, ID[]>;
 
     let previousOwner: ID | null = null;

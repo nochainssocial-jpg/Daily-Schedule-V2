@@ -18,6 +18,7 @@ import {
   type Chore,
 } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 
 const PINK = '#F54FA5';
@@ -39,6 +40,8 @@ export default function CleaningEditScreen() {
   } = useSchedule() as any;
 
   const { push } = useNotifications();
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   // 🔁 Stable, alphabetical chores list
   const chores: Chore[] = useMemo(
@@ -102,6 +105,10 @@ export default function CleaningEditScreen() {
   }, [allowedStaffIds, cleaningAssignments, updateSchedule]);
 
   const handleSelectStaff = (staffId: string | null) => {
+    if (readOnly) {
+      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     if (!activeChoreId) return;
 
     const chore = chores.find((c) => String(c.id) === String(activeChoreId));

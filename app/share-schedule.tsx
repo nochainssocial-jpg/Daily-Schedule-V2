@@ -399,12 +399,12 @@ const styles = StyleSheet.create({
   // Large washed-out background logo
   bgLogo: {
     position: 'absolute',
-    width: 1400,
-    height: 1400,
-    opacity: 0.1,
-    left: -600,
-    top: 10,
-    pointerEvents: 'none',
+    right: -120,
+    bottom: -80,
+    width: 400,
+    height: 400,
+    opacity: 0.05,
+    zIndex: -1,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -437,11 +437,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
     columnGap: 12,
-  },
-  label: {
-    marginBottom: 4,
   },
   input: {
     flex: 1,
@@ -453,7 +449,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f4fb',
     fontSize: 16,
     color: '#332244',
-    marginBottom: 20,
   },
   button: {
     borderRadius: 999,

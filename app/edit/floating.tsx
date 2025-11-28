@@ -14,6 +14,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 
 type ID = string;
@@ -182,6 +183,8 @@ export default function FloatingScreen() {
       height < 700);
 
   const { push } = useNotifications();
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   const {
     staff = [],
@@ -251,6 +254,10 @@ export default function FloatingScreen() {
   };
 
   const choose = (id: string) => {
+    if (readOnly) {
+      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     if (!pick?.slotId || !pick.col) return;
     const next = { ...(floatingAssignments || {}) } as any;
     next[pick.slotId] = {
@@ -263,6 +270,10 @@ export default function FloatingScreen() {
   };
 
   const clearCell = () => {
+    if (readOnly) {
+      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     if (!pick?.slotId || !pick.col) return;
     const next = { ...(floatingAssignments || {}) } as any;
     if (next[pick.slotId]) {
@@ -291,6 +302,10 @@ export default function FloatingScreen() {
   }, [hasFrontRoom, onsiteWorking, updateSchedule]);
 
   const handleShuffle = () => {
+    if (readOnly) {
+      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     if (!onsiteWorking.length || !updateSchedule) return;
     const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS);
     updateSchedule({ floatingAssignments: next });

@@ -15,6 +15,7 @@ import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import Chip from '@/components/Chip';
 
 type ID = string;
@@ -33,6 +34,8 @@ const sortByName = (list: any[]) =>
 export default function EditDreamTeamScreen() {
   const { width } = useWindowDimensions();
   const { push } = useNotifications();
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   const {
     workingStaff = [],
@@ -70,6 +73,10 @@ export default function EditDreamTeamScreen() {
   );
 
   const toggleStaff = (id: ID) => {
+    if (readOnly) {
+      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const current = new Set<string>(workingStaff as ID[]);
     if (current.has(id)) {
       current.delete(id);

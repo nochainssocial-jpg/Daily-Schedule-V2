@@ -13,6 +13,7 @@ import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 
 type ID = string;
@@ -35,6 +36,8 @@ export default function EditChecklistScreen() {
     updateSchedule,
   } = useSchedule();
   const { push } = useNotifications();
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
 
   // Prefer staff from the schedule (after create), fallback to static constants
   const staff = (scheduleStaff && scheduleStaff.length
@@ -54,11 +57,19 @@ export default function EditChecklistScreen() {
     staffPool.find((s) => s.id === finalChecklistStaff) || null;
 
   const handleSelectStaff = (id: ID) => {
+    if (readOnly) {
+      push('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     updateSchedule({ finalChecklistStaff: id });
     push('Final checklist staff updated', 'checklist');
   };
 
   const handleToggleItem = (itemId: ID | number) => {
+    if (readOnly) {
+      push('B2 read-only mode: changes are disabled on this device', 'general');
+      return;
+    }
     const key = String(itemId);
     const next = { ...(finalChecklist || {}) };
     next[key] = !next[key];
