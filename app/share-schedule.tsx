@@ -437,7 +437,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 4,
     columnGap: 12,
+  },
+    label: {
+    marginBottom: 6,
   },
   input: {
     flex: 1,
@@ -449,6 +453,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f4fb',
     fontSize: 16,
     color: '#332244',
+    marginBottom: 20,
   },
   button: {
     borderRadius: 999,
