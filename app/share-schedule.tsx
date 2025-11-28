@@ -453,6 +453,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f4fb',
     fontSize: 16,
     color: '#332244',
+    marginBottom: 8,
   },
   button: {
     borderRadius: 999,
