@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cellText: {
-    fontSize: 15,
+    fontSize: 13,
     lineHeight: 20,
     color: '#111827',
     textAlign: 'left',
