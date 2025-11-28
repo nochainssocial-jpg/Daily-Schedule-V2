@@ -140,7 +140,7 @@ export default function OutingsScreen() {
       {/* Big icon for web only */}
       {Platform.OS === 'web' && (
         <Ionicons
-          name="car-sport-outline"
+          name="bus-outline"
           size={180}
           color="rgba(0,0,0,0.04)"
           style={styles.heroIcon}
@@ -287,8 +287,10 @@ const styles = StyleSheet.create({
   },
   heroIcon: {
     position: 'absolute',
-    right: -40,
-    top: 40,
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   header: {
     paddingHorizontal: 16,
