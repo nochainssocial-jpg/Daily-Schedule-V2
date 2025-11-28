@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
@@ -76,6 +75,7 @@ export default function OutingsScreen() {
 
     const next = { ...current, ...patch };
     updateSchedule?.({ outingGroup: next });
+    // 🔔 Toast for Drive / Outings changes
     push?.('Drive / Outings updated', 'outings');
   };
 
@@ -111,218 +111,171 @@ export default function OutingsScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
+    <View style={styles.screen}>
+      {/* Header bar + Save & Exit */}
+      <SaveExit touchKey="Drive / Outings" />
 
-      <View style={styles.screen}>
-        {/* Save & Exit bar */}
-        <SaveExit touchKey="Drive / Outings" />
+      {/* Desktop-only hero icon */}
+      {Platform.OS === 'web' && width >= 900 && (
+        <Ionicons
+          name="car-outline"
+          size={220}
+          color="#FF8F2E"
+          style={styles.heroIcon}
+        />
+      )}
 
-        {/* Edit header bar to match other edit screens */}
-        <View style={styles.editHeader}>
-          <View style={styles.editHeaderInner}>
-            <Ionicons
-              name="create-outline"
-              size={22}
-              color="#F9A8D4"
-              style={styles.editHeaderIcon}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.wrap}>
+          <Text style={styles.heading}>Drive / Outings</Text>
+          <Text style={styles.subheading}>
+            Use this screen when some staff and participants are out on an
+            excursion or appointment. Onsite-only logic in other screens will
+            automatically respect who is on outing.
+          </Text>
+
+          {/* Outing title + time */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Outing name</Text>
+            <TextInput
+              value={current.name}
+              onChangeText={handleNameChange}
+              placeholder="e.g. Shopping with Shatha"
+              style={styles.input}
             />
-            <Text style={styles.editHeaderTitle}>Drive / Outings</Text>
-          </View>
-        </View>
-
-        {/* Optional large car icon on web only */}
-        {Platform.OS === 'web' && width >= 900 && (
-          <Ionicons
-            name="car-outline"
-            size={220}
-            color="#FF8F2E"
-            style={styles.heroIcon}
-          />
-        )}
-
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.wrap}>
-            <Text style={styles.heading}>Drive / Outings</Text>
-            <Text style={styles.subheading}>
-              Use this screen when some staff and participants are out on an
-              excursion or appointment. Onsite-only logic in other screens will
-              automatically respect who is on outing.
-            </Text>
-
-            {/* Outing name + times */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Outing name</Text>
-              <TextInput
-                value={current.name}
-                onChangeText={handleNameChange}
-                placeholder="e.g. Shopping with Shatha"
-                style={styles.input}
-              />
-
-              <View style={[styles.row, { marginTop: 8 }]}>
-                <View style={{ flex: 1, marginRight: 6 }}>
-                  <Text style={styles.label}>Start time</Text>
-                  <TextInput
-                    value={current.startTime}
-                    onChangeText={(v) => handleTimeChange('startTime', v)}
-                    placeholder="11:00"
-                    style={styles.input}
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 6 }}>
-                  <Text style={styles.label}>End time</Text>
-                  <TextInput
-                    value={current.endTime}
-                    onChangeText={(v) => handleTimeChange('endTime', v)}
-                    placeholder="15:00"
-                    style={styles.input}
-                  />
-                </View>
+            <View style={[styles.row, { marginTop: 8 }]}>
+              <View style={{ flex: 1, marginRight: 6 }}>
+                <Text style={styles.label}>Start time</Text>
+                <TextInput
+                  value={current.startTime}
+                  onChangeText={(v) => handleTimeChange('startTime', v)}
+                  placeholder="11:00"
+                  style={styles.input}
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={styles.label}>End time</Text>
+                <TextInput
+                  value={current.endTime}
+                  onChangeText={(v) => handleTimeChange('endTime', v)}
+                  placeholder="15:00"
+                  style={styles.input}
+                />
               </View>
             </View>
-
-            {/* Staff on outing */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Staff on outing</Text>
-              <Text style={styles.sectionSub}>
-                Only staff currently working at B2 can be added to this outing.
-              </Text>
-
-              {workingStaffObjs.length === 0 ? (
-                <Text style={styles.empty}>
-                  No working staff set for this schedule yet.
-                </Text>
-              ) : (
-                <View style={styles.chipGrid}>
-                  {workingStaffObjs.map((st) => {
-                    const selected = staffOnOuting.has(st.id);
-                    return (
-                      <TouchableOpacity
-                        key={st.id}
-                        onPress={() => toggleStaff(st.id)}
-                        activeOpacity={0.85}
-                        style={[
-                          styles.chip,
-                          selected && styles.chipSelected,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            selected && styles.chipLabelSelected,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {st.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            {/* Participants on outing */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Participants on outing</Text>
-              <Text style={styles.sectionSub}>
-                Only attending participants can be added to this outing.
-              </Text>
-
-              {attendingPartsObjs.length === 0 ? (
-                <Text style={styles.empty}>
-                  No attending participants set for this schedule yet.
-                </Text>
-              ) : (
-                <View style={styles.chipGrid}>
-                  {attendingPartsObjs.map((p) => {
-                    const selected = partsOnOuting.has(p.id);
-                    return (
-                      <TouchableOpacity
-                        key={p.id}
-                        onPress={() => toggleParticipant(p.id)}
-                        activeOpacity={0.85}
-                        style={[
-                          styles.chip,
-                          selected && styles.chipSelected,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            selected && styles.chipLabelSelected,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {p.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            {/* Notes */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notes (optional)</Text>
-              <TextInput
-                value={current.notes}
-                onChangeText={handleNotesChange}
-                placeholder="Anything important about this outing..."
-                style={[styles.input, styles.notesInput]}
-                multiline
-              />
-            </View>
           </View>
-        </ScrollView>
-      </View>
-    </>
+
+          {/* Staff on outing */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Staff on outing</Text>
+            <Text style={styles.sectionSub}>
+              Only staff currently working at B2 can be added to this outing.
+            </Text>
+
+            {workingStaffObjs.length === 0 ? (
+              <Text style={styles.empty}>
+                No working staff set for this schedule yet.
+              </Text>
+            ) : (
+              <View style={styles.chipGrid}>
+                {workingStaffObjs.map((st) => {
+                  const selected = staffOnOuting.has(st.id);
+                  return (
+                    <TouchableOpacity
+                      key={st.id}
+                      onPress={() => toggleStaff(st.id)}
+                      activeOpacity={0.85}
+                      style={[styles.chip, selected && styles.chipSelected]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLabel,
+                          selected && styles.chipLabelSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {st.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* Participants on outing */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Participants on outing</Text>
+            <Text style={styles.sectionSub}>
+              Only attending participants can be added to this outing.
+            </Text>
+
+            {attendingPartsObjs.length === 0 ? (
+              <Text style={styles.empty}>
+                No attending participants set for this schedule yet.
+              </Text>
+            ) : (
+              <View style={styles.chipGrid}>
+                {attendingPartsObjs.map((p) => {
+                  const selected = partsOnOuting.has(p.id);
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => toggleParticipant(p.id)}
+                      activeOpacity={0.85}
+                      style={[styles.chip, selected && styles.chipSelected]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipLabel,
+                          selected && styles.chipLabelSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* Notes */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notes (optional)</Text>
+            <TextInput
+              value={current.notes}
+              onChangeText={handleNotesChange}
+              placeholder="Anything important about this outing..."
+              style={[styles.input, styles.notesInput]}
+              multiline
+            />
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFE4CC',
-  },
-  editHeader: {
-    backgroundColor: '#3F3F46',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  editHeaderInner: {
-    maxWidth: 880,
-    width: '100%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  editHeaderIcon: {
-    marginRight: 8,
-  },
-  editHeaderTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#F9A8D4',
+    backgroundColor: '#FFE4CC', // keep original peach background
   },
   heroIcon: {
     position: 'absolute',
-    top: '22%',
+    top: '25%',
     left: '10%',
-    opacity: 0.18,
+    opacity: 1,
     zIndex: 0,
   },
   scroll: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
   },
   wrap: {
     flex: 1,
@@ -335,7 +288,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#4B164C',
+    color: '#4B164C', // match Dream Team purple
   },
   subheading: {
     fontSize: 14,
@@ -351,18 +304,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000',
+    color: '#000', // black labels
     marginBottom: 4,
   },
   input: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#D1D5DB', // neutral border
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF', // white fields
     fontSize: 14,
-    color: '#000',
+    color: '#000', // black text
   },
   notesInput: {
     height: 80,
@@ -371,7 +324,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
+    color: '#000', // black section titles
   },
   sectionSub: {
     fontSize: 12,
@@ -390,8 +343,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#FED7AA',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#FED7AA', // keep original chip border colour
+    backgroundColor: '#FFF',
   },
   chipSelected: {
     backgroundColor: '#FDBA74',
@@ -399,11 +352,11 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     fontSize: 13,
-    color: '#000',
+    color: '#000', // black chip text
   },
   chipLabelSelected: {
     fontWeight: '600',
-    color: '#000',
+    color: '#000', // black chip text even when selected
   },
   empty: {
     fontSize: 13,

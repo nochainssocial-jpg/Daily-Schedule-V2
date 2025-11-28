@@ -101,6 +101,14 @@ export default function EditLayout() {
             ),
           }}
         />
+        <Stack.Screen
+          name="outings"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Drive / Outings" />
+            ),
+          }}
+        />
 
         <Stack.Screen
           name="checklist"
