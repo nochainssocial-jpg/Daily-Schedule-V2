@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Stack } from 'expo-router';
 import {
   ScrollView,
   Text,
@@ -110,7 +111,10 @@ export default function OutingsScreen() {
     attendingSet.has(p.id),
   );
 
-  return (
+return (
+  <>
+    <Stack.Screen options={{ headerShown: false }} />
+
     <View style={styles.screen}>
       {/* Save & Exit bar */}
       <SaveExit touchKey="Drive / Outings" />
