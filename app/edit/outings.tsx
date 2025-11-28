@@ -112,6 +112,12 @@ export default function OutingsScreen() {
 
   return (
     <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          title: 'Outings',
+          headerShown: true,
+        }}
+      />
       {/* Header bar + Save & Exit */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
