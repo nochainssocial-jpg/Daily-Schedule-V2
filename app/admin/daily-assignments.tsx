@@ -322,7 +322,7 @@ export default function DailyAssignmentsReportScreen() {
                   </View>
                   {WEEK_DAYS.map((day) => {
                     const names = row.byDay[day] ?? [];
-                    const content = names.join(', ');
+                    const content = names.join('\n'); // one name per line
                     return (
                       <View key={day} style={[styles.cell, styles.dataCell]}>
                         <Text style={styles.cellText}>{content}</Text>
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 880,
+    maxWidth: 1040, // give the table more room
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingHorizontal: 24,
@@ -441,8 +441,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   cellText: {
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 20,
     color: '#111827',
     textAlign: 'left',
   },
@@ -451,13 +451,13 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   staffHeaderCell: {
-    minWidth: 190,
-    maxWidth: 190,
+    minWidth: 220,
+    maxWidth: 220,
     flexShrink: 0,
   },
   dayHeaderCell: {
-    minWidth: 150,
-    maxWidth: 150,
+    minWidth: 180,
+    maxWidth: 180,
     flexShrink: 0,
   },
   staffCell: {
