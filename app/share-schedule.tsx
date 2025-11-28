@@ -36,8 +36,8 @@ export default function ShareScheduleScreen() {
   const [adminPin, setAdminPin] = useState('');
   const [pinError, setPinError] = useState('');
 
-  const MD_ADMIN_PIN = '4321';
-  const BRUNO_ADMIN_PIN = '9876';
+const MD_ADMIN_PIN = '7474'; // Dalida (MD)
+const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
 
   const showWebBranding = Platform.OS === 'web';
 
