@@ -139,7 +139,7 @@ export default function CleaningAssignmentsReportScreen() {
 
         const rowsRaw = (data ?? []) as ScheduleRow[];
 
-        // 1) latest snapshot per calendar day (by created_at date)
+        // latest snapshot per calendar day
         const latestByDay: Record<
           string,
           { snapshot: Snapshot; created_at: string; seq: number }
@@ -321,11 +321,10 @@ export default function CleaningAssignmentsReportScreen() {
                   </View>
                   {WEEK_DAYS.map((day) => {
                     const tasks = row.byDay[day] ?? [];
+                    const content = tasks.join(', ');
                     return (
                       <View key={day} style={[styles.cell, styles.dataCell]}>
-                        <Text style={styles.cellText}>
-                          {tasks.length ? tasks.join('\n') : ''}
-                        </Text>
+                        <Text style={styles.cellText}>{content}</Text>
                       </View>
                     );
                   })}
@@ -438,11 +437,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   cellText: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 18,
     color: '#111827',
-    lineHeight: 14,
+    textAlign: 'left',
   },
   headerCellText: {
     fontWeight: '600',

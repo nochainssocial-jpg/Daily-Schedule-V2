@@ -134,7 +134,7 @@ export default function DailyAssignmentsReportScreen() {
 
         const rowsRaw = (data ?? []) as ScheduleRow[];
 
-        // 1) For each calendar day, keep ONLY the latest snapshot (highest seq_id).
+        // Latest snapshot per calendar day
         const latestByDay: Record<
           string,
           { snapshot: Snapshot; created_at: string; seq: number }
@@ -157,7 +157,6 @@ export default function DailyAssignmentsReportScreen() {
           }
         }
 
-        // 2) Build participant + staff lookups and aggregate by staff & weekday.
         const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Mon: [],
           Tue: [],
@@ -168,12 +167,9 @@ export default function DailyAssignmentsReportScreen() {
 
         const summaryByStaff: Record<string, StaffRow> = {};
 
-        for (const [dayKey, { snapshot, created_at }] of Object.entries(
-          latestByDay,
-        )) {
-          // Decide which weekday column this day belongs to (Mon–Fri) using created_at.
+        for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
           const label = getLabelFromDateString(dayKey);
-          if (!label) continue; // skip weekends
+          if (!label) continue; // weekend
 
           const staffById: Record<string, string> = {};
           (snapshot.staff ?? []).forEach((s) => {
@@ -203,13 +199,12 @@ export default function DailyAssignmentsReportScreen() {
 
             participantIds.forEach((pid) => {
               const participantName = participantsById[pid];
-              if (!participantName) return; // skip unknown / synthetic ids
+              if (!participantName) return;
               row.byDay[label].push(participantName);
             });
           });
         }
 
-        // 3) Convert to sorted array.
         const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
@@ -327,11 +322,10 @@ export default function DailyAssignmentsReportScreen() {
                   </View>
                   {WEEK_DAYS.map((day) => {
                     const names = row.byDay[day] ?? [];
+                    const content = names.join(', ');
                     return (
                       <View key={day} style={[styles.cell, styles.dataCell]}>
-                        <Text style={styles.cellText}>
-                          {names.length ? names.join('\n') : ''}
-                        </Text>
+                        <Text style={styles.cellText}>{content}</Text>
                       </View>
                     );
                   })}
@@ -444,11 +438,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
     justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   cellText: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 18,
     color: '#111827',
-    lineHeight: 14,
+    textAlign: 'left',
   },
   headerCellText: {
     fontWeight: '600',
