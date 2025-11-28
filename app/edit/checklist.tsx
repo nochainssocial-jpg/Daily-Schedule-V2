@@ -99,7 +99,7 @@ export default function EditChecklistScreen() {
               leave and responsible for closing tasks.
             </Text>
 
-            {/* Last-to-leave selector */}
+            {/* Working staff / last-to-leave selector */}
             <Text style={styles.sectionTitle}>Who is last to leave?</Text>
             {staffPool.length === 0 ? (
               <Text style={styles.helperText}>
@@ -108,19 +108,18 @@ export default function EditChecklistScreen() {
               </Text>
             ) : (
               <View style={styles.chipRow}>
-            {staffPool.map((s) => {
-              const isSelected = finalChecklistStaff === s.id;
-              return (
-                <Chip
-                  key={s.id}
-                  label={s.name}
-                  selected={isSelected}
-                  mode={isSelected ? 'offsite' : 'default'}
-                  onPress={() => handleSelectStaff(s.id)}
-                  style={styles.staffChip}
-                />
-              );
-            })}
+                {staffPool.map((s) => {
+                  const isSelected = finalChecklistStaff === s.id;
+                  return (
+                    <Chip
+                      key={s.id}
+                      label={s.name}
+                      mode={isSelected ? 'offsite' : 'default'}
+                      onPress={() => handleSelectStaff(s.id)}
+                      style={styles.staffChip}
+                    />
+                  );
+                })}
               </View>
             )}
 
