@@ -15,19 +15,21 @@ const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
+type SnapshotParticipant = { id: string; name: string };
 type SnapshotAssignments = Record<string, string[]>; // participantId -> staffIds[]
 
 type Snapshot = {
   date: string;
   staff?: SnapshotStaff[];
+  participants?: SnapshotParticipant[];
   assignments?: SnapshotAssignments;
 };
 
 type StaffSummary = {
   staffId: string;
   name: string;
-  byDay: Record<WeekDayLabel, number>;
-  total: number;
+  byDay: Record<WeekDayLabel, string[]>; // participant names
+  total: number; // total participants across week
 };
 
 type ScheduleRow = {
@@ -50,9 +52,8 @@ function getWeekStart(weekOffset: number): Date {
     0,
   );
 
-  // JS getDay(): 0=Sunday,1=Monday...
-  const day = base.getDay();
-  const diffToMonday = (day + 6) % 7; // 0 if Monday, 1 if Tuesday, etc.
+  const day = base.getDay(); // 0=Sun,1=Mon...
+  const diffToMonday = (day + 6) % 7; // 0 if Monday
   base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
   return base;
 }
@@ -71,9 +72,13 @@ function getWeekDays(weekStart: Date): { label: WeekDayLabel; iso: string }[] {
 
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4); // Monday + 4 = Friday
+  end.setDate(end.getDate() + 4); // Mon + 4 = Fri
 
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  const opts: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  };
   const startStr = weekStart.toLocaleDateString('en-AU', opts);
   const endStr = end.toLocaleDateString('en-AU', opts);
   return `Week: ${startStr} – ${endStr}`;
@@ -82,12 +87,12 @@ function formatWeekLabel(weekStart: Date): string {
 function normaliseSnapshot(raw: any): Snapshot | null {
   if (!raw) return null;
   try {
-    // Supabase may already parse JSON; CSV showed it as string.
     const snap: any = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!snap.date) return null;
     return {
       date: snap.date,
       staff: snap.staff ?? [],
+      participants: snap.participants ?? [],
       assignments: snap.assignments ?? {},
     };
   } catch {
@@ -97,10 +102,10 @@ function normaliseSnapshot(raw: any): Snapshot | null {
 
 export default function DailyAssignmentsReportScreen() {
   const isAdmin = useIsAdmin();
-  const [weekOffset, setWeekOffset] = useState(-1); // default: previous week
+  const [weekOffset, setWeekOffset] = useState(-1); // previous week
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<StaffSummary[]>([]);
+  const [rows, setRows] = useState<StaffSummary[]>([]);
 
   const weekStart = useMemo(() => getWeekStart(weekOffset), [weekOffset]);
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
@@ -110,13 +115,13 @@ export default function DailyAssignmentsReportScreen() {
     if (!isAdmin) return;
 
     let cancelled = false;
+
     async function load() {
       setLoading(true);
       setError(null);
-      setSummary([]);
+      setRows([]);
 
       try {
-        // Use created_at range as a coarse filter, then group by snapshot.date
         const rangeStart = new Date(weekStart);
         const rangeEnd = new Date(weekStart);
         rangeEnd.setDate(rangeEnd.getDate() + 7); // Mon..next Mon (exclusive)
@@ -129,49 +134,52 @@ export default function DailyAssignmentsReportScreen() {
           .lt('created_at', rangeEnd.toISOString())
           .order('created_at', { ascending: true });
 
-        if (supaError) {
-          throw supaError;
-        }
+        if (supaError) throw supaError;
 
-        const rows = (data ?? []) as ScheduleRow[];
+        const rowsRaw = (data ?? []) as ScheduleRow[];
 
-        // Group by snapshot.date (YYYY-MM-DD) and keep the latest seq_id per day
+        // Pick latest snapshot per day (by seq_id)
         const byDay: Record<
           string,
           { snapshot: Snapshot; seq: number; created_at: string }
         > = {};
 
-        for (const row of rows) {
+        for (const row of rowsRaw) {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
-          const dateKey = snap.date.slice(0, 10); // '2025-11-22'
+          const dateKey = snap.date.slice(0, 10);
           const seq = row.seq_id ?? 0;
           const existing = byDay[dateKey];
-
           if (!existing || seq > existing.seq) {
-            byDay[dateKey] = {
-              snapshot: snap,
-              seq,
-              created_at: row.created_at,
-            };
+            byDay[dateKey] = { snapshot: snap, seq, created_at: row.created_at };
           }
         }
 
-        // Build staff map across the week
+        // Build staff and participant lookup
         const staffById: Record<string, string> = {};
-        Object.values(byDay).forEach(({ snapshot }) => {
+        const participantByIdByDay: Record<string, Record<string, string>> = {}; // dateKey -> {pid -> name}
+
+        Object.entries(byDay).forEach(([dateKey, { snapshot }]) => {
           (snapshot.staff ?? []).forEach((s) => {
-            if (s?.id && s?.name) {
-              staffById[s.id] = s.name;
-            }
+            if (s?.id && s?.name) staffById[s.id] = s.name;
           });
+
+          const map: Record<string, string> = {};
+          (snapshot.participants ?? []).forEach((p) => {
+            if (p?.id && p?.name) map[p.id] = p.name;
+          });
+          participantByIdByDay[dateKey] = map;
         });
 
-        // Initialise summary structure
-        const summaryByStaff: Record<string, StaffSummary> = {};
+        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
+          Mon: [],
+          Tue: [],
+          Wed: [],
+          Thu: [],
+          Fri: [],
+        });
 
-        const makeEmptyDayCounts = (): Record<WeekDayLabel, number> =>
-          ({ Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 });
+        const summaryByStaff: Record<string, StaffSummary> = {};
 
         for (const { label, iso } of weekDays) {
           const dayEntry = byDay[iso];
@@ -179,8 +187,13 @@ export default function DailyAssignmentsReportScreen() {
 
           const snap = dayEntry.snapshot;
           const assignments = snap.assignments ?? {};
+          const participantNames = participantByIdByDay[iso] ?? {};
 
-          Object.values(assignments).forEach((staffIds) => {
+          // assignments: participantId -> staffIds[]
+          Object.entries(assignments).forEach(([participantId, staffIds]) => {
+            const participantName =
+              participantNames[participantId] ?? `Participant ${participantId}`;
+
             (staffIds ?? []).forEach((staffId) => {
               if (!staffId) return;
 
@@ -188,29 +201,27 @@ export default function DailyAssignmentsReportScreen() {
                 summaryByStaff[staffId] = {
                   staffId,
                   name: staffById[staffId] ?? staffId,
-                  byDay: makeEmptyDayCounts(),
+                  byDay: makeEmptyDays(),
                   total: 0,
                 };
               }
 
-              summaryByStaff[staffId].byDay[label] =
-                (summaryByStaff[staffId].byDay[label] ?? 0) + 1;
+              summaryByStaff[staffId].byDay[label].push(participantName);
               summaryByStaff[staffId].total += 1;
             });
           });
         }
 
         const summaryArr = Object.values(summaryByStaff).sort((a, b) => {
-          // Sort by total desc, then by name
           if (b.total !== a.total) return b.total - a.total;
           return a.name.localeCompare(b.name);
         });
 
         if (!cancelled) {
-          setSummary(summaryArr);
+          setRows(summaryArr);
           setLoading(false);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error loading weekly assignments report', err);
         if (!cancelled) {
           setError('Could not load weekly assignment data.');
@@ -240,7 +251,8 @@ export default function DailyAssignmentsReportScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>Team Daily Assignment – Weekly Report</Text>
           <Text style={styles.subtitle}>
-            Admin Mode is required to view this report. Enable Admin Mode with your PIN on the Share screen.
+            Admin Mode is required to view this report. Enable Admin Mode with
+            your PIN on the Share screen.
           </Text>
         </View>
       </View>
@@ -250,7 +262,7 @@ export default function DailyAssignmentsReportScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.card}>
-        <View style={styles.headerRow}>
+        <View className="header-row" style={styles.headerRow}>
           <View>
             <Text style={styles.title}>Team Daily Assignment – Weekly Report</Text>
             <Text style={styles.subtitle}>{weekLabel}</Text>
@@ -281,49 +293,56 @@ export default function DailyAssignmentsReportScreen() {
         <View style={styles.tableWrapper} id="print-area">
           {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
           {error && (
-            <Text style={[styles.helper, { color: '#B91C1C' }]}>
-              {error}
-            </Text>
+            <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>
           )}
 
-          {!loading && !error && summary.length === 0 && (
+          {!loading && !error && rows.length === 0 && (
             <Text style={styles.helper}>
               No assignment data found for this week.
             </Text>
           )}
 
-          {summary.length > 0 && (
+          {rows.length > 0 && (
             <View style={styles.table}>
               {/* Header row */}
               <View style={[styles.row, styles.headerRowTable]}>
                 <View style={[styles.cell, styles.staffHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>Staff</Text>
+                  <Text style={[styles.cellText, styles.headerCellText]}>
+                    Staff
+                  </Text>
                 </View>
                 {WEEK_DAYS.map((day) => (
                   <View key={day} style={[styles.cell, styles.dayHeaderCell]}>
-                    <Text style={[styles.cellText, styles.headerCellText]}>{day}</Text>
+                    <Text style={[styles.cellText, styles.headerCellText]}>
+                      {day}
+                    </Text>
                   </View>
                 ))}
                 <View style={[styles.cell, styles.dayHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>Total</Text>
+                  <Text style={[styles.cellText, styles.headerCellText]}>
+                    Total
+                  </Text>
                 </View>
               </View>
 
               {/* Data rows */}
-              {summary.map((row) => (
+              {rows.map((row) => (
                 <View key={row.staffId} style={styles.row}>
                   <View style={[styles.cell, styles.staffCell]}>
                     <Text style={[styles.cellText, styles.staffText]}>
                       {row.name}
                     </Text>
                   </View>
-                  {WEEK_DAYS.map((day) => (
-                    <View key={day} style={[styles.cell, styles.dataCell]}>
-                      <Text style={styles.cellText}>
-                        {row.byDay[day] ?? 0}
-                      </Text>
-                    </View>
-                  ))}
+                  {WEEK_DAYS.map((day) => {
+                    const names = row.byDay[day] ?? [];
+                    return (
+                      <View key={day} style={[styles.cell, styles.dataCell]}>
+                        <Text style={styles.cellText}>
+                          {names.length ? names.join('\n') : ''}
+                        </Text>
+                      </View>
+                    );
+                  })}
                   <View style={[styles.cell, styles.dataCell]}>
                     <Text style={styles.cellText}>{row.total}</Text>
                   </View>
@@ -433,22 +452,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
-    minWidth: 70,
-    justifyContent: 'center',
+    minWidth: 90,
+    justifyContent: 'flex-start',
   },
   cellText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#111827',
+    lineHeight: 14,
   },
   headerCellText: {
     fontWeight: '600',
     color: '#111827',
   },
   staffHeaderCell: {
-    minWidth: 140,
+    minWidth: 150,
   },
   dayHeaderCell: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   staffCell: {
     backgroundColor: '#F9FAFB',

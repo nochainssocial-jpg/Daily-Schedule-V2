@@ -26,7 +26,7 @@ type Snapshot = {
 type CleaningSummaryRow = {
   staffId: string;
   name: string;
-  byDay: Record<WeekDayLabel, number>;
+  byDay: Record<WeekDayLabel, string[]>; // task labels
   totalJobs: number;
 };
 
@@ -36,6 +36,19 @@ type ScheduleRow = {
   snapshot: any;
   created_at: string;
   seq_id: number | null;
+};
+
+// 🔧 Update these labels to match your cleaning.tsx task order if needed
+const CLEANING_TASK_LABELS: Record<string, string> = {
+  '1': 'Vacuum front room',
+  '2': 'Vacuum back room',
+  '3': 'Mop all floors',
+  '4': 'Clean toilets & bathroom',
+  '5': 'Wipe kitchen benches',
+  '6': 'Empty all bins',
+  '7': 'Clean fridge / microwave',
+  '8': 'Dust & wipe surfaces',
+  // any unknown id will fall back to "Task X"
 };
 
 function getWeekStart(weekOffset: number): Date {
@@ -70,7 +83,11 @@ function getWeekDays(weekStart: Date): { label: WeekDayLabel; iso: string }[] {
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
   end.setDate(end.getDate() + 4);
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  const opts: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  };
   const startStr = weekStart.toLocaleDateString('en-AU', opts);
   const endStr = end.toLocaleDateString('en-AU', opts);
   return `Week: ${startStr} – ${endStr}`;
@@ -96,7 +113,7 @@ export default function CleaningAssignmentsReportScreen() {
   const [weekOffset, setWeekOffset] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<CleaningSummaryRow[]>([]);
+  const [rows, setRows] = useState<CleaningSummaryRow[]>([]);
 
   const weekStart = useMemo(() => getWeekStart(weekOffset), [weekOffset]);
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
@@ -110,7 +127,7 @@ export default function CleaningAssignmentsReportScreen() {
     async function load() {
       setLoading(true);
       setError(null);
-      setSummary([]);
+      setRows([]);
 
       try {
         const rangeStart = new Date(weekStart);
@@ -125,45 +142,42 @@ export default function CleaningAssignmentsReportScreen() {
           .lt('created_at', rangeEnd.toISOString())
           .order('created_at', { ascending: true });
 
-        if (supaError) {
-          throw supaError;
-        }
+        if (supaError) throw supaError;
 
-        const rows = (data ?? []) as ScheduleRow[];
+        const rowsRaw = (data ?? []) as ScheduleRow[];
 
         const byDay: Record<
           string,
           { snapshot: Snapshot; seq: number; created_at: string }
         > = {};
 
-        for (const row of rows) {
+        for (const row of rowsRaw) {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
           const dateKey = snap.date.slice(0, 10);
           const seq = row.seq_id ?? 0;
           const existing = byDay[dateKey];
-
           if (!existing || seq > existing.seq) {
-            byDay[dateKey] = {
-              snapshot: snap,
-              seq,
-              created_at: row.created_at,
-            };
+            byDay[dateKey] = { snapshot: snap, seq, created_at: row.created_at };
           }
         }
 
         const staffById: Record<string, string> = {};
         Object.values(byDay).forEach(({ snapshot }) => {
           (snapshot.staff ?? []).forEach((s) => {
-            if (s?.id && s?.name) {
-              staffById[s.id] = s.name;
-            }
+            if (s?.id && s?.name) staffById[s.id] = s.name;
           });
         });
 
+        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
+          Mon: [],
+          Tue: [],
+          Wed: [],
+          Thu: [],
+          Fri: [],
+        });
+
         const summaryByStaff: Record<string, CleaningSummaryRow> = {};
-        const makeEmptyDayCounts = (): Record<WeekDayLabel, number> =>
-          ({ Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0 });
 
         for (const { label, iso } of weekDays) {
           const dayEntry = byDay[iso];
@@ -172,20 +186,22 @@ export default function CleaningAssignmentsReportScreen() {
           const snap = dayEntry.snapshot;
           const cleaningAssignments = snap.cleaningAssignments ?? {};
 
-          Object.values(cleaningAssignments).forEach((staffId) => {
+          Object.entries(cleaningAssignments).forEach(([taskId, staffId]) => {
             if (!staffId) return;
+
+            const taskLabel =
+              CLEANING_TASK_LABELS[taskId] ?? `Task ${taskId}`;
 
             if (!summaryByStaff[staffId]) {
               summaryByStaff[staffId] = {
                 staffId,
                 name: staffById[staffId] ?? staffId,
-                byDay: makeEmptyDayCounts(),
+                byDay: makeEmptyDays(),
                 totalJobs: 0,
               };
             }
 
-            summaryByStaff[staffId].byDay[label] =
-              (summaryByStaff[staffId].byDay[label] ?? 0) + 1;
+            summaryByStaff[staffId].byDay[label].push(taskLabel);
             summaryByStaff[staffId].totalJobs += 1;
           });
         }
@@ -196,10 +212,10 @@ export default function CleaningAssignmentsReportScreen() {
         });
 
         if (!cancelled) {
-          setSummary(summaryArr);
+          setRows(summaryArr);
           setLoading(false);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error loading weekly cleaning report', err);
         if (!cancelled) {
           setError('Could not load weekly cleaning data.');
@@ -229,7 +245,8 @@ export default function CleaningAssignmentsReportScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>Cleaning – Weekly Report</Text>
           <Text style={styles.subtitle}>
-            Admin Mode is required to view this report. Enable Admin Mode with your PIN on the Share screen.
+            Admin Mode is required to view this report. Enable Admin Mode with
+            your PIN on the Share screen.
           </Text>
         </View>
       </View>
@@ -273,22 +290,26 @@ export default function CleaningAssignmentsReportScreen() {
             <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>
           )}
 
-          {!loading && !error && summary.length === 0 && (
+          {!loading && !error && rows.length === 0 && (
             <Text style={styles.helper}>
               No cleaning data found for this week.
             </Text>
           )}
 
-          {summary.length > 0 && (
+          {rows.length > 0 && (
             <View style={styles.table}>
               {/* Header row */}
               <View style={[styles.row, styles.headerRowTable]}>
                 <View style={[styles.cell, styles.staffHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>Staff</Text>
+                  <Text style={[styles.cellText, styles.headerCellText]}>
+                    Staff
+                  </Text>
                 </View>
                 {WEEK_DAYS.map((day) => (
                   <View key={day} style={[styles.cell, styles.dayHeaderCell]}>
-                    <Text style={[styles.cellText, styles.headerCellText]}>{day}</Text>
+                    <Text style={[styles.cellText, styles.headerCellText]}>
+                      {day}
+                    </Text>
                   </View>
                 ))}
                 <View style={[styles.cell, styles.dayHeaderCell]}>
@@ -299,20 +320,23 @@ export default function CleaningAssignmentsReportScreen() {
               </View>
 
               {/* Data rows */}
-              {summary.map((row) => (
+              {rows.map((row) => (
                 <View key={row.staffId} style={styles.row}>
                   <View style={[styles.cell, styles.staffCell]}>
                     <Text style={[styles.cellText, styles.staffText]}>
                       {row.name}
                     </Text>
                   </View>
-                  {WEEK_DAYS.map((day) => (
-                    <View key={day} style={[styles.cell, styles.dataCell]}>
-                      <Text style={styles.cellText}>
-                        {row.byDay[day] ?? 0}
-                      </Text>
-                    </View>
-                  ))}
+                  {WEEK_DAYS.map((day) => {
+                    const tasks = row.byDay[day] ?? [];
+                    return (
+                      <View key={day} style={[styles.cell, styles.dataCell]}>
+                        <Text style={styles.cellText}>
+                          {tasks.length ? tasks.join('\n') : ''}
+                        </Text>
+                      </View>
+                    );
+                  })}
                   <View style={[styles.cell, styles.dataCell]}>
                     <Text style={styles.cellText}>{row.totalJobs}</Text>
                   </View>
@@ -422,22 +446,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRightWidth: 1,
     borderRightColor: '#E5E7EB',
-    minWidth: 70,
-    justifyContent: 'center',
+    minWidth: 90,
+    justifyContent: 'flex-start',
   },
   cellText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#111827',
+    lineHeight: 14,
   },
   headerCellText: {
     fontWeight: '600',
     color: '#111827',
   },
   staffHeaderCell: {
-    minWidth: 160,
+    minWidth: 180,
   },
   dayHeaderCell: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   staffCell: {
     backgroundColor: '#F9FAFB',
