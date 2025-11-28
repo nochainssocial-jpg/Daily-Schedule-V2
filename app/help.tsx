@@ -38,6 +38,8 @@ export default function HelpScreen() {
               • Record pickups &amp; dropoffs, including helpers and external transport and locations.{'\n'}
               • Share today&apos;s schedule with staff via a 6-digit code and SMS.{'\n'}
               • Keep master lists of staff, participants, cleaning duties and checklist items in Settings.{'\n'}
+              • Use <Text style={styles.bold}>B2 Read-only mode</Text> so staff can safely view the day without changing anything.{'\n'}
+              • Use <Text style={styles.bold}>Admin mode</Text> to access extra controls such as the Admin screen and weekly reports.{'\n'}
               {'\n'}
               Once a schedule is saved, any changes made in the Edit Hub are stored centrally so other devices
               loading the same day can see the updated version.
@@ -129,7 +131,11 @@ export default function HelpScreen() {
               • <Text style={styles.bold}>Final Checklist</Text> – change who is responsible and which closing tasks apply.{'\n'}
               {'\n'}
               Each Edit screen has a <Text style={styles.bold}>Save &amp; Exit</Text> button at the top. When you tap it,
-              today&apos;s schedule is saved and the changes are available for other devices loading the same date.
+              today&apos;s schedule is saved and the changes are available for other devices loading the same date.{'\n'}
+              {'\n'}
+              If you are in <Text style={styles.bold}>B2 Read-only mode</Text>, you can still open the Edit Hub and
+              view the different screens, but you won&apos;t be able to save changes. To make edits, an Admin needs to
+              unlock Admin mode first (see Section 7).
             </Text>
 
             {/* 4. Sharing today’s schedule */}
@@ -155,6 +161,27 @@ export default function HelpScreen() {
               <Text style={styles.bold}>Import</Text> to load today&apos;s schedule.
             </Text>
 
+            {/* 5. B2 Read-only Mode, Admin Mode & Admin PIN */}
+            <Text style={styles.sectionTitle}>5. B2 Read-only Mode, Admin Mode &amp; Admin PIN</Text>
+            <Text style={styles.body}>
+              The app includes two access levels to keep the schedule secure:{'\n'}
+              {'\n'}
+              • <Text style={styles.bold}>B2 Read-only Mode</Text> – for everyday staff who only need to view the schedule.{'\n'}
+              • <Text style={styles.bold}>Admin Mode</Text> – for MD / admin staff who can edit schedules and access Admin tools.{'\n'}
+              {'\n'}
+              <Text style={styles.subSectionTitle}>B2 Read-only Mode</Text>
+              • Staff can view today’s schedule and navigate all Edit Hub screens, but cannot save changes.{'\n'}
+              • This ensures staff can safely view assignments, pickups, dropoffs, and cleaning tasks without accidentally modifying anything.{'\n'}
+              • If you see the schedule but save buttons are disabled, you are in Read-only mode.{'\n'}
+              {'\n'}
+              <Text style={styles.subSectionTitle}>Admin Mode &amp; Admin PIN</Text>
+              • To switch to Admin Mode, go to the <Text style={styles.bold}>Share Screen</Text> where the PIN entry is located.{'\n'}
+              • Enter the 4-digit <Text style={styles.bold}>Admin PIN</Text> assigned by management.{'\n'}
+              • Once unlocked, Admin Mode allows full editing access and reveals Admin-only screens such as Reports.{'\n'}
+              • If the PIN is incorrect, the app remains in B2 Read-only Mode for safety.{'\n'}
+              • Treat the Admin PIN like a password — only MD/Senior staff should have it.{'\n'}
+            </Text>
+            
             {/* 5. Managing lists in Settings */}
             <Text style={styles.sectionTitle}>5. Managing staff, participants &amp; lists (Settings)</Text>
             <Text style={styles.body}>
@@ -182,6 +209,49 @@ export default function HelpScreen() {
               If you&apos;re ever unsure, you can safely revisit <Text style={styles.bold}>Help</Text> or step back into
               the wizard and review your choices, then press <Text style={styles.bold}>Finish</Text> again.
             </Text>
+
+            {/* 7. B2 Read-only mode, Admin mode & Reports */}
+            <Text style={styles.sectionTitle}>7. B2 Read-only mode, Admin mode &amp; Reports</Text>
+            <Text style={styles.body}>
+              The app has two main access levels:{'\n'}
+              {'\n'}
+              • <Text style={styles.bold}>B2 Read-only mode</Text> – for everyday staff who just need to view the plan.{'\n'}
+              • <Text style={styles.bold}>Admin mode</Text> – for MD / Admin staff who control the schedule and can access advanced tools.{'\n'}
+              {'\n'}
+            
+              <Text style={styles.subSectionTitle}>B2 Read-only mode</Text>
+              • Staff can open the app, load today&apos;s schedule (or import via code) and view all details.{'\n'}
+              • All Save buttons and Admin-only features are disabled to prevent accidental changes.{'\n'}
+              • This is the safest mode for staff who only need to see assignments, pickups/dropoffs and cleaning duties.{'\n'}
+              {'\n'}
+            
+              <Text style={styles.subSectionTitle}>Admin PIN security &amp; Admin mode</Text>
+              • To switch into Admin mode, go to the <Text style={styles.bold}>Admin</Text> entry point on the Share screen.{'\n'}
+              • You will be asked to enter a 4-digit <Text style={styles.bold}>Admin PIN</Text>. Only MD / senior admin staff should have this PIN.{'\n'}
+              • After entering the correct PIN, tap the <Text style={styles.bold}>“Admin Access”</Text> button to activate Admin mode.{'\n'}
+              • Once Admin mode is active, additional controls become visible throughout the app.{'\n'}
+              • If the PIN is incorrect, the app remains locked in B2 Read-only mode.{'\n'}
+              • Never share the Admin PIN in group chats or leave it written somewhere visible. Treat it like a secure password.{'\n'}
+              {'\n'}
+            
+              <Text style={styles.subSectionTitle}>Admin screen (visible only after Admin PIN + Admin Access)</Text>
+              • The Admin screen only appears **after** the correct Admin PIN has been entered **and** the Admin Access button is pressed.{'\n'}
+              • It provides a quick overview of the current day and shortcuts to admin-only functionality.{'\n'}
+              • Admins can confirm that the schedule has loaded correctly, view share status and open Reports.{'\n'}
+              • When finished, Admins can switch the device back to B2 Read-only mode for safe regular staff use.{'\n'}
+              {'\n'}
+            
+              <Text style={styles.subSectionTitle}>Reports tab (Admin only)</Text>
+              • The <Text style={styles.bold}>Reports</Text> tab is located inside the Admin screen and is only visible in Admin mode.{'\n'}
+              • Reports show a clean weekly summary (Mon–Fri) including:{'\n'}
+              {'  '}– Which staff were with which participants each day.{'\n'}
+              {'  '}– Which staff completed which cleaning or final checklist tasks.{'\n'}
+              • The layout replicates the “B2 spreadsheet” style: staff down the left, days of the week across the top.{'\n'}
+              • Useful for supervision, fairness rotation (cleaning distribution) and audit documentation.{'\n'}
+              {'\n'}
+              If you&apos;re unsure whether you should use Admin mode or B2 Read-only mode, check with the MD or senior admin first.
+            </Text>
+
           </View>
         </View>
       </ScrollView>
