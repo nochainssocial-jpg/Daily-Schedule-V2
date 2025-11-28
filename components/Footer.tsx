@@ -8,14 +8,17 @@ import {
   Platform,
 } from 'react-native';
 import { router, usePathname } from 'expo-router';
+import { useIsAdmin } from '@/hooks/access-control'; // NEW
 
 export default function Footer() {
   const pathname = usePathname();
+  const isAdmin = useIsAdmin(); // NEW
 
   const goHome = () => router.push('/home');
   const goEditHub = () => router.push('/edit');
   const goShare = () => router.push('/share-schedule'); // or '/share' if that's your file
   const goSettings = () => router.push('/settings');
+  const goAdmin = () => router.push('/admin'); // NEW
   const goHelp = () => router.push('/help');
 
   return (
@@ -41,6 +44,16 @@ export default function Footer() {
           active={pathname === '/settings'}
           onPress={goSettings}
         />
+
+        {/* ADMIN TAB – only visible when Admin Mode is enabled */}
+        {isAdmin && (
+          <FooterItem
+            label="Admin"
+            active={pathname.startsWith('/admin')}
+            onPress={goAdmin}
+          />
+        )}
+
         <FooterItem
           label="Help"
           active={pathname === '/help'}
@@ -95,21 +108,21 @@ const styles = StyleSheet.create({
   },
 
   navRow: {
-  height: 56,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',      // <— bring items together
-  paddingHorizontal: 4,          // <— reduce side padding
-  gap: 10,                        // <— small modern spacing
-},
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center', // bring items together
+    paddingHorizontal: 4, // reduce side padding
+    gap: 10, // small modern spacing
+  },
 
-navItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingHorizontal: 12,         // <— reduced from before
-  paddingVertical: 6,
-  borderRadius: 999,
-},
+  navItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12, // reduced from before
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
 
   navItemActive: {
     backgroundColor: '#FF8FC5', // lighter pink highlight
@@ -137,4 +150,3 @@ navItem: {
     textAlign: 'center',
   },
 });
-
