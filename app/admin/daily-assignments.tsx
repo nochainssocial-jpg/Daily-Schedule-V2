@@ -464,6 +464,7 @@ const styles = StyleSheet.create({
   },
   staffCell: {
     backgroundColor: '#F9FAFB',
+    width: 100, 
   },
   staffText: {
     fontWeight: '600',
