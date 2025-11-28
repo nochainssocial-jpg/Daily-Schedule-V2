@@ -115,7 +115,7 @@ export default function EditChecklistScreen() {
                   key={s.id}
                   label={s.name}
                   selected={isSelected}
-                  mode={isSelected ? 'onsite' : 'default'}
+                  mode={isSelected ? 'offsite' : 'default'}
                   onPress={() => handleSelectStaff(s.id)}
                   style={styles.staffChip}
                 />
