@@ -67,7 +67,7 @@ export default function OutingsScreen() {
   const applyChange = (patch: Partial<typeof current>) => {
     if (readOnly) {
       push?.(
-        'B2 read-only mode: changes are disabled on this device',
+        'B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)',
         'general',
       );
       return;

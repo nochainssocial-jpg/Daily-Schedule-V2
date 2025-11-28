@@ -255,7 +255,7 @@ export default function FloatingScreen() {
 
   const choose = (id: string) => {
     if (readOnly) {
-      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     if (!pick?.slotId || !pick.col) return;
@@ -271,7 +271,7 @@ export default function FloatingScreen() {
 
   const clearCell = () => {
     if (readOnly) {
-      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     if (!pick?.slotId || !pick.col) return;
@@ -303,7 +303,7 @@ export default function FloatingScreen() {
 
   const handleShuffle = () => {
     if (readOnly) {
-      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;

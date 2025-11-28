@@ -105,7 +105,18 @@ export default function NotificationToaster() {
   const styleForCategory =
     (current.category && CATEGORY_STYLES[current.category]) || null;
 
-  const bgColor = styleForCategory?.bg ?? DEFAULT_ORANGE;
+  let bgColor = styleForCategory?.bg ?? DEFAULT_ORANGE;
+  const message = current.message || '';
+
+  // Override colours for B2 / Admin access-control toasts
+  if (message.includes('B2') && /read[- ]only/i.test(message)) {
+    // B2 read-only mode: always red with white text
+    bgColor = '#FC264D';
+  } else if (/^Admin Mode Enabled/i.test(message)) {
+    // Admin mode: green with white text
+    bgColor = '#00D127';
+  }
+
   const title =
     styleForCategory?.title ||
     (current.category

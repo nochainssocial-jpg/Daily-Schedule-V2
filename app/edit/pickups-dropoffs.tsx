@@ -210,7 +210,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
 
   const togglePickup = (pid: ID) => {
     if (readOnly) {
-      push('B2 read-only mode: changes are disabled on this device', 'general');
+      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     const current = new Set(pickupParticipants || []);
@@ -222,7 +222,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
 
   const toggleHelper = (sid: ID) => {
     if (readOnly) {
-      push('B2 read-only mode: changes are disabled on this device', 'general');
+      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     const current = new Set(helperStaff || []);
@@ -234,7 +234,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
 
   const toggleDropoff = (sid: ID, pid: ID) => {
     if (readOnly) {
-      push('B2 read-only mode: changes are disabled on this device', 'general');
+      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     const current = { ...(dropoffAssignments || {}) } as Record<ID, ID[]>;

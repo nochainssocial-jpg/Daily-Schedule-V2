@@ -129,7 +129,7 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
       setAdminMd();
       setPinError('');
       setAdminPin('');
-      push('ADMIN mode enabled', 'general');
+      push('Admin Mode Enabled - Full Access', 'general');
       return;
     }
 
@@ -137,7 +137,7 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
       setAdminBruno();
       setPinError('');
       setAdminPin('');
-      push('ADMIN mode enabled', 'general');
+      push('Admin Mode Enabled - Full Access', 'general');
       return;
     }
 
@@ -148,7 +148,7 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
     setB2ReadOnly();
     setPinError('');
     setAdminPin('');
-    push('B2 read-only mode enabled', 'general');
+    push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
   };
 
   const handleShareSms = async () => {

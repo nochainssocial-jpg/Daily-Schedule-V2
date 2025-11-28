@@ -58,7 +58,7 @@ export default function EditChecklistScreen() {
 
   const handleSelectStaff = (id: ID) => {
     if (readOnly) {
-      push('B2 read-only mode: changes are disabled on this device', 'general');
+      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     updateSchedule({ finalChecklistStaff: id });
@@ -67,7 +67,7 @@ export default function EditChecklistScreen() {
 
   const handleToggleItem = (itemId: ID | number) => {
     if (readOnly) {
-      push('B2 read-only mode: changes are disabled on this device', 'general');
+      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     const key = String(itemId);

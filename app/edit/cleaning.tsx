@@ -106,7 +106,7 @@ export default function CleaningEditScreen() {
 
   const handleSelectStaff = (staffId: string | null) => {
     if (readOnly) {
-      push?.('B2 read-only mode: changes are disabled on this device', 'general');
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
     if (!activeChoreId) return;
