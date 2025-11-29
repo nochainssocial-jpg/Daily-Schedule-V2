@@ -86,6 +86,19 @@ export default function RootLayout() {
           }}
         />
 
+        {/* ADMIN */}
+        <Stack.Screen
+          name="admin/index"
+          options={{
+            headerTitle: () => (
+              <HeaderTitle
+                icon={<account-lock-open size={24} color={PINK} />}
+                label="Admin Console"
+              />
+            ),
+          }}
+        />
+        
         {/* SETTINGS */}
         <Stack.Screen
           name="settings"
