@@ -61,7 +61,7 @@ export default function AdminHomeScreen() {
       </Text>
 
       {/* WEEKLY TRACKER SECTION */}
-      <Text style={styles.sectionHeader}>Weekly tracker</Text>
+      <Text style={styles.sectionHeader}>Daily tracker</Text>
       <View style={styles.grid}>
         <AdminTile
           title="Team Daily Assignments Daily Tracker"
