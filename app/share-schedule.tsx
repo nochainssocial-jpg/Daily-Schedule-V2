@@ -370,7 +370,6 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
       
       <Footer />
     </View>
-  </View>
   );
 }
 
