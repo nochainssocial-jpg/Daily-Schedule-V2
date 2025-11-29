@@ -363,7 +363,12 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
 
           </View>
         </View>
+          return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.card}>{content}</View>
       </ScrollView>
+      
       <Footer />
     </View>
   );
