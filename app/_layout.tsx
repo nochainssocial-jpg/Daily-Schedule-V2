@@ -3,7 +3,6 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import {
-import {
   Home as HomeIcon,
   Edit as Edit3Icon,
   Share as Share2Icon,
