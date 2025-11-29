@@ -60,7 +60,7 @@ export default function AdminHomeScreen() {
         distribution fair and transparent.
       </Text>
 
-      {/* WEEKLY TRACKER SECTION */}
+      {/* TRACKER SECTION */}
       <Text style={styles.sectionHeader}>Daily tracker</Text>
       <View style={styles.grid}>
         <AdminTile
@@ -77,7 +77,7 @@ export default function AdminHomeScreen() {
         />
       </View>
 
-      {/* WEEKLY REPORTS SECTION */}
+      {/* REPORTS SECTION */}
       <Text style={[styles.sectionHeader, styles.sectionHeaderSpacing]}>
         Weekly reports
       </Text>
@@ -109,8 +109,12 @@ export default function AdminHomeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* 🚫 Removed the wrapper card – content is rendered directly */}
-        {content}
+        
+        {/* CENTERED 880px WRAPPER */}
+        <View style={styles.container}>
+          {content}
+        </View>
+
       </ScrollView>
       <Footer />
     </View>
@@ -126,65 +130,69 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     backgroundColor: '#E0E7FF',
     alignItems: 'center',
-    justifyContent: 'flex-start',
     padding: 16,
     paddingBottom: 160,
   },
 
-  /* Removed card entirely */
+  // NEW FIXED-WIDTH WRAPPER
+  container: {
+    width: '100%',
+    maxWidth: 880,
+    alignSelf: 'center',
+  },
 
   title: {
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 6,
     color: '#332244',
-    alignSelf: 'flex-start',
   },
   subtitle: {
     fontSize: 13,
     opacity: 0.8,
     marginBottom: 20,
     color: '#5a486b',
-    alignSelf: 'flex-start',
   },
   sectionHeader: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     marginBottom: 10,
-    alignSelf: 'flex-start',
   },
   sectionHeaderSpacing: {
     marginTop: 22,
   },
+
+  // GRID & TILE FIXED FOR SAME SIZES
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -8,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   tile: {
     width: '50%',
     paddingHorizontal: 8,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   tileInner: {
+    height: 86,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
     padding: 12,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   tileIconWrapper: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 999,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
