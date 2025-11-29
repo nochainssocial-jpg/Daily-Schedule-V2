@@ -64,13 +64,13 @@ export default function AdminHomeScreen() {
       <Text style={styles.sectionHeader}>Daily tracker</Text>
       <View style={styles.grid}>
         <AdminTile
-          title="Team Daily Assignments Daily Tracker"
+          title="Team Daily Assignments Tracker"
           subtitle="Mon–Fri staff & participants for the current week."
           iconName="account-group-outline"
           onPress={goToStaffTracker}
         />
         <AdminTile
-          title="Cleaning Assignment Daily Tracker"
+          title="Daily Cleaning Assignment Tracker"
           subtitle="Mon–Fri cleaning duties for the current week."
           iconName="broom"
           onPress={goToCleaningTracker}
