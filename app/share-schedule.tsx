@@ -327,14 +327,6 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
             </View>
           </View>
 
-          {/* Section 4: Device access mode */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Device access</Text>
-            <Text style={styles.cardDescription}>
-              Switch this device between full ADMIN mode and B2 read-only mode. Use Admin mode only
-              on trusted devices.
-            </Text>
-
             <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
             <TextInput
               value={adminPin}
