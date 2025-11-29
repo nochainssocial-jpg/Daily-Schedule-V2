@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useIsAdmin } from '@/hooks/access-control';
+import Footer from '@/components/Footer';
 
 export default function AdminHomeScreen() {
   const router = useRouter();
