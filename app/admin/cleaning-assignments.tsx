@@ -48,6 +48,8 @@ const CHORE_LABEL_BY_ID: Record<string, string> = DEFAULT_CHORES.reduce(
 
 function getWeekStart(weekOffset: number): Date {
   const now = new Date();
+
+  // Shift base one week back so weekOffset = 0 means "previous week"
   const base = new Date(
     now.getFullYear(),
     now.getMonth(),
@@ -57,6 +59,7 @@ function getWeekStart(weekOffset: number): Date {
     0,
     0,
   );
+  base.setDate(base.getDate() - 7);
 
   const day = base.getDay();
   const diffToMonday = (day + 6) % 7;
@@ -104,7 +107,7 @@ function normaliseSnapshot(raw: any): Snapshot | null {
 
 export default function CleaningAssignmentsReportScreen() {
   const isAdmin = useIsAdmin();
-  const [weekOffset, setWeekOffset] = useState(-1);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = previous week by default
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<CleaningRow[]>([]);
@@ -438,32 +441,32 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
-    flexShrink: 0, 
+    flexShrink: 0,
     flexGrow: 0,
     overflow: 'hidden',
   },
   cellText: {
-    fontSize: 13,
+    fontSize: 15,
     lineHeight: 20,
     color: '#111827',
     textAlign: 'left',
     flexWrap: 'wrap',
     wordBreak: 'break-word',
-    whiteSpace: 'normal',   // This is the BIG one
+    whiteSpace: 'normal', // keep wrapping nicely
   },
   headerCellText: {
     fontWeight: '600',
     color: '#111827',
   },
   staffHeaderCell: {
-    width: 150,   // Excel-like fixed width
+    width: 150, // Excel-like fixed width
   },
   dayHeaderCell: {
     width: 168,
   },
   staffCell: {
     backgroundColor: '#F9FAFB',
-    width: 150, 
+    width: 150,
   },
   staffText: {
     fontWeight: '600',
