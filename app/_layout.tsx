@@ -3,11 +3,13 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import {
+import {
   Home as HomeIcon,
-  Edit3,
-  Share2,
+  Edit as Edit3Icon,
+  Share as Share2Icon,
   Settings as SettingsIcon,
-  HelpCircle,
+  ShieldCheck as ShieldCheckIcon,
+  HelpCircle as HelpCircleIcon,
 } from 'lucide-react-native';
 
 // 🔔 GLOBAL TOASTER
@@ -92,7 +94,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<account-lock-open size={24} color={PINK} />}
+                icon={<shield-check size={24} color={PINK} />}
                 label="Admin Console"
               />
             ),
