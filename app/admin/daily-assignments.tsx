@@ -41,8 +41,6 @@ type ScheduleRow = {
 
 function getWeekStart(weekOffset: number): Date {
   const now = new Date();
-
-  // Shift base one full week back so weekOffset = 0 means "previous week"
   const base = new Date(
     now.getFullYear(),
     now.getMonth(),
@@ -52,7 +50,6 @@ function getWeekStart(weekOffset: number): Date {
     0,
     0,
   );
-  base.setDate(base.getDate() - 7);
 
   const day = base.getDay(); // 0–6 (Sun–Sat)
   const diffToMonday = (day + 6) % 7; // 0 if Monday
@@ -102,7 +99,9 @@ function normaliseSnapshot(raw: any): Snapshot | null {
 
 export default function DailyAssignmentsReportScreen() {
   const isAdmin = useIsAdmin();
-  const [weekOffset, setWeekOffset] = useState(0); // 0 = previous week by default
+
+  // 0 = current week; on a Saturday this is the week that just finished
+  const [weekOffset, setWeekOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<StaffRow[]>([]);
@@ -358,7 +357,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 1040, // give the table more room
+    maxWidth: 1040,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingHorizontal: 24,
@@ -452,15 +451,13 @@ const styles = StyleSheet.create({
     color: '#111827',
     textAlign: 'left',
     flexWrap: 'wrap',
-    wordBreak: 'break-word',
-    whiteSpace: 'normal', // keep wrapping nicely
   },
   headerCellText: {
     fontWeight: '600',
     color: '#111827',
   },
   staffHeaderCell: {
-    width: 150, // Excel-like fixed width
+    width: 150,
   },
   dayHeaderCell: {
     width: 168,
