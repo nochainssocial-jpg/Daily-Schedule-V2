@@ -363,7 +363,6 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
               </TouchableOpacity>
             </View>
           </View>
-        </View>
       </ScrollView>
       <Footer />
     </View>
