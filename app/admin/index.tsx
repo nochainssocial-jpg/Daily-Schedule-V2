@@ -109,7 +109,8 @@ export default function AdminHomeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.card}>{content}</View>
+        {/* 🚫 Removed the wrapper card – content is rendered directly */}
+        {content}
       </ScrollView>
       <Footer />
     </View>
@@ -127,39 +128,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     padding: 16,
-    // Extra bottom space so content never hides behind the footer
     paddingBottom: 160,
   },
-  card: {
-    width: '100%',
-    maxWidth: 880,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+
+  /* Removed card entirely */
+
   title: {
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 6,
     color: '#332244',
+    alignSelf: 'flex-start',
   },
   subtitle: {
     fontSize: 13,
     opacity: 0.8,
     marginBottom: 20,
     color: '#5a486b',
+    alignSelf: 'flex-start',
   },
   sectionHeader: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     marginBottom: 10,
+    alignSelf: 'flex-start',
   },
   sectionHeaderSpacing: {
     marginTop: 22,
