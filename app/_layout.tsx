@@ -94,7 +94,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<shield-check size={24} color={PINK} />}
+                icon={<ShieldCheck size={24} color={PINK} />}
                 label="Admin Console"
               />
             ),
