@@ -327,6 +327,14 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
             </View>
           </View>
 
+          {/* Section 4: Device access mode */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Device access</Text>
+            <Text style={styles.cardDescription}>
+              Switch this device between full ADMIN mode and B2 read-only mode. Use Admin mode only
+              on trusted devices.
+            </Text>
+
             <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
             <TextInput
               value={adminPin}
@@ -353,16 +361,8 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.row, { marginTop: 8 }]}>
-              <TouchableOpacity
-                onPress={handleB2Access}
-                style={[styles.button, styles.btnPink]}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.btnText}>B2 access (read only)</Text>
-              </TouchableOpacity>
-            </View>
           </View>
+        </View>
       </ScrollView>
       <Footer />
     </View>
@@ -390,12 +390,12 @@ const styles = StyleSheet.create({
   // Large washed-out background logo
   bgLogo: {
     position: 'absolute',
-    width: 1400,
-    height: 1400,
-    opacity: 0.1,
-    left: -600,
-    top: 10,
-    pointerEvents: 'none',
+    right: -120,
+    bottom: -80,
+    width: 400,
+    height: 400,
+    opacity: 0.05,
+    zIndex: -1,
   },
   card: {
     backgroundColor: '#FFFFFF',
