@@ -12,7 +12,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useAccessControl } from '@/hooks/access-control';
 import { useNotifications } from '@/hooks/notifications';
@@ -36,8 +36,8 @@ export default function ShareScheduleScreen() {
   const [adminPin, setAdminPin] = useState('');
   const [pinError, setPinError] = useState('');
 
-const MD_ADMIN_PIN = '7474'; // Dalida (MD)
-const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
+  const MD_ADMIN_PIN = '7474'; // Dalida (MD)
+  const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
 
   const showWebBranding = Platform.OS === 'web';
 
@@ -258,6 +258,7 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
       )}
 
       <Stack.Screen options={{ title: "Share Today's Schedule" }} />
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           {/* Section 1: Today's share code */}
@@ -360,14 +361,10 @@ const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
                 <Text style={styles.btnText}>Admin access (enable editing)</Text>
               </TouchableOpacity>
             </View>
-
           </View>
         </View>
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.card}>{content}</View>
       </ScrollView>
-      
+
       <Footer />
     </View>
   );
@@ -435,7 +432,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     columnGap: 12,
   },
-    label: {
+  label: {
     marginBottom: 6,
   },
   input: {
