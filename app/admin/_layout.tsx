@@ -2,37 +2,16 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-
-// Icons (Lucide)
-import {
-  ChartBarStacked,
-  Broom,
-  ShieldCheck,
-  AccountGroup,
-} from 'lucide-react-native';
+import { ChartBarStacked, Broom, ShieldCheck, AccountGroup } from 'lucide-react-native';
 
 const PINK = '#FF8FC5';
 const WHITE = '#FFFFFF';
 
-function AdminHeaderTitle({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label: string;
-}) {
+function AdminHeaderTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       {icon}
-      <Text
-        style={{
-          fontSize: 24,
-          fontWeight: '600',
-          color: PINK,
-        }}
-      >
-        {label}
-      </Text>
+      <Text style={{ fontSize: 24, fontWeight: '600', color: PINK }}>{label}</Text>
     </View>
   );
 }
@@ -47,20 +26,17 @@ export default function AdminLayout() {
         headerStyle: { backgroundColor: WHITE },
       }}
     >
-      {/* MAIN ADMIN HOME */}
+      {/* ADMIN HOME */}
       <Stack.Screen
         name="index"
         options={{
           headerTitle: () => (
-            <AdminHeaderTitle
-              icon={<ShieldCheck size={24} color={PINK} />}
-              label="Admin"
-            />
+            <AdminHeaderTitle icon={<ShieldCheck size={24} color={PINK} />} label="Admin" />
           ),
         }}
       />
 
-      {/* TEAM DAILY ASSIGNMENTS REPORT */}
+      {/* WEEKLY REPORTS */}
       <Stack.Screen
         name="daily-assignments"
         options={{
@@ -73,7 +49,6 @@ export default function AdminLayout() {
         }}
       />
 
-      {/* CLEANING REPORT */}
       <Stack.Screen
         name="cleaning-assignments"
         options={{
@@ -86,9 +61,9 @@ export default function AdminLayout() {
         }}
       />
 
-      {/* TEAM DAILY TRACKER */}
+      {/* NEW TRACKERS — FIXED ROUTE NAMES */}
       <Stack.Screen
-        name="daily-assignments-tracker"
+        name="dailyAssignmentsTracker"
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
@@ -99,9 +74,8 @@ export default function AdminLayout() {
         }}
       />
 
-      {/* CLEANING TRACKER */}
       <Stack.Screen
-        name="daily-cleaning-tracker"
+        name="dailyCleaningTracker"
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
