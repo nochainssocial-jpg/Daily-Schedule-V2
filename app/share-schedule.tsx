@@ -257,8 +257,6 @@ export default function ShareScheduleScreen() {
         />
       )}
 
-      <Stack.Screen options={{ title: "Share Today's Schedule" }} />
-
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
           {/* Section 1: Today's share code */}
