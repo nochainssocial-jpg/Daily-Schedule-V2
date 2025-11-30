@@ -3,7 +3,7 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import {
-  ChartBarStacked,
+  ChartColumn,
   Broom,
   ShieldCheck,
   AccountGroup,
@@ -58,7 +58,7 @@ export default function AdminLayout() {
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
-              icon={<ChartBarStacked size={24} color={PINK} />}
+              icon={<ChartColumn size={24} color={PINK} />}
               label="Team Daily Assignment – Weekly Report"
             />
           ),
@@ -70,7 +70,7 @@ export default function AdminLayout() {
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
-              icon={<ChartBarStacked size={24} color={PINK} />}
+              icon={<ChartColumn size={24} color={PINK} />}
               label="Cleaning – Weekly Report"
             />
           ),
