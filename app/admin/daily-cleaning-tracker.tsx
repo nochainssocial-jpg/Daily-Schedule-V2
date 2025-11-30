@@ -127,7 +127,7 @@ export default function DailyCleaningTrackerScreen() {
 
         if (e) throw e;
 
-        // newest per day
+        // newest per day (prefer snapshot.date in AEST)
         const byDay: Record<
           string,
           { snapshot: Snapshot; created_at: string; seq: number }
@@ -135,7 +135,13 @@ export default function DailyCleaningTrackerScreen() {
 
         for (const row of data ?? []) {
           const snap = normaliseSnapshot(row.snapshot);
-          const dayKey = row.created_at?.slice(0, 10);
+          if (!snap) continue;
+
+          const dayKey =
+            typeof snap.date === 'string' && snap.date
+              ? snap.date.slice(0, 10)
+              : row.created_at?.slice(0, 10);
+
           if (!dayKey) continue;
 
           const seq = row.seq_id ?? 0;
