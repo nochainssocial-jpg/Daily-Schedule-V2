@@ -82,13 +82,13 @@ export default function AdminHomeScreen() {
         <AdminTile
           title="Team Daily Assignment – Weekly Report"
           subtitle="Full weekly summary of who worked where each day."
-          iconName="chart-bar-stacked"
+          iconName="chart-column"
           onPress={goToStaffReport}
         />
         <AdminTile
           title="Cleaning Assignment – Weekly Report"
           subtitle="Weekly summary of how cleaning has been distributed."
-          iconName="chart-bar-stacked"
+          iconName="chart-column"
           onPress={goToCleaningReport}
         />
       </View>
