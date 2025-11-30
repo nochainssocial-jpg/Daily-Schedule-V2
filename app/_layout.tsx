@@ -81,7 +81,7 @@ export default function RootLayout() {
             headerTitle: () => (
               <HeaderTitle
                 icon={<Share2Icon size={24} color={PINK} />}
-                label="Share"
+                label="Share Today's Schedule"
               />
             ),
           }}
