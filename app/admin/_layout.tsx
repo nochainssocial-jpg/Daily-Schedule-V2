@@ -1,7 +1,7 @@
 // app/admin/_layout.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
-import { Stack, usePathname } from 'expo-router';
+import { Stack } from 'expo-router';
 import {
   ChartBarStacked,
   Broom,
@@ -12,7 +12,13 @@ import {
 const PINK = '#FF8FC5';
 const WHITE = '#FFFFFF';
 
-function AdminHeaderTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
+function AdminHeaderTitle({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       {icon}
@@ -24,54 +30,6 @@ function AdminHeaderTitle({ icon, label }: { icon: React.ReactNode; label: strin
 }
 
 export default function AdminLayout() {
-  const pathname = usePathname();
-
-  // Determine which screen we're on (dynamic, always correct)
-  function getHeader() {
-    if (pathname.endsWith('/admin')) {
-      return {
-        icon: <ShieldCheck size={24} color={PINK} />,
-        label: 'Admin',
-      };
-    }
-
-    if (pathname.includes('daily-assignments') && !pathname.includes('tracker')) {
-      return {
-        icon: <ChartBarStacked size={24} color={PINK} />,
-        label: 'Team Daily Assignment – Weekly Report',
-      };
-    }
-
-    if (pathname.includes('cleaning-assignments') && !pathname.includes('tracker')) {
-      return {
-        icon: <ChartBarStacked size={24} color={PINK} />,
-        label: 'Cleaning – Weekly Report',
-      };
-    }
-
-    if (pathname.includes('dailyAssignmentsTracker') || pathname.includes('daily-assignments-tracker')) {
-      return {
-        icon: <AccountGroup size={24} color={PINK} />,
-        label: 'Team Daily Assignments Tracker',
-      };
-    }
-
-    if (pathname.includes('dailyCleaningTracker') || pathname.includes('daily-cleaning-tracker')) {
-      return {
-        icon: <Broom size={24} color={PINK} />,
-        label: 'Cleaning Assignments Tracker',
-      };
-    }
-
-    // Fallback — shouldn't ever hit
-    return {
-      icon: <ShieldCheck size={24} color={PINK} />,
-      label: 'Admin',
-    };
-  }
-
-  const header = getHeader();
-
   return (
     <Stack
       screenOptions={{
@@ -79,18 +37,70 @@ export default function AdminLayout() {
         headerShadowVisible: false,
         headerTintColor: PINK,
         headerStyle: { backgroundColor: WHITE },
-        headerTitle: () => <AdminHeaderTitle icon={header.icon} label={header.label} />,
       }}
     >
-      {/* We do not need per-screen definitions anymore */}
-      <Stack.Screen name="index" />
-      <Stack.Screen name="daily-assignments" />
-      <Stack.Screen name="cleaning-assignments" />
-      <Stack.Screen name="dailyAssignmentsTracker" />
-      <Stack.Screen name="dailyCleaningTracker" />
-      {/* These ensure any filename variant still works */}
-      <Stack.Screen name="daily-assignments-tracker" />
-      <Stack.Screen name="daily-cleaning-tracker" />
+      {/* ADMIN HOME */}
+      <Stack.Screen
+        name="index"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<ShieldCheck size={24} color={PINK} />}
+              label="Admin"
+            />
+          ),
+        }}
+      />
+
+      {/* WEEKLY REPORTS */}
+      <Stack.Screen
+        name="daily-assignments"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<ChartBarStacked size={24} color={PINK} />}
+              label="Team Daily Assignment – Weekly Report"
+            />
+          ),
+        }}
+      />
+
+      <Stack.Screen
+        name="cleaning-assignments"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<ChartBarStacked size={24} color={PINK} />}
+              label="Cleaning – Weekly Report"
+            />
+          ),
+        }}
+      />
+
+      {/* TRACKERS — STATIC AND SAFE */}
+      <Stack.Screen
+        name="dailyAssignmentsTracker"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<AccountGroup size={24} color={PINK} />}
+              label="Team Daily Assignments Tracker"
+            />
+          ),
+        }}
+      />
+
+      <Stack.Screen
+        name="dailyCleaningTracker"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<Broom size={24} color={PINK} />}
+              label="Cleaning Assignments Tracker"
+            />
+          ),
+        }}
+      />
     </Stack>
   );
 }
