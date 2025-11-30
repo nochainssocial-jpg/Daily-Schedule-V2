@@ -1,19 +1,17 @@
 // app/admin/daily-cleaning-tracker.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useIsAdmin } from '@/hooks/access-control';
+import { DEFAULT_CHORES } from '@/constants/data';
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
-type CleaningMap = Record<string, string[]>;
+
+// cleaningAssignments is choreId -> staffId (same as weekly report)
+type CleaningMap = Record<string, string>;
 
 type Snapshot = {
   date: string | null;
@@ -26,6 +24,15 @@ type CleaningRow = {
   name: string;
   byDay: Record<WeekDayLabel, string[]>;
 };
+
+// Map choreId -> chore label (same as cleaning-assignments.tsx)
+const CHORE_LABEL_BY_ID: Record<string, string> = DEFAULT_CHORES.reduce(
+  (acc, chore) => {
+    acc[chore.id] = chore.name;
+    return acc;
+  },
+  {} as Record<string, string>,
+);
 
 // --------------------------- SAFE HELPERS ---------------------------
 
@@ -90,10 +97,10 @@ export default function DailyCleaningTrackerScreen() {
       month: 'short',
       year: 'numeric',
     };
-    return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString(
+    return `Week: ${weekStart.toLocaleDateString(
       'en-AU',
       opts,
-    )}`;
+    )} – ${end.toLocaleDateString('en-AU', opts)}`;
   }, [weekStart]);
 
   useEffect(() => {
@@ -158,21 +165,31 @@ export default function DailyCleaningTrackerScreen() {
             if (s?.id && s?.name) staffById[s.id] = s.name;
           });
 
-          const clean = safeObject<CleaningMap>(snapshot.cleaningAssignments);
+          const cleaningAssignments = safeObject<CleaningMap>(
+            snapshot.cleaningAssignments,
+          ); // choreId -> staffId
 
-          for (const [staffId, tasks] of Object.entries(clean)) {
-            const safeTasks = safeArray<string>(tasks);
+          Object.entries(cleaningAssignments).forEach(
+            ([choreId, staffId]) => {
+              if (!staffId) return;
 
-            if (!summary[staffId]) {
-              summary[staffId] = {
-                staffId,
-                name: staffById[staffId] ?? staffId,
-                byDay: makeEmpty(),
-              };
-            }
+              const staffName = staffById[staffId];
+              if (!staffName) return;
 
-            safeTasks.forEach((t) => summary[staffId].byDay[label].push(t));
-          }
+              const choreLabel =
+                CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
+
+              if (!summary[staffId]) {
+                summary[staffId] = {
+                  staffId,
+                  name: staffName,
+                  byDay: makeEmpty(),
+                };
+              }
+
+              summary[staffId].byDay[label].push(choreLabel);
+            },
+          );
         }
 
         const result = Object.values(summary).sort((a, b) =>
@@ -217,7 +234,9 @@ export default function DailyCleaningTrackerScreen() {
         <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
 
         {loading && <Text style={styles.helper}>Loading…</Text>}
-        {error && <Text style={[styles.helper, { color: 'red' }]}>{error}</Text>}
+        {error && (
+          <Text style={[styles.helper, { color: 'red' }]}>{error}</Text>
+        )}
         {!loading && !error && rows.length === 0 && (
           <Text style={styles.helper}>
             No tracked cleaning data yet for this week.
