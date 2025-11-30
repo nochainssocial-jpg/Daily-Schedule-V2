@@ -1,17 +1,35 @@
-// app/admin/_layout.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { ChartBarStacked, Broom, ShieldCheck, AccountGroup } from 'lucide-react-native';
+import {
+  ChartBarStacked,
+  Broom,
+  ShieldCheck,
+  AccountGroup,
+} from 'lucide-react-native';
 
 const PINK = '#FF8FC5';
 const WHITE = '#FFFFFF';
 
-function AdminHeaderTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
+function AdminHeaderTitle({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       {icon}
-      <Text style={{ fontSize: 24, fontWeight: '600', color: PINK }}>{label}</Text>
+      <Text
+        style={{
+          fontSize: 24,
+          fontWeight: '600',
+          color: PINK,
+        }}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -31,12 +49,15 @@ export default function AdminLayout() {
         name="index"
         options={{
           headerTitle: () => (
-            <AdminHeaderTitle icon={<ShieldCheck size={24} color={PINK} />} label="Admin" />
+            <AdminHeaderTitle
+              icon={<ShieldCheck size={24} color={PINK} />}
+              label="Admin"
+            />
           ),
         }}
       />
 
-      {/* WEEKLY REPORTS */}
+      {/* REPORT: Team Assignments */}
       <Stack.Screen
         name="daily-assignments"
         options={{
@@ -49,6 +70,7 @@ export default function AdminLayout() {
         }}
       />
 
+      {/* REPORT: Cleaning */}
       <Stack.Screen
         name="cleaning-assignments"
         options={{
@@ -61,7 +83,7 @@ export default function AdminLayout() {
         }}
       />
 
-      {/* NEW TRACKERS — FIXED ROUTE NAMES */}
+      {/* TRACKER: Team Assignments */}
       <Stack.Screen
         name="dailyAssignmentsTracker"
         options={{
@@ -74,6 +96,7 @@ export default function AdminLayout() {
         }}
       />
 
+      {/* TRACKER: Cleaning */}
       <Stack.Screen
         name="dailyCleaningTracker"
         options={{
