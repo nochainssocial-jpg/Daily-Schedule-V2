@@ -1,251 +1,206 @@
-// app/admin/cleaning-assignments-tracker.tsx
-
-import React, { useState, useMemo, useEffect } from 'react';
+// app/admin/daily-cleaning-tracker.tsx
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Platform,
+  StyleSheet,
 } from 'react-native';
-import { useIsAdmin } from '@/hooks/access-control';
 import { supabase } from '@/lib/supabase';
-import { DEFAULT_CHORES } from '@/constants/data';
+import { useIsAdmin } from '@/hooks/access-control';
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
-type SnapshotCleaningAssignments = Record<string, string>; // choreId -> staffId
+type CleaningMap = Record<string, string[]>;
 
 type Snapshot = {
-  date?: string;
-  staff?: SnapshotStaff[];
-  cleaningAssignments?: SnapshotCleaningAssignments;
+  date: string | null;
+  staff: SnapshotStaff[];
+  cleaningAssignments: CleaningMap;
 };
 
 type CleaningRow = {
   staffId: string;
   name: string;
-  byDay: Record<WeekDayLabel, string[]>; // chore labels
+  byDay: Record<WeekDayLabel, string[]>;
 };
 
-type ScheduleRow = {
-  id: string;
-  house: string;
-  snapshot: any;
-  created_at: string;
-  seq_id: number | null;
-};
+// --------------------------- SAFE HELPERS ---------------------------
 
-const CHORE_LABEL_BY_ID: Record<string, string> = DEFAULT_CHORES.reduce(
-  (acc, chore) => {
-    acc[chore.id] = chore.name;
-    return acc;
-  },
-  {} as Record<string, string>,
-);
-
-function getWeekStart(weekOffset: number): Date {
-  const now = new Date();
-  const base = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    0,
-    0,
-    0,
-    0,
-  );
-
-  const day = base.getDay();
-  const diffToMonday = (day + 6) % 7;
-  base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
-  return base;
+function safeArray<T>(v: any): T[] {
+  return Array.isArray(v) ? v.filter(Boolean) : [];
 }
 
-function formatWeekLabel(weekStart: Date): string {
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4);
-  const opts: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  };
-  const startStr = weekStart.toLocaleDateString('en-AU', opts);
-  const endStr = end.toLocaleDateString('en-AU', opts);
-  return `Week: ${startStr} – ${endStr}`;
+function safeObject<T extends object>(v: any): T {
+  return v && typeof v === 'object' && !Array.isArray(v)
+    ? (v as T)
+    : ({} as T);
 }
 
-function getLabelFromDateString(dateStr: string): WeekDayLabel | null {
+function safeDateLabel(dateStr: string): WeekDayLabel | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
+  if (isNaN(d.getTime())) return null;
 
-  const jsDay = d.getDay();
-  const idx = (jsDay + 6) % 7;
-  if (idx < 0 || idx > 4) return null;
-  return WEEK_DAYS[idx];
+  const js = d.getDay(); // 0=Sun..6=Sat
+  const idx = (js + 6) % 7;
+  return idx >= 0 && idx < 5 ? WEEK_DAYS[idx] : null;
 }
 
-function normaliseSnapshot(raw: any): Snapshot | null {
-  if (!raw) return null;
+// --------------------------- NORMALISE SNAPSHOT ---------------------------
+
+function normaliseSnapshot(raw: any): Snapshot {
   try {
-    const snap: any = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+
     return {
-      date: snap.date,
-      staff: snap.staff ?? [],
-      cleaningAssignments: snap.cleaningAssignments ?? {},
+      date: snap.date ?? null,
+      staff: safeArray<SnapshotStaff>(snap.staff),
+      cleaningAssignments: safeObject<CleaningMap>(snap.cleaningAssignments),
     };
   } catch {
-    return null;
+    return { date: null, staff: [], cleaningAssignments: {} };
   }
 }
 
-export default function CleaningAssignmentsTrackerScreen() {
-  const isAdmin = useIsAdmin();
+// --------------------------- COMPONENT ---------------------------
 
+export default function DailyCleaningTrackerScreen() {
+  const isAdmin = useIsAdmin();
+  const [rows, setRows] = useState<CleaningRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<CleaningRow[]>([]);
 
-  // Always current week (no Prev/Next) – fills up as each day's schedule is created
-  const weekStart = useMemo(() => getWeekStart(0), []);
-  const weekLabel = useMemo(() => formatWeekLabel(weekStart), [weekStart]);
+  // Compute start of week (Mon)
+  const weekStart = useMemo(() => {
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = (base.getDay() + 6) % 7;
+    base.setDate(base.getDate() - diff);
+    return base;
+  }, []);
+
+  const weekLabel = useMemo(() => {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 4);
+    const opts: Intl.DateTimeFormatOptions = {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    };
+    return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString(
+      'en-AU',
+      opts,
+    )}`;
+  }, [weekStart]);
 
   useEffect(() => {
     if (!isAdmin) return;
 
-    let cancelled = false;
+    let stop = false;
 
     async function load() {
       setLoading(true);
       setError(null);
-      setRows([]);
 
       try {
         const rangeStart = new Date(weekStart);
         const rangeEnd = new Date(weekStart);
         rangeEnd.setDate(rangeEnd.getDate() + 7);
 
-        const { data, error: supaError } = await supabase
+        const { data, error: e } = await supabase
           .from('schedules')
-          .select('id, house, snapshot, created_at, seq_id')
+          .select('id, snapshot, created_at, seq_id')
           .eq('house', 'B2')
           .gte('created_at', rangeStart.toISOString())
           .lt('created_at', rangeEnd.toISOString())
           .order('created_at', { ascending: true });
 
-        if (supaError) throw supaError;
+        if (e) throw e;
 
-        const rowsRaw = (data ?? []) as ScheduleRow[];
-
-        // latest snapshot per calendar day
-        const latestByDay: Record<
+        // newest per day
+        const byDay: Record<
           string,
           { snapshot: Snapshot; created_at: string; seq: number }
         > = {};
 
-        for (const row of rowsRaw) {
+        for (const row of data ?? []) {
           const snap = normaliseSnapshot(row.snapshot);
-          if (!snap) continue;
+          const dayKey = row.created_at?.slice(0, 10);
+          if (!dayKey) continue;
 
-          const createdKey = row.created_at.slice(0, 10);
           const seq = row.seq_id ?? 0;
-          const existing = latestByDay[createdKey];
-          if (!existing || seq > existing.seq) {
-            latestByDay[createdKey] = {
-              snapshot: snap,
-              created_at: row.created_at,
-              seq,
-            };
+
+          if (!byDay[dayKey] || seq > byDay[dayKey].seq) {
+            byDay[dayKey] = { snapshot: snap, created_at: row.created_at, seq };
           }
         }
 
-        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
-          Mon: [],
-          Tue: [],
-          Wed: [],
-          Thu: [],
-          Fri: [],
-        });
+        const makeEmpty = () =>
+          ({
+            Mon: [],
+            Tue: [],
+            Wed: [],
+            Thu: [],
+            Fri: [],
+          } as Record<WeekDayLabel, string[]>);
 
-        const staffSummary: Record<string, CleaningRow> = {};
+        const summary: Record<string, CleaningRow> = {};
 
-        for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
-          const label = getLabelFromDateString(dayKey);
+        for (const [dayKey, { snapshot }] of Object.entries(byDay)) {
+          const label = safeDateLabel(dayKey);
           if (!label) continue;
 
           const staffById: Record<string, string> = {};
-          (snapshot.staff ?? []).forEach((s) => {
+          snapshot.staff.forEach((s) => {
             if (s?.id && s?.name) staffById[s.id] = s.name;
           });
 
-          const cleaningAssignments = snapshot.cleaningAssignments ?? {};
+          const clean = safeObject<CleaningMap>(snapshot.cleaningAssignments);
 
-          // cleaningAssignments: choreId -> staffId
-          Object.entries(cleaningAssignments).forEach(([choreId, staffId]) => {
-            if (!staffId) return;
+          for (const [staffId, tasks] of Object.entries(clean)) {
+            const safeTasks = safeArray<string>(tasks);
 
-            const staffName = staffById[staffId];
-            if (!staffName) return;
-
-            const choreLabel =
-              CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
-
-            if (!staffSummary[staffId]) {
-              staffSummary[staffId] = {
+            if (!summary[staffId]) {
+              summary[staffId] = {
                 staffId,
-                name: staffName,
-                byDay: makeEmptyDays(),
+                name: staffById[staffId] ?? staffId,
+                byDay: makeEmpty(),
               };
             }
 
-            staffSummary[staffId].byDay[label].push(choreLabel);
-          });
+            safeTasks.forEach((t) => summary[staffId].byDay[label].push(t));
+          }
         }
 
-        const summaryArr = Object.values(staffSummary).sort((a, b) =>
+        const result = Object.values(summary).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
 
-        if (!cancelled) {
-          setRows(summaryArr);
-          setLoading(false);
-        }
+        if (!stop) setRows(result);
       } catch (err) {
-        console.error('Error loading weekly cleaning tracker', err);
-        if (!cancelled) {
-          setError('Could not load weekly cleaning tracker data.');
-          setLoading(false);
-        }
+        console.error('Cleaning tracker error:', err);
+        if (!stop) setError('Could not load cleaning tracker.');
+      } finally {
+        if (!stop) setLoading(false);
       }
     }
 
     load();
     return () => {
-      cancelled = true;
+      stop = true;
     };
   }, [isAdmin, weekStart]);
-
-  const handlePrint = () => {
-    if (Platform.OS === 'web') {
-      // @ts-ignore
-      if (typeof window !== 'undefined' && window.print) {
-        window.print();
-      }
-    }
-  };
 
   if (!isAdmin) {
     return (
       <View style={styles.screen}>
         <View style={styles.card}>
-          <Text style={styles.title}>Cleaning – Weekly Tracker</Text>
+          <Text style={styles.title}>Cleaning Assignments Tracker</Text>
           <Text style={styles.subtitle}>
-            Admin Mode is required to view this tracker. Enable Admin Mode on the
-            Share screen.
+            Admin Mode is required. Enable Admin Mode on the Share screen.
           </Text>
         </View>
       </View>
@@ -255,81 +210,61 @@ export default function CleaningAssignmentsTrackerScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.title}>Cleaning – Weekly Tracker</Text>
-            <Text style={styles.subtitle}>
-              Live Mon–Fri view for the current week. As you create each day&apos;s
-              schedule, this tracker fills up automatically.
-            </Text>
-            <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
-          </View>
+        <Text style={styles.title}>Cleaning Assignments Tracker</Text>
+        <Text style={styles.subtitle}>
+          Live Mon–Fri view of cleaning duties for the current week.
+        </Text>
+        <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
 
-          {Platform.OS === 'web' && (
-            <View style={styles.headerButtons}>
-              <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
-                <Text style={styles.printButtonText}>Print</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        {loading && <Text style={styles.helper}>Loading…</Text>}
+        {error && <Text style={[styles.helper, { color: 'red' }]}>{error}</Text>}
+        {!loading && !error && rows.length === 0 && (
+          <Text style={styles.helper}>
+            No tracked cleaning data yet for this week.
+          </Text>
+        )}
 
-        <View style={styles.tableWrapper} id="print-area">
-          {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
-          {error && (
-            <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <Text style={styles.helper}>
-              No cleaning tracker data found for the current week.
-            </Text>
-          )}
-
-          {rows.length > 0 && (
-            <View style={styles.table}>
-              {/* Header row */}
-              <View style={[styles.row, styles.headerRowTable]}>
-                <View style={[styles.cell, styles.staffHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>
-                    Staff
-                  </Text>
-                </View>
-                {WEEK_DAYS.map((day) => (
-                  <View key={day} style={[styles.cell, styles.dayHeaderCell]}>
-                    <Text style={[styles.cellText, styles.headerCellText]}>
-                      {day}
-                    </Text>
-                  </View>
-                ))}
+        {rows.length > 0 && (
+          <View style={styles.table}>
+            {/* Header */}
+            <View style={[styles.row, styles.headerRow]}>
+              <View style={[styles.cell, styles.staffCellHeader]}>
+                <Text style={[styles.cellText, styles.headerText]}>Staff</Text>
               </View>
-
-              {/* Data rows */}
-              {rows.map((row) => (
-                <View key={row.staffId} style={styles.row}>
-                  <View style={[styles.cell, styles.staffCell]}>
-                    <Text style={[styles.cellText, styles.staffText]}>
-                      {row.name}
-                    </Text>
-                  </View>
-                  {WEEK_DAYS.map((day) => {
-                    const tasks = row.byDay[day] ?? [];
-                    const content = tasks.join('\n'); // one task per line
-                    return (
-                      <View key={day} style={[styles.cell, styles.dataCell]}>
-                        <Text style={styles.cellText}>{content}</Text>
-                      </View>
-                    );
-                  })}
+              {WEEK_DAYS.map((d) => (
+                <View key={d} style={[styles.cell, styles.dayHeaderCell]}>
+                  <Text style={[styles.cellText, styles.headerText]}>{d}</Text>
                 </View>
               ))}
             </View>
-          )}
-        </View>
+
+            {/* Rows */}
+            {rows.map((r) => (
+              <View key={r.staffId} style={styles.row}>
+                <View style={[styles.cell, styles.staffCell]}>
+                  <Text style={[styles.cellText, styles.staffName]}>
+                    {r.name}
+                  </Text>
+                </View>
+
+                {WEEK_DAYS.map((d) => {
+                  const val = r.byDay[d]?.join('\n') ?? '';
+                  return (
+                    <View key={d} style={[styles.cell, styles.dataCell]}>
+                      <Text style={styles.cellText}>{val}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
 }
+
+// --------------------------- STYLES ---------------------------
 
 const styles = StyleSheet.create({
   scroll: {
@@ -341,43 +276,15 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#E0E7FF',
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    alignItems: 'center',
   },
   card: {
     width: '100%',
-    maxWidth: 1040, // give the table more room
-    backgroundColor: '#FFFFFF',
+    maxWidth: 1040,
+    backgroundColor: '#FFF',
+    padding: 20,
     borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  printButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#86A2FF',
-    marginLeft: 8,
-  },
-  printButtonText: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
   title: {
     fontSize: 18,
@@ -389,65 +296,51 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     color: '#5a486b',
   },
-  tableWrapper: {
-    marginTop: 8,
-  },
   helper: {
-    fontSize: 13,
-    color: '#4B5563',
+    marginTop: 8,
+    fontSize: 14,
+    color: '#444',
   },
   table: {
-    marginTop: 12,
+    marginTop: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#DDD',
     borderRadius: 8,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
   },
-  headerRowTable: {
+  headerRow: {
     backgroundColor: '#EFF3FF',
   },
   cell: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    padding: 8,
     borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
+    borderRightColor: '#EEE',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    flexShrink: 0,
-    flexGrow: 0,
-    overflow: 'hidden',
+    borderBottomColor: '#EEE',
   },
   cellText: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: '#111827',
-    textAlign: 'left',
-    flexWrap: 'wrap',
+    fontSize: 14,
   },
-  headerCellText: {
-    fontWeight: '600',
-    color: '#111827',
+  headerText: {
+    fontWeight: '700',
   },
-  staffHeaderCell: {
-    width: 150, // fixed width for staff column
+  staffCellHeader: {
+    width: 150,
   },
   dayHeaderCell: {
     width: 168,
   },
   staffCell: {
-    backgroundColor: '#F9FAFB',
     width: 150,
+    backgroundColor: '#F8F8F8',
   },
-  staffText: {
+  staffName: {
     fontWeight: '600',
   },
   dataCell: {
-    backgroundColor: '#FFFFFF',
     width: 168,
   },
 });

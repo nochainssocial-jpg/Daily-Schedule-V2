@@ -1,5 +1,4 @@
 // app/admin/daily-assignments-tracker.tsx
-
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
@@ -20,10 +19,10 @@ type SnapshotParticipant = { id: string; name: string };
 type SnapshotAssignments = Record<string, string[]>; // staffId -> participantIds[]
 
 type Snapshot = {
-  date?: string;
-  staff?: SnapshotStaff[];
-  participants?: SnapshotParticipant[];
-  assignments?: SnapshotAssignments;
+  date: string | null;
+  staff: SnapshotStaff[];
+  participants: SnapshotParticipant[];
+  assignments: SnapshotAssignments;
 };
 
 type StaffRow = {
@@ -40,63 +39,50 @@ type ScheduleRow = {
   seq_id: number | null;
 };
 
-function getWeekStart(weekOffset: number): Date {
-  const now = new Date();
-  const base = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    0,
-    0,
-    0,
-    0,
-  );
+// ------------------ Utilities -------------------------
 
-  const day = base.getDay(); // 0–6 (Sun–Sat)
-  const diffToMonday = (day + 6) % 7; // 0 if Monday
-  base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
-  return base;
-}
-
-function formatWeekLabel(weekStart: Date): string {
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4); // Mon + 4 = Fri
-
-  const opts: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  };
-  const startStr = weekStart.toLocaleDateString('en-AU', opts);
-  const endStr = end.toLocaleDateString('en-AU', opts);
-  return `Week: ${startStr} – ${endStr}`;
-}
-
-function getLabelFromDateString(dateStr: string): WeekDayLabel | null {
+function safeDateLabel(dateStr: string): WeekDayLabel | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
+  if (isNaN(d.getTime())) return null;
 
-  const jsDay = d.getDay(); // 0=Sun..6=Sat
-  const idx = (jsDay + 6) % 7; // 0=Mon..6=Sun
-  if (idx < 0 || idx > 4) return null; // only Mon–Fri
+  const js = d.getDay(); // 0=Sun..6=Sat
+  const idx = (js + 6) % 7;
+  if (idx < 0 || idx > 4) return null;
   return WEEK_DAYS[idx];
 }
 
-function normaliseSnapshot(raw: any): Snapshot | null {
-  if (!raw) return null;
+function safeArray<T>(val: any): T[] {
+  return Array.isArray(val) ? val.filter(Boolean) : [];
+}
+
+function safeObject(val: any): Record<string, any> {
+  return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
+}
+
+// ------------------ Normalise Snapshot -------------------------
+
+function normaliseSnapshot(raw: any): Snapshot {
   try {
-    const snap: any = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+
     return {
-      date: snap.date,
-      staff: snap.staff ?? [],
-      participants: snap.participants ?? [],
-      assignments: snap.assignments ?? {},
+      date: snap.date ?? null,
+      staff: safeArray<SnapshotStaff>(snap.staff),
+      participants: safeArray<SnapshotParticipant>(snap.participants),
+      assignments: safeObject(snap.assignments),
     };
   } catch {
-    return null;
+    return {
+      date: null,
+      staff: [],
+      participants: [],
+      assignments: {},
+    };
   }
 }
+
+// ------------------ Component -------------------------
 
 export default function DailyAssignmentsTrackerScreen() {
   const isAdmin = useIsAdmin();
@@ -105,9 +91,27 @@ export default function DailyAssignmentsTrackerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<StaffRow[]>([]);
 
-  // Always current week (no Prev/Next)
-  const weekStart = useMemo(() => getWeekStart(0), []);
-  const weekLabel = useMemo(() => formatWeekLabel(weekStart), [weekStart]);
+  const weekStart = useMemo(() => {
+    const now = new Date();
+    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = (base.getDay() + 6) % 7;
+    base.setDate(base.getDate() - diff);
+    return base;
+  }, []);
+
+  const weekLabel = useMemo(() => {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 4);
+    const opts: Intl.DateTimeFormatOptions = {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    };
+    return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString(
+      'en-AU',
+      opts,
+    )}`;
+  }, [weekStart]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -117,12 +121,11 @@ export default function DailyAssignmentsTrackerScreen() {
     async function load() {
       setLoading(true);
       setError(null);
-      setRows([]);
 
       try {
         const rangeStart = new Date(weekStart);
         const rangeEnd = new Date(weekStart);
-        rangeEnd.setDate(rangeEnd.getDate() + 7); // [Mon, next Mon)
+        rangeEnd.setDate(rangeEnd.getDate() + 7);
 
         const { data, error: supaError } = await supabase
           .from('schedules')
@@ -134,93 +137,76 @@ export default function DailyAssignmentsTrackerScreen() {
 
         if (supaError) throw supaError;
 
-        const rowsRaw = (data ?? []) as ScheduleRow[];
-
-        // Latest snapshot per calendar day
         const latestByDay: Record<
           string,
           { snapshot: Snapshot; created_at: string; seq: number }
         > = {};
 
-        for (const row of rowsRaw) {
+        for (const row of (data ?? []) as ScheduleRow[]) {
           const snap = normaliseSnapshot(row.snapshot);
-          if (!snap) continue;
+          const key = row.created_at.slice(0, 10);
 
-          const createdKey = row.created_at.slice(0, 10); // YYYY-MM-DD
           const seq = row.seq_id ?? 0;
-          const existing = latestByDay[createdKey];
-
-          if (!existing || seq > existing.seq) {
-            latestByDay[createdKey] = {
-              snapshot: snap,
-              created_at: row.created_at,
-              seq,
-            };
+          if (!latestByDay[key] || seq > latestByDay[key].seq) {
+            latestByDay[key] = { snapshot: snap, created_at: row.created_at, seq };
           }
         }
 
-        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
-          Mon: [],
-          Tue: [],
-          Wed: [],
-          Thu: [],
-          Fri: [],
-        });
+        const makeDays = () =>
+          ({
+            Mon: [],
+            Tue: [],
+            Wed: [],
+            Thu: [],
+            Fri: [],
+          } as Record<WeekDayLabel, string[]>);
 
-        const summaryByStaff: Record<string, StaffRow> = {};
+        const summary: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
-          const label = getLabelFromDateString(dayKey);
-          if (!label) continue; // weekend
+          const label = safeDateLabel(dayKey);
+          if (!label) continue;
 
           const staffById: Record<string, string> = {};
-          (snapshot.staff ?? []).forEach((s) => {
+          snapshot.staff.forEach((s) => {
             if (s?.id && s?.name) staffById[s.id] = s.name;
           });
 
           const participantsById: Record<string, string> = {};
-          (snapshot.participants ?? []).forEach((p) => {
+          snapshot.participants.forEach((p) => {
             if (p?.id && p?.name) participantsById[p.id] = p.name;
           });
 
-          const assignments = snapshot.assignments ?? {};
+          const assignments = safeObject(snapshot.assignments);
 
-          // assignments: staffId -> participantIds[]
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
-            if (!staffId || !Array.isArray(participantIds)) return;
+            if (!Array.isArray(participantIds)) return;
 
-            if (!summaryByStaff[staffId]) {
-              summaryByStaff[staffId] = {
+            if (!summary[staffId]) {
+              summary[staffId] = {
                 staffId,
                 name: staffById[staffId] ?? staffId,
-                byDay: makeEmptyDays(),
+                byDay: makeDays(),
               };
             }
 
-            const row = summaryByStaff[staffId];
-
             participantIds.forEach((pid) => {
-              const participantName = participantsById[pid];
-              if (!participantName) return;
-              row.byDay[label].push(participantName);
+              const name = participantsById[pid];
+              if (name) summary[staffId].byDay[label].push(name);
             });
           });
         }
 
-        const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
+        const arr = Object.values(summary).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
 
-        if (!cancelled) {
-          setRows(summaryArr);
-          setLoading(false);
-        }
+        if (!cancelled) setRows(arr);
       } catch (err) {
-        console.error('Error loading weekly assignment tracker', err);
-        if (!cancelled) {
-          setError('Could not load weekly tracker data.');
-          setLoading(false);
-        }
+        console.error('Assignment tracker error:', err);
+        if (!cancelled) setError('Could not load weekly tracker.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -230,23 +216,13 @@ export default function DailyAssignmentsTrackerScreen() {
     };
   }, [isAdmin, weekStart]);
 
-  const handlePrint = () => {
-    if (Platform.OS === 'web') {
-      // @ts-ignore
-      if (typeof window !== 'undefined' && window.print) {
-        window.print();
-      }
-    }
-  };
-
   if (!isAdmin) {
     return (
       <View style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
           <Text style={styles.subtitle}>
-            Admin Mode is required to view this tracker. Enable Admin Mode on the
-            Share screen.
+            Admin Mode is required. Enable Admin Mode on the Share screen.
           </Text>
         </View>
       </View>
@@ -256,82 +232,62 @@ export default function DailyAssignmentsTrackerScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
-            <Text style={styles.subtitle}>
-              Live Mon–Fri view for the current week. As you create each day&apos;s
-              schedule, this tracker fills up automatically.
-            </Text>
-            <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
-          </View>
+        <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
+        <Text style={styles.subtitle}>
+          Live Mon–Fri view. As you save each day’s schedule, this tracker fills
+          automatically.
+        </Text>
+        <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
 
-          {Platform.OS === 'web' && (
-            <View style={styles.headerButtons}>
-              <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
-                <Text style={styles.printButtonText}>Print</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        {loading && <Text style={styles.helper}>Loading…</Text>}
+        {error && <Text style={[styles.helper, { color: 'red' }]}>{error}</Text>}
+        {!loading && !error && rows.length === 0 && (
+          <Text style={styles.helper}>
+            No tracked assignment data yet for this week.
+          </Text>
+        )}
 
-        <View style={styles.tableWrapper} id="print-area">
-          {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
-          {error && (
-            <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <Text style={styles.helper}>
-              No assignment data found yet for this week. Once you save each
-              day&apos;s schedule, it will appear here.
-            </Text>
-          )}
-
-          {rows.length > 0 && (
-            <View style={styles.table}>
-              {/* Header row */}
-              <View style={[styles.row, styles.headerRowTable]}>
-                <View style={[styles.cell, styles.staffHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>
-                    Staff
-                  </Text>
-                </View>
-                {WEEK_DAYS.map((day) => (
-                  <View key={day} style={[styles.cell, styles.dayHeaderCell]}>
-                    <Text style={[styles.cellText, styles.headerCellText]}>
-                      {day}
-                    </Text>
-                  </View>
-                ))}
+        {rows.length > 0 && (
+          <View style={styles.table}>
+            {/* Header */}
+            <View style={[styles.row, styles.headerRow]}>
+              <View style={[styles.cell, styles.staffCellHeader]}>
+                <Text style={[styles.cellText, styles.headerText]}>Staff</Text>
               </View>
-
-              {/* Data rows */}
-              {rows.map((row) => (
-                <View key={row.staffId} style={styles.row}>
-                  <View style={[styles.cell, styles.staffCell]}>
-                    <Text style={[styles.cellText, styles.staffText]}>
-                      {row.name}
-                    </Text>
-                  </View>
-                  {WEEK_DAYS.map((day) => {
-                    const names = row.byDay[day] ?? [];
-                    const content = names.join('\n'); // one name per line
-                    return (
-                      <View key={day} style={[styles.cell, styles.dataCell]}>
-                        <Text style={styles.cellText}>{content}</Text>
-                      </View>
-                    );
-                  })}
+              {WEEK_DAYS.map((d) => (
+                <View key={d} style={[styles.cell, styles.dayHeaderCell]}>
+                  <Text style={[styles.cellText, styles.headerText]}>{d}</Text>
                 </View>
               ))}
             </View>
-          )}
-        </View>
+
+            {/* Rows */}
+            {rows.map((row) => (
+              <View key={row.staffId} style={styles.row}>
+                <View style={[styles.cell, styles.staffCell]}>
+                  <Text style={[styles.cellText, styles.staffName]}>
+                    {row.name}
+                  </Text>
+                </View>
+
+                {WEEK_DAYS.map((d) => {
+                  const content = (row.byDay[d] ?? []).join('\n');
+                  return (
+                    <View key={d} style={[styles.cell, styles.dataCell]}>
+                      <Text style={styles.cellText}>{content}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
 }
+
+// ------------------ Styles -------------------------
 
 const styles = StyleSheet.create({
   scroll: {
@@ -343,43 +299,15 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#E0E7FF',
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    alignItems: 'center',
   },
   card: {
     width: '100%',
     maxWidth: 1040,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
+    padding: 20,
     borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  printButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#86A2FF',
-    marginLeft: 8,
-  },
-  printButtonText: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
   title: {
     fontSize: 18,
@@ -391,65 +319,51 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     color: '#5a486b',
   },
-  tableWrapper: {
-    marginTop: 8,
-  },
   helper: {
-    fontSize: 13,
-    color: '#4B5563',
+    marginTop: 8,
+    fontSize: 14,
+    color: '#444',
   },
   table: {
-    marginTop: 12,
+    marginTop: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#DDD',
     borderRadius: 8,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
   },
-  headerRowTable: {
+  headerRow: {
     backgroundColor: '#EFF3FF',
   },
   cell: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    padding: 8,
     borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
+    borderRightColor: '#EEE',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    flexShrink: 0,
-    flexGrow: 0,
-    overflow: 'hidden',
+    borderBottomColor: '#EEE',
   },
   cellText: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: '#111827',
-    textAlign: 'left',
-    flexWrap: 'wrap',
+    fontSize: 14,
   },
-  headerCellText: {
-    fontWeight: '600',
-    color: '#111827',
+  headerText: {
+    fontWeight: '700',
   },
-  staffHeaderCell: {
+  staffCellHeader: {
     width: 150,
   },
   dayHeaderCell: {
     width: 168,
   },
   staffCell: {
-    backgroundColor: '#F9FAFB',
     width: 150,
+    backgroundColor: '#F8F8F8',
   },
-  staffText: {
+  staffName: {
     fontWeight: '600',
   },
   dataCell: {
-    backgroundColor: '#FFFFFF',
     width: 168,
   },
 });
