@@ -1,4 +1,4 @@
-// app/_layout.tsx
+ule// app/_layout.tsx
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
@@ -76,7 +76,7 @@ export default function RootLayout() {
 
         {/* SHARE */}
         <Stack.Screen
-          name="share"
+          name="share-schedule"
           options={{
             headerTitle: () => (
               <HeaderTitle
