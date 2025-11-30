@@ -144,11 +144,20 @@ export default function DailyAssignmentsTrackerScreen() {
 
         for (const row of (data ?? []) as ScheduleRow[]) {
           const snap = normaliseSnapshot(row.snapshot);
-          const key = row.created_at.slice(0, 10);
+          if (!snap) continue;
+
+          const dayKey =
+            typeof snap.date === 'string' && snap.date
+              ? snap.date.slice(0, 10)
+              : row.created_at.slice(0, 10);
 
           const seq = row.seq_id ?? 0;
-          if (!latestByDay[key] || seq > latestByDay[key].seq) {
-            latestByDay[key] = { snapshot: snap, created_at: row.created_at, seq };
+          if (!latestByDay[dayKey] || seq > latestByDay[dayKey].seq) {
+            latestByDay[dayKey] = {
+              snapshot: snap,
+              created_at: row.created_at,
+              seq,
+            };
           }
         }
 
