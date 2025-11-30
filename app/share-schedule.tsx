@@ -334,21 +334,38 @@ export default function ShareScheduleScreen() {
               on trusted devices.
             </Text>
 
-            <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
-            <TextInput
-              value={adminPin}
-              onChangeText={(text) => {
-                setAdminPin(text);
-                if (pinError) setPinError('');
-              }}
-              secureTextEntry
-              keyboardType="number-pad"
-              placeholder="Enter admin PIN"
-              style={styles.input}
-            />
-            {pinError ? (
-              <Text style={styles.errorText}>{pinError}</Text>
-            ) : null}
+          <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
+          
+          <View style={styles.row}>
+          <TextInput
+            value={adminPin}
+            onChangeText={(text) => {
+              setAdminPin(text);
+              if (pinError) setPinError('');
+            }}
+            secureTextEntry
+            keyboardType="number-pad"
+            placeholder="Enter admin PIN"
+            maxLength={4}
+            returnKeyType="done"
+            blurOnSubmit={false}
+            onSubmitEditing={handleAdminAccess}   // ← 🔥 ENTER triggers button
+            style={[styles.input, styles.pinInput]}
+          />
+          
+            <TouchableOpacity
+              onPress={handleAdminAccess}
+              style={[styles.button, styles.btnLavender]}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.btnText}>Admin access (enable editing)</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {pinError ? (
+            <Text style={styles.errorText}>{pinError}</Text>
+          ) : null}
+
 
             <View style={styles.row}>
               <TouchableOpacity
@@ -465,4 +482,9 @@ const styles = StyleSheet.create({
   btnDeepPink: {
     backgroundColor: '#f472b6',
   },
+  pinInput: {
+  flex: 0,
+  width: 200,     // perfect 4-digit width
+  marginBottom: 20,
+},
 });
