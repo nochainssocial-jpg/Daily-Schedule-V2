@@ -40,9 +40,6 @@ function AdminHeaderTitle({
 
 export default function AdminLayout() {
   return (
-    <>
-      {/* 🔔 Notifications appear in all Admin screens */}
-      <NotificationToaster />
 
       <Stack
         screenOptions={{
