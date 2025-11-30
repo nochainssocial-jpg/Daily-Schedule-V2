@@ -2,7 +2,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import NotificationToaster from '@/components/NotificationToaster';
 
 // Icons (Lucide)
 import {
@@ -40,78 +39,78 @@ function AdminHeaderTitle({
 
 export default function AdminLayout() {
   return (
-    <>
-      {/* Ensure toaster is active for admin pages */}
-      <NotificationToaster />
-
-      <Stack
-        screenOptions={{
-          headerTitleAlign: 'center',
-          headerShadowVisible: false,
-          headerTintColor: PINK,
-          headerStyle: { backgroundColor: WHITE },
+    <Stack
+      screenOptions={{
+        headerTitleAlign: 'center',
+        headerShadowVisible: false,
+        headerTintColor: PINK,
+        headerStyle: { backgroundColor: WHITE },
+      }}
+    >
+      {/* MAIN ADMIN HOME */}
+      <Stack.Screen
+        name="index"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<ShieldCheck size={24} color={PINK} />}
+              label="Admin"
+            />
+          ),
         }}
-      >
-        <Stack.Screen
-          name="index"
-          options={{
-            headerTitle: () => (
-              <AdminHeaderTitle
-                icon={<ShieldCheck size={24} color={PINK} />}
-                label="Admin"
-              />
-            ),
-          }}
-        />
+      />
 
-        <Stack.Screen
-          name="daily-assignments"
-          options={{
-            headerTitle: () => (
-              <AdminHeaderTitle
-                icon={<ChartBarStacked size={24} color={PINK} />}
-                label="Team Daily Assignment – Weekly Report"
-              />
-            ),
-          }}
-        />
+      {/* TEAM DAILY ASSIGNMENTS REPORT */}
+      <Stack.Screen
+        name="daily-assignments"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<ChartBarStacked size={24} color={PINK} />}
+              label="Team Daily Assignment – Weekly Report"
+            />
+          ),
+        }}
+      />
 
-        <Stack.Screen
-          name="cleaning-assignments"
-          options={{
-            headerTitle: () => (
-              <AdminHeaderTitle
-                icon={<ChartBarStacked size={24} color={PINK} />}
-                label="Cleaning – Weekly Report"
-              />
-            ),
-          }}
-        />
+      {/* CLEANING REPORT */}
+      <Stack.Screen
+        name="cleaning-assignments"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<ChartBarStacked size={24} color={PINK} />}
+              label="Cleaning – Weekly Report"
+            />
+          ),
+        }}
+      />
 
-        <Stack.Screen
-          name="daily-assignments-tracker"
-          options={{
-            headerTitle: () => (
-              <AdminHeaderTitle
-                icon={<AccountGroup size={24} color={PINK} />}
-                label="Team Daily Assignments Tracker"
-              />
-            ),
-          }}
-        />
+      {/* TEAM DAILY TRACKER */}
+      <Stack.Screen
+        name="daily-assignments-tracker"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<AccountGroup size={24} color={PINK} />}
+              label="Team Daily Assignments Tracker"
+            />
+          ),
+        }}
+      />
 
-        <Stack.Screen
-          name="daily-cleaning-tracker"
-          options={{
-            headerTitle: () => (
-              <AdminHeaderTitle
-                icon={<Broom size={24} color={PINK} />}
-                label="Cleaning Assignments Tracker"
-              />
-            ),
-          }}
-        />
-      </Stack>
-    </>
+      {/* CLEANING TRACKER */}
+      <Stack.Screen
+        name="daily-cleaning-tracker"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<Broom size={24} color={PINK} />}
+              label="Cleaning Assignments Tracker"
+            />
+          ),
+        }}
+      />
+    </Stack>
   );
 }
