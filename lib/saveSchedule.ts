@@ -51,13 +51,17 @@ export async function saveScheduleToSupabase(
     }
 
     const createdAt = data.created_at as string | null;
+    const savedSnapshot = data.snapshot as ScheduleSnapshot;
+
+    // OPTION A: prefer the schedule's own local date if present
+    const snapshotDate = savedSnapshot.date;
     const scheduleDate =
-      (createdAt && createdAt.slice(0, 10)) || baseDate;
+      snapshotDate || (createdAt && createdAt.slice(0, 10)) || baseDate;
 
     return {
       ok: true,
       data: {
-        snapshot: data.snapshot as ScheduleSnapshot,
+        snapshot: savedSnapshot,
         code: data.code as string | null,
         createdAt,
         scheduleDate, // "YYYY-MM-DD"
@@ -95,8 +99,12 @@ export async function fetchLatestScheduleForHouse(house: string) {
     const snapshot = data.snapshot as ScheduleSnapshot;
     const createdAt = data.created_at as string | null;
 
+    // OPTION A: use the schedule's own stored date if available
+    const snapshotDate = snapshot.date;
     const scheduleDate =
-      (createdAt && createdAt.slice(0, 10)) || toLocalDateKey(new Date());
+      snapshotDate ||
+      (createdAt && createdAt.slice(0, 10)) ||
+      toLocalDateKey(new Date());
 
     return {
       ok: true,
