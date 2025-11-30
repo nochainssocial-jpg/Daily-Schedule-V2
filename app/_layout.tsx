@@ -7,14 +7,12 @@ import {
   Edit as Edit3Icon,
   Share as Share2Icon,
   Settings as SettingsIcon,
-  ShieldCheck as ShieldCheckIcon,
   HelpCircle as HelpCircleIcon,
 } from 'lucide-react-native';
-
-// 🔔 GLOBAL TOASTER
 import NotificationToaster from '@/components/NotificationToaster';
 
 const PINK = '#FF8FC5';
+const DARK_GREY = '#444444';
 
 function HeaderTitle({
   icon,
@@ -24,7 +22,7 @@ function HeaderTitle({
   label: string;
 }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       {icon}
       <Text
         style={{
@@ -42,7 +40,7 @@ function HeaderTitle({
 export default function RootLayout() {
   return (
     <>
-      {/* 🔔 GLOBAL NOTIFICATION PANEL */}
+      {/* 🔔 Single global toaster for non-admin / non-edit screens */}
       <NotificationToaster />
 
       <Stack
@@ -50,44 +48,42 @@ export default function RootLayout() {
           headerTitleAlign: 'center',
           headerShadowVisible: false,
           headerTintColor: PINK,
-          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerStyle: { backgroundColor: DARK_GREY },
         }}
       >
-        {/* EDIT HUB — let the screen itself control the header */}
-        <Stack.Screen
-          name="edit"
-          options={{
-            headerShown: false,
-          }}
-        />
+        {/* Landing / auth screen usually hides header */}
+        <Stack.Screen name="index" options={{ headerShown: false }} />
 
-        {/* HOME */}
+        {/* Home */}
         <Stack.Screen
           name="home"
           options={{
             headerTitle: () => (
               <HeaderTitle
                 icon={<HomeIcon size={24} color={PINK} />}
-                label="Home"
+                label="Daily Schedule"
               />
             ),
           }}
         />
 
-        {/* SHARE TODAY'S SCHEDULE */}
+        {/* Edit hub has its own /app/edit/_layout.tsx stack */}
+        <Stack.Screen name="edit" options={{ headerShown: false }} />
+
+        {/* Share schedule */}
         <Stack.Screen
           name="share-schedule"
           options={{
             headerTitle: () => (
               <HeaderTitle
                 icon={<Share2Icon size={24} color={PINK} />}
-                label="Share Today's Schedule"
+                label="Share schedule"
               />
             ),
           }}
         />
 
-        {/* SETTINGS */}
+        {/* Settings */}
         <Stack.Screen
           name="settings"
           options={{
@@ -100,7 +96,10 @@ export default function RootLayout() {
           }}
         />
 
-        {/* HELP */}
+        {/* Admin section – header comes from /app/admin/_layout.tsx */}
+        <Stack.Screen name="admin" options={{ headerShown: false }} />
+
+        {/* Help */}
         <Stack.Screen
           name="help"
           options={{
