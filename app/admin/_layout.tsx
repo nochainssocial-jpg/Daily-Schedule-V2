@@ -2,26 +2,23 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+// Icons must match index tiles EXACTLY
+import {
+  ChartBarStacked,   // Used for both weekly reports
+  Broom,              // Used for cleaning tracker tile
+  ShieldCheck,        // Used for Admin home tile
+  AccountGroup,       // Used for assignments tracker tile
+} from 'lucide-react-native';
 
 const PINK = '#FF8FC5';
 const WHITE = '#FFFFFF';
 
-type AdminHeaderTitleProps = {
-  iconName: keyof typeof MaterialCommunityIcons.glyphMap;
-  label: string;
-};
-
-function AdminHeaderTitle({ iconName, label }: AdminHeaderTitleProps) {
+function AdminHeaderTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <MaterialCommunityIcons
-        name={iconName}
-        size={22}
-        color={PINK}
-        style={{ marginRight: 8 }}
-      />
-      <Text style={{ fontSize: 20, fontWeight: '600', color: PINK }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {icon}
+      <Text style={{ fontSize: 24, fontWeight: '600', color: PINK }}>
         {label}
       </Text>
     </View>
@@ -43,30 +40,9 @@ export default function AdminLayout() {
         name="index"
         options={{
           headerTitle: () => (
-            <AdminHeaderTitle iconName="shield-check" label="Admin" />
-          ),
-        }}
-      />
-
-      {/* TRACKERS */}
-      <Stack.Screen
-        name="daily-assignments-tracker"
-        options={{
-          headerTitle: () => (
             <AdminHeaderTitle
-              iconName="account-group-outline"
-              label="Team Daily Assignments Tracker"
-            />
-          ),
-        }}
-      />
-      <Stack.Screen
-        name="daily-cleaning-tracker"
-        options={{
-          headerTitle: () => (
-            <AdminHeaderTitle
-              iconName="broom"
-              label="Daily Cleaning Assignment Tracker"
+              icon={<ShieldCheck size={24} color={PINK} />}
+              label="Admin"
             />
           ),
         }}
@@ -78,19 +54,45 @@ export default function AdminLayout() {
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
-              iconName="chart-bar-stacked"
+              icon={<ChartBarStacked size={24} color={PINK} />}
               label="Team Daily Assignment – Weekly Report"
             />
           ),
         }}
       />
+
       <Stack.Screen
         name="cleaning-assignments"
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
-              iconName="chart-bar-stacked"
-              label="Cleaning Assignment – Weekly Report"
+              icon={<ChartBarStacked size={24} color={PINK} />}
+              label="Cleaning – Weekly Report"
+            />
+          ),
+        }}
+      />
+
+      {/* DAILY TRACKERS */}
+      <Stack.Screen
+        name="dailyAssignmentsTracker"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<AccountGroup size={24} color={PINK} />}
+              label="Team Daily Assignments Tracker"
+            />
+          ),
+        }}
+      />
+
+      <Stack.Screen
+        name="dailyCleaningTracker"
+        options={{
+          headerTitle: () => (
+            <AdminHeaderTitle
+              icon={<Broom size={24} color={PINK} />}
+              label="Cleaning Assignments Tracker"
             />
           ),
         }}
