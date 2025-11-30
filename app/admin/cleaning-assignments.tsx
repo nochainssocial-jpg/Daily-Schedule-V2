@@ -141,7 +141,7 @@ export default function CleaningAssignmentsReportScreen() {
 
         const rowsRaw = (data ?? []) as ScheduleRow[];
 
-        // latest snapshot per calendar day
+        // latest snapshot per calendar day (prefer snapshot.date in AEST)
         const latestByDay: Record<
           string,
           { snapshot: Snapshot; created_at: string; seq: number }
@@ -151,11 +151,15 @@ export default function CleaningAssignmentsReportScreen() {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
 
-          const createdKey = row.created_at.slice(0, 10);
+          const dayKey =
+            typeof snap.date === 'string' && snap.date
+              ? snap.date.slice(0, 10)
+              : row.created_at.slice(0, 10);
+
           const seq = row.seq_id ?? 0;
-          const existing = latestByDay[createdKey];
+          const existing = latestByDay[dayKey];
           if (!existing || seq > existing.seq) {
-            latestByDay[createdKey] = {
+            latestByDay[dayKey] = {
               snapshot: snap,
               created_at: row.created_at,
               seq,
