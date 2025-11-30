@@ -53,6 +53,19 @@ export default function AdminLayout() {
         }}
       >
 
+        {/* MAIN ADMIN HOME */}
+        <Stack.Screen
+          name="index"
+          options={{
+            headerTitle: () => (
+              <AdminHeaderTitle
+                icon={<ShieldCheck size={24} color={PINK} />}
+                label="Admin"
+              />
+            ),
+          }}
+        />
+
         {/* TEAM DAILY ASSIGNMENTS REPORT */}
         <Stack.Screen
           name="daily-assignments"
