@@ -76,7 +76,7 @@ export default function RootLayout() {
 
         {/* SHARE */}
         <Stack.Screen
-          name="share-schedule"
+          name="share"
           options={{
             headerTitle: () => (
               <HeaderTitle
