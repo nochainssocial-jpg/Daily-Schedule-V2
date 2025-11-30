@@ -2,8 +2,15 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NotificationToaster from '@/components/NotificationToaster';
+
+// Icons (Lucide)
+import {
+  ChartBarStacked,
+  Broom,
+  ShieldCheck,
+  AccountGroup,
+} from 'lucide-react-native';
 
 const PINK = '#FF8FC5';
 const WHITE = '#FFFFFF';
@@ -42,14 +49,19 @@ export default function AdminLayout() {
           headerTitleAlign: 'center',
           headerShadowVisible: false,
           headerTintColor: PINK,
-          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerStyle: { backgroundColor: WHITE },
         }}
       >
         {/* MAIN ADMIN HOME */}
         <Stack.Screen
           name="index"
           options={{
-            headerTitle: () => <AdminHeaderTitle label="Admin" />,
+            headerTitle: () => (
+              <AdminHeaderTitle
+                icon={<ShieldCheck size={24} color={PINK} />}
+                label="Admin"
+              />
+            ),
           }}
         />
 
@@ -58,8 +70,9 @@ export default function AdminLayout() {
           name="daily-assignments"
           options={{
             headerTitle: () => (
-              icon={<ChartBarStacked size={24} color={PINK} />}
-              label="Team Daily Assignment – Weekly Report"
+              <AdminHeaderTitle
+                icon={<ChartBarStacked size={24} color={PINK} />}
+                label="Team Daily Assignment – Weekly Report"
               />
             ),
           }}
@@ -70,8 +83,10 @@ export default function AdminLayout() {
           name="cleaning-assignments"
           options={{
             headerTitle: () => (
-              icon={<ChartBarStacked size={24} color={PINK} />}
-              <AdminHeaderTitle label="Cleaning – Weekly Report" />
+              <AdminHeaderTitle
+                icon={<ChartBarStacked size={24} color={PINK} />}
+                label="Cleaning – Weekly Report"
+              />
             ),
           }}
         />
@@ -81,8 +96,10 @@ export default function AdminLayout() {
           name="daily-assignments-tracker"
           options={{
             headerTitle: () => (
-              icon={<AccountGroupOutline size={24} color={PINK} />}
-              <AdminHeaderTitle label="Team Daily Assignments Tracker" />
+              <AdminHeaderTitle
+                icon={<AccountGroup size={24} color={PINK} />}
+                label="Team Daily Assignments Tracker"
+              />
             ),
           }}
         />
@@ -92,8 +109,10 @@ export default function AdminLayout() {
           name="daily-cleaning-tracker"
           options={{
             headerTitle: () => (
-              icon={<Broom size={24} color={PINK} />}
-              <AdminHeaderTitle label="Cleaning Assignments Tracker" />
+              <AdminHeaderTitle
+                icon={<Broom size={24} color={PINK} />}
+                label="Cleaning Assignments Tracker"
+              />
             ),
           }}
         />
