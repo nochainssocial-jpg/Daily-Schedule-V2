@@ -48,7 +48,7 @@ export default function AdminHomeScreen() {
   const goToStaffTracker = () =>
     router.push('/admin/daily-assignments-tracker');
   const goToCleaningTracker = () =>
-    router.push('/admin/cleaning-assignments-tracker');
+    router.push('/admin/daily-cleaning-tracker');
   const goToStaffReport = () => router.push('/admin/daily-assignments');
   const goToCleaningReport = () => router.push('/admin/cleaning-assignments');
 
