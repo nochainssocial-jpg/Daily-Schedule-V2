@@ -2,16 +2,22 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { ShieldCheck } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NotificationToaster from '@/components/NotificationToaster';
 
 const PINK = '#FF8FC5';
-const DARK_GREY = '#444444';
+const WHITE = '#FFFFFF';
 
-function AdminHeaderTitle({ label }: { label: string }) {
+function AdminHeaderTitle({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <ShieldCheck size={24} color={PINK} />
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {icon}
       <Text
         style={{
           fontSize: 24,
@@ -35,8 +41,8 @@ export default function AdminLayout() {
         screenOptions={{
           headerTitleAlign: 'center',
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: DARK_GREY },
           headerTintColor: PINK,
+          headerStyle: { backgroundColor: '#FFFFFF' },
         }}
       >
         {/* MAIN ADMIN HOME */}
@@ -52,7 +58,9 @@ export default function AdminLayout() {
           name="daily-assignments"
           options={{
             headerTitle: () => (
-              <AdminHeaderTitle label="Team Daily Assignment – Weekly Report" />
+              icon={<ChartBarStacked size={24} color={PINK} />}
+              label="Team Daily Assignment – Weekly Report"
+              />
             ),
           }}
         />
@@ -62,6 +70,7 @@ export default function AdminLayout() {
           name="cleaning-assignments"
           options={{
             headerTitle: () => (
+              icon={<ChartBarStacked size={24} color={PINK} />}
               <AdminHeaderTitle label="Cleaning – Weekly Report" />
             ),
           }}
@@ -72,6 +81,7 @@ export default function AdminLayout() {
           name="daily-assignments-tracker"
           options={{
             headerTitle: () => (
+              icon={<AccountGroupOutline size={24} color={PINK} />}
               <AdminHeaderTitle label="Team Daily Assignments Tracker" />
             ),
           }}
@@ -82,6 +92,7 @@ export default function AdminLayout() {
           name="daily-cleaning-tracker"
           options={{
             headerTitle: () => (
+              icon={<Broom size={24} color={PINK} />}
               <AdminHeaderTitle label="Cleaning Assignments Tracker" />
             ),
           }}
