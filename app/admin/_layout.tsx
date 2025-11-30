@@ -2,23 +2,33 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
-
-// Icons must match index tiles EXACTLY
 import {
-  ChartBarStacked,   // Used for both weekly reports
-  Broom,              // Used for cleaning tracker tile
-  ShieldCheck,        // Used for Admin home tile
-  AccountGroup,       // Used for assignments tracker tile
+  ChartBarStacked,   // bar chart icon for reports
+  Broom,             // broom icon for cleaning tracker
+  ShieldCheck,       // shield icon for Admin home
+  AccountGroup,      // people icon for assignments tracker
 } from 'lucide-react-native';
 
 const PINK = '#FF8FC5';
 const WHITE = '#FFFFFF';
 
-function AdminHeaderTitle({ icon, label }: { icon: React.ReactNode; label: string }) {
+function AdminHeaderTitle({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       {icon}
-      <Text style={{ fontSize: 24, fontWeight: '600', color: PINK }}>
+      <Text
+        style={{
+          fontSize: 24,
+          fontWeight: '600',
+          color: PINK,
+        }}
+      >
         {label}
       </Text>
     </View>
@@ -48,7 +58,7 @@ export default function AdminLayout() {
         }}
       />
 
-      {/* WEEKLY REPORTS */}
+      {/* WEEKLY REPORTS (bar chart icon, like tiles) */}
       <Stack.Screen
         name="daily-assignments"
         options={{
@@ -73,9 +83,9 @@ export default function AdminLayout() {
         }}
       />
 
-      {/* DAILY TRACKERS */}
+      {/* TRACKERS — NOTE: NAMES MATCH YOUR URL SLUGS */}
       <Stack.Screen
-        name="dailyAssignmentsTracker"
+        name="daily-assignments-tracker"
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
@@ -87,7 +97,7 @@ export default function AdminLayout() {
       />
 
       <Stack.Screen
-        name="dailyCleaningTracker"
+        name="daily-cleaning-tracker"
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
