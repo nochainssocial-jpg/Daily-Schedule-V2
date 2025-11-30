@@ -1,5 +1,4 @@
 // app/admin/index.tsx
-
 import React from 'react';
 import {
   View,
@@ -109,12 +108,7 @@ export default function AdminHomeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        
-        {/* CENTERED 880px WRAPPER */}
-        <View style={styles.container}>
-          {content}
-        </View>
-
+        <View style={styles.container}>{content}</View>
       </ScrollView>
       <Footer />
     </View>
@@ -134,7 +128,6 @@ const styles = StyleSheet.create({
     paddingBottom: 160,
   },
 
-  // NEW FIXED-WIDTH WRAPPER
   container: {
     width: '100%',
     maxWidth: 880,
@@ -163,7 +156,6 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
 
-  // GRID & TILE FIXED FOR SAME SIZES
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
