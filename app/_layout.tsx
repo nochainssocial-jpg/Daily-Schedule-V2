@@ -80,7 +80,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<Share2 size={24} color={PINK} />}
+                icon={<Share2Icon size={24} color={PINK} />}
                 label="Share"
               />
             ),
@@ -93,13 +93,13 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<ShieldCheck size={24} color={PINK} />}
+                icon={<ShieldCheckIcon size={24} color={PINK} />}
                 label="Admin Console"
               />
             ),
           }}
         />
-        
+
         {/* SETTINGS */}
         <Stack.Screen
           name="settings"
@@ -119,7 +119,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<HelpCircle size={24} color={PINK} />}
+                icon={<HelpCircleIcon size={24} color={PINK} />}
                 label="Help"
               />
             ),
