@@ -1,5 +1,4 @@
 // app/admin/index.tsx
-
 import React from 'react';
 import {
   View,
@@ -45,10 +44,8 @@ export default function AdminHomeScreen() {
   const isAdmin = useIsAdmin();
   const insets = useSafeAreaInsets();
 
-  const goToStaffTracker = () =>
-    router.push('/admin/daily-assignments-tracker');
-  const goToCleaningTracker = () =>
-    router.push('/admin/cleaning-assignments-tracker');
+  const goToStaffTracker = () => router.push('/admin/daily-assignments-tracker');
+  const goToCleaningTracker = () => router.push('/admin/daily-cleaning-tracker');
   const goToStaffReport = () => router.push('/admin/daily-assignments');
   const goToCleaningReport = () => router.push('/admin/cleaning-assignments');
 
@@ -109,12 +106,7 @@ export default function AdminHomeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        
-        {/* CENTERED 880px WRAPPER */}
-        <View style={styles.container}>
-          {content}
-        </View>
-
+        <View style={styles.container}>{content}</View>
       </ScrollView>
       <Footer />
     </View>
@@ -134,7 +126,6 @@ const styles = StyleSheet.create({
     paddingBottom: 160,
   },
 
-  // NEW FIXED-WIDTH WRAPPER
   container: {
     width: '100%',
     maxWidth: 880,
@@ -163,7 +154,6 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
 
-  // GRID & TILE FIXED FOR SAME SIZES
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
