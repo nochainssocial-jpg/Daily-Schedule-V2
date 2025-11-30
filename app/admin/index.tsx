@@ -49,7 +49,8 @@ export default function AdminHomeScreen() {
   const goToCleaningTracker = () =>
     router.push('/admin/daily-cleaning-tracker');
   const goToStaffReport = () => router.push('/admin/daily-assignments');
-  const goToCleaningReport = () => router.push('/admin/cleaning-assignments');
+  const goToCleaningReport = () =>
+    router.push('/admin/cleaning-assignments');
 
   const content = isAdmin ? (
     <>
@@ -108,6 +109,7 @@ export default function AdminHomeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* 880px centered wrapper */}
         <View style={styles.container}>{content}</View>
       </ScrollView>
       <Footer />
@@ -122,18 +124,14 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flexGrow: 1,
-    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     alignItems: 'center',
-    padding: 16,
-    paddingBottom: 160,
   },
-
   container: {
     width: '100%',
     maxWidth: 880,
-    alignSelf: 'center',
   },
-
   title: {
     fontSize: 22,
     fontWeight: '700',
@@ -143,59 +141,55 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     opacity: 0.8,
-    marginBottom: 20,
+    marginBottom: 18,
     color: '#5a486b',
   },
   sectionHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700',
     marginBottom: 10,
+    marginTop: 4,
+    color: '#374151',
   },
   sectionHeaderSpacing: {
-    marginTop: 22,
+    marginTop: 24,
   },
-
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -8,
-    marginBottom: 16,
+    gap: 12,
   },
   tile: {
-    width: '50%',
-    paddingHorizontal: 8,
-    marginBottom: 16,
+    flexBasis: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   tileInner: {
-    height: 86,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-    padding: 12,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   tileIconWrapper: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F3F4FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    marginRight: 10,
+    marginTop: 2,
   },
   tileTextWrapper: {
     flex: 1,
   },
   tileTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1F2933',
-    marginBottom: 2,
+    color: '#111827',
+    marginBottom: 4,
   },
   tileSubtitle: {
     fontSize: 12,
