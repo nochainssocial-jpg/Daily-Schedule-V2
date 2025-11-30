@@ -40,6 +40,9 @@ function AdminHeaderTitle({
 
 export default function AdminLayout() {
   return (
+    <>
+      {/* Ensure toaster is active for admin pages */}
+      <NotificationToaster />
 
       <Stack
         screenOptions={{
@@ -49,8 +52,6 @@ export default function AdminLayout() {
           headerStyle: { backgroundColor: WHITE },
         }}
       >
-
-        {/* MAIN ADMIN HOME */}
         <Stack.Screen
           name="index"
           options={{
@@ -63,7 +64,6 @@ export default function AdminLayout() {
           }}
         />
 
-        {/* TEAM DAILY ASSIGNMENTS REPORT */}
         <Stack.Screen
           name="daily-assignments"
           options={{
@@ -76,7 +76,6 @@ export default function AdminLayout() {
           }}
         />
 
-        {/* CLEANING REPORT */}
         <Stack.Screen
           name="cleaning-assignments"
           options={{
@@ -89,7 +88,6 @@ export default function AdminLayout() {
           }}
         />
 
-        {/* TEAM DAILY TRACKER */}
         <Stack.Screen
           name="daily-assignments-tracker"
           options={{
@@ -102,7 +100,6 @@ export default function AdminLayout() {
           }}
         />
 
-        {/* CLEANING TRACKER */}
         <Stack.Screen
           name="daily-cleaning-tracker"
           options={{
@@ -115,5 +112,6 @@ export default function AdminLayout() {
           }}
         />
       </Stack>
+    </>
   );
 }
