@@ -115,6 +115,5 @@ export default function AdminLayout() {
           }}
         />
       </Stack>
-    </>
   );
 }
