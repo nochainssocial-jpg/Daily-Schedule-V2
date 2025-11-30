@@ -1,6 +1,13 @@
 // app/admin/daily-cleaning-tracker.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useIsAdmin } from '@/hooks/access-control';
 import { DEFAULT_CHORES } from '@/constants/data';
@@ -182,8 +189,8 @@ export default function DailyCleaningTrackerScreen() {
               const staffName = staffById[staffId];
               if (!staffName) return;
 
-              const choreLabel =
-                CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
+                const choreLabel =
+                  CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
 
               if (!summary[staffId]) {
                 summary[staffId] = {
@@ -217,6 +224,15 @@ export default function DailyCleaningTrackerScreen() {
     };
   }, [isAdmin, weekStart]);
 
+  const handlePrint = () => {
+    if (Platform.OS === 'web') {
+      (window as any).print();
+    } else {
+      // No-op on native for now
+      console.log('Print is only available on web.');
+    }
+  };
+
   if (!isAdmin) {
     return (
       <View style={styles.screen}>
@@ -238,6 +254,15 @@ export default function DailyCleaningTrackerScreen() {
           Live Mon–Fri view of cleaning duties for the current week.
         </Text>
         <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
+
+        {/* Print button */}
+        {rows.length > 0 && (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
+              <Text style={styles.printButtonText}>Print</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {loading && <Text style={styles.helper}>Loading…</Text>}
         {error && (
@@ -273,7 +298,10 @@ export default function DailyCleaningTrackerScreen() {
                 </View>
 
                 {WEEK_DAYS.map((d) => {
-                  const val = r.byDay[d]?.join('\n') ?? '';
+                  const tasks = r.byDay[d] ?? [];
+                  // Add an extra blank line between multiple tasks for readability
+                  const val =
+                    tasks.length > 1 ? tasks.join('\n\n') : tasks.join('\n');
                   return (
                     <View key={d} style={[styles.cell, styles.dataCell]}>
                       <Text style={styles.cellText}>{val}</Text>
@@ -326,8 +354,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#444',
   },
+  actionsRow: {
+    marginTop: 12,
+    marginBottom: 4,
+    alignItems: 'flex-end',
+  },
+  printButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    backgroundColor: '#FDF2FB',
+  },
+  printButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F54FA5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   table: {
-    marginTop: 20,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: '#DDD',
     borderRadius: 8,
@@ -348,6 +396,7 @@ const styles = StyleSheet.create({
   },
   cellText: {
     fontSize: 14,
+    lineHeight: 18,
   },
   headerText: {
     fontWeight: '700',
