@@ -366,16 +366,6 @@ export default function ShareScheduleScreen() {
             <Text style={styles.errorText}>{pinError}</Text>
           ) : null}
 
-
-            <View style={styles.row}>
-              <TouchableOpacity
-                onPress={handleAdminAccess}
-                style={[styles.button, styles.btnLavender]}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.btnText}>Admin access (enable editing)</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </ScrollView>
