@@ -12,7 +12,7 @@ import {
 import NotificationToaster from '@/components/NotificationToaster';
 
 const PINK = '#FF8FC5';
-const DARK_GREY = '#444444';
+const WHITE = '#FFFFFF';
 
 function HeaderTitle({
   icon,
@@ -48,7 +48,7 @@ export default function RootLayout() {
           headerTitleAlign: 'center',
           headerShadowVisible: false,
           headerTintColor: PINK,
-          headerStyle: { backgroundColor: DARK_GREY },
+          headerStyle: { backgroundColor: WHITE },
         }}
       >
         {/* Landing / auth screen usually hides header */}
