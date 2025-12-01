@@ -11,50 +11,14 @@ import { Bell, X } from 'lucide-react-native';
 import { useNotifications } from '@/hooks/notifications';
 
 // Fallback colour if we have no category mapping
-const DEFAULT_ORANGE = '#F7A534';
+const DEFAULT_BLUE = '#0084ff';
 
 // Map categories -> title + background colour
 const CATEGORY_STYLES: Record<
   string,
   {
     title: string;
-    bg: string;
   }
-> = {
-  'dream-team': {
-    title: 'Dream Team Updated',
-    bg: '#FBCA04',
-  },
-  participants: {
-    title: 'Attending Participants Updated',
-    bg: '#5DBBFA',
-  },
-  outings: {
-    title: 'Drive / Outings Updated',
-    bg: '#FF8F2E',
-  },
-  assignments: {
-    title: 'Team Daily Assignments Updated',
-    bg: '#7C58FF',
-  },
-  floating: {
-    title: 'Floating Assignments Updated',
-    bg: '#F6C1FF',
-  },
-  cleaning: {
-    title: 'Cleaning Assignments Updated',
-    bg: '#62F194',
-  },
-  // Pickups tab uses category "pickups" in push(...)
-  pickups: {
-    title: 'Pickups & Dropoffs Updated',
-    bg: '#FF8A92',
-  },
-  checklist: {
-    title: 'Checklist Updated',
-    bg: '#86A2FF',
-  },
-};
 
 export default function NotificationToaster() {
   const { current, clearCurrent } = useNotifications();
@@ -105,7 +69,7 @@ export default function NotificationToaster() {
   const styleForCategory =
     (current.category && CATEGORY_STYLES[current.category]) || null;
 
-  let bgColor = styleForCategory?.bg ?? DEFAULT_ORANGE;
+  let bgColor = styleForCategory?.bg ?? DEFAULT_BLUE;
   const message = current.message || '';
 
   // Override colours for B2 / Admin access-control toasts
@@ -164,7 +128,7 @@ const styles = StyleSheet.create({
   root: {
     position: 'absolute',
     // Dropped down so it sits just under the header + SaveExit
-    top: 150,
+    top: 120,
     right: 50,
     width: 320,
     zIndex: 200,
