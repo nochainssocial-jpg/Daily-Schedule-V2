@@ -107,10 +107,10 @@ export default function DailyAssignmentsTrackerScreen() {
       month: 'short',
       year: 'numeric',
     };
-    return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString(
+    return `Week: ${weekStart.toLocaleDateString(
       'en-AU',
       opts,
-    )}`;
+    )} – ${end.toLocaleDateString('en-AU', opts)}`;
   }, [weekStart]);
 
   useEffect(() => {
@@ -225,6 +225,14 @@ export default function DailyAssignmentsTrackerScreen() {
     };
   }, [isAdmin, weekStart]);
 
+  const handlePrint = () => {
+    if (Platform.OS === 'web') {
+      (window as any).print();
+    } else {
+      console.log('Print is only available on web.');
+    }
+  };
+
   if (!isAdmin) {
     return (
       <View style={styles.screen}>
@@ -247,6 +255,15 @@ export default function DailyAssignmentsTrackerScreen() {
           automatically.
         </Text>
         <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
+
+        {/* Print button */}
+        {rows.length > 0 && (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
+              <Text style={styles.printButtonText}>Print</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {loading && <Text style={styles.helper}>Loading…</Text>}
         {error && <Text style={[styles.helper, { color: 'red' }]}>{error}</Text>}
@@ -333,8 +350,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#444',
   },
+  actionsRow: {
+    marginTop: 12,
+    marginBottom: 4,
+    alignItems: 'flex-end',
+  },
+  printButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    backgroundColor: '#FDF2FB',
+  },
+  printButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F54FA5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   table: {
-    marginTop: 20,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: '#DDD',
     borderRadius: 8,
