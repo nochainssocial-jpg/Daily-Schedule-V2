@@ -394,16 +394,20 @@ const styles = StyleSheet.create({
     color: '#1F2933',
   },
   printButton: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#86A2FF',
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    backgroundColor: '#FDF2FB',
     marginLeft: 8,
   },
   printButtonText: {
     fontSize: 13,
-    color: '#FFFFFF',
     fontWeight: '600',
+    color: '#F54FA5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   title: {
     fontSize: 18,
