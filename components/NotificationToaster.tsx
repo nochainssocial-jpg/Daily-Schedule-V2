@@ -13,46 +13,37 @@ import { useNotifications } from '@/hooks/notifications';
 // Fallback colour if we have no category mapping
 const DEFAULT_BLUE = '#0084ff';
 
-// Map categories -> title + background colour
+// Map categories -> title
 const CATEGORY_STYLES: Record<
   string,
   {
     title: string;
-    bg: string;
   }
 >  = {
   'dream-team': {
     title: 'Dream Team Updated',
-    bg: '#0084ff',
   },
   participants: {
     title: 'Attending Participants Updated',
-    bg: '#0084ff',
   },
   outings: {
     title: 'Drive / Outings Updated',
-    bg: '#0084ff',
   },
   assignments: {
     title: 'Team Daily Assignments Updated',
-    bg: '#0084ff',
   },
   floating: {
     title: 'Floating Assignments Updated',
-    bg: '#0084ff',
   },
   cleaning: {
     title: 'Cleaning Assignments Updated',
-    bg: '#0084ff',
   },
   // Pickups tab uses category "pickups" in push(...)
   pickups: {
     title: 'Pickups & Dropoffs Updated',
-    bg: '#0084ff',
   },
   checklist: {
     title: 'Checklist Updated',
-    bg: '#0084ff',
   },
 };
 
