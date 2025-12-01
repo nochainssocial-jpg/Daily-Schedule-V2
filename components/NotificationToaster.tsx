@@ -13,14 +13,13 @@ import { useNotifications } from '@/hooks/notifications';
 // Fallback colour if we have no category mapping
 const DEFAULT_BLUE = '#0084ff';
 
-// Map categories -> title + background colour
+// Map categories -> title
 const CATEGORY_STYLES: Record<
   string,
   {
     title: string;
   }
 >
-};
 
 export default function NotificationToaster() {
   const { current, clearCurrent } = useNotifications();
@@ -77,10 +76,10 @@ export default function NotificationToaster() {
   // Override colours for B2 / Admin access-control toasts
   if (message.includes('B2') && /read[- ]only/i.test(message)) {
     // B2 read-only mode: always red with white text
-    bgColor = '#FC264D';
+    bgColor = '#ed002cff';
   } else if (/^Admin Mode Enabled/i.test(message)) {
     // Admin mode: green with white text
-    bgColor = '#00D127';
+    bgColor = '#01bb23ff';
   }
 
   const title =
