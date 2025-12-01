@@ -66,13 +66,11 @@ export default function EditChecklistScreen() {
   };
 
   const handleToggleItem = (itemId: ID | number) => {
-    if (readOnly) {
-      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-      return;
-    }
+    // Checkboxes are always interactive – even in B2 read-only mode
     const key = String(itemId);
     const next = { ...(finalChecklist || {}) };
     next[key] = !next[key];
+
     updateSchedule({ finalChecklist: next });
     push('Final checklist updated', 'checklist');
   };
