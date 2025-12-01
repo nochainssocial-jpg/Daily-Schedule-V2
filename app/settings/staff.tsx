@@ -27,8 +27,8 @@ type StaffRow = {
 };
 
 type Option = {
-  label: string;       // full label (tooltip / future use)
-  short: string;       // what we show in the pill
+  label: string;
+  short: string;
   value: number | null;
 };
 
@@ -39,18 +39,14 @@ export default function StaffSettingsScreen() {
 
   const showWebBranding = Platform.OS === 'web';
 
-  // Fetch staff from Supabase
   async function loadStaff() {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('staff')
       .select('*')
       .order('name', { ascending: true });
 
-    if (!error && data) {
-      setStaff(data as StaffRow[]);
-    }
-
+    if (data) setStaff(data as StaffRow[]);
     setLoading(false);
   }
 
@@ -58,21 +54,13 @@ export default function StaffSettingsScreen() {
     loadStaff();
   }, []);
 
-  // Update a single field for a staff member
   async function updateStaff(id: string, field: keyof StaffRow, value: any) {
-    const { error } = await supabase
-      .from('staff')
-      .update({ [field]: value })
-      .eq('id', id);
-
-    if (!error) {
-      setStaff(prev =>
-        prev.map(s => (s.id === id ? { ...s, [field]: value } : s)),
-      );
-    }
+    await supabase.from('staff').update({ [field]: value }).eq('id', id);
+    setStaff(prev =>
+      prev.map(s => (s.id === id ? { ...s, [field]: value } : s)),
+    );
   }
 
-  // 3-level experience scale
   const experienceOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
     { label: 'Beginner', short: 'Beg', value: 1 },
@@ -111,18 +99,12 @@ export default function StaffSettingsScreen() {
           return (
             <TouchableOpacity
               key={`${field}-${staffId}-${opt.short}`}
-              style={[
-                styles.pill,
-                isSelected && styles.pillActive,
-              ]}
+              style={[styles.pill, isSelected && styles.pillActive]}
               onPress={() => updateStaff(staffId, field, opt.value)}
               activeOpacity={0.8}
             >
               <Text
-                style={[
-                  styles.pillText,
-                  isSelected && styles.pillTextActive,
-                ]}
+                style={[styles.pillText, isSelected && styles.pillTextActive]}
               >
                 {opt.short}
               </Text>
@@ -135,10 +117,9 @@ export default function StaffSettingsScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Large washed-out logo for web, like other screens */}
       {showWebBranding && (
         <Image
-          source={require('../../assets/images/nochains-bg.png')}
+          source={require('@/assets/images/nochains-bg.png')}
           style={styles.bgLogo}
           resizeMode="contain"
         />
@@ -146,23 +127,43 @@ export default function StaffSettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
-          <View style={styles.header}>
-            <Text style={styles.heading}>Staff Settings</Text>
-            <Text style={styles.subHeading}>
-              Set experience, behaviour capability, and reliability. These values
-              will support future automated daily assignments.
-            </Text>
+          {/* Heading */}
+          <Text style={styles.heading}>Staff Settings</Text>
+          <Text style={styles.subHeading}>
+            Set experience, behaviour capability, and reliability for each staff member.
+          </Text>
+
+          {/* LEGEND */}
+          <View style={styles.legendWrap}>
+            <Text style={styles.legendTitle}>Legend</Text>
+
+            <View style={styles.legendRow}>
+              <Text style={styles.legendLabel}>Exp:</Text>
+              <Text style={styles.legendText}>
+                Beginner (Beg), Intermediate (Int), Senior (Sen)
+              </Text>
+            </View>
+
+            <View style={styles.legendRow}>
+              <Text style={styles.legendLabel}>Behav:</Text>
+              <Text style={styles.legendText}>
+                Behaviour capability — Low, Medium, High
+              </Text>
+            </View>
+
+            <View style={styles.legendRow}>
+              <Text style={styles.legendLabel}>Reliab:</Text>
+              <Text style={styles.legendText}>
+                Reliability — Inconsistent (Inc), Moderate (Mod), Consistent (Con)
+              </Text>
+            </View>
           </View>
 
+          {/* Staff list */}
           {loading ? (
-            <ActivityIndicator
-              size="large"
-              color="#c084fc"
-              style={{ marginTop: 40 }}
-            />
+            <ActivityIndicator size="large" color="#c084fc" style={{ marginTop: 40 }} />
           ) : (
             <View style={styles.listWrap}>
-              {/* Header row labels (desktop-style hint) */}
               <View style={styles.headerRow}>
                 <Text style={[styles.headerCell, { flex: 1.2 }]}>Staff</Text>
                 <Text style={[styles.headerCell, { flex: 1 }]}>Experience</Text>
@@ -174,14 +175,7 @@ export default function StaffSettingsScreen() {
                 const inactive = s.is_active === false;
 
                 return (
-                  <View
-                    key={s.id}
-                    style={[
-                      styles.row,
-                      inactive && styles.rowInactive,
-                    ]}
-                  >
-                    {/* Colour indicator + Name/phone */}
+                  <View key={s.id} style={[styles.row, inactive && styles.rowInactive]}>
                     <View style={[styles.staffInfoBlock, { flex: 1.2 }]}>
                       <View
                         style={[
@@ -194,43 +188,23 @@ export default function StaffSettingsScreen() {
                           {s.name}
                           {inactive ? ' (inactive)' : ''}
                         </Text>
-                        {!!s.phone && (
-                          <Text style={styles.phone}>{s.phone}</Text>
-                        )}
+                        {!!s.phone && <Text style={styles.phone}>{s.phone}</Text>}
                       </View>
                     </View>
 
-                    {/* Experience pills */}
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
                       <Text style={styles.label}>Exp</Text>
-                      {renderPills(
-                        s.id,
-                        'experience_level',
-                        s.experience_level,
-                        experienceOptions,
-                      )}
+                      {renderPills(s.id, 'experience_level', s.experience_level, experienceOptions)}
                     </View>
 
-                    {/* Behaviour pills */}
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
                       <Text style={styles.label}>Behav</Text>
-                      {renderPills(
-                        s.id,
-                        'behaviour_capability',
-                        s.behaviour_capability,
-                        behaviourOptions,
-                      )}
+                      {renderPills(s.id, 'behaviour_capability', s.behaviour_capability, behaviourOptions)}
                     </View>
 
-                    {/* Reliability pills */}
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
                       <Text style={styles.label}>Reliab</Text>
-                      {renderPills(
-                        s.id,
-                        'reliability_rating',
-                        s.reliability_rating,
-                        reliabilityOptions,
-                      )}
+                      {renderPills(s.id, 'reliability_rating', s.reliability_rating, reliabilityOptions)}
                     </View>
                   </View>
                 );
@@ -239,10 +213,13 @@ export default function StaffSettingsScreen() {
           )}
         </View>
       </ScrollView>
+
       <Footer />
     </View>
   );
 }
+
+/* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
   screen: {
@@ -270,26 +247,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  header: {
-    marginBottom: 12,
-  },
   heading: {
     fontSize: 22,
     fontWeight: '700',
     color: '#332244',
-    marginBottom: 4,
   },
   subHeading: {
     fontSize: 14,
     color: '#553a75',
+    marginBottom: 16,
   },
+
+  /* Legend styles */
+  legendWrap: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  legendTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#332244',
+    marginBottom: 6,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  legendLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#553a75',
+    width: 60,
+  },
+  legendText: {
+    fontSize: 13,
+    color: '#6b5a7d',
+    flex: 1,
+  },
+
   listWrap: {
     width: '100%',
-    marginTop: 16,
   },
   headerRow: {
     flexDirection: 'row',
-    paddingHorizontal: 4,
     marginBottom: 6,
   },
   headerCell: {
@@ -299,27 +307,19 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: '#ffffff',
+    padding: 12,
+    backgroundColor: '#fff',
     borderRadius: 16,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#e7dff2',
-    shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    marginBottom: 10,
   },
   rowInactive: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   staffInfoBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
   },
   colorBox: {
     width: 22,
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     color: '#6b5a7d',
   },
   fieldBlock: {
-    marginHorizontal: 4,
+    marginHorizontal: 6,
   },
   label: {
     fontSize: 11,
@@ -350,7 +350,6 @@ const styles = StyleSheet.create({
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
   },
   pill: {
     paddingHorizontal: 8,
@@ -369,9 +368,9 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 11,
     color: '#5b4a76',
-    fontWeight: '500',
   },
   pillTextActive: {
     color: '#ffffff',
   },
 });
+
