@@ -121,7 +121,7 @@ export default function EditHubScreen() {
     : '';
 
   return (
-    <View style={styles.screen}>
+      <View style={styles.screen}>
       <Stack.Screen
         options={{
           title: 'Edit Hub',
@@ -129,6 +129,16 @@ export default function EditHubScreen() {
         }}
       />
 
+      <View style={styles.screen}>
+      {/* Large washed-out background logo – web only */}
+      {showWebBranding && (
+        <Image
+          source={require('../assets/images/nochains-bg.png')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+              
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -214,6 +224,16 @@ const styles = StyleSheet.create({
     maxWidth: MAX_WIDTH,
     alignSelf: 'center',
     paddingHorizontal: 16,
+  },
+  // Large washed-out background logo
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.1,
+    left: -600,
+    top: 10,
+    pointerEvents: 'none',
   },
   cardList: {
     marginTop: 16,
