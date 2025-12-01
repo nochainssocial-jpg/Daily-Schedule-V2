@@ -193,17 +193,14 @@ export default function StaffSettingsScreen() {
                     </View>
 
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      <Text style={styles.label}>Experience</Text>
                       {renderPills(s.id, 'experience_level', s.experience_level, experienceOptions)}
                     </View>
 
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      <Text style={styles.label}>Behaviour</Text>
                       {renderPills(s.id, 'behaviour_capability', s.behaviour_capability, behaviourOptions)}
                     </View>
 
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      <Text style={styles.label}>Reliability</Text>
                       {renderPills(s.id, 'reliability_rating', s.reliability_rating, reliabilityOptions)}
                     </View>
                   </View>
@@ -285,7 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#553a75',
-    width: 60,
+    width: 80,
   },
   legendText: {
     fontSize: 13,
