@@ -175,13 +175,7 @@ function buildAutoAssignments(
 }
 
 export default function FloatingScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
-
+  const { width } = useWindowDimensions();
   const { push } = useNotifications();
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
