@@ -359,11 +359,11 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   pillActive: {
-    backgroundColor: '#f472b6',
-    borderColor: '#f472b6',
+    backgroundColor: '#008aff',
+    borderColor: '#008aff',
   },
   pillText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#5b4a76',
   },
   pillTextActive: {
