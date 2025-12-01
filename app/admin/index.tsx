@@ -6,12 +6,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useIsAdmin } from '@/hooks/access-control';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
+
+const showWebBranding = Platform.OS === 'web';
 
 type AdminTileProps = {
   title: string;
@@ -105,6 +109,16 @@ export default function AdminHomeScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
+
+      {/* 🔥 MATCHING WEB BACKGROUND BRANDING (same as Edit Hub) */}
+      {showWebBranding && (
+        <Image
+          source={require('@/assets/images/nochains-bg.png')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.container}>{content}</View>
       </ScrollView>
@@ -118,6 +132,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E0E7FF',
   },
+
+  // 🔥 Same washed-out logo style used in Edit Hub
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.1,
+    left: -600,
+    top: 10,
+    pointerEvents: 'none',
+  },
+
   scroll: {
     flexGrow: 1,
     backgroundColor: '#E0E7FF',
