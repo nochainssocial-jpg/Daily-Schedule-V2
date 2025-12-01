@@ -1,68 +1,89 @@
+// app/settings/index.tsx
 import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Image,
   Platform,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Users, UserCircle2, Broom, CheckSquare2 } from 'lucide-react-native';
+import { Stack, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
 
+type CardConfig = {
+  key: string;
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconBg: string;
+  route: string;
+};
+
+const CARDS: CardConfig[] = [
+  {
+    key: 'staff',
+    title: 'Staff',
+    description: 'View and manage staff details and classifications.',
+    icon: 'people-circle-outline',
+    iconBg: '#FDE68A',
+    route: '/settings/staff',
+  },
+  {
+    key: 'participants',
+    title: 'Participants',
+    description: 'Review participant profiles and future complexity flags.',
+    icon: 'happy-outline',
+    iconBg: '#E0F2FE',
+    route: '/settings/participants',
+  },
+  {
+    key: 'chores',
+    title: 'Cleaning Tasks / Chores',
+    description: 'Configure end-of-shift cleaning tasks for the program.',
+    icon: 'sparkles-outline',
+    iconBg: '#DCFCE7',
+    route: '/settings/chores',
+  },
+  {
+    key: 'checklist',
+    title: 'End of Shift Checklist',
+    description: 'Maintain the final checklist to safely close the house.',
+    icon: 'checkmark-done-circle-outline',
+    iconBg: '#F5D0FE',
+    route: '/settings/checklist',
+  },
+];
+
 export default function SettingsIndexScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const showWebBranding = Platform.OS === 'web';
 
-  const tiles = [
-    {
-      key: 'staff',
-      title: 'Staff',
-      description: 'Manage your Dream Team details and classifications.',
-      icon: Users,
-      onPress: () => router.push('/settings/staff'),
-    },
-    {
-      key: 'participants',
-      title: 'Participants',
-      description: 'Review and manage participant details and profiles.',
-      icon: UserCircle2,
-      onPress: () => router.push('/settings/participants'),
-    },
-    {
-      key: 'chores',
-      title: 'Cleaning Tasks / Chores',
-      description: 'Configure end-of-day cleaning tasks for the program.',
-      icon: Broom,
-      onPress: () => router.push('/settings/chores'),
-    },
-    {
-      key: 'checklist',
-      title: 'End of Shift Checklist',
-      description: 'Maintain the final checklist to close the house safely.',
-      icon: CheckSquare2,
-      onPress: () => router.push('/settings/checklist'),
-    },
-  ];
-
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Large washed-out background logo – web only */}
+    <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          title: 'Settings',
+          headerShown: true,
+        }}
+      />
+
       {showWebBranding && (
         <Image
-          source={require('../../assets/images/nochains-bg.png')}
+          source={require('@/assets/images/nochains-bg.png')}
           style={styles.bgLogo}
           resizeMode="contain"
         />
       )}
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.inner}>
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
@@ -71,24 +92,23 @@ export default function SettingsIndexScreen() {
             </Text>
           </View>
 
-          <View style={styles.grid}>
-            {tiles.map(tile => {
-              const Icon = tile.icon;
-              return (
-                <TouchableOpacity
-                  key={tile.key}
-                  style={styles.card}
-                  onPress={tile.onPress}
-                  activeOpacity={0.9}
-                >
-                  <View style={styles.iconWrap}>
-                    <Icon size={28} color="#ffffff" />
-                  </View>
-                  <Text style={styles.cardTitle}>{tile.title}</Text>
-                  <Text style={styles.cardBody}>{tile.description}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={styles.cardList}>
+            {CARDS.map((card) => (
+              <Pressable
+                key={card.key}
+                style={({ pressed }) => [
+                  styles.card,
+                  pressed && styles.cardPressed,
+                ]}
+                onPress={() => router.push(card.route)}
+              >
+                <View style={[styles.iconWrap, { backgroundColor: card.iconBg }]}>
+                  <Ionicons name={card.icon} size={26} color="#4B2E83" />
+                </View>
+                <Text style={styles.cardTitle}>{card.title}</Text>
+                <Text style={styles.cardDescription}>{card.description}</Text>
+              </Pressable>
+            ))}
           </View>
         </View>
       </ScrollView>
@@ -105,28 +125,30 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  scroll: {
-    paddingVertical: 32,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     alignItems: 'center',
-    paddingBottom: 160,
+    paddingBottom: 120,
+    paddingTop: 16,
   },
   inner: {
     width: '100%',
     maxWidth: MAX_WIDTH,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
-  // Large washed-out background logo
   bgLogo: {
     position: 'absolute',
     width: 1400,
     height: 1400,
-    opacity: 0.1,
+    opacity: 0.08,
     left: -600,
-    top: 10,
+    top: 0,
     pointerEvents: 'none',
   },
   header: {
-    paddingBottom: 16,
+    marginBottom: 16,
   },
   title: {
     fontSize: 22,
@@ -135,11 +157,10 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#4c3b5c',
+    color: '#553A75',
     marginTop: 4,
   },
-  grid: {
-    marginTop: 20,
+  cardList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
@@ -147,34 +168,37 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '48%',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e5deef',
+    borderColor: '#E5DEF5',
     shadowColor: '#000',
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
+  cardPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.95,
+  },
   iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f472b6',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#332244',
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  cardBody: {
+  cardDescription: {
     fontSize: 13,
-    color: '#6b5a7a',
+    color: '#6B5A7D',
   },
 });
