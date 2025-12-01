@@ -146,10 +146,8 @@ const styles = StyleSheet.create({
   },
 
   scroll: {
-    flexGrow: 1,
-    backgroundColor: '#E0E7FF',
+    paddingVertical: 24,
     alignItems: 'center',
-    padding: 16,
     paddingBottom: 160,
   },
 
