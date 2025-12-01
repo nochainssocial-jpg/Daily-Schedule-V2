@@ -169,20 +169,24 @@ const styles = StyleSheet.create({
     width: 320,
     zIndex: 200,
   },
-  panel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    // backgroundColor is now set dynamically per category
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    gap: 8,
-  },
+panel: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderRadius: 14,
+  paddingVertical: 10,
+  paddingHorizontal: 12,
+  // backgroundColor is now set dynamically per category
+  shadowColor: '#000',
+  shadowOpacity: 0.16,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 4,
+  gap: 8,
+
+  // ⭐ Added border
+  borderWidth: 2,
+  borderColor: '#00B0FF',
+},
   iconWrap: {
     width: 28,
     height: 28,
