@@ -142,6 +142,7 @@ const styles = StyleSheet.create({
     left: -600,
     top: 10,
     pointerEvents: 'none',
+    zIndex: 0,
   },
 
   scroll: {
