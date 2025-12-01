@@ -7,9 +7,9 @@ import {
   ActivityIndicator,
   Platform,
   Image,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Picker } from '@react-native-picker/picker';
 import { supabase } from '@/lib/supabase';
 import Footer from '@/components/Footer';
 
@@ -24,6 +24,12 @@ type StaffRow = {
   experience_level?: number | null;
   behaviour_capability?: number | null;
   reliability_rating?: number | null;
+};
+
+type Option = {
+  label: string;       // full label (tooltip / future use)
+  short: string;       // what we show in the pill
+  value: number | null;
 };
 
 export default function StaffSettingsScreen() {
@@ -67,26 +73,65 @@ export default function StaffSettingsScreen() {
   }
 
   // 3-level experience scale
-  const experienceLevels = [
-    { label: '—', value: null },
-    { label: '1 - Beginner', value: 1 },
-    { label: '2 - Intermediate', value: 2 },
-    { label: '3 - Senior', value: 3 },
+  const experienceOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: 'Beginner', short: 'Beg', value: 1 },
+    { label: 'Intermediate', short: 'Int', value: 2 },
+    { label: 'Senior', short: 'Sen', value: 3 },
   ];
 
-  const behaviourOptions = [
-    { label: '—', value: null },
-    { label: '1 - Low', value: 1 },
-    { label: '2 - Medium', value: 2 },
-    { label: '3 - High', value: 3 },
+  const behaviourOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: 'Low', short: 'Low', value: 1 },
+    { label: 'Medium', short: 'Med', value: 2 },
+    { label: 'High', short: 'High', value: 3 },
   ];
 
-  const reliabilityOptions = [
-    { label: '—', value: null },
-    { label: '1 - Inconsistent', value: 1 },
-    { label: '2 - Moderate', value: 2 },
-    { label: '3 - Consistent', value: 3 },
+  const reliabilityOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: 'Inconsistent', short: 'Inc', value: 1 },
+    { label: 'Moderate', short: 'Mod', value: 2 },
+    { label: 'Consistent', short: 'Con', value: 3 },
   ];
+
+  function renderPills(
+    staffId: string,
+    field: keyof StaffRow,
+    currentValue: number | null | undefined,
+    options: Option[],
+  ) {
+    return (
+      <View style={styles.pillRow}>
+        {options.map(opt => {
+          const isSelected =
+            (currentValue === null || currentValue === undefined)
+              ? opt.value === null
+              : currentValue === opt.value;
+
+          return (
+            <TouchableOpacity
+              key={`${field}-${staffId}-${opt.short}`}
+              style={[
+                styles.pill,
+                isSelected && styles.pillActive,
+              ]}
+              onPress={() => updateStaff(staffId, field, opt.value)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.pillText,
+                  isSelected && styles.pillTextActive,
+                ]}
+              >
+                {opt.short}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -104,8 +149,8 @@ export default function StaffSettingsScreen() {
           <View style={styles.header}>
             <Text style={styles.heading}>Staff Settings</Text>
             <Text style={styles.subHeading}>
-              Edit experience, behaviour capability, and reliability. These
-              values will support future automated daily assignments.
+              Set experience, behaviour capability, and reliability. These values
+              will support future automated daily assignments.
             </Text>
           </View>
 
@@ -117,6 +162,14 @@ export default function StaffSettingsScreen() {
             />
           ) : (
             <View style={styles.listWrap}>
+              {/* Header row labels (desktop-style hint) */}
+              <View style={styles.headerRow}>
+                <Text style={[styles.headerCell, { flex: 1.2 }]}>Staff</Text>
+                <Text style={[styles.headerCell, { flex: 1 }]}>Experience</Text>
+                <Text style={[styles.headerCell, { flex: 1 }]}>Behaviour</Text>
+                <Text style={[styles.headerCell, { flex: 1 }]}>Reliability</Text>
+              </View>
+
               {staff.map(s => {
                 const inactive = s.is_active === false;
 
@@ -128,101 +181,56 @@ export default function StaffSettingsScreen() {
                       inactive && styles.rowInactive,
                     ]}
                   >
-                    {/* Colour indicator */}
-                    <View
-                      style={[
-                        styles.colorBox,
-                        { backgroundColor: s.color || '#d4c4e8' },
-                      ]}
-                    />
+                    {/* Colour indicator + Name/phone */}
+                    <View style={[styles.staffInfoBlock, { flex: 1.2 }]}>
+                      <View
+                        style={[
+                          styles.colorBox,
+                          { backgroundColor: s.color || '#d4c4e8' },
+                        ]}
+                      />
+                      <View style={styles.info}>
+                        <Text style={styles.name}>
+                          {s.name}
+                          {inactive ? ' (inactive)' : ''}
+                        </Text>
+                        {!!s.phone && (
+                          <Text style={styles.phone}>{s.phone}</Text>
+                        )}
+                      </View>
+                    </View>
 
-                    {/* Name + phone */}
-                    <View style={styles.info}>
-                      <Text style={styles.name}>
-                        {s.name}
-                        {inactive ? ' (inactive)' : ''}
-                      </Text>
-                      {!!s.phone && (
-                        <Text style={styles.phone}>{s.phone}</Text>
+                    {/* Experience pills */}
+                    <View style={[styles.fieldBlock, { flex: 1 }]}>
+                      <Text style={styles.label}>Exp</Text>
+                      {renderPills(
+                        s.id,
+                        'experience_level',
+                        s.experience_level,
+                        experienceOptions,
                       )}
                     </View>
 
-                    {/* Experience */}
-                    <View style={styles.dropdown}>
-                      <Text style={styles.label}>Exp</Text>
-                      <Picker
-                        selectedValue={
-                          s.experience_level === null ||
-                          s.experience_level === undefined
-                            ? null
-                            : s.experience_level
-                        }
-                        onValueChange={value =>
-                          updateStaff(s.id, 'experience_level', value)
-                        }
-                        style={styles.picker}
-                        dropdownIconColor="#4b2e83"
-                      >
-                        {experienceLevels.map(opt => (
-                          <Picker.Item
-                            key={opt.label}
-                            label={opt.label}
-                            value={opt.value}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
-
-                    {/* Behaviour capability */}
-                    <View style={styles.dropdown}>
+                    {/* Behaviour pills */}
+                    <View style={[styles.fieldBlock, { flex: 1 }]}>
                       <Text style={styles.label}>Behav</Text>
-                      <Picker
-                        selectedValue={
-                          s.behaviour_capability === null ||
-                          s.behaviour_capability === undefined
-                            ? null
-                            : s.behaviour_capability
-                        }
-                        onValueChange={value =>
-                          updateStaff(s.id, 'behaviour_capability', value)
-                        }
-                        style={styles.picker}
-                        dropdownIconColor="#4b2e83"
-                      >
-                        {behaviourOptions.map(opt => (
-                          <Picker.Item
-                            key={opt.label}
-                            label={opt.label}
-                            value={opt.value}
-                          />
-                        ))}
-                      </Picker>
+                      {renderPills(
+                        s.id,
+                        'behaviour_capability',
+                        s.behaviour_capability,
+                        behaviourOptions,
+                      )}
                     </View>
 
-                    {/* Reliability */}
-                    <View style={styles.dropdown}>
+                    {/* Reliability pills */}
+                    <View style={[styles.fieldBlock, { flex: 1 }]}>
                       <Text style={styles.label}>Reliab</Text>
-                      <Picker
-                        selectedValue={
-                          s.reliability_rating === null ||
-                          s.reliability_rating === undefined
-                            ? null
-                            : s.reliability_rating
-                        }
-                        onValueChange={value =>
-                          updateStaff(s.id, 'reliability_rating', value)
-                        }
-                        style={styles.picker}
-                        dropdownIconColor="#4b2e83"
-                      >
-                        {reliabilityOptions.map(opt => (
-                          <Picker.Item
-                            key={opt.label}
-                            label={opt.label}
-                            value={opt.value}
-                          />
-                        ))}
-                      </Picker>
+                      {renderPills(
+                        s.id,
+                        'reliability_rating',
+                        s.reliability_rating,
+                        reliabilityOptions,
+                      )}
                     </View>
                   </View>
                 );
@@ -279,9 +287,19 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 16,
   },
+  headerRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+    marginBottom: 6,
+  },
+  headerCell: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7a678e',
+  },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 10,
     backgroundColor: '#ffffff',
@@ -298,14 +316,19 @@ const styles = StyleSheet.create({
   rowInactive: {
     opacity: 0.6,
   },
+  staffInfoBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
   colorBox: {
     width: 22,
     height: 22,
     borderRadius: 6,
-    marginRight: 12,
+    marginRight: 10,
   },
   info: {
-    flex: 1,
+    flexShrink: 1,
   },
   name: {
     fontSize: 15,
@@ -316,19 +339,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b5a7d',
   },
-  dropdown: {
-    width: 120,
-    marginLeft: 6,
+  fieldBlock: {
+    marginHorizontal: 4,
   },
   label: {
     fontSize: 11,
     color: '#6d5a80',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  picker: {
-    fontSize: 12,
-    height: 36,
-    backgroundColor: '#f6f1ff',
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  pill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f6f1ff',
+    marginRight: 4,
+    marginBottom: 4,
+  },
+  pillActive: {
+    backgroundColor: '#f472b6',
+    borderColor: '#f472b6',
+  },
+  pillText: {
+    fontSize: 11,
+    color: '#5b4a76',
+    fontWeight: '500',
+  },
+  pillTextActive: {
+    color: '#ffffff',
   },
 });
