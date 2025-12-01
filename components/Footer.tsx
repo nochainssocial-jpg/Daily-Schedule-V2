@@ -41,7 +41,7 @@ export default function Footer() {
         />
         <FooterItem
           label="Settings"
-          active={pathname === '/settings'}
+          active={pathname.startsWith('/settings')}
           onPress={goSettings}
         />
 
