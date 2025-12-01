@@ -7,6 +7,8 @@ import {
   Text,
   StyleSheet,
   Pressable,
+  Image,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,6 +17,7 @@ import ScheduleBanner from '@/components/ScheduleBanner';
 import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 960;
+const showWebBranding = Platform.OS === 'web';
 
 type CardConfig = {
   key: string;
@@ -121,7 +124,7 @@ export default function EditHubScreen() {
     : '';
 
   return (
-      <View style={styles.screen}>
+    <View style={styles.screen}>
       <Stack.Screen
         options={{
           title: 'Edit Hub',
@@ -129,16 +132,15 @@ export default function EditHubScreen() {
         }}
       />
 
-      <View style={styles.screen}>
       {/* Large washed-out background logo – web only */}
       {showWebBranding && (
         <Image
-          source={require('../assets/images/nochains-bg.png')}
+          source={require('@/assets/images/nochains-bg.png')}
           style={styles.bgLogo}
           resizeMode="contain"
         />
       )}
-              
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -161,8 +163,7 @@ export default function EditHubScreen() {
                     {timeRange ? ` · ${timeRange}` : ''}
                   </Text>
                   <Text style={styles.outingSummaryLine}>
-                    {outingStaffCount} staff · {outingParticipantCount}{' '}
-                    participants
+                    {outingStaffCount} staff · {outingParticipantCount} participants
                   </Text>
                 </View>
               </View>
@@ -190,9 +191,7 @@ export default function EditHubScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{card.title}</Text>
-                  <Text style={styles.cardDescription}>
-                    {card.description}
-                  </Text>
+                  <Text style={styles.cardDescription}>{card.description}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
               </Pressable>
@@ -203,7 +202,6 @@ export default function EditHubScreen() {
 
       <Footer />
     </View>
-   </View>
   );
 }
 
