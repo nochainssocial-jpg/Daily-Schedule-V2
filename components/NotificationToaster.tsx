@@ -19,6 +19,8 @@ const CATEGORY_STYLES: Record<
   {
     title: string;
   }
+>
+};
 
 export default function NotificationToaster() {
   const { current, clearCurrent } = useNotifications();
@@ -69,7 +71,7 @@ export default function NotificationToaster() {
   const styleForCategory =
     (current.category && CATEGORY_STYLES[current.category]) || null;
 
-  let bgColor = styleForCategory?.bg ?? DEFAULT_BLUE;
+  let bgColor = styleForCategory?.bg ?? DEFAULT_ORANGE;
   const message = current.message || '';
 
   // Override colours for B2 / Admin access-control toasts
