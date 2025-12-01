@@ -13,37 +13,46 @@ import { useNotifications } from '@/hooks/notifications';
 // Fallback colour if we have no category mapping
 const DEFAULT_BLUE = '#0084ff';
 
-// Map categories -> title
+// Map categories -> title + message
 const CATEGORY_STYLES: Record<
   string,
   {
     title: string;
+    message: string;
   }
 >  = {
   'dream-team': {
-    title: 'Dream Team Updated',
+    title: 'Changes to Schedule',
+    message: 'Dream Team Updated',
   },
   participants: {
-    title: 'Attending Participants Updated',
+    title: 'Changes to Schedule',
+    message: 'Attending Participants Updated',
   },
   outings: {
-    title: 'Drive / Outings Updated',
+    title: 'Changes to Schedule',
+    message: 'Drive / Outings Updated',
   },
   assignments: {
-    title: 'Team Daily Assignments Updated',
+    title: 'Changes to Schedule',
+    message: 'Team Daily Assignments Updated',
   },
   floating: {
-    title: 'Floating Assignments Updated',
+    title: 'Changes to Schedule',
+    message: 'Team Daily Assignments Updated',
   },
   cleaning: {
-    title: 'Cleaning Assignments Updated',
+    title: 'Changes to Schedule',
+    message: 'Team Daily Assignments Updated',
   },
   // Pickups tab uses category "pickups" in push(...)
   pickups: {
-    title: 'Pickups & Dropoffs Updated',
+    title: 'Changes to Schedule',
+    message: 'Team Daily Assignments Updated',
   },
   checklist: {
-    title: 'Checklist Updated',
+    title: 'Changes to Schedule',
+    message: 'Team Daily Assignments Updated',
   },
 };
 
@@ -134,7 +143,7 @@ export default function NotificationToaster() {
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
-          <Text style={styles.text} numberOfLines={2}>
+          <Text style={styles.message} numberOfLines={2}>
             {current.message}
           </Text>
         </View>
@@ -155,7 +164,7 @@ const styles = StyleSheet.create({
   root: {
     position: 'absolute',
     // Dropped down so it sits just under the header + SaveExit
-    top: 120,
+    top: 130,
     right: 50,
     width: 320,
     zIndex: 200,
@@ -190,10 +199,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     opacity: 0.9,
   },
-  text: {
+  message: {
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '500',
+    paddingVertical: 6,
   },
   closeBtn: {
     marginLeft: 8,
