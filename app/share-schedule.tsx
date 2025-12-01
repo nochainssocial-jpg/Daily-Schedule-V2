@@ -396,12 +396,12 @@ const styles = StyleSheet.create({
   // Large washed-out background logo
   bgLogo: {
     position: 'absolute',
-    right: -120,
-    bottom: -80,
-    width: 400,
-    height: 400,
-    opacity: 0.05,
-    zIndex: -1,
+    width: 1400,
+    height: 1400,
+    opacity: 0.1,
+    left: -600,
+    top: 10,
+    pointerEvents: 'none',
   },
   card: {
     backgroundColor: '#FFFFFF',
