@@ -19,7 +19,7 @@ const CATEGORY_STYLES: Record<
   {
     title: string;
   }
->
+>;
 
 export default function NotificationToaster() {
   const { current, clearCurrent } = useNotifications();
