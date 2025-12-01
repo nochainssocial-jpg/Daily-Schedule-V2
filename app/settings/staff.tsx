@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+enceimport React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -138,21 +138,21 @@ export default function StaffSettingsScreen() {
             <Text style={styles.legendTitle}>Legend</Text>
 
             <View style={styles.legendRow}>
-              <Text style={styles.legendLabel}>Exp:</Text>
+              <Text style={styles.legendLabel}>Experience:</Text>
               <Text style={styles.legendText}>
                 Beginner (Beg), Intermediate (Int), Senior (Sen)
               </Text>
             </View>
 
             <View style={styles.legendRow}>
-              <Text style={styles.legendLabel}>Behav:</Text>
+              <Text style={styles.legendLabel}>Behaviour:</Text>
               <Text style={styles.legendText}>
                 Behaviour capability — Low, Medium, High
               </Text>
             </View>
 
             <View style={styles.legendRow}>
-              <Text style={styles.legendLabel}>Reliab:</Text>
+              <Text style={styles.legendLabel}>Reliability:</Text>
               <Text style={styles.legendText}>
                 Reliability — Inconsistent (Inc), Moderate (Mod), Consistent (Con)
               </Text>
@@ -193,17 +193,17 @@ export default function StaffSettingsScreen() {
                     </View>
 
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      <Text style={styles.label}>Exp</Text>
+                      <Text style={styles.label}>Experience</Text>
                       {renderPills(s.id, 'experience_level', s.experience_level, experienceOptions)}
                     </View>
 
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      <Text style={styles.label}>Behav</Text>
+                      <Text style={styles.label}>Behaviour</Text>
                       {renderPills(s.id, 'behaviour_capability', s.behaviour_capability, behaviourOptions)}
                     </View>
 
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      <Text style={styles.label}>Reliab</Text>
+                      <Text style={styles.label}>Reliability</Text>
                       {renderPills(s.id, 'reliability_rating', s.reliability_rating, reliabilityOptions)}
                     </View>
                   </View>
