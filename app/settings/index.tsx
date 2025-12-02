@@ -4,74 +4,109 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
-  Pressable,
   Image,
   Platform,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useIsAdmin } from '@/hooks/access-control';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 
-const MAX_WIDTH = 880;
+const showWebBranding = Platform.OS === 'web';
 
-type CardConfig = {
-  key: string;
+type SettingsTileProps = {
   title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconBg: string;
-  route: string;
+  subtitle: string;
+  iconName: keyof typeof MaterialCommunityIcons.glyphMap;
+  onPress: () => void;
 };
 
-const CARDS: CardConfig[] = [
-  {
-    key: 'staff',
-    title: 'Staff',
-    description: 'View and manage staff details and classifications.',
-    icon: 'people-circle-outline',
-    iconBg: '#FDE68A',
-    route: '/settings/staff',
-  },
-  {
-    key: 'participants',
-    title: 'Participants',
-    description: 'Review participant profiles and future complexity flags.',
-    icon: 'happy-outline',
-    iconBg: '#E0F2FE',
-    route: '/settings/participants',
-  },
-  {
-    key: 'chores',
-    title: 'Cleaning Tasks / Chores',
-    description: 'Configure end-of-shift cleaning tasks for the program.',
-    icon: 'sparkles-outline',
-    iconBg: '#DCFCE7',
-    route: '/settings/chores',
-  },
-  {
-    key: 'checklist',
-    title: 'End of Shift Checklist',
-    description: 'Maintain the final checklist to safely close the house.',
-    icon: 'checkmark-done-circle-outline',
-    iconBg: '#F5D0FE',
-    route: '/settings/checklist',
-  },
-];
+const SettingsTile: React.FC<SettingsTileProps> = ({
+  title,
+  subtitle,
+  iconName,
+  onPress,
+}) => (
+  <TouchableOpacity style={styles.tile} onPress={onPress} activeOpacity={0.85}>
+    <View style={styles.tileInner}>
+      <View style={styles.tileIconWrapper}>
+        <MaterialCommunityIcons name={iconName} size={26} color="#374151" />
+      </View>
+      <View style={styles.tileTextWrapper}>
+        <Text style={styles.tileTitle}>{title}</Text>
+        <Text style={styles.tileSubtitle}>{subtitle}</Text>
+      </View>
+    </View>
+  </TouchableOpacity>
+);
 
-export default function SettingsIndexScreen() {
+export default function SettingsHomeScreen() {
   const router = useRouter();
-  const showWebBranding = Platform.OS === 'web';
+  const isAdmin = useIsAdmin();
+  const insets = useSafeAreaInsets();
+
+  const goStaff = () => router.push('/settings/staff');
+  const goParticipants = () => router.push('/settings/participants');
+  const goChores = () => router.push('/settings/chores');
+  const goChecklist = () => router.push('/settings/checklist');
+
+  const content = isAdmin ? (
+    <>
+      <Text style={styles.title}>Settings</Text>
+      <Text style={styles.subtitle}>
+        Manage staff, participants, cleaning tasks, and end-of-shift checklists
+        that power the daily schedule and automation.
+      </Text>
+
+      <Text style={styles.sectionHeader}>People</Text>
+      <View style={styles.grid}>
+        <SettingsTile
+          title="Staff"
+          subtitle="Experience, behaviour capability, reliability & contact details."
+          iconName="account-tie"
+          onPress={goStaff}
+        />
+        <SettingsTile
+          title="Participants"
+          subtitle="Complexity and behaviour profiles for day-program participants."
+          iconName="account-heart-outline"
+          onPress={goParticipants}
+        />
+      </View>
+
+      <Text style={[styles.sectionHeader, styles.sectionHeaderSpacing]}>
+        End-of-shift
+      </Text>
+      <View style={styles.grid}>
+        <SettingsTile
+          title="Cleaning tasks / chores"
+          subtitle="Standard list of cleaning tasks used in assignments & reports."
+          iconName="broom"
+          onPress={goChores}
+        />
+        <SettingsTile
+          title="Final checklist"
+          subtitle="Last checks before leaving the house for the day."
+          iconName="clipboard-check-outline"
+          onPress={goChecklist}
+        />
+      </View>
+    </>
+  ) : (
+    <>
+      <Text style={styles.title}>Settings</Text>
+      <Text style={styles.subtitle}>
+        Please enable Admin Mode with your PIN on the Share screen to access
+        and edit these settings.
+      </Text>
+    </>
+  );
 
   return (
-    <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: 'Settings',
-          headerShown: true,
-        }}
-      />
-
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
       {showWebBranding && (
         <Image
           source={require('@/assets/images/nochains-bg.png')}
@@ -80,37 +115,8 @@ export default function SettingsIndexScreen() {
         />
       )}
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.inner}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Settings</Text>
-            <Text style={styles.subtitle}>
-              Choose what you’d like to manage today.
-            </Text>
-          </View>
-
-          <View style={styles.cardList}>
-            {CARDS.map((card) => (
-              <Pressable
-                key={card.key}
-                style={({ pressed }) => [
-                  styles.card,
-                  pressed && styles.cardPressed,
-                ]}
-                onPress={() => router.push(card.route)}
-              >
-                <View style={[styles.iconWrap, { backgroundColor: card.iconBg }]}>
-                  <Ionicons name={card.icon} size={26} color="#4B2E83" />
-                </View>
-                <Text style={styles.cardTitle}>{card.title}</Text>
-                <Text style={styles.cardDescription}>{card.description}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.container}>{content}</View>
       </ScrollView>
 
       <Footer />
@@ -121,84 +127,98 @@ export default function SettingsIndexScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
-    position: 'relative',
-    overflow: 'hidden',
+    backgroundColor: '#E0E7FF', // same as Admin screen
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 120,
-    paddingTop: 16,
-  },
-  inner: {
-    width: '100%',
-    maxWidth: MAX_WIDTH,
-    paddingHorizontal: 20,
-  },
+
   bgLogo: {
     position: 'absolute',
     width: 1400,
     height: 1400,
-    opacity: 0.08,
+    opacity: 0.1,
     left: -600,
-    top: 0,
+    top: 10,
     pointerEvents: 'none',
+    zIndex: 0,
   },
-  header: {
-    marginBottom: 16,
+
+  scroll: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    paddingBottom: 160,
   },
+
+  container: {
+    width: '100%',
+    maxWidth: 880,
+    alignSelf: 'center',
+  },
+
   title: {
     fontSize: 22,
     fontWeight: '700',
+    marginBottom: 6,
     color: '#332244',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#553A75',
-    marginTop: 4,
+    fontSize: 13,
+    opacity: 0.8,
+    marginBottom: 20,
+    color: '#5a486b',
   },
-  cardList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 16,
-  },
-  card: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5DEF5',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  cardPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.95,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
     marginBottom: 10,
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#332244',
-    marginBottom: 4,
+  sectionHeaderSpacing: {
+    marginTop: 22,
   },
-  cardDescription: {
-    fontSize: 13,
-    color: '#6B5A7D',
+
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -8,
+    marginBottom: 16,
+  },
+  tile: {
+    width: '50%',
+    paddingHorizontal: 8,
+    marginBottom: 16,
+  },
+  tileInner: {
+    height: 86,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tileIconWrapper: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  tileTextWrapper: {
+    flex: 1,
+  },
+  tileTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2933',
+    marginBottom: 2,
+  },
+  tileSubtitle: {
+    fontSize: 12,
+    color: '#4B5563',
   },
 });
