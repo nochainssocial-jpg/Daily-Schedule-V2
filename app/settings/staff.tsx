@@ -122,44 +122,44 @@ export default function StaffSettingsScreen() {
 
   const experienceOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: '1 - Beginner', short: '1 - Beginner', value: 1 },
-    { label: '2 - Intermediate', short: '2 - Intermediate', value: 2 },
-    { label: '3 - Senior', short: '3 - Senior', value: 3 },
+    { label: 'Beginner', short: 'Beg', value: 1 },
+    { label: 'Intermediate', short: 'Int', value: 2 },
+    { label: 'Senior', short: 'Sen', value: 3 },
   ];
 
   const behaviourOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: '1 - Low', short: '1 - Low', value: 1 },
-    { label: '2 - Medium', short: '2 - Medium', value: 2 },
-    { label: '3 - High', short: '3 - High', value: 3 },
+    { label: 'Low', short: 'Low', value: 1 },
+    { label: 'Medium', short: 'Med', value: 2 },
+    { label: 'High', short: 'High', value: 3 },
   ];
 
   const reliabilityOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: '1 - Inconsistent', short: '1 - Inconsistent', value: 1 },
-    { label: '2 - Moderate', short: '2 - Moderate', value: 2 },
-    { label: '3 - Consistent', short: '3 - Consistent', value: 3 },
+    { label: 'Inconsistent', short: 'Inc', value: 1 },
+    { label: 'Moderate', short: 'Mod', value: 2 },
+    { label: 'Consistent', short: 'Con', value: 3 },
   ];
 
   const personalCareOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: '1 - Low', short: '1 - Low', value: 1 },
-    { label: '2 - Medium', short: '2 - Medium', value: 2 },
-    { label: '3 - High', short: '3 - High', value: 3 },
+    { label: 'Low', short: 'Low', value: 1 },
+    { label: 'Medium', short: 'Med', value: 2 },
+    { label: 'High', short: 'High', value: 3 },
   ];
 
   const mobilityOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: '1 - Low', short: '1 - Low', value: 1 },
-    { label: '2 - Medium', short: '2 - Medium', value: 2 },
-    { label: '3 - High', short: '3 - High', value: 3 },
+    { label: 'Low', short: 'Low', value: 1 },
+    { label: 'Medium', short: 'Med', value: 2 },
+    { label: 'High', short: 'High', value: 3 },
   ];
 
   const communicationOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: '1 - Basic', short: '1 - Basic', value: 1 },
-    { label: '2 - Good', short: '2 - Good', value: 2 },
-    { label: '3 - Advanced', short: '3 - Advanced', value: 3 },
+    { label: 'Basic', short: 'Bas', value: 1 },
+    { label: 'Good', short: 'Good', value: 2 },
+    { label: 'Advanced', short: 'Adv', value: 3 },
   ];
 
   function renderPills(
@@ -655,7 +655,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#e1d5f5',
-    marginRight: 8,
+    marginRight: 6,
   },
   addButton: {
     paddingHorizontal: 14,
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
   },
   scoreBubble: {
     Width: 80,
@@ -723,7 +723,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 24,
   },
   scoreBubbleLow: {
     backgroundColor: '#fee2e2',
@@ -768,7 +767,7 @@ const styles = StyleSheet.create({
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginRight: 8,
+    marginRight: 6,
   },
   deleteButtonText: {
     fontSize: 16,
@@ -806,16 +805,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   pill: {
-    minWidth: 120,
-    height: 40,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d7c7f0',
     backgroundColor: '#f6f1ff',
-    marginRight: 8,
-    marginBottom: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 4,
+    marginBottom: 4,
   },
   pillActive: {
     backgroundColor: '#008aff',
@@ -849,11 +846,10 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: 'transparent',
     borderColor: 'transparent',
-    marginRight: 8,
+    marginRight: 6,
   },
   pillMinusText: {
     color: '#ef4444',
     fontWeight: '700',
-    fontSize: 18,
   },
 });
