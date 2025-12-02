@@ -714,6 +714,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',   // ⬅ raises both Staff + Score slightly
+    marginBottom: 6,
+    marginTop: -4,              // ⬅ small upward nudge (adjust if needed)
+  },
+  sectionScore: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#553a75',
+    marginRight: 25,  // ⬅ moves Score 25px left
+  },
   scoreBubble: {
     Width: 80,
     paddingHorizontal: 10,
