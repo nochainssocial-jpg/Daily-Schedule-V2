@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
     color: '#7a678e',
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     padding: 12,
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -742,24 +742,24 @@ const styles = StyleSheet.create({
     color: '#332244',
   },
   scorePanel: {
-    marginTop: 6,
+    marginTop: 12,
     paddingTop: 10,
-    marginLeft: 40,
+    marginLeft: 60,
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
   },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
-    paddingLeft: 5,
+    marginBottom: 6,
+    paddingLeft: 0,
   },
   categoryLabel: {
     width: 130,
     fontSize: 13,
     fontWeight: '600',
     color: '#553a75',
-    marginRight: 1,   // closer to minus
+    marginRight: 4,
   },
   categoryPills: {
     flex: 1,
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d7c7f0',
     backgroundColor: '#f6f1ff',
-    marginRight: 1,   // tighter spacing
+    marginRight: 6,
     marginBottom: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -843,14 +843,14 @@ const styles = StyleSheet.create({
   },
   // NEW: minus pill styling
   pillMinus: {
-  paddingHorizontal: 0,
-  paddingVertical: 0,
-  borderWidth: 0,
-  backgroundColor: 'transparent',
-  borderColor: 'transparent',
-  marginRight: 1,   // closer to pills
-  marginLeft: 1,    // closer to label
-},
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    marginRight: 4,
+    marginLeft: 4,
+  },
   pillMinusText: {
     fontSize: 20,
     color: '#ef4444',
