@@ -369,7 +369,17 @@ export default function StaffSettingsScreen() {
               <View style={styles.headerRow}>
                 <Text style={[styles.headerCell, { width: 32 }]} />
                 <Text style={[styles.headerCell, { flex: 1 }]}>Staff</Text>
-                <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>
+                <Text
+                  style={[
+                    styles.headerCell,
+                    {
+                      width: 70,
+                      textAlign: 'right',
+                      marginRight: 25,
+                      marginTop: -2,
+                    },
+                  ]}
+                >
                   Score
                 </Text>
               </View>
@@ -681,8 +691,9 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 20,   // NEW — aligns header with criteria block
+    alignItems: 'flex-start',
+    marginLeft: 20,
+    marginTop: -6,
   },
   headerCell: {
     fontSize: 11,
