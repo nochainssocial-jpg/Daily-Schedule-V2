@@ -20,7 +20,7 @@ type ParticipantRow = {
   name: string;
   is_active?: boolean | null;
   complexity_level?: number | null;
-  behaviour_profile?: string | null;
+  behaviour_profile?: string | null; // CSV string for multi-select
   support_needs?: string | null;
 };
 
@@ -63,6 +63,7 @@ export default function ParticipantsSettingsScreen() {
     );
   }
 
+  // ----- Complexity: single-select (1–4) -----
   const complexityOptions: Option<number | null>[] = [
     { label: 'Not set', short: '-', value: null },
     { label: 'Low support', short: 'Low', value: 1 },
@@ -71,8 +72,9 @@ export default function ParticipantsSettingsScreen() {
     { label: 'Very high / complex', short: 'Comp', value: 4 },
   ];
 
+  // ----- Behaviour: MULTI-select, stored as CSV in behaviour_profile -----
   const behaviourOptions: Option<string | null>[] = [
-    { label: 'Not set', short: '-', value: null },
+    { label: 'Clear all', short: '-', value: null },
     { label: 'Behavioural', short: 'Behav', value: 'behavioural' },
     { label: 'High anxiety', short: 'Anx', value: 'high_anxiety' },
     { label: 'Routine sensitive', short: 'Rout', value: 'routine_sensitive' },
@@ -80,15 +82,26 @@ export default function ParticipantsSettingsScreen() {
     { label: 'Physical support', short: 'Phys', value: 'physical_support' },
   ];
 
-  function renderPills<T>(
+  function parseBehaviour(value: string | null | undefined): string[] {
+    if (!value) return [];
+    return value
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
+  function behaviourToString(values: string[]): string | null {
+    if (!values.length) return null;
+    return values.join(',');
+  }
+
+  function renderComplexityPills(
     id: string,
-    field: keyof ParticipantRow,
-    currentValue: T | null | undefined,
-    options: Option<T | null>[],
+    currentValue: number | null | undefined,
   ) {
     return (
       <View style={styles.pillRow}>
-        {options.map(opt => {
+        {complexityOptions.map(opt => {
           const isSelected =
             (currentValue === null || currentValue === undefined)
               ? opt.value === null
@@ -96,13 +109,82 @@ export default function ParticipantsSettingsScreen() {
 
           return (
             <TouchableOpacity
-              key={`${field}-${id}-${opt.short}`}
-              style={[styles.pill, isSelected && styles.pillActive]}
-              onPress={() => updateParticipant(id, field, opt.value)}
+              key={`complexity-${id}-${opt.short}`}
+              style={[styles.pill, isSelected && styles.pillActiveBlue]}
+              onPress={() =>
+                updateParticipant(id, 'complexity_level', opt.value)
+              }
               activeOpacity={0.8}
             >
               <Text
-                style={[styles.pillText, isSelected && styles.pillTextActive]}
+                style={[
+                  styles.pillText,
+                  isSelected && styles.pillTextActive,
+                ]}
+              >
+                {opt.short}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
+
+  function renderBehaviourPills(
+    id: string,
+    currentValue: string | null | undefined,
+  ) {
+    const selected = parseBehaviour(currentValue);
+
+    return (
+      <View style={styles.pillRow}>
+        {behaviourOptions.map(opt => {
+          if (opt.value === null) {
+            // "-" clears all
+            const isClearSelected = selected.length === 0;
+            return (
+              <TouchableOpacity
+                key={`behaviour-${id}-${opt.short}`}
+                style={[styles.pill, isClearSelected && styles.pillActiveBlue]}
+                onPress={() =>
+                  updateParticipant(id, 'behaviour_profile', null)
+                }
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    isClearSelected && styles.pillTextActive,
+                  ]}
+                >
+                  {opt.short}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+
+          const isSelected = selected.includes(opt.value);
+          return (
+            <TouchableOpacity
+              key={`behaviour-${id}-${opt.short}`}
+              style={[styles.pill, isSelected && styles.pillActiveBlue]}
+              onPress={() => {
+                let next: string[];
+                if (isSelected) {
+                  next = selected.filter(v => v !== opt.value);
+                } else {
+                  next = [...selected, opt.value];
+                }
+                updateParticipant(id, 'behaviour_profile', behaviourToString(next));
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.pillText,
+                  isSelected && styles.pillTextActive,
+                ]}
               >
                 {opt.short}
               </Text>
@@ -136,7 +218,7 @@ export default function ParticipantsSettingsScreen() {
           <View style={styles.legendWrap}>
             <Text style={styles.legendTitle}>Legend</Text>
 
-            <View className="legend-row" style={styles.legendRow}>
+            <View style={styles.legendRow}>
               <Text style={styles.legendLabel}>Complexity:</Text>
               <Text style={styles.legendText}>
                 Low (Low), Medium (Med), High (High), Very high / complex
@@ -148,7 +230,8 @@ export default function ParticipantsSettingsScreen() {
               <Text style={styles.legendLabel}>Behaviour:</Text>
               <Text style={styles.legendText}>
                 Behavioural (Behav), High anxiety (Anx), Routine sensitive
-                (Rout), Sensory/noise (Sens), Physical support (Phys)
+                (Rout), Sensory/noise (Sens), Physical support (Phys). You can
+                select more than one tag.
               </Text>
             </View>
           </View>
@@ -178,7 +261,7 @@ export default function ParticipantsSettingsScreen() {
                     key={p.id}
                     style={[styles.row, inactive && styles.rowInactive]}
                   >
-                    {/* Name */}
+                    {/* Name + needs */}
                     <View style={[styles.participantInfoBlock, { flex: 1.4 }]}>
                       <View style={styles.colorBox} />
                       <View style={styles.info}>
@@ -200,22 +283,12 @@ export default function ParticipantsSettingsScreen() {
 
                     {/* Complexity */}
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      {renderPills(
-                        p.id,
-                        'complexity_level',
-                        p.complexity_level,
-                        complexityOptions,
-                      )}
+                      {renderComplexityPills(p.id, p.complexity_level)}
                     </View>
 
-                    {/* Behaviour */}
+                    {/* Behaviour (multi-select) */}
                     <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      {renderPills(
-                        p.id,
-                        'behaviour_profile',
-                        p.behaviour_profile,
-                        behaviourOptions,
-                      )}
+                      {renderBehaviourPills(p.id, p.behaviour_profile)}
                     </View>
                   </View>
                 );
@@ -318,7 +391,8 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     backgroundColor: '#fff',
     borderRadius: 16,
     borderWidth: 1,
@@ -331,13 +405,14 @@ const styles = StyleSheet.create({
   participantInfoBlock: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginRight: 4,
   },
   colorBox: {
     width: 22,
     height: 22,
     borderRadius: 6,
     marginRight: 10,
-    backgroundColor: '#f973b7', // fixed brand colour for participants
+    backgroundColor: '#f973b7',
   },
   info: {
     flexShrink: 1,
@@ -353,31 +428,32 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   fieldBlock: {
-    marginHorizontal: 6,
+    marginHorizontal: 4,
+    justifyContent: 'center',
   },
   pillRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap', // keep on one line
   },
   pill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d7c7f0',
     backgroundColor: '#f6f1ff',
     marginRight: 4,
-    marginBottom: 4,
   },
-  pillActive: {
-    backgroundColor: '#008aff',
-    borderColor: '#008aff',
+  pillActiveBlue: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
   },
   pillText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#5b4a76',
   },
   pillTextActive: {
     color: '#ffffff',
+    fontWeight: '600',
   },
 });
