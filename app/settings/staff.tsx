@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginLeft: 30,
+    marginLeft: 40,
     marginTop: -6,
   },
   headerCell: {
@@ -838,8 +838,8 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#d7c7f0',
-    backgroundColor: '#f6f1ff',
+    borderColor: '#5b5b5b',
+    backgroundColor: '#dadada',
     marginRight: 6,
     marginBottom: 6,
     alignItems: 'center',
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 12,
-    color: '#5b4a76',
+    color: '#3e3e3e',
   },
   pillTextActive: {
     color: '#000000',
