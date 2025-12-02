@@ -8,17 +8,17 @@ import {
   Platform,
 } from 'react-native';
 import { router, usePathname } from 'expo-router';
-import { useIsAdmin } from '@/hooks/access-control'; // NEW
+import { useIsAdmin } from '@/hooks/access-control';
 
 export default function Footer() {
   const pathname = usePathname();
-  const isAdmin = useIsAdmin(); // NEW
+  const isAdmin = useIsAdmin();
 
   const goHome = () => router.push('/home');
   const goEditHub = () => router.push('/edit');
-  const goShare = () => router.push('/share-schedule'); // or '/share' if that's your file
+  const goShare = () => router.push('/share-schedule');
   const goSettings = () => router.push('/settings');
-  const goAdmin = () => router.push('/admin'); // NEW
+  const goAdmin = () => router.push('/admin');
   const goHelp = () => router.push('/help');
 
   return (
@@ -29,29 +29,33 @@ export default function Footer() {
           active={pathname === '/home'}
           onPress={goHome}
         />
+
         <FooterItem
           label="Edit Hub"
           active={pathname.startsWith('/edit')}
           onPress={goEditHub}
         />
+
         <FooterItem
           label="Share"
           active={pathname === '/share-schedule'}
           onPress={goShare}
         />
-        <FooterItem
-          label="Settings"
-          active={pathname.startsWith('/settings')}
-          onPress={goSettings}
-        />
 
-        {/* ADMIN TAB – only visible when Admin Mode is enabled */}
+        {/* Admin-only tabs: Admin + Settings */}
         {isAdmin && (
-          <FooterItem
-            label="Admin"
-            active={pathname.startsWith('/admin')}
-            onPress={goAdmin}
-          />
+          <>
+            <FooterItem
+              label="Admin"
+              active={pathname.startsWith('/admin')}
+              onPress={goAdmin}
+            />
+            <FooterItem
+              label="Settings"
+              active={pathname.startsWith('/settings')}
+              onPress={goSettings}
+            />
+          </>
         )}
 
         <FooterItem
@@ -95,7 +99,7 @@ function FooterItem({ label, active, onPress }: ItemProps) {
 
 const styles = StyleSheet.create({
   footerContainer: {
-    backgroundColor: '#F54FA5', // Pink matching Create button (from foot.tsx)
+    backgroundColor: '#F54FA5',
     borderTopWidth: 0,
     ...(Platform.OS === 'web'
       ? { position: 'fixed', left: 0, right: 0, bottom: 0 }
@@ -111,26 +115,26 @@ const styles = StyleSheet.create({
     height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center', // bring items together
-    paddingHorizontal: 4, // reduce side padding
-    gap: 10, // small modern spacing
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    gap: 10,
   },
 
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12, // reduced from before
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
   },
 
   navItemActive: {
-    backgroundColor: '#FF8FC5', // lighter pink highlight
+    backgroundColor: '#FF8FC5',
   },
 
   navLabel: {
     fontSize: 14,
-    color: '#FFFFFF', // White text
+    color: '#FFFFFF',
     fontWeight: '500',
   },
   navLabelActive: {
@@ -146,7 +150,7 @@ const styles = StyleSheet.create({
   brandingText: {
     fontSize: 12,
     fontWeight: '400',
-    color: '#FFFFFF', // White
+    color: '#FFFFFF',
     textAlign: 'center',
   },
 });
