@@ -211,7 +211,6 @@ export default function StaffSettingsScreen() {
       </View>
     );
   }
-  }
 
   function getTotalScore(member: StaffRow): number | null {
     const values = [
