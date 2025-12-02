@@ -205,19 +205,6 @@ export default function FloatingScreen() {
     return m;
   }, [staff]);
 
-  // All working staff (Dream Team)
-  const working = useMemo(
-    () => (staff || []).filter((s: any) => (workingStaff || []).includes(s.id)),
-    [staff, workingStaff],
-  );
-
-  // ⭐ Onsite working staff = working staff NOT on outing
-  const onsiteWorking = useMemo(() => {
-    if (!outingGroup || !Array.isArray(working)) return working || [];
-    const excluded = new Set<string>((outingGroup.staffIds ?? []) as string[]);
-    return (working || []).filter((s: any) => !excluded.has(s.id));
-  }, [working, outingGroup]);
-
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
 
   const sortedWorking = useMemo(
