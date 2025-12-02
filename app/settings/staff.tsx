@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 20,   // NEW — aligns header with criteria block
-  }
+  },
   headerCell: {
     fontSize: 11,
     fontWeight: '600',
