@@ -10,10 +10,17 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import Footer from '@/components/Footer';
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 
 const MAX_WIDTH = 880;
 
@@ -403,9 +410,10 @@ export default function StaffSettingsScreen() {
 
                       <TouchableOpacity
                         style={styles.rowHeaderMain}
-                        onPress={() =>
-                          setExpandedId(prev => (prev === s.id ? null : s.id))
-                        }
+                        onPress={() => {
+                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                          setExpandedId(prev => (prev === s.id ? null : s.id));
+                        }}
                         activeOpacity={0.85}
                       >
                         <View style={styles.staffInfoBlock}>
@@ -742,24 +750,24 @@ const styles = StyleSheet.create({
     color: '#332244',
   },
   scorePanel: {
-    marginTop: 6,
+    marginTop: 10,
     paddingTop: 10,
-    marginLeft: 30,
+    marginLeft: 0,
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
   },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
-    paddingLeft: 5,
+    marginBottom: 6,
+    paddingLeft: 56,
   },
   categoryLabel: {
     width: 130,
     fontSize: 13,
     fontWeight: '600',
     color: '#553a75',
-    marginRight: 1,   // closer to minus
+    marginRight: 2,
   },
   categoryPills: {
     flex: 1,
@@ -812,7 +820,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d7c7f0',
     backgroundColor: '#f6f1ff',
-    marginRight: 1,   // tighter spacing
+    marginRight: 4,
     marginBottom: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -843,14 +851,14 @@ const styles = StyleSheet.create({
   },
   // NEW: minus pill styling
   pillMinus: {
-  paddingHorizontal: 0,
-  paddingVertical: 0,
-  borderWidth: 0,
-  backgroundColor: 'transparent',
-  borderColor: 'transparent',
-  marginRight: 1,   // closer to pills
-  marginLeft: 1,    // closer to label
-},
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    marginRight: 2,
+    marginLeft: 2,
+  },
   pillMinusText: {
     fontSize: 20,
     color: '#ef4444',
