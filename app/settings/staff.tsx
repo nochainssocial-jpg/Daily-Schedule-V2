@@ -752,7 +752,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 5,
-    paddingLeft: 20,
+    paddingLeft: 5,
   },
   categoryLabel: {
     width: 130,
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d7c7f0',
     backgroundColor: '#f6f1ff',
-    marginRight: 6,   // tighter spacing
+    marginRight: 1,   // tighter spacing
     marginBottom: 6,
     alignItems: 'center',
     justifyContent: 'center',
