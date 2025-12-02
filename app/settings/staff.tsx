@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
     paddingLeft: 20,
   },
   categoryLabel: {
@@ -759,7 +759,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#553a75',
-    marginRight: 4,   // closer to minus
+    marginRight: 1,   // closer to minus
   },
   categoryPills: {
     flex: 1,
