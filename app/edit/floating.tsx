@@ -207,6 +207,30 @@ export default function FloatingScreen() {
 
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
 
+    const workingSet = useMemo(
+    () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
+    [workingStaff],
+  );
+
+  const outingStaffSet = useMemo(
+    () =>
+      new Set<string>(
+        ((outingGroup?.staffIds ?? []) as (string | number)[]).map((id) =>
+          String(id),
+        ),
+      ),
+    [outingGroup],
+  );
+
+  const onsiteWorking = useMemo(
+    () =>
+      (staff || []).filter(
+        (s: any) =>
+          workingSet.has(String(s.id)) && !outingStaffSet.has(String(s.id)),
+      ),
+    [staff, workingSet, outingStaffSet],
+  );
+
   const sortedWorking = useMemo(
     () =>
       (onsiteWorking || [])
