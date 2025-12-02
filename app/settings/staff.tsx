@@ -25,6 +25,9 @@ type StaffRow = {
   is_active?: boolean | null;
   experience_level?: number | null;
   behaviour_capability?: number | null;
+  personal_care_skill?: number | null;
+  mobility_assistance?: number | null;
+  communication_support?: number | null;
   reliability_rating?: number | null;
 };
 
@@ -38,6 +41,8 @@ export default function StaffSettingsScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
 
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -136,6 +141,27 @@ export default function StaffSettingsScreen() {
     { label: 'Consistent', short: 'Con', value: 3 },
   ];
 
+  const personalCareOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: 'Low', short: 'Low', value: 1 },
+    { label: 'Medium', short: 'Med', value: 2 },
+    { label: 'High', short: 'High', value: 3 },
+  ];
+
+  const mobilityOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: 'Low', short: 'Low', value: 1 },
+    { label: 'Medium', short: 'Med', value: 2 },
+    { label: 'High', short: 'High', value: 3 },
+  ];
+
+  const communicationOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: 'Basic', short: 'Bas', value: 1 },
+    { label: 'Good', short: 'Good', value: 2 },
+    { label: 'Advanced', short: 'Adv', value: 3 },
+  ];
+
   function renderPills(
     staffId: string,
     field: keyof StaffRow,
@@ -154,8 +180,14 @@ export default function StaffSettingsScreen() {
           const pillStyles = [styles.pill];
           if (isMinus) {
             pillStyles.push(styles.pillMinus);
-          } else if (isSelected) {
-            pillStyles.push(styles.pillActive);
+          } else if (isSelected && typeof opt.value === 'number') {
+            if (opt.value === 1) {
+              pillStyles.push(styles.pillSelectedLow);
+            } else if (opt.value === 2) {
+              pillStyles.push(styles.pillSelectedMedium);
+            } else if (opt.value === 3) {
+              pillStyles.push(styles.pillSelectedHigh);
+            }
           }
 
           const textStyles = [styles.pillText];
@@ -179,6 +211,30 @@ export default function StaffSettingsScreen() {
       </View>
     );
   }
+  }
+
+  function getTotalScore(member: StaffRow): number | null {
+    const values = [
+      member.experience_level,
+      member.behaviour_capability,
+      member.personal_care_skill,
+      member.mobility_assistance,
+      member.communication_support,
+      member.reliability_rating,
+    ].filter(
+      (v): v is number => typeof v === 'number' && !Number.isNaN(v),
+    );
+
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0);
+  }
+
+  function getScoreLevel(total: number): 'low' | 'medium' | 'high' {
+    if (total >= 15) return 'high';
+    if (total >= 10) return 'medium';
+    return 'low';
+  }
+
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -195,33 +251,73 @@ export default function StaffSettingsScreen() {
           {/* Heading */}
           <Text style={styles.heading}>Staff Settings</Text>
           <Text style={styles.subHeading}>
-            Set experience, behaviour capability, and reliability for each staff member.
+            Set experience, behaviour support, personal care, mobility, communication, and reliability for each staff member.
           </Text>
 
           {/* LEGEND */}
           <View style={styles.legendWrap}>
-            <Text style={styles.legendTitle}>Legend</Text>
-
-            <View style={styles.legendRow}>
-              <Text style={styles.legendLabel}>Experience:</Text>
-              <Text style={styles.legendText}>
-                Beginner (Beg), Intermediate (Int), Senior (Sen)
-              </Text>
+            <View style={styles.legendHeaderRow}>
+              <Text style={styles.legendTitle}>Legend</Text>
+              <TouchableOpacity
+                onPress={() => setLegendCollapsed(prev => !prev)}
+                style={styles.legendToggle}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.legendToggleText}>
+                  {legendCollapsed ? 'Show legend ▼' : 'Hide legend ▲'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.legendRow}>
-              <Text style={styles.legendLabel}>Behaviour:</Text>
-              <Text style={styles.legendText}>
-                Behaviour capability — Low, Medium, High
-              </Text>
-            </View>
+            {!legendCollapsed && (
+              <>
+                <Text style={styles.legendHint}>
+                  Each category is scored from 1–3. Higher totals indicate staff who are better suited to more complex participants.
+                </Text>
 
-            <View style={styles.legendRow}>
-              <Text style={styles.legendLabel}>Reliability:</Text>
-              <Text style={styles.legendText}>
-                Reliability — Inconsistent (Inc), Moderate (Mod), Consistent (Con)
-              </Text>
-            </View>
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>Experience:</Text>
+                  <Text style={styles.legendText}>
+                    Beginner (Beg), Intermediate (Int), Senior (Sen)
+                  </Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>Behaviour:</Text>
+                  <Text style={styles.legendText}>
+                    Behaviour support — Low, Medium, High
+                  </Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>Personal care:</Text>
+                  <Text style={styles.legendText}>
+                    Personal care support — Low, Medium, High
+                  </Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>Mobility:</Text>
+                  <Text style={styles.legendText}>
+                    Mobility assistance — Low, Medium, High
+                  </Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>Communication:</Text>
+                  <Text style={styles.legendText}>
+                    Communication support — Basic, Good, Advanced
+                  </Text>
+                </View>
+
+                <View style={styles.legendRow}>
+                  <Text style={styles.legendLabel}>Reliability:</Text>
+                  <Text style={styles.legendText}>
+                    Reliability — Inconsistent (Inc), Moderate (Mod), Consistent (Con)
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* ADD NEW STAFF */}
@@ -273,73 +369,148 @@ export default function StaffSettingsScreen() {
             <View style={styles.listWrap}>
               <View style={styles.headerRow}>
                 <Text style={[styles.headerCell, { width: 32 }]} />
-                <Text style={[styles.headerCell, { flex: 1.2 }]}>Staff</Text>
-                <Text style={[styles.headerCell, { flex: 1 }]}>Experience</Text>
-                <Text style={[styles.headerCell, { flex: 1 }]}>Behaviour</Text>
-                <Text style={[styles.headerCell, { flex: 1 }]}>Reliability</Text>
+                <Text style={[styles.headerCell, { flex: 1 }]}>Staff</Text>
+                <Text style={[styles.headerCell, { width: 70, textAlign: 'right' }]}>
+                  Score
+                </Text>
               </View>
 
               {staff.map(s => {
                 const inactive = s.is_active === false;
+                const totalScore = getTotalScore(s);
+                const scoreLevel = totalScore === null ? null : getScoreLevel(totalScore);
+
+                const rowStyles = [styles.row];
+                if (inactive) rowStyles.push(styles.rowInactive);
+
+                const scoreBubbleStyles = [styles.scoreBubble];
+                if (scoreLevel === 'low') scoreBubbleStyles.push(styles.scoreBubbleLow);
+                if (scoreLevel === 'medium') scoreBubbleStyles.push(styles.scoreBubbleMedium);
+                if (scoreLevel === 'high') scoreBubbleStyles.push(styles.scoreBubbleHigh);
+
+                const isExpanded = expandedId === s.id;
 
                 return (
-                  <View
-                    key={s.id}
-                    style={[styles.row, inactive && styles.rowInactive]}
-                  >
-                    {/* Delete button – red X text only */}
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => confirmDeleteStaff(s)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.deleteButtonText}>x</Text>
-                    </TouchableOpacity>
+                  <View key={s.id} style={rowStyles}>
+                    {/* Row header: delete + staff info + score bubble */}
+                    <View style={styles.rowHeader}>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => confirmDeleteStaff(s)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.deleteButtonText}>x</Text>
+                      </TouchableOpacity>
 
-                    <View style={[styles.staffInfoBlock, { flex: 1.2 }]}>
-                      <View
-                        style={[
-                          styles.colorBox,
-                          { backgroundColor: s.color || '#d4c4e8' },
-                        ]}
-                      />
-                      <View style={styles.info}>
-                        <Text style={styles.name}>
-                          {s.name}
-                          {inactive ? ' (inactive)' : ''}
-                        </Text>
-                        {!!s.phone && (
-                          <Text style={styles.phone}>{s.phone}</Text>
+                      <TouchableOpacity
+                        style={styles.rowHeaderMain}
+                        onPress={() =>
+                          setExpandedId(prev => (prev === s.id ? null : s.id))
+                        }
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.staffInfoBlock}>
+                          <View
+                            style={[
+                              styles.colorBox,
+                              { backgroundColor: s.color || '#d4c4e8' },
+                            ]}
+                          />
+                          <View style={styles.info}>
+                            <Text style={styles.name}>
+                              {s.name}
+                              {inactive ? ' (inactive)' : ''}
+                            </Text>
+                            {!!s.phone && (
+                              <Text style={styles.phone}>{s.phone}</Text>
+                            )}
+                          </View>
+                        </View>
+
+                        {totalScore !== null && (
+                          <View style={scoreBubbleStyles}>
+                            <Text style={styles.scoreBubbleText}>{totalScore}</Text>
+                          </View>
                         )}
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Expanded scoring panel */}
+                    {isExpanded && (
+                      <View style={styles.scorePanel}>
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Experience</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'experience_level',
+                              s.experience_level,
+                              experienceOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Behaviour support</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'behaviour_capability',
+                              s.behaviour_capability,
+                              behaviourOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Personal care</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'personal_care_skill',
+                              s.personal_care_skill,
+                              personalCareOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Mobility</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'mobility_assistance',
+                              s.mobility_assistance,
+                              mobilityOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Communication</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'communication_support',
+                              s.communication_support,
+                              communicationOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Reliability</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'reliability_rating',
+                              s.reliability_rating,
+                              reliabilityOptions,
+                            )}
+                          </View>
+                        </View>
                       </View>
-                    </View>
-
-                    <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      {renderPills(
-                        s.id,
-                        'experience_level',
-                        s.experience_level,
-                        experienceOptions,
-                      )}
-                    </View>
-
-                    <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      {renderPills(
-                        s.id,
-                        'behaviour_capability',
-                        s.behaviour_capability,
-                        behaviourOptions,
-                      )}
-                    </View>
-
-                    <View style={[styles.fieldBlock, { flex: 1 }]}>
-                      {renderPills(
-                        s.id,
-                        'reliability_rating',
-                        s.reliability_rating,
-                        reliabilityOptions,
-                      )}
-                    </View>
+                    )}
                   </View>
                 );
               })}
@@ -426,6 +597,30 @@ const styles = StyleSheet.create({
     color: '#6b5a7d',
     flex: 1,
   },
+  legendHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  legendToggle: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    backgroundColor: '#f8f2ff',
+  },
+  legendToggleText: {
+    fontSize: 11,
+    color: '#6b5a7d',
+    fontWeight: '600',
+  },
+  legendHint: {
+    fontSize: 12,
+    color: '#6b5a7d',
+    marginBottom: 8,
+  },
 
   /* Add new staff */
   addWrap: {
@@ -508,6 +703,65 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
+  rowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rowHeaderMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  scoreBubble: {
+    minWidth: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    backgroundColor: '#f8f2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreBubbleLow: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  scoreBubbleMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  scoreBubbleHigh: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
+  scoreBubbleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#332244',
+  },
+  scorePanel: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1e9ff',
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryLabel: {
+    width: 130,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#553a75',
+  },
+  categoryPills: {
+    flex: 1,
+  },
   // NEW: red X only
   deleteButton: {
     paddingHorizontal: 4,
@@ -571,6 +825,18 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 
+  pillSelectedLow: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  pillSelectedMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  pillSelectedHigh: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
   // NEW: minus pill styling
   pillMinus: {
     // Show just a red "-" with no pill background
