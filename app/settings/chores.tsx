@@ -8,6 +8,8 @@ import {
   Platform,
   Image,
   TextInput,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
@@ -24,7 +26,14 @@ export default function ChoresSettingsScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [chores, setChores] = useState<ChoreRow[]>([]);
-  const [editedNames, setEditedNames] = useState<Record<string, string>>({});
+
+  // Add-new state
+  const [newName, setNewName] = useState('');
+  const [savingNew, setSavingNew] = useState(false);
+
+  // Edit-on-pencil state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const showWebBranding = Platform.OS === 'web';
 
@@ -36,13 +45,7 @@ export default function ChoresSettingsScreen() {
       .order('id', { ascending: true });
 
     if (data) {
-      const rows = data as ChoreRow[];
-      setChores(rows);
-      const initial: Record<string, string> = {};
-      rows.forEach(row => {
-        initial[row.id] = row.name ?? '';
-      });
-      setEditedNames(initial);
+      setChores(data as ChoreRow[]);
     }
     setLoading(false);
   }
@@ -51,18 +54,70 @@ export default function ChoresSettingsScreen() {
     loadChores();
   }, []);
 
-  async function saveChoreName(id: string) {
-    const newName = editedNames[id];
-    const original = chores.find(c => c.id === id)?.name ?? '';
-    if (newName === original) return;
+  async function addChore() {
+    const name = newName.trim();
+    if (!name) return;
+
+    setSavingNew(true);
+    const { data, error } = await supabase
+      .from('cleaning_chores')
+      .insert({ name })
+      .select()
+      .single();
+
+    setSavingNew(false);
+
+    if (!error && data) {
+      setChores(prev => [...prev, data as ChoreRow]);
+      setNewName('');
+    }
+  }
+
+  function startEdit(chore: ChoreRow) {
+    setEditingId(chore.id);
+    setEditingName(chore.name ?? '');
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      // If they wipe it completely, just don't save (or you could enforce delete).
+      setEditingId(null);
+      return;
+    }
 
     await supabase
       .from('cleaning_chores')
-      .update({ name: newName })
-      .eq('id', id);
+      .update({ name: trimmed })
+      .eq('id', editingId);
 
     setChores(prev =>
-      prev.map(c => (c.id === id ? { ...c, name: newName } : c)),
+      prev.map(c => (c.id === editingId ? { ...c, name: trimmed } : c)),
+    );
+    setEditingId(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingName('');
+  }
+
+  function confirmDeleteChore(chore: ChoreRow) {
+    Alert.alert(
+      'Remove cleaning task',
+      `Remove "${chore.name}" from the cleaning list? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('cleaning_chores').delete().eq('id', chore.id);
+            setChores(prev => prev.filter(c => c.id !== chore.id));
+          },
+        },
+      ],
     );
   }
 
@@ -80,8 +135,7 @@ export default function ChoresSettingsScreen() {
         <View style={styles.inner}>
           <Text style={styles.heading}>Cleaning Tasks / Chores Settings</Text>
           <Text style={styles.subHeading}>
-            Edit the master list of end-of-shift cleaning tasks. These are used
-            in the cleaning assignment tracker and daily reports.
+            Manage the master list of end-of-shift cleaning tasks used in the cleaning assignment tracker and daily reports.
           </Text>
 
           {/* Legend */}
@@ -91,18 +145,46 @@ export default function ChoresSettingsScreen() {
             <View style={styles.legendRow}>
               <Text style={styles.legendLabel}>Tasks:</Text>
               <Text style={styles.legendText}>
-                Each row represents a cleaning task. Editing the text here will
-                update what staff see in the cleaning assignments and reports.
+                Each row represents a cleaning task. Tap the pencil to edit the wording, or the red X to remove a task completely.
               </Text>
             </View>
 
             <View style={styles.legendRow}>
               <Text style={styles.legendLabel}>Order:</Text>
               <Text style={styles.legendText}>
-                Tasks are shown in the order of their ID. We can add re-ordering
-                controls later if needed.
+                Tasks are shown in the order of their ID. We can add re-ordering controls later if needed.
               </Text>
             </View>
+          </View>
+
+          {/* Add new task */}
+          <View style={styles.addWrap}>
+            <Text style={styles.addTitle}>Add new cleaning task</Text>
+            <View style={styles.addRow}>
+              <TextInput
+                style={styles.addInput}
+                placeholder="Task name"
+                value={newName}
+                onChangeText={setNewName}
+                placeholderTextColor="#b8a8d6"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.addButton,
+                  (!newName.trim() || savingNew) && styles.addButtonDisabled,
+                ]}
+                onPress={addChore}
+                disabled={!newName.trim() || savingNew}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addButtonText}>
+                  {savingNew ? 'Saving…' : 'Add'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.addHint}>
+              Add tasks that should appear in cleaning assignments and reports.
+            </Text>
           </View>
 
           {loading ? (
@@ -114,29 +196,70 @@ export default function ChoresSettingsScreen() {
           ) : (
             <View style={styles.listWrap}>
               <View style={styles.headerRow}>
-                <Text style={[styles.headerCell, { width: 54 }]}>#</Text>
+                <Text style={[styles.headerCell, { width: 60 }]}>Actions</Text>
                 <Text style={[styles.headerCell, { flex: 1 }]}>Cleaning task</Text>
               </View>
 
-              {chores.map((c, index) => (
-                <View key={c.id} style={styles.row}>
-                  <View style={styles.indexBadge}>
-                    <Text style={styles.indexText}>{index + 1}</Text>
-                  </View>
+              {chores.map(chore => {
+                const isEditing = editingId === chore.id;
 
-                  <View style={styles.fieldBlock}>
-                    <TextInput
-                      style={styles.input}
-                      value={editedNames[c.id] ?? ''}
-                      onChangeText={text =>
-                        setEditedNames(prev => ({ ...prev, [c.id]: text }))
-                      }
-                      onBlur={() => saveChoreName(c.id)}
-                      multiline
-                    />
+                return (
+                  <View key={chore.id} style={styles.row}>
+                    {/* Left: delete + pencil */}
+                    <View style={styles.actionsColumn}>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => confirmDeleteChore(chore)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.deleteButtonText}>x</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => startEdit(chore)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.editButtonText}>✏︎</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Right: task text (or editor) */}
+                    <View style={styles.itemBlock}>
+                      {isEditing ? (
+                        <>
+                          <TextInput
+                            style={styles.editInput}
+                            value={editingName}
+                            onChangeText={setEditingName}
+                            autoFocus
+                            multiline
+                            onBlur={saveEdit}
+                          />
+                          <View style={styles.editButtonsRow}>
+                            <TouchableOpacity
+                              style={styles.smallButton}
+                              onPress={saveEdit}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.smallButtonText}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.smallButton, styles.smallButtonSecondary]}
+                              onPress={cancelEdit}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.smallButtonSecondaryText}>Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      ) : (
+                        <Text style={styles.itemText}>{chore.name}</Text>
+                      )}
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </View>
@@ -220,6 +343,61 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  /* Add new */
+  addWrap: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  addTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#332244',
+    marginBottom: 8,
+  },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  addInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#332244',
+    backgroundColor: '#f8f4fb',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    marginRight: 8,
+  },
+  addButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  addButtonDisabled: {
+    opacity: 0.5,
+  },
+  addButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  addHint: {
+    fontSize: 12,
+    color: '#7a678e',
+  },
+
   listWrap: {
     width: '100%',
   },
@@ -232,6 +410,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#7a678e',
   },
+
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -242,24 +421,42 @@ const styles = StyleSheet.create({
     borderColor: '#e7dff2',
     marginBottom: 10,
   },
-  indexBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f6f1ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+
+  actionsColumn: {
+    width: 56,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    marginRight: 8,
   },
-  indexText: {
-    fontSize: 13,
+  deleteButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginBottom: 6,
+  },
+  deleteButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  editButtonText: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#553a75',
+    color: '#4b5563',
   },
-  fieldBlock: {
+
+  itemBlock: {
     flex: 1,
   },
-  input: {
+  itemText: {
+    fontSize: 14,
+    color: '#332244',
+  },
+
+  editInput: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#d7c7f0',
@@ -268,6 +465,30 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
     color: '#332244',
-    minHeight: 38,
+    marginTop: 4,
+  },
+  editButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+    gap: 8,
+  },
+  smallButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  smallButtonText: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  smallButtonSecondary: {
+    backgroundColor: '#e5e7eb',
+  },
+  smallButtonSecondaryText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
   },
 });
