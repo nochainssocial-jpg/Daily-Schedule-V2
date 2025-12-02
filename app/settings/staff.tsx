@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   scorePanel: {
     marginTop: 6,
     paddingTop: 10,
-    marginLeft: 20,
+    marginLeft: 30,
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
   },
@@ -752,7 +752,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    paddingLeft: 40,
+    paddingLeft: 20,
   },
   categoryLabel: {
     width: 130,
@@ -771,7 +771,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   deleteButtonText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
     color: '#ef4444',
   },
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
   },
   pill: {
     minWidth: 120,
-    height: 40,
+    height: 30,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d7c7f0',
@@ -852,6 +852,7 @@ const styles = StyleSheet.create({
   marginLeft: 2,    // closer to label
 },
   pillMinusText: {
+    fontSize: 20,
     color: '#ef4444',
     fontWeight: '700',
   },
