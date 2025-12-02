@@ -8,6 +8,8 @@ import {
   Platform,
   Image,
   TouchableOpacity,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +37,9 @@ export default function ParticipantsSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
 
+  const [newName, setNewName] = useState('');
+  const [savingNew, setSavingNew] = useState(false);
+
   const showWebBranding = Platform.OS === 'web';
 
   async function loadParticipants() {
@@ -60,6 +65,47 @@ export default function ParticipantsSettingsScreen() {
     await supabase.from('participants').update({ [field]: value }).eq('id', id);
     setParticipants(prev =>
       prev.map(p => (p.id === id ? { ...p, [field]: value } : p)),
+    );
+  }
+
+  async function addParticipant() {
+    const name = newName.trim();
+    if (!name) return;
+
+    setSavingNew(true);
+    const { data, error } = await supabase
+      .from('participants')
+      .insert({ name, is_active: true })
+      .select()
+      .single();
+
+    setSavingNew(false);
+
+    if (!error && data) {
+      setParticipants(prev =>
+        [...prev, data as ParticipantRow].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        ),
+      );
+      setNewName('');
+    }
+  }
+
+  function confirmDeleteParticipant(p: ParticipantRow) {
+    Alert.alert(
+      'Remove participant',
+      `Remove ${p.name} from the participants list? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('participants').delete().eq('id', p.id);
+            setParticipants(prev => prev.filter(x => x.id !== p.id));
+          },
+        },
+      ],
     );
   }
 
@@ -141,7 +187,6 @@ export default function ParticipantsSettingsScreen() {
       <View style={styles.pillRow}>
         {behaviourOptions.map(opt => {
           if (opt.value === null) {
-            // "-" clears all
             const isClearSelected = selected.length === 0;
             return (
               <TouchableOpacity
@@ -176,7 +221,11 @@ export default function ParticipantsSettingsScreen() {
                 } else {
                   next = [...selected, opt.value];
                 }
-                updateParticipant(id, 'behaviour_profile', behaviourToString(next));
+                updateParticipant(
+                  id,
+                  'behaviour_profile',
+                  behaviourToString(next),
+                );
               }}
               activeOpacity={0.8}
             >
@@ -236,6 +285,36 @@ export default function ParticipantsSettingsScreen() {
             </View>
           </View>
 
+          {/* ADD NEW PARTICIPANT */}
+          <View style={styles.addWrap}>
+            <Text style={styles.addTitle}>Add new participant</Text>
+            <View style={styles.addRow}>
+              <TextInput
+                style={styles.addInput}
+                placeholder="Participant name"
+                value={newName}
+                onChangeText={setNewName}
+                placeholderTextColor="#b8a8d6"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.addButton,
+                  (!newName.trim() || savingNew) && styles.addButtonDisabled,
+                ]}
+                onPress={addParticipant}
+                disabled={!newName.trim() || savingNew}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addButtonText}>
+                  {savingNew ? 'Saving…' : 'Add'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.addHint}>
+              Only add participants who attend the day program.
+            </Text>
+          </View>
+
           {/* Participants list */}
           {loading ? (
             <ActivityIndicator
@@ -246,6 +325,7 @@ export default function ParticipantsSettingsScreen() {
           ) : (
             <View style={styles.listWrap}>
               <View style={styles.headerRow}>
+                <Text style={[styles.headerCell, { width: 32 }]} />
                 <Text style={[styles.headerCell, { flex: 1.4 }]}>
                   Participant
                 </Text>
@@ -261,6 +341,15 @@ export default function ParticipantsSettingsScreen() {
                     key={p.id}
                     style={[styles.row, inactive && styles.rowInactive]}
                   >
+                    {/* Delete button */}
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => confirmDeleteParticipant(p)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.deleteButtonText}>×</Text>
+                    </TouchableOpacity>
+
                     {/* Name + needs */}
                     <View style={[styles.participantInfoBlock, { flex: 1.4 }]}>
                       <View style={styles.colorBox} />
@@ -377,6 +466,61 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  /* Add new participant */
+  addWrap: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  addTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#332244',
+    marginBottom: 8,
+  },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  addInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#332244',
+    backgroundColor: '#f8f4fb',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    marginRight: 8,
+  },
+  addButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  addButtonDisabled: {
+    opacity: 0.5,
+  },
+  addButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  addHint: {
+    fontSize: 12,
+    color: '#7a678e',
+  },
+
   listWrap: {
     width: '100%',
   },
@@ -398,9 +542,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e7dff2',
     marginBottom: 10,
+    alignItems: 'center',
   },
   rowInactive: {
     opacity: 0.5,
+  },
+  deleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  deleteButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    lineHeight: 20,
   },
   participantInfoBlock: {
     flexDirection: 'row',
@@ -433,7 +593,7 @@ const styles = StyleSheet.create({
   },
   pillRow: {
     flexDirection: 'row',
-    flexWrap: 'nowrap', // keep on one line
+    flexWrap: 'nowrap',
   },
   pill: {
     paddingHorizontal: 6,
