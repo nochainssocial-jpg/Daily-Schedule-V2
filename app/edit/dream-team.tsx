@@ -197,9 +197,10 @@ const styles = StyleSheet.create({
   },
   heroIcon: {
     position: 'absolute',
-    right: 80,
-    top: 80,
-    opacity: 0.2,
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     paddingHorizontal: 16,
