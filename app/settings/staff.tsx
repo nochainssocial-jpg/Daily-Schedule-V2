@@ -122,44 +122,44 @@ export default function StaffSettingsScreen() {
 
   const experienceOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: 'Beginner', short: 'Beg', value: 1 },
-    { label: 'Intermediate', short: 'Int', value: 2 },
-    { label: 'Senior', short: 'Sen', value: 3 },
+    { label: '1 - Beginner', short: '1 - Beginner', value: 1 },
+    { label: '2 - Intermediate', short: '2 - Intermediate', value: 2 },
+    { label: '3 - Senior', short: '3 - Senior', value: 3 },
   ];
 
   const behaviourOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: 'Low', short: 'Low', value: 1 },
-    { label: 'Medium', short: 'Med', value: 2 },
-    { label: 'High', short: 'High', value: 3 },
+    { label: '1 - Low', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High', short: '3 - High', value: 3 },
   ];
 
   const reliabilityOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: 'Inconsistent', short: 'Inc', value: 1 },
-    { label: 'Moderate', short: 'Mod', value: 2 },
-    { label: 'Consistent', short: 'Con', value: 3 },
+    { label: '1 - Inconsistent', short: '1 - Inconsistent', value: 1 },
+    { label: '2 - Moderate', short: '2 - Moderate', value: 2 },
+    { label: '3 - Consistent', short: '3 - Consistent', value: 3 },
   ];
 
   const personalCareOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: 'Low', short: 'Low', value: 1 },
-    { label: 'Medium', short: 'Med', value: 2 },
-    { label: 'High', short: 'High', value: 3 },
+    { label: '1 - Low', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High', short: '3 - High', value: 3 },
   ];
 
   const mobilityOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: 'Low', short: 'Low', value: 1 },
-    { label: 'Medium', short: 'Med', value: 2 },
-    { label: 'High', short: 'High', value: 3 },
+    { label: '1 - Low', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High', short: '3 - High', value: 3 },
   ];
 
   const communicationOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
-    { label: 'Basic', short: 'Bas', value: 1 },
-    { label: 'Good', short: 'Good', value: 2 },
-    { label: 'Advanced', short: 'Adv', value: 3 },
+    { label: '1 - Basic', short: '1 - Basic', value: 1 },
+    { label: '2 - Good', short: '2 - Good', value: 2 },
+    { label: '3 - Advanced', short: '3 - Advanced', value: 3 },
   ];
 
   function renderPills(
