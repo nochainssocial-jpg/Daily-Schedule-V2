@@ -134,6 +134,7 @@ export default function EditDreamTeamScreen() {
             Names are always sorted alphabetically.
           </Text>
 
+          {/* Dream Team – uses onsite/offsite styling */}
           <Text style={styles.sectionTitle}>Working at B2 (Dream Team)</Text>
           {dreamTeam.length === 0 ? (
             <Text style={styles.empty}>No staff have been selected yet.</Text>
@@ -154,6 +155,7 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
+          {/* Staff Pool – visually like participant pool, but still shows “offsite” if on outing */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
             Staff Pool
           </Text>
@@ -163,7 +165,7 @@ export default function EditDreamTeamScreen() {
             <View style={styles.chipGrid}>
               {staffPool.map((s: any) => {
                 const isOutOnOuting = outingStaffSet.has(String(s.id));
-                const mode = isOutOnOuting ? 'offsite' : 'onsite';
+                const mode = isOutOnOuting ? 'offsite' : 'default';
                 return (
                   <Chip
                     key={s.id}
