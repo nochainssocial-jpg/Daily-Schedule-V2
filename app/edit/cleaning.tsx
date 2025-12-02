@@ -59,10 +59,15 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  // 🔁 Working staff for cleaning = Dream Team minus outing staff
+// 🔁 Working staff for cleaning = Dream Team minus outing staff
+  const workingSet = useMemo(
+    () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
+    [workingStaff],
+  );
+
   const workingStaffList: Staff[] = useMemo(() => {
     const base = (staff || []).filter((s: Staff) =>
-      (workingStaff || []).includes(s.id),
+      workingSet.has(String(s.id)),
     );
 
     if (!outingGroup) {
@@ -71,13 +76,17 @@ export default function CleaningEditScreen() {
       );
     }
 
-    const excluded = new Set<string>((outingGroup.staffIds ?? []) as string[]);
-    const onsite = base.filter((s) => !excluded.has(s.id));
+    const excluded = new Set<string>(
+      ((outingGroup.staffIds ?? []) as (string | number)[]).map((id) =>
+        String(id),
+      ),
+    );
+    const onsite = base.filter((s) => !excluded.has(String(s.id)));
 
     return onsite.sort((a, b) =>
       String(a.name).localeCompare(String(b.name), 'en-AU'),
     );
-  }, [staff, workingStaff, outingGroup]);
+  }, [staff, workingSet, outingGroup]);
 
   // ✅ Set of staff allowed to hold cleaning duties (onsite only)
   const allowedStaffIds = useMemo(
