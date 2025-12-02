@@ -22,7 +22,7 @@ type ParticipantRow = {
   name: string;
   is_active?: boolean | null;
   complexity_level?: number | null;
-  behaviour_profile?: string | null; // CSV string for multi-select
+  behaviour_profile?: string | null; // CSV string
   support_needs?: string | null;
 };
 
@@ -118,7 +118,7 @@ export default function ParticipantsSettingsScreen() {
     { label: 'Very high / complex', short: 'Comp', value: 4 },
   ];
 
-  // ----- Behaviour: MULTI-select, stored as CSV in behaviour_profile -----
+  // ----- Behaviour: MULTI-select -----
   const behaviourOptions: Option<string | null>[] = [
     { label: 'Clear all', short: '-', value: null },
     { label: 'Behavioural', short: 'Behav', value: 'behavioural' },
@@ -152,24 +152,32 @@ export default function ParticipantsSettingsScreen() {
             (currentValue === null || currentValue === undefined)
               ? opt.value === null
               : currentValue === opt.value;
+          const isMinus = opt.short === '-';
+
+          const pillStyles = [styles.pill];
+          if (isMinus) {
+            pillStyles.push(styles.pillMinus);
+          } else if (isSelected) {
+            pillStyles.push(styles.pillActiveBlue);
+          }
+
+          const textStyles = [styles.pillText];
+          if (isMinus) {
+            textStyles.push(styles.pillMinusText);
+          } else if (isSelected) {
+            textStyles.push(styles.pillTextActive);
+          }
 
           return (
             <TouchableOpacity
               key={`complexity-${id}-${opt.short}`}
-              style={[styles.pill, isSelected && styles.pillActiveBlue]}
+              style={pillStyles}
               onPress={() =>
                 updateParticipant(id, 'complexity_level', opt.value)
               }
               activeOpacity={0.8}
             >
-              <Text
-                style={[
-                  styles.pillText,
-                  isSelected && styles.pillTextActive,
-                ]}
-              >
-                {opt.short}
-              </Text>
+              <Text style={textStyles}>{opt.short}</Text>
             </TouchableOpacity>
           );
         })}
@@ -187,22 +195,17 @@ export default function ParticipantsSettingsScreen() {
       <View style={styles.pillRow}>
         {behaviourOptions.map(opt => {
           if (opt.value === null) {
-            const isClearSelected = selected.length === 0;
+            // "-" clear-all: always red pill
             return (
               <TouchableOpacity
                 key={`behaviour-${id}-${opt.short}`}
-                style={[styles.pill, isClearSelected && styles.pillActiveBlue]}
+                style={[styles.pill, styles.pillMinus]}
                 onPress={() =>
                   updateParticipant(id, 'behaviour_profile', null)
                 }
                 activeOpacity={0.8}
               >
-                <Text
-                  style={[
-                    styles.pillText,
-                    isClearSelected && styles.pillTextActive,
-                  ]}
-                >
+                <Text style={[styles.pillText, styles.pillMinusText]}>
                   {opt.short}
                 </Text>
               </TouchableOpacity>
@@ -210,10 +213,16 @@ export default function ParticipantsSettingsScreen() {
           }
 
           const isSelected = selected.includes(opt.value);
+          const pillStyles = [styles.pill];
+          if (isSelected) pillStyles.push(styles.pillActiveBlue);
+
+          const textStyles = [styles.pillText];
+          if (isSelected) textStyles.push(styles.pillTextActive);
+
           return (
             <TouchableOpacity
               key={`behaviour-${id}-${opt.short}`}
-              style={[styles.pill, isSelected && styles.pillActiveBlue]}
+              style={pillStyles}
               onPress={() => {
                 let next: string[];
                 if (isSelected) {
@@ -229,14 +238,7 @@ export default function ParticipantsSettingsScreen() {
               }}
               activeOpacity={0.8}
             >
-              <Text
-                style={[
-                  styles.pillText,
-                  isSelected && styles.pillTextActive,
-                ]}
-              >
-                {opt.short}
-              </Text>
+              <Text style={textStyles}>{opt.short}</Text>
             </TouchableOpacity>
           );
         })}
@@ -341,13 +343,13 @@ export default function ParticipantsSettingsScreen() {
                     key={p.id}
                     style={[styles.row, inactive && styles.rowInactive]}
                   >
-                    {/* Delete button */}
+                    {/* Delete button – red X text only */}
                     <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => confirmDeleteParticipant(p)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.deleteButtonText}>×</Text>
+                      <Text style={styles.deleteButtonText}>x</Text>
                     </TouchableOpacity>
 
                     {/* Name + needs */}
@@ -547,21 +549,19 @@ const styles = StyleSheet.create({
   rowInactive: {
     opacity: 0.5,
   },
+
+  // NEW: red X only
   deleteButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
     marginRight: 8,
   },
   deleteButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
-    lineHeight: 20,
+    color: '#ef4444',
   },
+
   participantInfoBlock: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -615,5 +615,15 @@ const styles = StyleSheet.create({
   pillTextActive: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+
+  // NEW: minus pill styling
+  pillMinus: {
+    backgroundColor: '#ef4444',
+    borderColor: '#ef4444',
+  },
+  pillMinusText: {
+    color: '#ffffff',
+    fontWeight: '700',
   },
 });
