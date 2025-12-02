@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
 import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
 import { STAFF as STATIC_STAFF } from '@/constants/data';
@@ -20,16 +21,10 @@ import Chip from '@/components/Chip';
 
 type ID = string;
 
-const makeStaffMap = () => {
-  const map: Record<string, any> = {};
-  STATIC_STAFF.forEach((s) => {
-    map[s.id] = s;
-  });
-  return map;
-};
-
 const sortByName = (list: any[]) =>
-  list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  list
+    .slice()
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
 export default function EditDreamTeamScreen() {
   const { width } = useWindowDimensions();
@@ -38,53 +33,79 @@ export default function EditDreamTeamScreen() {
   const readOnly = !isAdmin;
 
   const {
+    staff: scheduleStaff,
     workingStaff = [],
     outingGroup,
     updateSchedule,
   } = useSchedule() as any;
 
-  const staffById = useMemo(makeStaffMap, []);
-  const allStaff = useMemo(
-    () => sortByName(STATIC_STAFF.slice()),
-    []
+  // Single source of truth for staff:
+  //   • Prefer staff from the current schedule snapshot (Supabase)
+  //   • Fall back to STATIC_STAFF only if nothing is stored yet
+  const staffSource =
+    (Array.isArray(scheduleStaff) && scheduleStaff.length
+      ? scheduleStaff
+      : STATIC_STAFF) || [];
+
+  const staffById = useMemo(() => {
+    const map: Record<string, any> = {};
+    staffSource.forEach((s: any) => {
+      if (!s) return;
+      const key = String(s.id);
+      if (!key) return;
+      map[key] = s;
+    });
+    return map;
+  }, [staffSource]);
+
+  const workingSet = useMemo(
+    () => new Set<string>((workingStaff as ID[]).map((id) => String(id))),
+    [workingStaff],
   );
+
+  const allStaff = useMemo(() => sortByName(staffSource), [staffSource]);
 
   const dreamTeam = useMemo(
     () =>
       sortByName(
-        (workingStaff as ID[])
+        Array.from(workingSet)
           .map((id) => staffById[id])
-          .filter(Boolean)
+          .filter(Boolean),
       ),
-    [workingStaff, staffById]
+    [workingSet, staffById],
   );
 
   const staffPool = useMemo(
     () =>
       sortByName(
-        allStaff.filter((s) => !(workingStaff as ID[]).includes(s.id))
+        allStaff.filter((s: any) => !workingSet.has(String(s.id))),
       ),
-    [allStaff, workingStaff]
+    [allStaff, workingSet],
   );
 
-  const outingStaffSet = useMemo(
-    () => new Set<string>(outingGroup?.staffIds ?? []),
-    [outingGroup]
-  );
+  const outingStaffSet = useMemo(() => {
+    const ids = ((outingGroup?.staffIds ?? []) as (string | number)[]).map(
+      (id) => String(id),
+    );
+    return new Set<string>(ids);
+  }, [outingGroup]);
 
   const toggleStaff = (id: ID) => {
     if (readOnly) {
       push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
-    const current = new Set<string>(workingStaff as ID[]);
-    if (current.has(id)) {
-      current.delete(id);
+
+    const key = String(id);
+    const next = new Set<string>(Array.from(workingSet));
+
+    if (next.has(key)) {
+      next.delete(key);
     } else {
-      current.add(id);
+      next.add(key);
     }
-    const next = Array.from(current);
-    updateSchedule?.({ workingStaff: next });
+
+    updateSchedule?.({ workingStaff: Array.from(next) });
     push?.('Dream Team updated', 'dream-team');
   };
 
@@ -93,7 +114,8 @@ export default function EditDreamTeamScreen() {
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="dreamTeam" />
-      {/* Web-only hero icon... */}
+
+      {/* Web-only hero icon for larger layouts */}
       {Platform.OS === 'web' && width >= 900 && (
         <Ionicons
           name="people-circle-outline"
@@ -107,9 +129,9 @@ export default function EditDreamTeamScreen() {
         <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>The Dream Team</Text>
           <Text style={styles.subtitle}>
-            Tap staff to mark who is working at B2 today. Working at B2 are shown at
-            the top; everyone else appears in the Staff Pool below. Names are always
-            sorted alphabetically.
+            Tap staff to mark who is working at B2 today. Working at B2 are
+            shown at the top; everyone else appears in the Staff Pool below.
+            Names are always sorted alphabetically.
           </Text>
 
           <Text style={styles.sectionTitle}>Working at B2 (Dream Team)</Text>
@@ -117,8 +139,8 @@ export default function EditDreamTeamScreen() {
             <Text style={styles.empty}>No staff have been selected yet.</Text>
           ) : (
             <View style={styles.chipGrid}>
-              {dreamTeam.map((s) => {
-                const isOutOnOuting = outingStaffSet.has(s.id as ID);
+              {dreamTeam.map((s: any) => {
+                const isOutOnOuting = outingStaffSet.has(String(s.id));
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
                 return (
                   <Chip
@@ -132,19 +154,21 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Staff Pool</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
+            Staff Pool
+          </Text>
           {staffPool.length === 0 ? (
             <Text style={styles.empty}>Everyone is working at B2 today.</Text>
           ) : (
             <View style={styles.chipGrid}>
-              {staffPool.map((s) => {
-                const isOutOnOuting = outingStaffSet.has(s.id as ID);
+              {staffPool.map((s: any) => {
+                const isOutOnOuting = outingStaffSet.has(String(s.id));
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
                 return (
                   <Chip
                     key={s.id}
                     label={s.name}
-                    mode="default"
+                    mode={mode as any}
                     onPress={() => toggleStaff(s.id as ID)}
                   />
                 );
@@ -152,15 +176,11 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, styles.legendOnsite]} />
-              <Text style={styles.legendLabel}>On-site</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, styles.legendOffsite]} />
-              <Text style={styles.legendLabel}>On outing</Text>
-            </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, styles.legendOnsite]} />
+            <Text style={styles.legendLabel}>Onsite at B2</Text>
+            <View style={[styles.legendDot, styles.legendOffsite]} />
+            <Text style={styles.legendLabel}>Out on Outing</Text>
           </View>
         </View>
       </ScrollView>
@@ -171,19 +191,17 @@ export default function EditDreamTeamScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FDE68A',
+    backgroundColor: '#F4F0FB',
   },
   heroIcon: {
     position: 'absolute',
-    top: '25%',
-    left: '10%',
-    opacity: 1,
-    zIndex: 0,
+    right: 80,
+    top: 80,
+    opacity: 0.2,
   },
   scroll: {
     paddingHorizontal: 16,
-    paddingVertical: Platform.select({ ios: 24, android: 24, default: 24 }),
-    paddingBottom: 160,
+    paddingBottom: 32,
   },
   inner: {
     alignSelf: 'center',
@@ -192,44 +210,39 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#4b164c',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
+    color: '#5f3b73',
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#4b164c',
     marginBottom: 8,
-    color: '#3c234c',
+  },
+  empty: {
+    fontSize: 14,
+    color: '#7b4f8f',
+    fontStyle: 'italic',
   },
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  empty: {
-    fontSize: 13,
-    opacity: 0.75,
-    color: '#7a688c',
-  },
-  legend: {
+  legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 24,
-    gap: 16,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
   },
-  legendSwatch: {
-    width: 20,
-    height: 20,
-    borderRadius: 999,
+  legendDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 1,
   },
   legendOnsite: {
