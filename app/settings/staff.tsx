@@ -848,8 +848,8 @@ const styles = StyleSheet.create({
   borderWidth: 0,
   backgroundColor: 'transparent',
   borderColor: 'transparent',
-  marginRight: 4,   // closer to pills
-  marginLeft: 2,    // closer to label
+  marginRight: 1,   // closer to pills
+  marginLeft: 1,    // closer to label
 },
   pillMinusText: {
     fontSize: 20,
