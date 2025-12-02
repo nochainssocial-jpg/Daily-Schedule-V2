@@ -681,8 +681,9 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    marginBottom: 6,
-  },
+    alignItems: 'center',
+    marginLeft: 20,   // NEW — aligns header with criteria block
+  }
   headerCell: {
     fontSize: 11,
     fontWeight: '600',
@@ -723,6 +724,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 'auto',
+    marginRight: 10,
   },
   scoreBubbleLow: {
     backgroundColor: '#fee2e2',
@@ -768,7 +771,8 @@ const styles = StyleSheet.create({
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginRight: 6,
+    marginRight: 8,
+    marginLeft: 0,    // ensure it aligns exactly with headerRow margin
   },
   deleteButtonText: {
     fontSize: 20,
