@@ -73,12 +73,12 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   );
 
   const helperSet = useMemo(
-    () => new Set(helperStaff || []),
+    () => new Set<string>((helperStaff || []).map((id: any) => String(id))),
     [helperStaff],
   );
 
   const workingSet = useMemo(
-    () => new Set(workingStaff || []),
+    () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
   );
 
@@ -86,7 +86,9 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   const workingStaffList = useMemo(
     () =>
       staff
-        .filter((s) => workingSet.has(s.id) && !isEveryone(s.name))
+        .filter(
+          (s) => workingSet.has(String(s.id)) && !isEveryone(s.name),
+        )
         .sort((a, b) => a.name.localeCompare(b.name)),
     [staff, workingSet],
   );
@@ -95,7 +97,10 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   const helperPool = useMemo(
     () =>
       staff
-        .filter((s) => !workingSet.has(s.id) && !isEveryone(s.name))
+        .filter(
+          (s) =>
+            !workingSet.has(String(s.id)) && !isEveryone(s.name),
+        )
         .sort((a, b) => a.name.localeCompare(b.name)),
     [staff, workingSet],
   );
@@ -103,7 +108,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
   const helperStaffList = useMemo(
     () =>
       staff
-        .filter((s) => helperSet.has(s.id as ID))
+        .filter((s) => helperSet.has(String(s.id)))
         .sort((a, b) => a.name.localeCompare(b.name)),
     [staff, helperSet],
   );
