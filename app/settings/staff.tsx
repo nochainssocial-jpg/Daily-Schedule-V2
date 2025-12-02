@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
     color: '#332244',
   },
   scorePanel: {
-    marginTop: 10,
+    marginTop: 6,
     paddingTop: 10,
     marginLeft: 20,
     borderTopWidth: 1,
@@ -752,13 +752,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    paddingLeft: 50,
+    paddingLeft: 40,
   },
   categoryLabel: {
     width: 130,
     fontSize: 13,
     fontWeight: '600',
     color: '#553a75',
+    marginRight: 4,   // closer to minus
   },
   categoryPills: {
     flex: 1,
@@ -805,14 +806,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   pill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    minWidth: 120,
+    height: 40,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d7c7f0',
     backgroundColor: '#f6f1ff',
-    marginRight: 4,
-    marginBottom: 4,
+    marginRight: 6,   // tighter spacing
+    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pillActive: {
     backgroundColor: '#008aff',
@@ -840,14 +843,14 @@ const styles = StyleSheet.create({
   },
   // NEW: minus pill styling
   pillMinus: {
-    // Show just a red "-" with no pill background
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-    marginRight: 6,
-  },
+  paddingHorizontal: 0,
+  paddingVertical: 0,
+  borderWidth: 0,
+  backgroundColor: 'transparent',
+  borderColor: 'transparent',
+  marginRight: 4,   // closer to pills
+  marginLeft: 2,    // closer to label
+},
   pillMinusText: {
     color: '#ef4444',
     fontWeight: '700',
