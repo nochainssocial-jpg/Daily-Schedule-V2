@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   scoreBubble: {
-    minWidth: 60,
+    Width: 80,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   scorePanel: {
     marginTop: 10,
     paddingTop: 10,
-    paddingLeft: 20,
+    marginLeft: 20,
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
   },
