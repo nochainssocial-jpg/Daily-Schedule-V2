@@ -277,21 +277,21 @@ export default function StaffSettingsScreen() {
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Experience:</Text>
                   <Text style={styles.legendText}>
-                    Beginner (Beg), Intermediate (Int), Senior (Sen)
+                    Overall level of experience and confidence supporting participants across different needs.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Behaviour:</Text>
                   <Text style={styles.legendText}>
-                    Behaviour support — Low, Medium, High
+                    Ability to manage, de-escalate, and prevent behaviours of concern.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Personal care:</Text>
                   <Text style={styles.legendText}>
-                    Personal care support — Low, Medium, High
+                    Competence with hygiene, toileting, showering, dressing, and medication prompts.
                   </Text>
                 </View>
 
@@ -305,14 +305,14 @@ export default function StaffSettingsScreen() {
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Communication:</Text>
                   <Text style={styles.legendText}>
-                    Communication support — Basic, Good, Advanced
+                    Skill in supporting verbal, non-verbal, or cognitively impaired participants.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Reliability:</Text>
                   <Text style={styles.legendText}>
-                    Reliability — Inconsistent (Inc), Moderate (Mod), Consistent (Con)
+                    Punctuality, attendance, communication, and consistency in following plans.
                   </Text>
                 </View>
               </>
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#553a75',
-    width: 80,
+    width: 110,
   },
   legendText: {
     fontSize: 13,
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   scoreBubble: {
-    minWidth: 40,
+    minWidth: 60,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -744,6 +744,7 @@ const styles = StyleSheet.create({
   scorePanel: {
     marginTop: 10,
     paddingTop: 10,
+    paddingLeft: 20,
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
   },
@@ -751,6 +752,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    paddingLeft: 50,
   },
   categoryLabel: {
     width: 130,
