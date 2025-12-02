@@ -9,6 +9,8 @@ import {
   Platform,
   Image,
   TextInput,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +27,14 @@ export default function ChecklistSettingsScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ChecklistRow[]>([]);
+
+  // Add-new state
+  const [newName, setNewName] = useState('');
+  const [savingNew, setSavingNew] = useState(false);
+
+  // Edit-on-pencil state
+  const [editingId, setEditingId] = useState<string | number | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const showWebBranding = Platform.OS === 'web';
 
@@ -45,14 +55,69 @@ export default function ChecklistSettingsScreen() {
     loadItems();
   }, []);
 
-  async function updateItem(id: string | number, name: string) {
+  async function addItem() {
+    const name = newName.trim();
+    if (!name) return;
+
+    setSavingNew(true);
+    const { data, error } = await supabase
+      .from('final_checklist_items')
+      .insert({ name })
+      .select()
+      .single();
+
+    setSavingNew(false);
+
+    if (!error && data) {
+      setItems(prev => [...prev, data as ChecklistRow]);
+      setNewName('');
+    }
+  }
+
+  function startEdit(item: ChecklistRow) {
+    setEditingId(item.id);
+    setEditingName(item.name ?? '');
+  }
+
+  async function saveEdit() {
+    if (editingId === null) return;
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      return;
+    }
+
     await supabase
       .from('final_checklist_items')
-      .update({ name })
-      .eq('id', id);
+      .update({ name: trimmed })
+      .eq('id', editingId);
 
     setItems(prev =>
-      prev.map(i => (i.id === id ? { ...i, name } : i)),
+      prev.map(i => (i.id === editingId ? { ...i, name: trimmed } : i)),
+    );
+    setEditingId(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingName('');
+  }
+
+  function confirmDeleteItem(item: ChecklistRow) {
+    Alert.alert(
+      'Remove checklist item',
+      `Remove "${item.name}" from the final checklist? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('final_checklist_items').delete().eq('id', item.id);
+            setItems(prev => prev.filter(i => i.id !== item.id));
+          },
+        },
+      ],
     );
   }
 
@@ -70,44 +135,120 @@ export default function ChecklistSettingsScreen() {
         <View style={styles.inner}>
           <Text style={styles.heading}>End of Shift Checklist</Text>
           <Text style={styles.subHeading}>
-            Review and fine-tune the final checklist that staff complete before closing the house.
+            Manage the final checklist that staff complete before closing the house.
           </Text>
 
           <View style={styles.legendWrap}>
             <Text style={styles.legendTitle}>How this works</Text>
             <Text style={styles.legendText}>
-              These items appear in the end-of-shift checklist screen and any weekly reports.
-              Edit wording to match the MD&apos;s expectations. Changes save automatically when you leave the field.
+              These items appear in the end-of-shift checklist screen and any weekly
+              reports. Tap the pencil to edit wording, or the red X to remove an item.
+            </Text>
+          </View>
+
+          {/* Add new checklist item */}
+          <View style={styles.addWrap}>
+            <Text style={styles.addTitle}>Add new checklist item</Text>
+            <View style={styles.addRow}>
+              <TextInput
+                style={styles.addInput}
+                placeholder="Checklist item"
+                value={newName}
+                onChangeText={setNewName}
+                placeholderTextColor="#b8a8d6"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.addButton,
+                  (!newName.trim() || savingNew) && styles.addButtonDisabled,
+                ]}
+                onPress={addItem}
+                disabled={!newName.trim() || savingNew}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addButtonText}>
+                  {savingNew ? 'Saving…' : 'Add'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.addHint}>
+              Add any extra checks the MD wants completed before staff leave.
             </Text>
           </View>
 
           {loading ? (
-            <ActivityIndicator size="large" color="#c084fc" style={{ marginTop: 40 }} />
+            <ActivityIndicator
+              size="large"
+              color="#c084fc"
+              style={{ marginTop: 40 }}
+            />
           ) : (
             <View style={styles.listWrap}>
-              {items.map(item => (
-                <View key={item.id} style={styles.row}>
-                  <View style={styles.bullet}>
-                    <Text style={styles.bulletText}>{item.id}</Text>
+              <View style={styles.headerRow}>
+                <Text style={[styles.headerCell, { width: 60 }]}>Actions</Text>
+                <Text style={[styles.headerCell, { flex: 1 }]}>Checklist item</Text>
+              </View>
+
+              {items.map(item => {
+                const isEditing = editingId === item.id;
+
+                return (
+                  <View key={item.id} style={styles.row}>
+                    {/* Left: delete + pencil */}
+                    <View style={styles.actionsColumn}>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => confirmDeleteItem(item)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.deleteButtonText}>x</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => startEdit(item)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.editButtonText}>✏︎</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Right: text or editor */}
+                    <View style={styles.itemBlock}>
+                      {isEditing ? (
+                        <>
+                          <TextInput
+                            style={styles.editInput}
+                            value={editingName}
+                            onChangeText={setEditingName}
+                            autoFocus
+                            multiline
+                            onBlur={saveEdit}
+                          />
+                          <View style={styles.editButtonsRow}>
+                            <TouchableOpacity
+                              style={styles.smallButton}
+                              onPress={saveEdit}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.smallButtonText}>Save</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.smallButton, styles.smallButtonSecondary]}
+                              onPress={cancelEdit}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.smallButtonSecondaryText}>Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      ) : (
+                        <Text style={styles.itemText}>{item.name}</Text>
+                      )}
+                    </View>
                   </View>
-                  <TextInput
-                    style={styles.input}
-                    value={item.name ?? ''}
-                    onChangeText={text =>
-                      setItems(prev =>
-                        prev.map(i =>
-                          i.id === item.id ? { ...i, name: text } : i,
-                        ),
-                      )
-                    }
-                    onBlur={() => {
-                      const current = items.find(i => i.id === item.id);
-                      updateItem(item.id, current?.name ?? '');
-                    }}
-                    multiline
-                  />
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </View>
@@ -154,6 +295,7 @@ const styles = StyleSheet.create({
     color: '#553a75',
     marginBottom: 16,
   },
+
   legendWrap: {
     backgroundColor: '#ffffff',
     padding: 14,
@@ -176,9 +318,75 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b5a7d',
   },
+
+  /* Add new */
+  addWrap: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  addTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#332244',
+    marginBottom: 8,
+  },
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  addInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#332244',
+    backgroundColor: '#f8f4fb',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    marginRight: 8,
+  },
+  addButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  addButtonDisabled: {
+    opacity: 0.5,
+  },
+  addButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  addHint: {
+    fontSize: 12,
+    color: '#7a678e',
+  },
+
   listWrap: {
     width: '100%',
   },
+  headerRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  headerCell: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7a678e',
+  },
+
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -189,24 +397,74 @@ const styles = StyleSheet.create({
     borderColor: '#e7dff2',
     marginBottom: 10,
   },
-  bullet: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#4f46e5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
+
+  actionsColumn: {
+    width: 56,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    marginRight: 8,
   },
-  bulletText: {
-    fontSize: 13,
+  deleteButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginBottom: 6,
+  },
+  deleteButtonText: {
+    fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#ef4444',
   },
-  input: {
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  editButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+
+  itemBlock: {
     flex: 1,
+  },
+  itemText: {
     fontSize: 14,
     color: '#332244',
-    paddingVertical: 4,
+  },
+
+  editInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f8f4ff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#332244',
+    marginTop: 4,
+  },
+  editButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+    gap: 8,
+  },
+  smallButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  smallButtonText: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  smallButtonSecondary: {
+    backgroundColor: '#e5e7eb',
+  },
+  smallButtonSecondaryText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
   },
 });
