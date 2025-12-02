@@ -619,11 +619,16 @@ const styles = StyleSheet.create({
 
   // NEW: minus pill styling
   pillMinus: {
-    backgroundColor: '#ef4444',
-    borderColor: '#ef4444',
+    // Show just a red "-" with no pill background
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    marginRight: 8,
   },
   pillMinusText: {
-    color: '#ffffff',
+    color: '#ef4444',
     fontWeight: '700',
   },
 });
