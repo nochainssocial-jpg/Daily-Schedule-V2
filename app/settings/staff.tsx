@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e7dff2',
     marginBottom: 10,
-    alignItems: 'center',
+    alignItems: 'stretch',   // ⬅ was 'center'
   },
   rowInactive: {
     opacity: 0.5,
