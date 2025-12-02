@@ -149,19 +149,30 @@ export default function StaffSettingsScreen() {
             (currentValue === null || currentValue === undefined)
               ? opt.value === null
               : currentValue === opt.value;
+          const isMinus = opt.short === '-';
+
+          const pillStyles = [styles.pill];
+          if (isMinus) {
+            pillStyles.push(styles.pillMinus);
+          } else if (isSelected) {
+            pillStyles.push(styles.pillActive);
+          }
+
+          const textStyles = [styles.pillText];
+          if (isMinus) {
+            textStyles.push(styles.pillMinusText);
+          } else if (isSelected) {
+            textStyles.push(styles.pillTextActive);
+          }
 
           return (
             <TouchableOpacity
               key={`${field}-${staffId}-${opt.short}`}
-              style={[styles.pill, isSelected && styles.pillActive]}
+              style={pillStyles}
               onPress={() => updateStaff(staffId, field, opt.value)}
               activeOpacity={0.8}
             >
-              <Text
-                style={[styles.pillText, isSelected && styles.pillTextActive]}
-              >
-                {opt.short}
-              </Text>
+              <Text style={textStyles}>{opt.short}</Text>
             </TouchableOpacity>
           );
         })}
@@ -276,13 +287,13 @@ export default function StaffSettingsScreen() {
                     key={s.id}
                     style={[styles.row, inactive && styles.rowInactive]}
                   >
-                    {/* Delete button */}
+                    {/* Delete button – red X text only */}
                     <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => confirmDeleteStaff(s)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.deleteButtonText}>×</Text>
+                      <Text style={styles.deleteButtonText}>x</Text>
                     </TouchableOpacity>
 
                     <View style={[styles.staffInfoBlock, { flex: 1.2 }]}>
@@ -496,21 +507,19 @@ const styles = StyleSheet.create({
   rowInactive: {
     opacity: 0.5,
   },
+
+  // NEW: red X only
   deleteButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
     marginRight: 8,
   },
   deleteButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
-    lineHeight: 20,
+    color: '#ef4444',
   },
+
   staffInfoBlock: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -560,5 +569,15 @@ const styles = StyleSheet.create({
   },
   pillTextActive: {
     color: '#ffffff',
+  },
+
+  // NEW: minus pill styling
+  pillMinus: {
+    backgroundColor: '#ef4444',
+    borderColor: '#ef4444',
+  },
+  pillMinusText: {
+    color: '#ffffff',
+    fontWeight: '700',
   },
 });
