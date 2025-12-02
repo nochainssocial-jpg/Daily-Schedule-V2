@@ -376,7 +376,7 @@ export default function StaffSettingsScreen() {
                       width: 70,
                       textAlign: 'right',
                       marginRight: 25,
-                      marginTop: -2,
+                      marginTop: -4,
                     },
                   ]}
                 >
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginLeft: 20,
+    marginLeft: 30,
     marginTop: -6,
   },
   headerCell: {
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
     color: '#5b4a76',
   },
   pillTextActive: {
-    color: '#ffffff',
+    color: '#000000',
   },
 
   pillSelectedLow: {
