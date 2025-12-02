@@ -368,7 +368,17 @@ export default function StaffSettingsScreen() {
             <View style={styles.listWrap}>
               <View style={styles.headerRow}>
                 <Text style={[styles.headerCell, { width: 32 }]} />
-                <Text style={[styles.headerCell, { flex: 1 }]}>Staff</Text>
+                <Text
+                  style={[
+                    styles.headerCell,
+                    {
+                      flex: 1,
+                      marginTop: -4,
+                    },
+                  ]}
+                >
+                  Staff
+                </Text>
                 <Text
                   style={[
                     styles.headerCell,
