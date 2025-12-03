@@ -149,7 +149,7 @@ export default function CleaningEditScreen() {
       push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
-    setBinsVariant((prev) => ((prev + 1) % 3) as 0 | 1 | 2);
+    setBinsVariant((prev) => ((prev + 1) % 4) as 0 | 1 | 2 | 3);
   };
 
   const isBinsChore = (chore: Chore) => {
