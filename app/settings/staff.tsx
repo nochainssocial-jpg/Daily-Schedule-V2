@@ -414,13 +414,17 @@ export default function StaffSettingsScreen() {
                   <View key={s.id} style={rowStyles}>
                     {/* Row header: delete + staff info + score bubble */}
                     <View style={styles.rowHeader}>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => confirmDeleteStaff(s)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.deleteButtonText}>x</Text>
-                      </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => confirmDeleteStaff(s)}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons
+                        name="trash-can-outline"
+                        size={20}
+                        color="#ef4444"
+                      />
+                    </TouchableOpacity>
 
                       <TouchableOpacity
                         style={styles.rowHeaderMain}
