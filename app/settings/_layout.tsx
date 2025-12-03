@@ -14,32 +14,14 @@ type SettingsHeaderTitleProps = {
 
 function SettingsHeaderTitle({ iconName, label }: SettingsHeaderTitleProps) {
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 999,
-          backgroundColor: WHITE,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: 8,
-        }}
-      >
-        <MaterialCommunityIcons name={iconName} size={20} color={PINK} />
-      </View>
-      <Text
-        style={{
-          fontSize: 16,
-          fontWeight: '700',
-          color: PINK,
-        }}
-      >
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <MaterialCommunityIcons
+        name={iconName}
+        size={22}
+        color={PINK}
+        style={{ marginRight: 8 }}
+      />
+      <Text style={{ fontSize: 20, fontWeight: '600', color: PINK }}>
         {label}
       </Text>
     </View>
@@ -52,29 +34,21 @@ export default function SettingsLayout() {
       screenOptions={{
         headerTitleAlign: 'center',
         headerShadowVisible: false,
-        headerStyle: {
-          backgroundColor: 'transparent',
-        },
         headerTintColor: PINK,
-        contentStyle: {
-          backgroundColor: 'transparent',
-        },
+        headerStyle: { backgroundColor: WHITE },
       }}
     >
-      {/* Settings hub (matches Admin Hub style) */}
+      {/* SETTINGS HOME */}
       <Stack.Screen
         name="index"
         options={{
           headerTitle: () => (
-            <SettingsHeaderTitle
-              iconName="cog-outline"
-              label="Settings"
-            />
+            <SettingsHeaderTitle iconName="cog-outline" label="Settings" />
           ),
         }}
       />
 
-      {/* Staff settings */}
+      {/* STAFF */}
       <Stack.Screen
         name="staff"
         options={{
@@ -87,7 +61,7 @@ export default function SettingsLayout() {
         }}
       />
 
-      {/* Participants settings */}
+      {/* PARTICIPANTS */}
       <Stack.Screen
         name="participants"
         options={{
@@ -100,7 +74,7 @@ export default function SettingsLayout() {
         }}
       />
 
-      {/* Cleaning tasks / chores */}
+      {/* CLEANING TASKS / CHORES */}
       <Stack.Screen
         name="chores"
         options={{
@@ -113,7 +87,7 @@ export default function SettingsLayout() {
         }}
       />
 
-      {/* Final checklist */}
+      {/* FINAL CHECKLIST */}
       <Stack.Screen
         name="checklist"
         options={{
