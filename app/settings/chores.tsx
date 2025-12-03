@@ -432,20 +432,20 @@ const styles = StyleSheet.create({
   },
 
   actionsColumn: {
-    width: 56,
-    alignItems: 'flex-start',
+    flexDirection: 'row',      // NEW – horizontal
+    alignItems: 'center',
     justifyContent: 'flex-start',
     marginRight: 8,
   },
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginBottom: 6,
+    marginRight: 6,            // space between bin and pencil
   },
-  deleteButtonText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ef4444',
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginRight: 8,            // space between pencil and text
   },
   editButton: {
     paddingHorizontal: 4,
