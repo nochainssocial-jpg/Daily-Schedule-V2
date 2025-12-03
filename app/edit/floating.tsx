@@ -77,6 +77,12 @@ function isAntoinette(staff: any): boolean {
   return name.includes('antoinette');
 }
 
+// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
+function isEveryone(staff: any): boolean {
+  const name = String(staff?.name || '').trim().toLowerCase();
+  return name === 'everyone';
+}
+
 function buildAutoAssignments(
   working: any[],
   timeSlots: any[],
@@ -207,7 +213,7 @@ export default function FloatingScreen() {
 
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
 
-    const workingSet = useMemo(
+  const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
   );
@@ -222,11 +228,14 @@ export default function FloatingScreen() {
     [outingGroup],
   );
 
+  // 🔹 Only real onsite Dream Team staff – exclude "Everyone"
   const onsiteWorking = useMemo(
     () =>
       (staff || []).filter(
         (s: any) =>
-          workingSet.has(String(s.id)) && !outingStaffSet.has(String(s.id)),
+          !isEveryone(s) &&
+          workingSet.has(String(s.id)) &&
+          !outingStaffSet.has(String(s.id)),
       ),
     [staff, workingSet, outingStaffSet],
   );
@@ -234,6 +243,7 @@ export default function FloatingScreen() {
   const sortedWorking = useMemo(
     () =>
       (onsiteWorking || [])
+        .filter((s: any) => !isEveryone(s))
         .slice()
         .sort((a: any, b: any) =>
           String(a.name || '').localeCompare(String(b.name || '')),
