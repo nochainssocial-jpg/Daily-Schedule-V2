@@ -213,15 +213,23 @@ export default function ChoresSettingsScreen() {
                         onPress={() => confirmDeleteChore(chore)}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.deleteButtonText}>x</Text>
+                        <MaterialCommunityIcons
+                          name="trash-can-outline"
+                          size={20}
+                          color="#ef4444"
+                        />
                       </TouchableOpacity>
-
+                    
                       <TouchableOpacity
                         style={styles.editButton}
                         onPress={() => startEdit(chore)}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.editButtonText}>✏︎</Text>
+                        <MaterialCommunityIcons
+                          name="pencil"
+                          size={20}
+                          color="#22c55e"
+                        />
                       </TouchableOpacity>
                     </View>
 
