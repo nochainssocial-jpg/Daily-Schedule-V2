@@ -204,6 +204,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 16,
+    paddingVertical: 24,
     paddingBottom: 32,
   },
   inner: {
