@@ -53,13 +53,12 @@ export default function CleaningEditScreen() {
   );
 
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
-
   const activeChore = useMemo(
     () => chores.find((c) => String(c.id) === String(activeChoreId)) || null,
     [chores, activeChoreId],
   );
 
-// 🔁 Working staff for cleaning = Dream Team minus outing staff
+  // 🔁 Working staff for cleaning = Dream Team minus outing staff
   const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
@@ -162,6 +161,33 @@ export default function CleaningEditScreen() {
     push('Cleaning duties reshuffled across onsite staff.', 'cleaning');
   };
 
+  // 🌙 Special long-press behaviour for "Take the bins out"
+  // 0 = default (from data.ts), 1 = red + yellow, 2 = red + green
+  const [binsVariant, setBinsVariant] = useState<0 | 1 | 2>(0);
+
+  const cycleBinsVariant = () => {
+    if (readOnly) {
+      // Same B2 message as everywhere else
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+    setBinsVariant((prev) => ((prev + 1) % 3) as 0 | 1 | 2);
+  };
+
+  const isBinsChore = (chore: Chore) =>
+    String(chore.name).toLowerCase().startsWith('take the bins out');
+
+  const getBinsLabel = (base: string) => {
+    if (binsVariant === 1) {
+      return 'Take Red Domestic and Yellow Recycling bins out.';
+    }
+    if (binsVariant === 2) {
+      return 'Take Red Domestic and Green Waste bins out.';
+    }
+    // 0 = whatever default text you set in data.ts
+    return base;
+  };
+
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="cleaning" />
@@ -213,11 +239,22 @@ export default function CleaningEditScreen() {
               const label = st ? st.name : 'Not assigned';
               const isAssigned = !!st;
 
+              const binsChore = isBinsChore(chore);
+              const taskLabel = binsChore
+                ? getBinsLabel(String(chore.name))
+                : String(chore.name);
+
               return (
                 <View key={choreId} style={styles.row}>
-                  <View style={styles.taskCol}>
-                    <Text style={styles.taskLabel}>{chore.name}</Text>
-                  </View>
+                  {/* Long press on the chore text to cycle bin instructions */}
+                  <TouchableOpacity
+                    style={styles.taskCol}
+                    activeOpacity={0.9}
+                    onLongPress={binsChore ? cycleBinsVariant : undefined}
+                    delayLongPress={300}
+                  >
+                    <Text style={styles.taskLabel}>{taskLabel}</Text>
+                  </TouchableOpacity>
 
                   <View style={styles.staffCol}>
                     <TouchableOpacity
@@ -360,7 +397,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
-        // NEW:
     alignSelf: 'stretch',
     flexShrink: 1,
   },
