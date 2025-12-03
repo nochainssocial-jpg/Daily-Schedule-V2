@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import Footer from '@/components/Footer';
@@ -468,3 +469,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+const PINK = '#FF8FC5';
+
+export const options = {
+  headerTitleAlign: 'center' as const,
+  headerTitle: () => (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <MaterialCommunityIcons
+        name="clipboard-check-outline"
+        size={18}
+        color={PINK}
+      />
+      <Text
+        style={{
+          marginLeft: 6,
+          fontSize: 16,
+          fontWeight: '700',
+          color: PINK,
+        }}
+      >
+        Final Checklist
+      </Text>
+    </View>
+  ),
+};

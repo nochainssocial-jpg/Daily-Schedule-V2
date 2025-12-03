@@ -11,6 +11,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import Footer from '@/components/Footer';
@@ -895,3 +896,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+const PINK = '#FF8FC5';
+
+export const options = {
+  headerTitleAlign: 'center' as const,
+  headerTitle: () => (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <MaterialCommunityIcons name="account-group" size={18} color={PINK} />
+      <Text
+        style={{
+          marginLeft: 6,
+          fontSize: 16,
+          fontWeight: '700',
+          color: PINK,
+        }}
+      >
+        Staff Settings
+      </Text>
+    </View>
+  ),
+};
