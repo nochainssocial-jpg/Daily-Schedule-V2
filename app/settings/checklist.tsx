@@ -196,23 +196,31 @@ export default function ChecklistSettingsScreen() {
                 return (
                   <View key={item.id} style={styles.row}>
                     {/* Left: delete + pencil */}
-                    <View style={styles.actionsColumn}>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => confirmDeleteItem(item)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.deleteButtonText}>x</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => startEdit(item)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.editButtonText}>✏︎</Text>
-                      </TouchableOpacity>
-                    </View>
+                      <View style={styles.actionsColumn}>
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() => confirmDeleteItem(item)}
+                          activeOpacity={0.8}
+                        >
+                          <MaterialCommunityIcons
+                            name="trash-can-outline"
+                            size={20}
+                            color="#ef4444"
+                          />
+                        </TouchableOpacity>
+                      
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={() => startEdit(item)}
+                          activeOpacity={0.8}
+                        >
+                          <MaterialCommunityIcons
+                            name="pencil"
+                            size={20}
+                            color="#22c55e"
+                          />
+                        </TouchableOpacity>
+                      </View>
 
                     {/* Right: text or editor */}
                     <View style={styles.itemBlock}>
@@ -400,29 +408,20 @@ const styles = StyleSheet.create({
   },
 
   actionsColumn: {
-    width: 56,
-    alignItems: 'flex-start',
+    flexDirection: 'row',      // make icons sit side by side
+    alignItems: 'center',
     justifyContent: 'flex-start',
     marginRight: 8,
   },
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginBottom: 6,
-  },
-  deleteButtonText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ef4444',
+    marginRight: 6,
   },
   editButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-  },
-  editButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#4b5563',
+    marginRight: 8,
   },
 
   itemBlock: {
