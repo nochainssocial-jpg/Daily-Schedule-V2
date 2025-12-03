@@ -87,12 +87,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="settings"
           options={{
-            headerTitle: () => (
-              <HeaderTitle
-                icon={<SettingsIcon size={24} color={PINK} />}
-                label="Settings"
-              />
-            ),
+            headerShown: false,
           }}
         />
 
