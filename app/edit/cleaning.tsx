@@ -165,6 +165,9 @@ export default function CleaningEditScreen() {
     if (binsVariant === 2) {
       return 'Take Red Domestic and Green Waste bins out.';
     }
+    if (binsVariant === 3) {
+      return 'Bring the bins in and clean them.';
+    }
     // 0 = whatever default text you set in data.ts
     return base;
   };
