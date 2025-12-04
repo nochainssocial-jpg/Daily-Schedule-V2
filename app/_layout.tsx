@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import {
   Home as HomeIcon,
   Edit as Edit3Icon,
-  Share as Share2Icon,
+  Share as ShareVariant,
   Settings as SettingsIcon,
   HelpCircle as HelpCircleIcon,
 } from 'lucide-react-native';
@@ -76,7 +76,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<Share2Icon size={24} color={WHITE} />}
+                icon={<ShareVariant size={24} color={WHITE} />}
                 label="Share schedule"
               />
             ),
