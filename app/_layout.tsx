@@ -5,9 +5,9 @@ import { Stack } from 'expo-router';
 import {
   Home as HomeIcon,
   Edit as Edit3Icon,
-  Share as ShareVariant,
+  Share as Share2Icon,
   Settings as SettingsIcon,
-  HelpCircle as HelpCircleIcon,
+  HelpCircle as HelpingHandIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
 
@@ -76,8 +76,8 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<ShareVariant size={24} color={WHITE} />}
-                label="Share schedule"
+                icon={<Share2Icon size={24} color={WHITE} />}
+                label="Share"
               />
             ),
           }}
@@ -100,7 +100,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<HelpCircleIcon size={24} color={WHITE} />}
+                icon={<HelpingHandIcon size={24} color={WHITE} />}
                 label="Help"
               />
             ),
