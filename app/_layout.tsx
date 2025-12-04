@@ -5,9 +5,9 @@ import { Stack } from 'expo-router';
 import {
   Home as HomeIcon,
   Edit as Edit3Icon,
-  Share as Share2Icon,
+  Share2 as Share2Icon,
   Settings as SettingsIcon,
-  HelpCircle as HelpingHandIcon,
+  HelpHand as HelpingHandIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
 
