@@ -37,25 +37,7 @@ const TIME_SLOTS: Array<{
 
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
 
-const ROOM_PARTICIPANT_MAP: Partial<Record<ColKey, ID>> = (() => {
-  const map: Partial<Record<ColKey, ID>> = {};
-  const participants = ((Data as any).PARTICIPANTS || []) as any[];
-  participants.forEach((p: any) => {
-    const name = String(p?.name || '').toLowerCase();
-    if (!map.frontRoom && name.includes('front') && name.includes('room')) {
-      map.frontRoom = String(p.id);
-    }
-    if (!map.scotty && name.includes('scotty')) {
-      map.scotty = String(p.id);
-    }
-    if (!map.twins && name.includes('twins')) {
-      map.twins = String(p.id);
-    }
-  });
-  return map;
-})();
-
-function slotLabel(slot: any): string {
+function slotLabel(slot?: any): string {
   if (!slot) return '';
   const raw =
     slot.displayTime ||
@@ -63,23 +45,20 @@ function slotLabel(slot: any): string {
   return String(raw).replace(/\s/g, '').toLowerCase();
 }
 
-function isFSOTwinsSlot(slot: any): boolean {
+function isFSOTwinsSlot(slot?: any): boolean {
   const label = slotLabel(slot);
   if (!label) return false;
-
-  // Allow for both 24-hour and "2:00pm-2:30pm" forms
   return (
-    label.startsWith('11:45am-') ||
-    label.startsWith('11:45-') ||
-    label.includes('11:45am-12:15pm') ||
-    label.includes('11:45-12:15')
+    label === '11:00am-11:30am' ||
+    label === '11:00-11:30' ||
+    label === '1:00pm-1:30pm' ||
+    label === '13:00-13:30'
   );
 }
 
-function isAfter2PM(slot: any): boolean {
+function isAfter2PM(slot?: any): boolean {
   const label = slotLabel(slot);
   if (!label) return false;
-
   return (
     label.startsWith('2:00pm-') ||
     label.startsWith('14:00-') ||
@@ -98,16 +77,168 @@ function isAntoinette(staff: any): boolean {
   return name.includes('antoinette');
 }
 
-// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
 function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
 }
 
+// ─────────────────────────────────────────────────────────────
+// Room → participant mapping (Front Room / Scotty / Twins)
+// We look at PARTICIPANTS and match by name.
+// Include a small tweak so "Scott" counts as Scotty.
+// ─────────────────────────────────────────────────────────────
+
+const ROOM_PARTICIPANT_MAP: Partial<Record<ColKey, ID>> = (() => {
+  const map: Partial<Record<ColKey, ID>> = {};
+  const participants = ((Data as any).PARTICIPANTS || []) as any[];
+
+  participants.forEach((p: any) => {
+    const name = String(p?.name || '').toLowerCase();
+
+    if (!map.frontRoom && name.includes('front') && name.includes('room')) {
+      map.frontRoom = String(p.id);
+    }
+    if (
+      !map.scotty &&
+      (name.includes('scotty') || name === 'scott')
+    ) {
+      map.scotty = String(p.id);
+    }
+    if (!map.twins && name.includes('twins')) {
+      map.twins = String(p.id);
+    }
+  });
+
+  return map;
+})();
+
+// ─────────────────────────────────────────────────────────────
+// Time helpers – convert strings like "10:30", "10:30am" to minutes
+// ─────────────────────────────────────────────────────────────
+
+function parseTimeToMinutes(time?: string | null): number | null {
+  if (!time) return null;
+  let t = String(time).trim().toLowerCase();
+
+  // If we accidentally get something like "10:00am - 10:30am", take first half
+  if (t.includes('-')) {
+    t = t.split('-')[0].trim();
+  }
+
+  const m = t.match(/^(\d{1,2}):(\d{2})(am|pm)?$/);
+  if (!m) return null;
+
+  let hour = parseInt(m[1], 10);
+  const minute = parseInt(m[2], 10);
+  const suffix = m[3];
+
+  if (suffix === 'am') {
+    if (hour === 12) hour = 0;
+  } else if (suffix === 'pm') {
+    if (hour !== 12) hour += 12;
+  } else {
+    // No am/pm – assume 24h-ish. For our day program:
+    // 8–18 = daytime, 1–6 → afternoon (13–18)
+    if (hour <= 6) {
+      hour += 12;
+    }
+  }
+
+  return hour * 60 + minute;
+}
+
+function getSlotWindowMinutes(slot: any): { start: number | null; end: number | null } {
+  if (!slot) return { start: null, end: null };
+
+  const start =
+    parseTimeToMinutes(slot.startTime) ||
+    (slot.displayTime ? parseTimeToMinutes(slot.displayTime.split('-')[0]) : null);
+
+  const end =
+    parseTimeToMinutes(slot.endTime) ||
+    (slot.displayTime && slot.displayTime.includes('-')
+      ? parseTimeToMinutes(slot.displayTime.split('-')[1])
+      : null);
+
+  return { start, end };
+}
+
+function getOutingWindowMinutes(outingGroup: any): {
+  start: number | null;
+  end: number | null;
+} {
+  if (!outingGroup) return { start: null, end: null };
+  const start = parseTimeToMinutes(outingGroup.startTime);
+  const end = parseTimeToMinutes(outingGroup.endTime);
+  if (start == null || end == null) {
+    // No times entered → treat as "all day" offsite where applicable
+    return { start: null, end: null };
+  }
+  if (end <= start) {
+    // Weird input, just bail out
+    return { start: null, end: null };
+  }
+  return { start, end };
+}
+
+function timesOverlap(
+  s1: number | null,
+  e1: number | null,
+  s2: number | null,
+  e2: number | null,
+): boolean {
+  if (s1 == null || e1 == null) return false;
+  if (s2 == null || e2 == null) return false;
+  return s1 < e2 && s2 < e1;
+}
+
+// For a given slot + room, is that room's participant on outing at that time?
+function isRoomOffsiteForSlot(
+  col: ColKey,
+  slot: any,
+  outingGroup: any,
+): boolean {
+  if (!outingGroup) return false;
+
+  const participantId = ROOM_PARTICIPANT_MAP[col];
+  if (!participantId) return false;
+
+  const participantIds = new Set(
+    ((outingGroup.participantIds ?? []) as (string | number)[]).map((id) =>
+      String(id),
+    ),
+  );
+
+  if (!participantIds.has(String(participantId))) {
+    // This room's participant is not on this outing
+    return false;
+  }
+
+  const slotWindow = getSlotWindowMinutes(slot);
+  const outingWindow = getOutingWindowMinutes(outingGroup);
+
+  // If outing has no meaningful times, treat as "off all day"
+  if (outingWindow.start == null || outingWindow.end == null) {
+    return true;
+  }
+
+  return timesOverlap(
+    slotWindow.start,
+    slotWindow.end,
+    outingWindow.start,
+    outingWindow.end,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Auto-assignment logic (Shuffle)
+// Now accepts a per-slot "which rooms are active" function.
+// ─────────────────────────────────────────────────────────────
+
 function buildAutoAssignments(
   working: any[],
   timeSlots: any[],
-  activeRooms: ColKey[] = ROOM_KEYS,
+  getActiveRoomsForSlot?: (slot: any) => ColKey[],
 ): Record<string, { [K in ColKey]?: ID }> {
   if (!Array.isArray(working) || working.length === 0) return {};
 
@@ -135,11 +266,16 @@ function buildAutoAssignments(
     const fso = isFSOTwinsSlot(slot);
     const after2 = isAfter2PM(slot);
 
-    activeRooms.forEach((col) => {
+    const roomOrder: ColKey[] = getActiveRoomsForSlot
+      ? getActiveRoomsForSlot(slot)
+      : ROOM_KEYS;
+
+    roomOrder.forEach((col) => {
       let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
 
       if (!candidates.length) return;
 
+      // FSO slots → Twins must be female where possible
       if (col === 'twins' && fso) {
         const females = candidates.filter((s) => isFemale(s));
         if (females.length) {
@@ -147,50 +283,48 @@ function buildAutoAssignments(
         }
       }
 
+      // Respect Antoinette-after-2pm rule
+      candidates = candidates.filter((s) => !isAntoinette(s) || after2);
+
+      // Twins fairness: max 2 total per staff where possible
       if (col === 'twins') {
-        if (after2) {
-          const antoinettes = candidates.filter((s) => isAntoinette(s));
-          if (antoinettes.length) {
-            candidates = antoinettes;
-          }
+        const underCap = candidates.filter((s) => (twinsUsage[s.id] ?? 0) < 2);
+        if (underCap.length) {
+          candidates = underCap;
         }
       }
 
-      const filtered = candidates.filter((s) => !prevSlotStaff.has(s.id));
-      if (filtered.length) {
-        candidates = filtered;
+      // Cooldown across slots – prefer staff who were not used in previous slot
+      const cooled = candidates.filter((s) => !prevSlotStaff.has(s.id));
+      if (cooled.length) {
+        candidates = cooled;
       }
 
-      candidates.sort((a, b) => {
-        const ta = totalUsage[a.id] ?? 0;
-        const tb = totalUsage[b.id] ?? 0;
-        if (ta !== tb) return ta - tb;
+      if (!candidates.length) return;
 
-        const ra = roomUsage[a.id]?.[col] ?? 0;
-        const rb = roomUsage[b.id]?.[col] ?? 0;
-        if (ra !== rb) return ra - rb;
-
-        if (col === 'twins') {
-          const wa = twinsUsage[a.id] ?? 0;
-          const wb = twinsUsage[b.id] ?? 0;
-          if (wa !== wb) return wa - wb;
-        }
-
-        return String(a.name || '').localeCompare(String(b.name || ''));
+      // 1) Global fairness: minimise total assignments
+      let minTotal = Infinity;
+      candidates.forEach((s) => {
+        const c = totalUsage[s.id] ?? 0;
+        if (c < minTotal) minTotal = c;
       });
+      let best = candidates.filter((s) => (totalUsage[s.id] ?? 0) === minTotal);
 
-      const minUsage = candidates.length
-        ? totalUsage[candidates[0].id] ?? 0
-        : 0;
-      const best = candidates.filter(
-        (s) => (totalUsage[s.id] ?? 0) === minUsage,
-      );
+      // 2) Room fairness: minimise assignments in this specific room
+      let minRoom = Infinity;
+      best.forEach((s) => {
+        const c = roomUsage[s.id]?.[col] ?? 0;
+        if (c < minRoom) minRoom = c;
+      });
+      best = best.filter((s) => (roomUsage[s.id]?.[col] ?? 0) === minRoom);
 
+      // 3) Tie-breaker: random between equally good options
       const chosen = best[Math.floor(Math.random() * best.length)];
       if (!chosen) return;
 
       row[col] = chosen.id;
       thisSlotStaff.add(chosen.id);
+
       totalUsage[chosen.id] = (totalUsage[chosen.id] ?? 0) + 1;
       roomUsage[chosen.id][col] = (roomUsage[chosen.id][col] ?? 0) + 1;
       if (col === 'twins') {
@@ -205,11 +339,16 @@ function buildAutoAssignments(
   return result;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Component
+// ─────────────────────────────────────────────────────────────
+
 export default function FloatingScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' &&
+      /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
@@ -252,6 +391,7 @@ export default function FloatingScreen() {
     [outingGroup],
   );
 
+  // Only real onsite Dream Team staff – exclude "Everyone" & staff on outing
   const onsiteWorking = useMemo(
     () =>
       (staff || []).filter(
@@ -261,30 +401,6 @@ export default function FloatingScreen() {
           !outingStaffSet.has(String(s.id)),
       ),
     [staff, workingSet, outingStaffSet],
-  );
-
-  const outingParticipantSet = useMemo(
-    () =>
-      new Set<string>(
-        ((outingGroup?.participantIds ?? []) as (string | number)[]).map((id) =>
-          String(id),
-        ),
-      ),
-    [outingGroup],
-  );
-
-  const offsiteRoomKeys = useMemo(
-    () =>
-      ROOM_KEYS.filter((col) => {
-        const pid = ROOM_PARTICIPANT_MAP[col];
-        return pid && outingParticipantSet.has(String(pid));
-      }),
-    [outingParticipantSet],
-  );
-
-  const activeRoomKeys = useMemo(
-    () => ROOM_KEYS.filter((col) => !offsiteRoomKeys.includes(col)),
-    [offsiteRoomKeys],
   );
 
   const sortedWorking = useMemo(
@@ -370,51 +486,31 @@ export default function FloatingScreen() {
     [floatingAssignments],
   );
 
-  // Automatically reshuffle floating assignments when an outing makes a room offsite
-  useEffect(() => {
-    if (!isAdmin) return;
-    if (!onsiteWorking.length || !updateSchedule) return;
-    if (!offsiteRoomKeys.length) return;
-    if (!activeRoomKeys.length) return;
+  // Per-slot active rooms based on outing window
+  const activeRoomsForSlot = (slot: any): ColKey[] => {
+    if (!outingGroup) return ROOM_KEYS;
 
-    const hasOffsiteAssignments = Object.values(floatingAssignments || {}).some(
-      (row: any) =>
-        row &&
-        offsiteRoomKeys.some((col) => (row as any)[col]),
+    const offsite: ColKey[] = ROOM_KEYS.filter((col) =>
+      isRoomOffsiteForSlot(col, slot, outingGroup),
     );
+    const active = ROOM_KEYS.filter((col) => !offsite.includes(col));
 
-    const hasAnyAssignments = Object.values(floatingAssignments || {}).some(
-      (row: any) =>
-        row &&
-        ((row as any).frontRoom || (row as any).scotty || (row as any).twins),
-    );
+    // If everything somehow got marked offsite, fall back to all rooms
+    return active.length ? active : ROOM_KEYS;
+  };
 
-    // If there are already assignments but none in offsite rooms, don't override manual tweaks
-    if (hasAnyAssignments && !hasOffsiteAssignments) {
-      return;
-    }
-
-    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomKeys);
-    updateSchedule({ floatingAssignments: next });
-    push('Floating assignments updated for outing changes', 'floating');
-  }, [
-    isAdmin,
-    onsiteWorking,
-    updateSchedule,
-    floatingAssignments,
-    offsiteRoomKeys,
-    activeRoomKeys,
-    push,
-  ]);
-
+  // Auto-build floating assignments once, respecting outings
   useEffect(() => {
-    // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomKeys);
+      const next = buildAutoAssignments(
+        onsiteWorking,
+        TIME_SLOTS,
+        activeRoomsForSlot,
+      );
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
-  }, [hasFrontRoom, onsiteWorking, updateSchedule, activeRoomKeys, push]);
+  }, [hasFrontRoom, onsiteWorking, updateSchedule, push, outingGroup]);
 
   const handleShuffle = () => {
     if (readOnly) {
@@ -422,12 +518,16 @@ export default function FloatingScreen() {
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;
-    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomKeys);
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+    );
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
 
-  // 🔹 Print handler — navigate to /print-floating with staff + date
+  // Print handler — navigate to /print-floating with staff + date
   const handlePrintFloating = () => {
     const staffParam = filterStaffId || 'ALL';
     let dateParam = '';
@@ -448,16 +548,7 @@ export default function FloatingScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
       <NotificationToaster />
-      <SaveExit touchKey="floating" />
-      {Platform.OS === 'web' && !isMobileWeb && (
-        <Ionicons
-          name="arrow-back-circle"
-          size={32}
-          color="#6b21a8"
-          style={{ position: 'absolute', top: 16, left: 16, zIndex: 20 }}
-          onPress={() => router.push('/edit')}
-        />
-      )}
+      <SaveExit touchKey="Floating" />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -482,8 +573,9 @@ export default function FloatingScreen() {
               marginBottom: 16,
             }}
           >
-            Automatically and fairly assign onsite Dream Team staff across Front Room, Scotty,
-            and Twins. Staff on outings and the “Everyone” helper are excluded.
+            Automatically and fairly assign onsite Dream Team staff across Front
+            Room, Scotty, and Twins. Staff on outings and the “Everyone” helper
+            are excluded.
           </Text>
 
           {/* Filter chips */}
@@ -516,7 +608,9 @@ export default function FloatingScreen() {
                   label={s.name}
                   selected={filterStaffId === s.id}
                   onPress={() =>
-                    setFilterStaffId((prev) => (prev === s.id ? null : s.id))
+                    setFilterStaffId((prev) =>
+                      prev === s.id ? null : s.id,
+                    )
                   }
                 />
               ))}
@@ -560,67 +654,9 @@ export default function FloatingScreen() {
                 Time
               </Text>
             </View>
-            <View
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                paddingHorizontal: 10,
-                borderRightWidth: 1,
-                borderRightColor: '#e5e7eb',
-                justifyContent: 'center',
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  color: '#4b5563',
-                }}
-              >
-                Front Room
-              </Text>
-            </View>
-            <View
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                paddingHorizontal: 10,
-                borderRightWidth: 1,
-                borderRightColor: '#e5e7eb',
-                justifyContent: 'center',
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  color: '#4b5563',
-                }}
-              >
-                Scotty
-              </Text>
-            </View>
-            <View
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                paddingHorizontal: 10,
-                justifyContent: 'center',
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  color: '#4b5563',
-                }}
-              >
-                Twins
-              </Text>
-            </View>
+            <HeaderCell label="Front Room" />
+            <HeaderCell label="Scotty" />
+            <HeaderCell label="Twins" />
           </View>
 
           {/* Data rows */}
@@ -648,7 +684,21 @@ export default function FloatingScreen() {
               let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
-              const isScottyOffsite = offsiteRoomKeys.includes('scotty');
+              const isFrontOffsite = isRoomOffsiteForSlot(
+                'frontRoom',
+                slot,
+                outingGroup,
+              );
+              const isScottyOffsite = isRoomOffsiteForSlot(
+                'scotty',
+                slot,
+                outingGroup,
+              );
+              const isTwinsOffsite = isRoomOffsiteForSlot(
+                'twins',
+                slot,
+                outingGroup,
+              );
 
               if (!filterStaffId) {
                 fr = frStaff?.name ?? '';
@@ -703,10 +753,24 @@ export default function FloatingScreen() {
 
                   {/* Front Room */}
                   <CellButton
-                    style={{ flex: 1 }}
-                    label={!filterStaffId ? (fr || 'Tap to assign') : fr}
+                    style={[
+                      { flex: 1 },
+                      isFrontOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                    ]}
+                    label={
+                      isFrontOffsite
+                        ? 'Outing (offsite)'
+                        : !filterStaffId
+                        ? fr || 'Tap to assign'
+                        : fr
+                    }
                     gender={frStaff?.gender}
-                    onPress={() => openPicker(slotId, 'frontRoom')}
+                    onPress={() => {
+                      if (isFrontOffsite) return;
+                      openPicker(slotId, 'frontRoom');
+                    }}
                   />
 
                   {/* Scotty */}
@@ -721,8 +785,8 @@ export default function FloatingScreen() {
                       isScottyOffsite
                         ? 'Outing (offsite)'
                         : !filterStaffId
-                          ? (sc || 'Tap to assign')
-                          : sc
+                        ? sc || 'Tap to assign'
+                        : sc
                     }
                     gender={scStaff?.gender}
                     onPress={() => {
@@ -736,32 +800,40 @@ export default function FloatingScreen() {
                     style={[
                       { flex: 1 },
                       fso ? { backgroundColor: '#fef2f2' } : null,
+                      isTwinsOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
                     ]}
                     label={
-                      !filterStaffId
+                      isTwinsOffsite
+                        ? 'Outing (offsite)'
+                        : !filterStaffId
                         ? tw
                           ? fso
                             ? `${tw} (FSO)`
                             : tw
                           : fso
-                            ? 'Tap to assign (FSO)'
-                            : 'Tap to assign'
+                          ? 'Tap to assign (FSO)'
+                          : 'Tap to assign'
                         : tw
-                          ? fso
-                            ? `${tw} (FSO)`
-                            : tw
-                          : ''
+                        ? fso
+                          ? `${tw} (FSO)`
+                          : tw
+                        : ''
                     }
                     gender={twStaff?.gender}
-                    onPress={() => openPicker(slotId, 'twins')}
-                    fsoTag={fso ? 'FSO Only' : undefined}
+                    fsoTag={fso && !isTwinsOffsite ? 'FSO Only' : undefined}
+                    onPress={() => {
+                      if (isTwinsOffsite) return;
+                      openPicker(slotId, 'twins');
+                    }}
                   />
                 </View>
               );
             })}
           </View>
 
-          {/* Shuffle button */}
+          {/* Shuffle + Print buttons stacked, right-aligned */}
           <View style={{ marginTop: 12, alignItems: 'flex-end' }}>
             <TouchableOpacity
               onPress={handleShuffle}
@@ -786,58 +858,46 @@ export default function FloatingScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Print button */}
-        <View
-          style={{
-            marginTop: 28,
-            width: '100%',
-            alignItems: 'flex-end',
-          }}
-        >
-          <TouchableOpacity
-            onPress={handlePrintFloating}
-            activeOpacity={0.85}
-            style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: 4,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: '#ec4899',
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 999,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.15,
-                shadowRadius: 3,
-                elevation: 2,
-              }}
+          <View style={{ marginTop: 10, alignItems: 'flex-end' }}>
+            <TouchableOpacity
+              onPress={handlePrintFloating}
+              activeOpacity={0.85}
             >
-              <Ionicons
-                name="print-outline"
-                size={18}
-                color="#ffffff"
-                style={{ marginRight: 6 }}
-              />
-              <Text
+              <View
                 style={{
-                  color: '#ffffff',
-                  fontSize: 13,
-                  fontWeight: '700',
-                  letterSpacing: 0.3,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#ec4899',
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 3,
+                  elevation: 2,
                 }}
               >
-                Print Floating Assignments
-              </Text>
-            </View>
-          </TouchableOpacity>
+                <Ionicons
+                  name="print-outline"
+                  size={18}
+                  color="#ffffff"
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={{
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: '700',
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  Print Floating Assignments
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Legend */}
@@ -855,7 +915,8 @@ export default function FloatingScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <LegendPill color="#f97316" label="Front Room" />
             <LegendPill color="#22c55e" label="Scotty" />
-            <LegendPill color="#3b82f6" label="Twins / FSO" />
+            {/* Twins / FSO in purple so blue stays "male staff" only */}
+            <LegendPill color="#a855f7" label="Twins / FSO" />
             <LegendPill color="#64748b" label="Filtered by staff" />
           </View>
         </View>
@@ -1007,6 +1068,36 @@ export default function FloatingScreen() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Small presentational helpers
+// ─────────────────────────────────────────────────────────────
+
+function HeaderCell({ label }: { label: string }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        borderRightWidth: 1,
+        borderRightColor: '#e5e7eb',
+        justifyContent: 'center',
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          color: '#4b5563',
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 function LegendPill({ color, label }: { color: string; label: string }) {
   return (
     <View
@@ -1055,10 +1146,16 @@ function CellButton({
   onPress?: () => void;
   fsoTag?: string;
 }) {
-  const isEmpty = !label || label === 'Tap to assign' || label === 'Tap to assign (FSO)';
+  const isEmpty =
+    !label ||
+    label === 'Tap to assign' ||
+    label === 'Tap to assign (FSO)' ||
+    label === 'Outing (offsite)';
 
   const genderColor =
-    gender && String(gender).toLowerCase() === 'female' ? '#ec4899' : '#3b82f6';
+    gender && String(gender).toLowerCase() === 'female'
+      ? '#ec4899'
+      : '#3b82f6';
 
   return (
     <TouchableOpacity
@@ -1089,13 +1186,18 @@ function CellButton({
         <Text
           style={{
             fontSize: 13,
-            color: isEmpty ? '#9ca3af' : '#111827',
+            color:
+              label === 'Outing (offsite)'
+                ? '#b91c1c'
+                : isEmpty
+                ? '#9ca3af'
+                : '#111827',
           }}
         >
           {label}
         </Text>
       </View>
-      {fsoTag && (
+      {fsoTag && label !== 'Outing (offsite)' && (
         <View style={{ marginTop: 4 }}>
           <FSOBadge>{fsoTag}</FSOBadge>
         </View>
