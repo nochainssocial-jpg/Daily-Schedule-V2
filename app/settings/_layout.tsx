@@ -4,7 +4,7 @@ import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const PINK = '#FF8FC5';
+const PINK = '#F54FA5';
 const WHITE = '#FFFFFF';
 
 type SettingsHeaderTitleProps = {
