@@ -129,11 +129,11 @@ export async function persistFinish(params: PersistParams) {
     cleanedDropoffs[staffId as ID] = cleanedPids;
   }
 
-  // ---------- CLEANING FAIRNESS ----------
-  const chores =
-    ((Data as any).CLEANING_TASKS as
-      | { id: ID; label: string; slotId?: ID }[]
-      | undefined) || [];
+// ---------- CLEANING FAIRNESS ----------
+const chores =
+  ((Data as any).DEFAULT_CHORES as
+    | { id: ID; name: string; slotId?: ID }[]
+    | undefined) || [];
 
   const timeSlots =
     ((Data as any).TIME_SLOTS as { id: ID; label: string }[] | undefined) ||
