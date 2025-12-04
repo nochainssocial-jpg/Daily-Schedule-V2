@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
 
-const PINK = '#FF8FC5';
+const PINK = '#F54FA5';
 const WHITE = '#FFFFFF';
 
 function HeaderTitle({
