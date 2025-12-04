@@ -28,7 +28,7 @@ function HeaderTitle({
         style={{
           fontSize: 24,
           fontWeight: '600',
-          color: PINK,
+          color: WHITE,
         }}
       >
         {label}
@@ -61,7 +61,7 @@ export default function RootLayout() {
             headerTitle: () => (
               <HeaderTitle
                 icon={<HomeIcon size={24} color={WHITE} />}
-                label="Daily Schedule"
+                label="Home"
               />
             ),
           }}
