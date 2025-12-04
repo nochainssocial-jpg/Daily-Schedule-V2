@@ -7,7 +7,7 @@ import { Edit3 } from 'lucide-react-native';
 // 🔔 ADD THIS
 import NotificationToaster from '@/components/NotificationToaster';
 
-const PINK = '#FF8FC5';
+const PINK = '#F54FA5';
 const DARK_GREY = '#444444';
 
 function EditHeaderTitle({ label }: { label: string }) {
