@@ -358,7 +358,7 @@ export default function ShareScheduleScreen() {
               style={[styles.button, styles.btnLavender]}
               activeOpacity={0.9}
             >
-              <Text style={styles.btnText}>Admin access (enable editing)</Text>
+              <Text style={styles.btnText}>Enable Admin Access</Text>
             </TouchableOpacity>
           </View>
           
