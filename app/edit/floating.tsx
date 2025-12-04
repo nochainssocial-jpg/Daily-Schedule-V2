@@ -16,7 +16,6 @@ import * as Data from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
-import NotificationToaster from '@/components/NotificationToaster';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
@@ -547,7 +546,6 @@ export default function FloatingScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
-      <NotificationToaster />
       <SaveExit touchKey="Floating" />
 
       <ScrollView
