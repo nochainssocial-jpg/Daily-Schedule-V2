@@ -18,10 +18,10 @@ function AdminHeaderTitle({ iconName, label }: AdminHeaderTitleProps) {
       <MaterialCommunityIcons
         name={iconName}
         size={22}
-        color={PINK}
+        color={WHITE}
         style={{ marginRight: 8 }}
       />
-      <Text style={{ fontSize: 20, fontWeight: '600', color: PINK }}>
+      <Text style={{ fontSize: 20, fontWeight: '600', color: WHITE }}>
         {label}
       </Text>
     </View>
@@ -34,8 +34,8 @@ export default function AdminLayout() {
       screenOptions={{
         headerTitleAlign: 'center',
         headerShadowVisible: false,
-        headerTintColor: PINK,
-        headerStyle: { backgroundColor: WHITE },
+        headerTintColor: WHITE,
+        headerStyle: { backgroundColor: PINK },
       }}
     >
       {/* ADMIN HOME */}
