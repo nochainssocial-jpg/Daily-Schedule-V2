@@ -47,8 +47,8 @@ export default function RootLayout() {
         screenOptions={{
           headerTitleAlign: 'center',
           headerShadowVisible: false,
-          headerTintColor: PINK,
-          headerStyle: { backgroundColor: WHITE },
+          headerTintColor: WHITE,
+          headerStyle: { backgroundColor: PINK },
         }}
       >
         {/* Landing / auth screen usually hides header */}
@@ -60,7 +60,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<HomeIcon size={24} color={PINK} />}
+                icon={<HomeIcon size={24} color={WHITE} />}
                 label="Daily Schedule"
               />
             ),
@@ -76,7 +76,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<Share2Icon size={24} color={PINK} />}
+                icon={<Share2Icon size={24} color={WHITE} />}
                 label="Share schedule"
               />
             ),
@@ -100,7 +100,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<HelpCircleIcon size={24} color={PINK} />}
+                icon={<HelpCircleIcon size={24} color={WHITE} />}
                 label="Help"
               />
             ),
