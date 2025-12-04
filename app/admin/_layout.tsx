@@ -43,7 +43,7 @@ export default function AdminLayout() {
         name="index"
         options={{
           headerTitle: () => (
-            <AdminHeaderTitle iconName="shield-check" label="Admin Hub" />
+            <AdminHeaderTitle iconName="shield-lock-op" label="Admin Hub" />
           ),
         }}
       />
