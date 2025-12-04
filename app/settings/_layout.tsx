@@ -17,11 +17,11 @@ function SettingsHeaderTitle({ iconName, label }: SettingsHeaderTitleProps) {
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       <MaterialCommunityIcons
         name={iconName}
-        size={22}
+        size={24}
         color={WHITE}
         style={{ marginRight: 8 }}
       />
-      <Text style={{ fontSize: 20, fontWeight: '600', color: WHITE }}>
+      <Text style={{ fontSize: 24, fontWeight: '600', color: WHITE }}>
         {label}
       </Text>
     </View>
