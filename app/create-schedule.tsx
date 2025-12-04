@@ -57,7 +57,7 @@ export default function CreateScheduleScreen() {
   };
 
   // ---- sources & defaults --------------------------------------------------
-  const staffSource = (Array.isArray(staff) && staff.length ? staff : STAFF) || [];
+  const staffSource = STAFF || [];
   const partsSource =
     (Array.isArray(participants) && participants.length ? participants : PARTICIPANTS) || [];
   const everyone = staffSource.find(s => isEveryone(s.name));
