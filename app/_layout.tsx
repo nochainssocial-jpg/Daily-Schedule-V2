@@ -7,7 +7,7 @@ import {
   Edit as Edit3Icon,
   Share2 as Share2Icon,
   Settings as SettingsIcon,
-  HelpHand as HelpingHandIcon,
+  HelpingHand as HelpingHandIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
 
