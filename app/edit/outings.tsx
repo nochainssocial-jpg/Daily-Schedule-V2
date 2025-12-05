@@ -153,7 +153,7 @@ export default function OutingsScreen() {
 
           {/* Outing title + time */}
           <View style={styles.section}>
-            <Text style={styles.label}>Outing name</Text>
+            <Text style={styles.sectionTitle}>Outing Name</Text>
             <TextInput
               value={current.name}
               onChangeText={handleNameChange}
@@ -162,7 +162,7 @@ export default function OutingsScreen() {
             />
             <View style={[styles.row, { marginTop: 8 }]}>
               <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={styles.label}>Start time</Text>
+                <Text style={styles.sectionTitle}>Start Time</Text>
                 <TextInput
                   value={current.startTime}
                   onChangeText={(v) => handleTimeChange('startTime', v)}
@@ -171,7 +171,7 @@ export default function OutingsScreen() {
                 />
               </View>
               <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={styles.label}>End time</Text>
+                <Text style={styles.sectionTitle}>End Time</Text>
                 <TextInput
                   value={current.endTime}
                   onChangeText={(v) => handleTimeChange('endTime', v)}
@@ -184,7 +184,7 @@ export default function OutingsScreen() {
 
           {/* Staff on outing */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Staff on outing</Text>
+            <Text style={styles.sectionTitle}>Staff on Outing</Text>
             <Text style={styles.sectionSub}>
               Only staff currently working at B2 can be added to this outing.
             </Text>
@@ -222,7 +222,7 @@ export default function OutingsScreen() {
 
           {/* Participants on outing */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Participants on outing</Text>
+            <Text style={styles.sectionTitle}>Participants on Outing</Text>
             <Text style={styles.sectionSub}>
               Only attending participants can be added to this outing.
             </Text>
@@ -350,6 +350,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#000', // black section titles
+    marginBottom: 4,
   },
   sectionSub: {
     fontSize: 12,
