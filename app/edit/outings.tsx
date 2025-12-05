@@ -19,6 +19,8 @@ import { PARTICIPANTS, STAFF } from '@/constants/data';
 
 type ID = string;
 
+const PINK = '#F54FA5';
+
 export default function OutingsScreen() {
   const {
     staff,
@@ -103,6 +105,17 @@ export default function OutingsScreen() {
 
   const handleNotesChange = (value: string) => {
     applyChange({ notes: value });
+  };
+
+  const handleDeleteOuting = () => {
+    applyChange({
+      name: '',
+      staffIds: [],
+      participantIds: [],
+      startTime: '',
+      endTime: '',
+      notes: '',
+    });
   };
 
   const workingStaffObjs = staffSource.filter((s) => workingSet.has(s.id));
@@ -256,6 +269,18 @@ export default function OutingsScreen() {
               multiline
             />
           </View>
+
+          {/* Delete outing */}
+          <View style={[styles.section, styles.deleteRow]}>
+            <TouchableOpacity
+              onPress={handleDeleteOuting}
+              activeOpacity={0.9}
+              style={styles.deleteBtn}
+            >
+              <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.deleteText}>Delete outing</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -361,5 +386,23 @@ const styles = StyleSheet.create({
   empty: {
     fontSize: 13,
     color: '#111827',
+  },
+  deleteRow: {
+    alignItems: 'flex-end',
+    marginTop: 12,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: PINK,
+    gap: 6,
+  },
+  deleteText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
