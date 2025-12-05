@@ -535,7 +535,7 @@ export default function FloatingScreen() {
         />
       )}
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={WRAP as any}>
           <Text
             style={{
