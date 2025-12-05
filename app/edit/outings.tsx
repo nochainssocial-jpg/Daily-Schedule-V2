@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   heading: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: '#4B164C', // match Dream Team purple
   },
