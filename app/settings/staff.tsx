@@ -754,9 +754,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e7dff2',
-    backgroundColor: '#f8f2ff',
   },
   legendToggleText: {
     fontSize: 11,
