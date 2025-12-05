@@ -23,6 +23,7 @@ type StaffRow = {
   name: string;
   phone?: string | null;
   color?: string | null;
+  gender?: string | null;
   is_active?: boolean | null;
   experience_level?: number | null;
   behaviour_capability?: number | null;
@@ -43,10 +44,13 @@ export default function StaffSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const [legendCollapsed, setLegendCollapsed] = useState(true);
+  const [addCollapsed, setAddCollapsed] = useState(true);
 
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newColor, setNewColor] = useState<'pink' | 'blue' | null>(null);
+  const [newGender, setNewGender] = useState<'male' | 'female' | null>(null);
   const [savingNew, setSavingNew] = useState(false);
 
   const showWebBranding = Platform.OS === 'web';
@@ -77,7 +81,16 @@ export default function StaffSettingsScreen() {
     const name = newName.trim();
     const phone = newPhone.trim();
 
-    if (!name) return;
+    if (!name || !newColor || !newGender) return;
+
+    const colorHex =
+      newColor === 'pink'
+        ? '#f973b7'
+        : newColor === 'blue'
+        ? '#60a5fa'
+        : null;
+
+    const genderValue = newGender;
 
     setSavingNew(true);
     const { data, error } = await supabase
@@ -86,6 +99,8 @@ export default function StaffSettingsScreen() {
         name,
         phone: phone || null,
         is_active: true,
+        color: colorHex,
+        gender: genderValue,
       })
       .select()
       .single();
@@ -100,6 +115,8 @@ export default function StaffSettingsScreen() {
       );
       setNewName('');
       setNewPhone('');
+      setNewColor(null);
+      setNewGender(null);
     }
   }
 
@@ -235,7 +252,6 @@ export default function StaffSettingsScreen() {
     return 'low';
   }
 
-
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       {showWebBranding && (
@@ -263,9 +279,11 @@ export default function StaffSettingsScreen() {
                 style={styles.legendToggle}
                 activeOpacity={0.8}
               >
-                <Text style={styles.legendToggleText}>
-                  {legendCollapsed ? 'Show legend ▼' : 'Hide legend ▲'}
-                </Text>
+                <MaterialCommunityIcons
+                  name={legendCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={18}
+                  color="#6b5a7d"
+                />
               </TouchableOpacity>
             </View>
 
@@ -322,40 +340,133 @@ export default function StaffSettingsScreen() {
 
           {/* ADD NEW STAFF */}
           <View style={styles.addWrap}>
-            <Text style={styles.addTitle}>Add new staff member</Text>
-            <View style={styles.addRow}>
-              <TextInput
-                style={styles.addInput}
-                placeholder="Name"
-                value={newName}
-                onChangeText={setNewName}
-                placeholderTextColor="#b8a8d6"
-              />
-              <TextInput
-                style={styles.addInput}
-                placeholder="Phone (optional)"
-                value={newPhone}
-                onChangeText={setNewPhone}
-                keyboardType="phone-pad"
-                placeholderTextColor="#b8a8d6"
-              />
+            <View style={styles.addHeaderRow}>
+              <Text style={styles.addTitle}>Add new staff member</Text>
               <TouchableOpacity
-                style={[
-                  styles.addButton,
-                  (!newName.trim() || savingNew) && styles.addButtonDisabled,
-                ]}
-                onPress={addStaff}
-                disabled={!newName.trim() || savingNew}
-                activeOpacity={0.85}
+                onPress={() => setAddCollapsed(prev => !prev)}
+                style={styles.addToggle}
+                activeOpacity={0.8}
               >
-                <Text style={styles.addButtonText}>
-                  {savingNew ? 'Saving…' : 'Add'}
-                </Text>
+                <MaterialCommunityIcons
+                  name={addCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={18}
+                  color="#6b5a7d"
+                />
               </TouchableOpacity>
             </View>
-            <Text style={styles.addHint}>
-              Name is required. Phone helps for quick contact and pickups.
-            </Text>
+
+            {!addCollapsed && (
+              <>
+                <View style={styles.addRow}>
+                  <TextInput
+                    style={styles.addInput}
+                    placeholder="Name"
+                    value={newName}
+                    onChangeText={setNewName}
+                    placeholderTextColor="#b8a8d6"
+                  />
+                  <TextInput
+                    style={styles.addInput}
+                    placeholder="Phone (optional)"
+                    value={newPhone}
+                    onChangeText={setNewPhone}
+                    keyboardType="phone-pad"
+                    placeholderTextColor="#b8a8d6"
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.addButton,
+                      (!newName.trim() ||
+                        savingNew ||
+                        !newColor ||
+                        !newGender) && styles.addButtonDisabled,
+                    ]}
+                    onPress={addStaff}
+                    disabled={
+                      !newName.trim() || savingNew || !newColor || !newGender
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.addButtonText}>
+                      {savingNew ? 'Saving…' : 'Add'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Colour + Gender selectors */}
+                <View style={styles.addRowSecondary}>
+                  <View style={styles.selectGroup}>
+                    <Text style={styles.selectLabel}>Colour (for chip)</Text>
+                    <View style={styles.selectPills}>
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newColor === 'pink' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewColor('pink')}
+                        activeOpacity={0.85}
+                      >
+                        <View
+                          style={[
+                            styles.selectColourDot,
+                            { backgroundColor: '#f973b7' },
+                          ]}
+                        />
+                        <Text style={styles.selectPillText}>Pink (girls)</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newColor === 'blue' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewColor('blue')}
+                        activeOpacity={0.85}
+                      >
+                        <View
+                          style={[
+                            styles.selectColourDot,
+                            { backgroundColor: '#60a5fa' },
+                          ]}
+                        />
+                        <Text style={styles.selectPillText}>Blue (boys)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.selectGroup}>
+                    <Text style={styles.selectLabel}>Gender</Text>
+                    <View style={styles.selectPills}>
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newGender === 'female' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewGender('female')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.selectPillText}>Female</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newGender === 'male' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewGender('male')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.selectPillText}>Male</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.addHint}>
+                  Name is required. Phone helps for quick contact and pickups.
+                </Text>
+              </>
+            )}
           </View>
 
           {/* Staff list */}
@@ -398,15 +509,19 @@ export default function StaffSettingsScreen() {
               {staff.map(s => {
                 const inactive = s.is_active === false;
                 const totalScore = getTotalScore(s);
-                const scoreLevel = totalScore === null ? null : getScoreLevel(totalScore);
+                const scoreLevel =
+                  totalScore === null ? null : getScoreLevel(totalScore);
 
                 const rowStyles = [styles.row];
                 if (inactive) rowStyles.push(styles.rowInactive);
 
                 const scoreBubbleStyles = [styles.scoreBubble];
-                if (scoreLevel === 'low') scoreBubbleStyles.push(styles.scoreBubbleLow);
-                if (scoreLevel === 'medium') scoreBubbleStyles.push(styles.scoreBubbleMedium);
-                if (scoreLevel === 'high') scoreBubbleStyles.push(styles.scoreBubbleHigh);
+                if (scoreLevel === 'low')
+                  scoreBubbleStyles.push(styles.scoreBubbleLow);
+                if (scoreLevel === 'medium')
+                  scoreBubbleStyles.push(styles.scoreBubbleMedium);
+                if (scoreLevel === 'high')
+                  scoreBubbleStyles.push(styles.scoreBubbleHigh);
 
                 const isExpanded = expandedId === s.id;
 
@@ -414,17 +529,17 @@ export default function StaffSettingsScreen() {
                   <View key={s.id} style={rowStyles}>
                     {/* Row header: delete + staff info + score bubble */}
                     <View style={styles.rowHeader}>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => confirmDeleteStaff(s)}
-                      activeOpacity={0.8}
-                    >
-                      <MaterialCommunityIcons
-                        name="trash-can-outline"
-                        size={20}
-                        color="#ef4444"
-                      />
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => confirmDeleteStaff(s)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons
+                          name="trash-can-outline"
+                          size={20}
+                          color="#ef4444"
+                        />
+                      </TouchableOpacity>
 
                       <TouchableOpacity
                         style={styles.rowHeaderMain}
@@ -453,7 +568,9 @@ export default function StaffSettingsScreen() {
 
                         {totalScore !== null && (
                           <View style={scoreBubbleStyles}>
-                            <Text style={styles.scoreBubbleText}>{totalScore}</Text>
+                            <Text style={styles.scoreBubbleText}>
+                              {totalScore}
+                            </Text>
                           </View>
                         )}
                       </TouchableOpacity>
@@ -475,7 +592,9 @@ export default function StaffSettingsScreen() {
                         </View>
 
                         <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Behaviour support</Text>
+                          <Text style={styles.categoryLabel}>
+                            Behaviour support
+                          </Text>
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
@@ -487,7 +606,9 @@ export default function StaffSettingsScreen() {
                         </View>
 
                         <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Personal care</Text>
+                          <Text style={styles.categoryLabel}>
+                            Personal care
+                          </Text>
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
@@ -511,7 +632,9 @@ export default function StaffSettingsScreen() {
                         </View>
 
                         <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Communication</Text>
+                          <Text style={styles.categoryLabel}>
+                            Communication
+                          </Text>
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
@@ -628,7 +751,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   legendToggle: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
@@ -659,11 +782,21 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
+  addHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  addToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
   addTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#332244',
-    marginBottom: 8,
   },
   addRow: {
     flexDirection: 'row',
@@ -699,6 +832,53 @@ const styles = StyleSheet.create({
   addHint: {
     fontSize: 12,
     color: '#7a678e',
+    marginTop: 4,
+  },
+  addRowSecondary: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  selectGroup: {
+    flex: 1,
+    minWidth: 160,
+  },
+  selectLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#553a75',
+    marginBottom: 4,
+  },
+  selectPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  selectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    backgroundColor: '#f8f4fb',
+  },
+  selectPillSelected: {
+    backgroundColor: '#e5d4ff',
+    borderColor: '#c4b0f5',
+  },
+  selectColourDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    marginRight: 6,
+  },
+  selectPillText: {
+    fontSize: 12,
+    color: '#332244',
+    fontWeight: '600',
   },
 
   listWrap: {
@@ -723,7 +903,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e7dff2',
     marginBottom: 10,
-    alignItems: 'stretch',   // ⬅ was 'center'
+    alignItems: 'stretch',
   },
   rowInactive: {
     opacity: 0.5,
@@ -743,15 +923,15 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',   // ⬅ raises both Staff + Score slightly
+    alignItems: 'flex-start',
     marginBottom: 6,
-    marginTop: -4,              // ⬅ small upward nudge (adjust if needed)
+    marginTop: -4,
   },
   sectionScore: {
     fontSize: 14,
     fontWeight: '600',
     color: '#553a75',
-    marginRight: 25,  // ⬅ moves Score 25px left
+    marginRight: 25,
   },
   scoreBubble: {
     Width: 80,
@@ -806,12 +986,13 @@ const styles = StyleSheet.create({
   categoryPills: {
     flex: 1,
   },
-  // NEW: red X only
+
+  // NEW: red bin (trash) icon button
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
     marginRight: 8,
-    marginLeft: 0,    // ensure it aligns exactly with headerRow margin
+    marginLeft: 0,
   },
   deleteButtonText: {
     fontSize: 20,
@@ -884,7 +1065,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#dcfce7',
     borderColor: '#bbf7d0',
   },
-  // NEW: minus pill styling
   pillMinus: {
     paddingHorizontal: 0,
     paddingVertical: 0,
