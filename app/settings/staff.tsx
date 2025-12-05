@@ -891,7 +891,7 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   headerCell: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     color: '#7a678e',
   },
