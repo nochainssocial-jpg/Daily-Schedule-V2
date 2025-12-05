@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     marginBottom: 6,
     color: '#332244',
