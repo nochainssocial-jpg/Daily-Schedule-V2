@@ -836,30 +836,254 @@ export default function FloatingScreen() {
           )}
 
         {/* Legend */}
-        <View style={{ marginTop: 16 }}>
+        <View style={{ marginTop: 24 }}>
           <Text
             style={{
-              fontSize: 13,
-              fontWeight: '600',
-              color: '#6b21a8',
-              marginBottom: 6,
+              fontSize: 18,
+              fontWeight: '700',
+              color: '#000000',
+              marginBottom: 8,
             }}
           >
             Legend
           </Text>
-          <View style={{ gap: 4 }}>
-            <Text style={{ fontSize: 12, color: '#374151' }}>
-              <Text style={{ fontWeight: '700', color: '#fb7185' }}>Front Room</Text>
-              {` – Paul, Jessica, Naveed, Tiffany, Sumera, Jacob`}
-            </Text>
-            <Text style={{ fontSize: 12, color: '#374151' }}>
-              <Text style={{ fontWeight: '700', color: '#60a5fa' }}>Scotty</Text>
-              {` – Scott`}
-            </Text>
-            <Text style={{ fontSize: 12, color: '#374151' }}>
-              <Text style={{ fontWeight: '700', color: '#a855f7' }}>Twins / FSO</Text>
-              {` – Zara / Zoya`}
-            </Text>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Front Room row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
+              }}
+            >
+              <View
+                style={{
+                  width: '32%',
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRightWidth: 1,
+                  borderRightColor: '#e5e7eb',
+                  justifyContent: 'center',
+                  backgroundColor: '#f9fafb',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: '#000000',
+                  }}
+                >
+                  Front Room
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
+                }}
+              >
+                {[
+                  { name: 'Paul', female: false },
+                  { name: 'Jessica', female: true },
+                  { name: 'Naveed', female: false },
+                  { name: 'Tiffany', female: true },
+                  { name: 'Sumera', female: true },
+                  { name: 'Jacob', female: false },
+                ].map((p) => (
+                  <View
+                    key={p.name}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 999,
+                      backgroundColor: '#f1f5f9',
+                      gap: 6,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        backgroundColor: p.female ? '#ec4899' : '#3b82f6',
+                      }}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: '#111827',
+                        fontWeight: '500',
+                      }}
+                    >
+                      {p.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Scotty row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
+              }}
+            >
+              <View
+                style={{
+                  width: '32%',
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRightWidth: 1,
+                  borderRightColor: '#e5e7eb',
+                  justifyContent: 'center',
+                  backgroundColor: '#f9fafb',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: '#000000',
+                  }}
+                >
+                  Scotty
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 999,
+                    backgroundColor: '#f1f5f9',
+                    gap: 6,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: '#3b82f6', // Scott = male
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: '#111827',
+                      fontWeight: '500',
+                    }}
+                  >
+                    Scott
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Twins / FSO row */}
+            <View
+              style={{
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  width: '32%',
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRightWidth: 1,
+                  borderRightColor: '#e5e7eb',
+                  justifyContent: 'center',
+                  backgroundColor: '#f9fafb',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: '#000000',
+                  }}
+                >
+                  Twins / FSO
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
+                }}
+              >
+                {[
+                  { name: 'Zara', female: true },
+                  { name: 'Zoya', female: true },
+                ].map((p) => (
+                  <View
+                    key={p.name}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 999,
+                      backgroundColor: '#f1f5f9',
+                      gap: 6,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        backgroundColor: '#ec4899',
+                      }}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: '#111827',
+                        fontWeight: '500',
+                      }}
+                    >
+                      {p.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           </View>
         </View>
 
