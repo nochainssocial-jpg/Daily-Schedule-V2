@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   },
 
   heading: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: '#433F4C',
   },
