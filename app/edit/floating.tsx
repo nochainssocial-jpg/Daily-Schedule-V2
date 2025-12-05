@@ -356,6 +356,7 @@ export default function FloatingScreen() {
     updateSchedule,
     touch,
     selectedDate,
+    attendingParticipants = [],
   } = useSchedule() as any;
 
   const staffById = useMemo(() => {
@@ -404,6 +405,36 @@ export default function FloatingScreen() {
           String(a.name || '').localeCompare(String(b.name || '')),
         ),
     [onsiteWorking],
+  );
+
+  // 🔹 Attendance-based room availability (Not attending)
+  const participantsAttendingSet = useMemo(
+    () =>
+      new Set<string>(
+        ((attendingParticipants as any[]) || []).map((id) => String(id)),
+      ),
+    [attendingParticipants],
+  );
+
+  const roomNotAttending = useMemo(
+    () => ({
+      frontRoom: FRONT_ROOM_GROUP.length
+        ? FRONT_ROOM_GROUP.every(
+            (id) => !participantsAttendingSet.has(String(id)),
+          )
+        : false,
+      scotty: SCOTTY_GROUP.length
+        ? SCOTTY_GROUP.every(
+            (id) => !participantsAttendingSet.has(String(id)),
+          )
+        : false,
+      twins: TWINS_GROUP.length
+        ? TWINS_GROUP.every(
+            (id) => !participantsAttendingSet.has(String(id)),
+          )
+        : false,
+    }),
+    [participantsAttendingSet],
   );
 
   const [open, setOpen] = useState(false);
@@ -470,11 +501,21 @@ export default function FloatingScreen() {
   );
 
   const activeRoomsForSlot = (slot: any): ColKey[] => {
-    if (!outingGroup) return ROOM_KEYS;
-    const offsite: ColKey[] = ROOM_KEYS.filter((col) =>
-      isRoomOffsiteForSlot(col, slot, outingGroup),
-    );
-    const active = ROOM_KEYS.filter((col) => !offsite.includes(col));
+    const offsite: ColKey[] = outingGroup
+      ? ROOM_KEYS.filter((col) => isRoomOffsiteForSlot(col, slot, outingGroup))
+      : [];
+
+    const inactiveAttendance: ColKey[] = ROOM_KEYS.filter((col) => {
+      if (col === 'frontRoom') return roomNotAttending.frontRoom;
+      if (col === 'scotty') return roomNotAttending.scotty;
+      if (col === 'twins') return roomNotAttending.twins;
+      return false;
+    });
+
+    const disabled = new Set<ColKey>([...offsite, ...inactiveAttendance]);
+    const active = ROOM_KEYS.filter((col) => !disabled.has(col));
+
+    // If somehow everything is disabled, fall back to all rooms
     return active.length ? active : ROOM_KEYS;
   };
 
@@ -643,6 +684,9 @@ export default function FloatingScreen() {
               const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot, outingGroup);
               const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot, outingGroup);
               const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot, outingGroup);
+              const isFrontNotAttending = roomNotAttending.frontRoom;
+              const isScottyNotAttending = roomNotAttending.scotty;
+              const isTwinsNotAttending = roomNotAttending.twins;
 
               if (!filterStaffId) {
                 fr = frStaff?.name ?? '';
@@ -700,18 +744,27 @@ export default function FloatingScreen() {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      isFrontOffsite ? { opacity: 0.6, backgroundColor: '#fee2e2' } : null,
+                      isFrontOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                      isFrontNotAttending
+                        ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
                     ]}
                     label={
                       isFrontOffsite
                         ? 'Outing (offsite)'
+                        : isFrontNotAttending
+                        ? 'Not attending'
                         : !filterStaffId
                         ? fr || 'Tap to assign'
                         : fr
                     }
-                    gender={isFrontOffsite ? undefined : frStaff?.gender}
+                    gender={
+                      isFrontOffsite || isFrontNotAttending ? undefined : frStaff?.gender
+                    }
                     onPress={() => {
-                      if (isFrontOffsite) return;
+                      if (isFrontOffsite || isFrontNotAttending) return;
                       openPicker(slotId, 'frontRoom');
                     }}
                   />
@@ -720,18 +773,27 @@ export default function FloatingScreen() {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      isScottyOffsite ? { opacity: 0.6, backgroundColor: '#fee2e2' } : null,
+                      isScottyOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                      isScottyNotAttending
+                        ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
                     ]}
                     label={
                       isScottyOffsite
                         ? 'Outing (offsite)'
+                        : isScottyNotAttending
+                        ? 'Not attending'
                         : !filterStaffId
                         ? sc || 'Tap to assign'
                         : sc
                     }
-                    gender={isScottyOffsite ? undefined : scStaff?.gender}
+                    gender={
+                      isScottyOffsite || isScottyNotAttending ? undefined : scStaff?.gender
+                    }
                     onPress={() => {
-                      if (isScottyOffsite) return;
+                      if (isScottyOffsite || isScottyNotAttending) return;
                       openPicker(slotId, 'scotty');
                     }}
                   />
@@ -741,11 +803,18 @@ export default function FloatingScreen() {
                     style={[
                       { flex: 1 },
                       fso ? { backgroundColor: '#fef2f2' } : null,
-                      isTwinsOffsite ? { opacity: 0.6, backgroundColor: '#fee2e2' } : null,
+                      isTwinsOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                      isTwinsNotAttending
+                        ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
                     ]}
                     label={
                       isTwinsOffsite
                         ? 'Outing (offsite)'
+                        : isTwinsNotAttending
+                        ? 'Not attending'
                         : !filterStaffId
                         ? tw
                           ? fso
@@ -760,10 +829,12 @@ export default function FloatingScreen() {
                           : tw
                         : ''
                     }
-                    gender={isTwinsOffsite ? undefined : twStaff?.gender}
-                    fsoTag={fso && !isTwinsOffsite}
+                    gender={
+                      isTwinsOffsite || isTwinsNotAttending ? undefined : twStaff?.gender
+                    }
+                    fsoTag={fso && !isTwinsOffsite && !isTwinsNotAttending}
                     onPress={() => {
-                      if (isTwinsOffsite) return;
+                      if (isTwinsOffsite || isTwinsNotAttending) return;
                       openPicker(slotId, 'twins');
                     }}
                   />
