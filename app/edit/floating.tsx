@@ -20,6 +20,7 @@ import SaveExit from '@/components/SaveExit';
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
 
+
 const WRAP = {
   width: '100%',
   maxWidth: 880,
@@ -36,7 +37,51 @@ const TIME_SLOTS: Array<{
 
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
 
-function slotLabel(slot?: any): string {
+// Participant groups for each floating room
+const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
+  ? ((Data as any).PARTICIPANTS as any[])
+  : [];
+
+function findParticipantIdByName(name: string): string | null {
+  const lower = name.trim().toLowerCase();
+  const found = PARTICIPANTS.find((p) =>
+    String(p?.name || '').trim().toLowerCase() === lower,
+  );
+  return found ? String(found.id) : null;
+}
+
+const FRONT_ROOM_GROUP: string[] = [];
+['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'].forEach((n) => {
+  const id = findParticipantIdByName(n);
+  if (id) FRONT_ROOM_GROUP.push(id);
+});
+
+const SCOTTY_GROUP: string[] = [];
+['Scott'].forEach((n) => {
+  const id = findParticipantIdByName(n);
+  if (id) SCOTTY_GROUP.push(id);
+});
+
+const TWINS_GROUP: string[] = [];
+['Zara', 'Zoya'].forEach((n) => {
+  const id = findParticipantIdByName(n);
+  if (id) TWINS_GROUP.push(id);
+});
+
+function getParticipantGroupForRoom(col: ColKey): string[] {
+  switch (col) {
+    case 'frontRoom':
+      return FRONT_ROOM_GROUP;
+    case 'scotty':
+      return SCOTTY_GROUP;
+    case 'twins':
+      return TWINS_GROUP;
+    default:
+      return [];
+  }
+}
+
+function slotLabel(slot: any): string {
   if (!slot) return '';
   const raw =
     slot.displayTime ||
@@ -76,50 +121,16 @@ function isAntoinette(staff: any): boolean {
   return name.includes('antoinette');
 }
 
+// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
 function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
 }
 
-// ─────────────────────────────────────────────────────────────
-// Room → participant mapping (Front Room / Scotty / Twins)
-// We look at PARTICIPANTS and match by name.
-// Include a small tweak so "Scott" counts as Scotty.
-// ─────────────────────────────────────────────────────────────
-
-const ROOM_PARTICIPANT_MAP: Partial<Record<ColKey, ID>> = (() => {
-  const map: Partial<Record<ColKey, ID>> = {};
-  const participants = ((Data as any).PARTICIPANTS || []) as any[];
-
-  participants.forEach((p: any) => {
-    const name = String(p?.name || '').toLowerCase();
-
-    if (!map.frontRoom && name.includes('front') && name.includes('room')) {
-      map.frontRoom = String(p.id);
-    }
-    if (
-      !map.scotty &&
-      (name.includes('scotty') || name === 'scott')
-    ) {
-      map.scotty = String(p.id);
-    }
-    if (!map.twins && name.includes('twins')) {
-      map.twins = String(p.id);
-    }
-  });
-
-  return map;
-})();
-
-// ─────────────────────────────────────────────────────────────
-// Time helpers – convert strings like "10:30", "10:30am" to minutes
-// ─────────────────────────────────────────────────────────────
-
 function parseTimeToMinutes(time?: string | null): number | null {
   if (!time) return null;
   let t = String(time).trim().toLowerCase();
 
-  // If we accidentally get something like "10:00am - 10:30am", take first half
   if (t.includes('-')) {
     t = t.split('-')[0].trim();
   }
@@ -136,8 +147,6 @@ function parseTimeToMinutes(time?: string | null): number | null {
   } else if (suffix === 'pm') {
     if (hour !== 12) hour += 12;
   } else {
-    // No am/pm – assume 24h-ish. For our day program:
-    // 8–18 = daytime, 1–6 → afternoon (13–18)
     if (hour <= 6) {
       hour += 12;
     }
@@ -170,11 +179,9 @@ function getOutingWindowMinutes(outingGroup: any): {
   const start = parseTimeToMinutes(outingGroup.startTime);
   const end = parseTimeToMinutes(outingGroup.endTime);
   if (start == null || end == null) {
-    // No times entered → treat as "all day" offsite where applicable
     return { start: null, end: null };
   }
   if (end <= start) {
-    // Weird input, just bail out
     return { start: null, end: null };
   }
   return { start, end };
@@ -191,7 +198,7 @@ function timesOverlap(
   return s1 < e2 && s2 < e1;
 }
 
-// For a given slot + room, is that room's participant on outing at that time?
+// For a given slot + room, is that room's participant group on outing at that time?
 function isRoomOffsiteForSlot(
   col: ColKey,
   slot: any,
@@ -199,24 +206,21 @@ function isRoomOffsiteForSlot(
 ): boolean {
   if (!outingGroup) return false;
 
-  const participantId = ROOM_PARTICIPANT_MAP[col];
-  if (!participantId) return false;
+  const groupIds = getParticipantGroupForRoom(col);
+  if (!groupIds.length) return false;
 
-  const participantIds = new Set(
+  const outingIds = new Set(
     ((outingGroup.participantIds ?? []) as (string | number)[]).map((id) =>
       String(id),
     ),
   );
 
-  if (!participantIds.has(String(participantId))) {
-    // This room's participant is not on this outing
-    return false;
-  }
+  const anyOnOuting = groupIds.some((id) => outingIds.has(String(id)));
+  if (!anyOnOuting) return false;
 
   const slotWindow = getSlotWindowMinutes(slot);
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
-  // If outing has no meaningful times, treat as "off all day"
   if (outingWindow.start == null || outingWindow.end == null) {
     return true;
   }
@@ -228,11 +232,6 @@ function isRoomOffsiteForSlot(
     outingWindow.end,
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// Auto-assignment logic (Shuffle)
-// Now accepts a per-slot "which rooms are active" function.
-// ─────────────────────────────────────────────────────────────
 
 function buildAutoAssignments(
   working: any[],
@@ -274,7 +273,6 @@ function buildAutoAssignments(
 
       if (!candidates.length) return;
 
-      // FSO slots → Twins must be female where possible
       if (col === 'twins' && fso) {
         const females = candidates.filter((s) => isFemale(s));
         if (females.length) {
@@ -338,16 +336,11 @@ function buildAutoAssignments(
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────
-
 export default function FloatingScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' &&
-      /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
@@ -390,7 +383,7 @@ export default function FloatingScreen() {
     [outingGroup],
   );
 
-  // Only real onsite Dream Team staff – exclude "Everyone" & staff on outing
+  // 🔹 Only real onsite Dream Team staff – exclude "Everyone"
   const onsiteWorking = useMemo(
     () =>
       (staff || []).filter(
@@ -437,39 +430,30 @@ export default function FloatingScreen() {
     setOpen(true);
   };
 
-  const closePicker = () => {
-    setOpen(false);
-    setPick(null);
-  };
-
-  const handleSelect = (staffId: string) => {
-    if (!pick || !updateSchedule) return;
-    const base = (floatingAssignments || {}) as Record<
-      string,
-      { [K in ColKey]?: ID }
-    >;
-    const next = { ...base };
-    const row = { ...(next[pick.slotId!] || {}) };
-
-    if (pick.col) {
-      row[pick.col] = staffId;
+  const choose = (id: string) => {
+    if (readOnly) {
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
     }
-
-    next[pick.slotId!] = row;
-    updateSchedule({ floatingAssignments: next });
+    if (!pick?.slotId || !pick.col) return;
+    const next = { ...(floatingAssignments || {}) } as any;
+    next[pick.slotId] = {
+      ...(next[pick.slotId] || {}),
+      [pick.col]: id,
+    };
+    updateSchedule?.({ floatingAssignments: next });
     touch?.();
     setOpen(false);
   };
 
-  const handleClear = () => {
-    if (!pick || !updateSchedule) return;
-    const base = (floatingAssignments || {}) as Record<
-      string,
-      { [K in ColKey]?: ID }
-    >;
-    const next = { ...base };
-
-    if (pick.slotId && pick.col && next[pick.slotId]) {
+  const clearCell = () => {
+    if (readOnly) {
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+    if (!pick?.slotId || !pick.col) return;
+    const next = { ...(floatingAssignments || {}) } as any;
+    if (next[pick.slotId]) {
       delete next[pick.slotId][pick.col];
     }
     updateSchedule?.({ floatingAssignments: next });
@@ -485,31 +469,24 @@ export default function FloatingScreen() {
     [floatingAssignments],
   );
 
-  // Per-slot active rooms based on outing window
   const activeRoomsForSlot = (slot: any): ColKey[] => {
     if (!outingGroup) return ROOM_KEYS;
-
     const offsite: ColKey[] = ROOM_KEYS.filter((col) =>
       isRoomOffsiteForSlot(col, slot, outingGroup),
     );
     const active = ROOM_KEYS.filter((col) => !offsite.includes(col));
-
-    // If everything somehow got marked offsite, fall back to all rooms
     return active.length ? active : ROOM_KEYS;
   };
 
-  // Auto-build floating assignments once, respecting outings
+
   useEffect(() => {
+    // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(
-        onsiteWorking,
-        TIME_SLOTS,
-        activeRoomsForSlot,
-      );
+      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
-  }, [hasFrontRoom, onsiteWorking, updateSchedule, push, outingGroup]);
+  }, [hasFrontRoom, onsiteWorking, updateSchedule]);
 
   const handleShuffle = () => {
     if (readOnly) {
@@ -517,16 +494,12 @@ export default function FloatingScreen() {
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;
-    const next = buildAutoAssignments(
-      onsiteWorking,
-      TIME_SLOTS,
-      activeRoomsForSlot,
-    );
+    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
 
-  // Print handler — navigate to /print-floating with staff + date
+  // 🔹 Print handler — navigate to /print-floating with staff + date
   const handlePrintFloating = () => {
     const staffParam = filterStaffId || 'ALL';
     let dateParam = '';
@@ -546,47 +519,53 @@ export default function FloatingScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
-      <SaveExit touchKey="Floating" />
+      <SaveExit touchKey="floating" />
+      {Platform.OS === 'web' && !isMobileWeb && (
+        <Ionicons
+          name="swap-vertical-outline"
+          size={220}
+          color="#F6C1FF"
+          style={{
+            position: 'absolute',
+            top: '25%',
+            left: '10%',
+            opacity: 1,
+            zIndex: 0,
+          }}
+        />
+      )}
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingVertical: isMobileWeb ? 12 : 24 }}
-      >
-        <View style={[WRAP, { marginBottom: 24 }]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+        <View style={WRAP as any}>
           <Text
             style={{
-              fontSize: isMobileWeb ? 22 : 26,
+              fontSize: 30,
               fontWeight: '800',
-              letterSpacing: 0.5,
-              color: '#111827',
-              marginBottom: 4,
+              marginTop: 40,
+              marginBottom: 10,
             }}
           >
-            Floating assignments
+            Floating Assignments
           </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: '#4b5563',
-              marginBottom: 16,
-            }}
-          >
-            Automatically and fairly assign onsite Dream Team staff across Front
-            Room, Scotty, and Twins. Staff on outings and the “Everyone” helper
-            are excluded.
+          <Text style={{ color: '#64748b', marginBottom: 12 }}>
+            Tap a cell to assign a staff member. Twins FSO slots require a
+            female staff.
           </Text>
 
-          {/* Filter chips */}
-          <View style={{ marginTop: 4 }}>
+          <View
+            style={{
+              marginTop: 8,
+              marginBottom: 12,
+            }}
+          >
             <Text
               style={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: '600',
-                color: '#6b21a8',
-                marginBottom: 8,
+                marginBottom: 6,
               }}
             >
-              Filter by staff (optional)
+              Filter by staff
             </Text>
             <View
               style={{
@@ -605,72 +584,51 @@ export default function FloatingScreen() {
                   key={s.id}
                   label={s.name}
                   selected={filterStaffId === s.id}
-                  onPress={() =>
-                    setFilterStaffId((prev) =>
-                      prev === s.id ? null : s.id,
-                    )
-                  }
+                  onPress={() => setFilterStaffId(s.id)}
                 />
               ))}
             </View>
-          </View>
-        </View>
-
-        {/* Main table */}
-        <View style={[WRAP, { marginBottom: 24 }]}>
-          {/* Header row */}
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'stretch',
-              backgroundColor: '#f9fafb',
-              borderWidth: 1,
-              borderColor: '#e5e7eb',
-              borderTopLeftRadius: 12,
-              borderTopRightRadius: 12,
-              overflow: 'hidden',
-            }}
-          >
-            <View
-              style={{
-                flex: 1.1,
-                paddingVertical: 10,
-                paddingHorizontal: 10,
-                borderRightWidth: 1,
-                borderRightColor: '#e5e7eb',
-                justifyContent: 'center',
-              }}
-            >
+            {filterStaffId && (
               <Text
                 style={{
-                  fontSize: 13,
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  color: '#4b5563',
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: '#64748b',
                 }}
               >
-                Time
+                Showing floating assignments for{' '}
+                {(sortedWorking || []).find((s: any) => s.id === filterStaffId)
+                  ?.name || 'selected staff'}
+                . Tap "Show all" to clear.
               </Text>
-            </View>
-            <HeaderCell label="Front Room" />
-            <HeaderCell label="Scotty" />
-            <HeaderCell label="Twins" />
+            )}
           </View>
 
-          {/* Data rows */}
           <View
             style={{
-              borderLeftWidth: 1,
-              borderRightWidth: 1,
-              borderBottomWidth: 1,
+              borderWidth: 1,
               borderColor: '#e5e7eb',
-              borderBottomLeftRadius: 12,
-              borderBottomRightRadius: 12,
+              borderRadius: 14,
               overflow: 'hidden',
             }}
           >
-            {(TIME_SLOTS || []).map((slot, index) => {
-              const slotId = String(slot.id ?? index);
+            {/* Header row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                backgroundColor: '#f9fafb',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
+              }}
+            >
+              <HeaderCell label="Time" flex={1.1} />
+              <HeaderCell label="Front Room" />
+              <HeaderCell label="Scotty" />
+              <HeaderCell label="Twins" />
+            </View>
+
+            {(TIME_SLOTS || []).map((slot: any, idx: number) => {
+              const slotId = String(slot.id ?? idx);
               const row = getRow(slotId);
 
               const frStaff = row.frontRoom ? staffById[row.frontRoom] : undefined;
@@ -682,36 +640,25 @@ export default function FloatingScreen() {
               let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
-              const isFrontOffsite = isRoomOffsiteForSlot(
-                'frontRoom',
-                slot,
-                outingGroup,
-              );
-              const isScottyOffsite = isRoomOffsiteForSlot(
-                'scotty',
-                slot,
-                outingGroup,
-              );
-              const isTwinsOffsite = isRoomOffsiteForSlot(
-                'twins',
-                slot,
-                outingGroup,
-              );
+              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot, outingGroup);
+              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot, outingGroup);
+              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot, outingGroup);
 
               if (!filterStaffId) {
                 fr = frStaff?.name ?? '';
                 sc = scStaff?.name ?? '';
                 tw = twStaff?.name ?? '';
               } else {
-                if (frStaff?.id === filterStaffId) fr = frStaff.name;
-                if (scStaff?.id === filterStaffId) sc = scStaff.name;
-                if (twStaff?.id === filterStaffId) tw = twStaff.name;
+                const matchId = filterStaffId;
+                if (frStaff && frStaff.id === matchId) fr = frStaff.name ?? '';
+                if (scStaff && scStaff.id === matchId) sc = scStaff.name ?? '';
+                if (twStaff && twStaff.id === matchId) tw = twStaff.name ?? '';
               }
 
-              const isEven = index % 2 === 0;
-              const baseRowStyle = isEven
-                ? { backgroundColor: '#ffffff' }
-                : { backgroundColor: '#f9fafb' };
+              const baseRowStyle =
+                idx % 2 === 0
+                  ? { backgroundColor: '#ffffff' }
+                  : { backgroundColor: '#f9fafb' };
 
               return (
                 <View
@@ -753,9 +700,7 @@ export default function FloatingScreen() {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      isFrontOffsite
-                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
-                        : null,
+                      isFrontOffsite ? { opacity: 0.6, backgroundColor: '#fee2e2' } : null,
                     ]}
                     label={
                       isFrontOffsite
@@ -764,7 +709,7 @@ export default function FloatingScreen() {
                         ? fr || 'Tap to assign'
                         : fr
                     }
-                    gender={frStaff?.gender}
+                    gender={isFrontOffsite ? undefined : frStaff?.gender}
                     onPress={() => {
                       if (isFrontOffsite) return;
                       openPicker(slotId, 'frontRoom');
@@ -775,9 +720,7 @@ export default function FloatingScreen() {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      isScottyOffsite
-                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
-                        : null,
+                      isScottyOffsite ? { opacity: 0.6, backgroundColor: '#fee2e2' } : null,
                     ]}
                     label={
                       isScottyOffsite
@@ -786,7 +729,7 @@ export default function FloatingScreen() {
                         ? sc || 'Tap to assign'
                         : sc
                     }
-                    gender={scStaff?.gender}
+                    gender={isScottyOffsite ? undefined : scStaff?.gender}
                     onPress={() => {
                       if (isScottyOffsite) return;
                       openPicker(slotId, 'scotty');
@@ -798,9 +741,7 @@ export default function FloatingScreen() {
                     style={[
                       { flex: 1 },
                       fso ? { backgroundColor: '#fef2f2' } : null,
-                      isTwinsOffsite
-                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
-                        : null,
+                      isTwinsOffsite ? { opacity: 0.6, backgroundColor: '#fee2e2' } : null,
                     ]}
                     label={
                       isTwinsOffsite
@@ -819,8 +760,8 @@ export default function FloatingScreen() {
                           : tw
                         : ''
                     }
-                    gender={twStaff?.gender}
-                    fsoTag={fso && !isTwinsOffsite ? 'FSO Only' : undefined}
+                    gender={isTwinsOffsite ? undefined : twStaff?.gender}
+                    fsoTag={fso && !isTwinsOffsite}
                     onPress={() => {
                       if (isTwinsOffsite) return;
                       openPicker(slotId, 'twins');
@@ -831,7 +772,7 @@ export default function FloatingScreen() {
             })}
           </View>
 
-          {/* Shuffle + Print buttons stacked, right-aligned */}
+          {/* Shuffle button */}
           <View style={{ marginTop: 12, alignItems: 'flex-end' }}>
             <TouchableOpacity
               onPress={handleShuffle}
@@ -847,216 +788,187 @@ export default function FloatingScreen() {
             >
               <Text
                 style={{
-                  fontSize: 13,
-                  fontWeight: '700',
-                  color: '#3730a3',
+                  color: '#4f46e5',
+                  fontWeight: '600',
                 }}
               >
-                Shuffle onsite staff
+                Shuffle all assignments
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={{ marginTop: 10, alignItems: 'flex-end' }}>
-            <TouchableOpacity
-              onPress={handlePrintFloating}
-              activeOpacity={0.85}
+          {/* Print Floating Assignment – web only, right-aligned like Edit Hub */}
+          {Platform.OS === 'web' && (
+            <View
+              style={{
+                marginTop: 28,
+                width: '100%',
+                alignItems: 'flex-end',
+              }}
             >
-              <View
+              <TouchableOpacity
+                onPress={handlePrintFloating}
+                activeOpacity={0.85}
                 style={{
-                  flexDirection: 'row',
                   alignItems: 'center',
-                  backgroundColor: '#ec4899',
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 3,
-                  elevation: 2,
+                  justifyContent: 'center',
+                  marginRight: 4,
                 }}
               >
                 <Ionicons
                   name="print-outline"
-                  size={18}
-                  color="#ffffff"
-                  style={{ marginRight: 6 }}
+                  size={42}
+                  color="#OOA86A"
+                  style={{ marginBottom: 6 }}
                 />
                 <Text
                   style={{
-                    color: '#ffffff',
-                    fontSize: 13,
-                    fontWeight: '700',
-                    letterSpacing: 0.3,
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: '#3c234c',
+                    textAlign: 'center',
                   }}
                 >
-                  Print Floating Assignments
+                  Print Floating Assignment
                 </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
+              </TouchableOpacity>
+            </View>
+          )}
 
         {/* Legend */}
-        <View style={[WRAP, { marginTop: 24, marginBottom: 32 }]}>
+        <View style={{ marginTop: 16 }}>
           <Text
             style={{
               fontSize: 13,
-              fontWeight: '700',
+              fontWeight: '600',
               color: '#6b21a8',
-              marginBottom: 8,
+              marginBottom: 6,
             }}
           >
             Legend
           </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <LegendPill color="#f97316" label="Front Room" />
-            <LegendPill color="#22c55e" label="Scotty" />
-            {/* Twins / FSO in purple so blue stays "male staff" only */}
-            <LegendPill color="#a855f7" label="Twins / FSO" />
-            <LegendPill color="#64748b" label="Filtered by staff" />
+          <View style={{ gap: 4 }}>
+            <Text style={{ fontSize: 12, color: '#374151' }}>
+              <Text style={{ fontWeight: '700', color: '#fb7185' }}>Front Room</Text>
+              {` – Paul, Jessica, Naveed, Tiffany, Sumera, Jacob`}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#374151' }}>
+              <Text style={{ fontWeight: '700', color: '#60a5fa' }}>Scotty</Text>
+              {` – Scott`}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#374151' }}>
+              <Text style={{ fontWeight: '700', color: '#a855f7' }}>Twins / FSO</Text>
+              {` – Zara / Zoya`}
+            </Text>
           </View>
+        </View>
+
         </View>
       </ScrollView>
 
-      {/* Picker modal */}
+      {/* Staff picker modal */}
       <Modal
         visible={open}
         transparent
         animationType="fade"
-        onRequestClose={closePicker}
+        onRequestClose={() => setOpen(false)}
       >
         <View
           style={{
             flex: 1,
-            backgroundColor: 'rgba(15,23,42,0.45)',
+            backgroundColor: 'rgba(0,0,0,0.25)',
             justifyContent: 'center',
-            paddingHorizontal: 16,
+            alignItems: 'center',
+            padding: 16,
           }}
         >
           <View
             style={{
               backgroundColor: '#ffffff',
+              width: '100%',
+              maxWidth: 720,
               borderRadius: 16,
               padding: 16,
-              maxHeight: '80%',
             }}
           >
-            <View
+            <Text
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 12,
+                fontSize: 18,
+                fontWeight: '800',
+                marginBottom: 10,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: '700',
-                  color: '#0f172a',
-                  flex: 1,
-                }}
-              >
-                Select staff member
-              </Text>
-              <TouchableOpacity onPress={closePicker} hitSlop={8}>
-                <Ionicons name="close" size={20} color="#6b7280" />
-              </TouchableOpacity>
+              Assign Staff
+            </Text>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(onsiteWorking || [])
+                .filter(
+                  (s: any) =>
+                    !pick?.fso ||
+                    String(s.gender || '').toLowerCase() === 'female',
+                )
+                .map((s: any) => (
+                  <Chip key={s.id} label={s.name} onPress={() => choose(s.id)} />
+                ))}
             </View>
 
-            {pick?.fso && (
-              <View
-                style={{
-                  marginBottom: 8,
-                  padding: 8,
-                  backgroundColor: '#fef2f2',
-                  borderRadius: 8,
-                }}
-              >
-                <Text
+            {pick?.fso &&
+              (onsiteWorking || []).every(
+                (s: any) =>
+                  String(s.gender || '').toLowerCase() !== 'female',
+              ) && (
+                <View
                   style={{
-                    fontSize: 13,
-                    color: '#b91c1c',
-                    fontWeight: '500',
-                  }}
-                >
-                  FSO slot: Female staff only will show here.
-                </Text>
-              </View>
-            )}
-
-            <ScrollView>
-              {(onsiteWorking || []).map((s: any) => (
-                <TouchableOpacity
-                  key={s.id}
-                  onPress={() => handleSelect(s.id)}
-                  style={{
-                    paddingVertical: 8,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#e5e7eb',
+                    marginTop: 12,
+                    padding: 10,
+                    borderWidth: 1,
+                    borderColor: '#fecaca',
+                    backgroundColor: '#fef2f2',
+                    borderRadius: 10,
                   }}
                 >
                   <Text
                     style={{
-                      fontSize: 14,
-                      color: '#111827',
+                      color: '#b91c1c',
+                      fontWeight: '600',
                     }}
                   >
-                    {s.name}
+                    No eligible female staff on the Dream Team for this slot.
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                </View>
+              )}
 
             <View
               style={{
-                marginTop: 12,
                 flexDirection: 'row',
                 justifyContent: 'space-between',
-                gap: 8,
+                alignItems: 'center',
+                marginTop: 16,
               }}
             >
-              <TouchableOpacity
-                onPress={handleClear}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: '#e5e7eb',
-                  alignItems: 'center',
-                }}
-              >
+              <TouchableOpacity onPress={clearCell}>
                 <Text
                   style={{
-                    fontSize: 13,
+                    color: '#ef4444',
                     fontWeight: '600',
-                    color: '#6b7280',
                   }}
                 >
-                  Clear
+                  Clear this cell
                 </Text>
               </TouchableOpacity>
+
               <TouchableOpacity
-                onPress={closePicker}
+                onPress={() => setOpen(false)}
                 style={{
-                  flex: 1,
                   paddingVertical: 8,
+                  paddingHorizontal: 14,
                   borderRadius: 999,
-                  backgroundColor: '#f97316',
-                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: '600',
-                    color: '#ffffff',
-                  }}
-                >
-                  Cancel
-                </Text>
+                <Text style={{ fontWeight: '600' }}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1066,63 +978,22 @@ export default function FloatingScreen() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Small presentational helpers
-// ─────────────────────────────────────────────────────────────
-
-function HeaderCell({ label }: { label: string }) {
+function HeaderCell({ label, flex = 1 }: { label: string; flex?: number }) {
   return (
     <View
       style={{
-        flex: 1,
+        flex,
         paddingVertical: 10,
         paddingHorizontal: 10,
         borderRightWidth: 1,
         borderRightColor: '#e5e7eb',
-        justifyContent: 'center',
       }}
     >
       <Text
         style={{
           fontSize: 13,
           fontWeight: '700',
-          textTransform: 'uppercase',
-          color: '#4b5563',
-        }}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function LegendPill({ color, label }: { color: string; label: string }) {
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        paddingVertical: 4,
-        paddingHorizontal: 10,
-        borderRadius: 999,
-        backgroundColor: '#f1f5f9',
-        gap: 8,
-      }}
-    >
-      <View
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: 999,
-          backgroundColor: color,
-        }}
-      />
-      <Text
-        style={{
           color: '#0f172a',
-          fontWeight: '600' as any,
-          fontSize: 13,
         }}
       >
         {label}
@@ -1131,87 +1002,108 @@ function LegendPill({ color, label }: { color: string; label: string }) {
   );
 }
 
-function CellButton({
-  style,
-  label,
-  gender,
-  onPress,
-  fsoTag,
-}: {
-  style?: any;
+type CellProps = {
   label: string;
+  onPress: () => void;
+  style?: any;
   gender?: string;
-  onPress?: () => void;
-  fsoTag?: string;
-}) {
-  const isEmpty =
-    !label ||
-    label === 'Tap to assign' ||
-    label === 'Tap to assign (FSO)' ||
-    label === 'Outing (offsite)';
+  fsoTag?: boolean;
+};
+
+function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
+  const lower = label.toLowerCase();
+  const isEmpty = lower.startsWith('tap to assign');
+  const isOffsite = lower === 'outing (offsite)';
 
   const genderColor =
-    gender && String(gender).toLowerCase() === 'female'
-      ? '#ec4899'
-      : '#3b82f6';
+    String(gender || '').toLowerCase() === 'female'
+      ? '#fb7185' // pink
+      : String(gender || '').toLowerCase() === 'male'
+      ? '#60a5fa' // blue
+      : '#cbd5e1'; // neutral grey
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.9}
+      activeOpacity={0.85}
       style={[
         {
           paddingVertical: 10,
           paddingHorizontal: 8,
-          borderRightWidth: 1,
-          borderRightColor: '#e5e7eb',
+          borderLeftWidth: 1,
+          borderLeftColor: '#e5e7eb',
           justifyContent: 'center',
+          position: 'relative',
         },
         style,
       ]}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {!isEmpty && (
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 999,
-              backgroundColor: genderColor,
-            }}
-          />
-        )}
+      {isEmpty ? (
         <Text
           style={{
+            color: '#64748b',
+            fontWeight: '400' as any,
             fontSize: 13,
-            color:
-              label === 'Outing (offsite)'
-                ? '#b91c1c'
-                : isEmpty
-                ? '#9ca3af'
-                : '#111827',
           }}
         >
           {label}
         </Text>
-      </View>
-      {fsoTag && label !== 'Outing (offsite)' && (
-        <View style={{ marginTop: 4 }}>
-          <FSOBadge>{fsoTag}</FSOBadge>
+      ) : (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            paddingVertical: 4,
+            paddingHorizontal: 10,
+            borderRadius: 999,
+            backgroundColor: '#f1f5f9',
+            gap: 8,
+          }}
+        >
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              backgroundColor: genderColor,
+            }}
+          />
+          <Text
+            style={{
+              color: '#0f172a',
+              fontWeight: '600' as any,
+              fontSize: 13,
+            }}
+          >
+            {label}
+          </Text>
+        </View>
+      )}
+
+      {fsoTag && (
+        <View
+          style={{
+            position: 'absolute',
+            right: 8,
+            bottom: 6,
+          }}
+        >
+          <Tag>FSO</Tag>
         </View>
       )}
     </TouchableOpacity>
   );
 }
 
-function FSOBadge({ children }: { children: React.ReactNode }) {
+function Tag({ children }: { children: React.ReactNode }) {
   return (
     <View
       style={{
         alignSelf: 'flex-start',
-        paddingHorizontal: 6,
         paddingVertical: 2,
-        backgroundColor: '#fef2f2',
+        paddingHorizontal: 6,
+        backgroundColor: '#fce7f3',
         borderRadius: 999,
       }}
     >
