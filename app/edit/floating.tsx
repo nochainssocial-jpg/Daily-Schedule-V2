@@ -213,7 +213,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   return (
     <View
       style={{
-        width: 90,
+        width: 120,
         height: 10,
         borderRadius: 999,
         overflow: 'hidden',
