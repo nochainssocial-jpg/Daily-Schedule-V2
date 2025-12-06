@@ -491,12 +491,12 @@ export default function CreateScheduleScreen() {
       [staffSource, helperSet],
     );
 
-    // Local UI toggles (match Edit Hub)
-    const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
+    // Local UI toggles (tuned so everything starts expanded)
+    const [hideEmptyStaff, setHideEmptyStaff] = useState(false);
     const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
-    const [showHelpers, setShowHelpers] = useState(false);
+    const [showHelpers, setShowHelpers] = useState(true);
     const [showAllPickupCandidates, setShowAllPickupCandidates] =
-      useState(false);
+      useState(true);
 
     // Normalise dropoff assignments (wizard only ever uses ID[])
     const assignments = useMemo(() => {
@@ -767,8 +767,7 @@ export default function CreateScheduleScreen() {
               return !assignedStaff || assignedStaff === (s.id as ID);
             });
 
-            const hasAssigned = assigned.length > 0;
-            const collapsed = collapsedStaff[s.id as ID] ?? !hasAssigned;
+            const collapsed = collapsedStaff[s.id as ID] ?? false;
 
             return (
               <View key={s.id} style={styles.assignmentCard}>
@@ -860,6 +859,7 @@ export default function CreateScheduleScreen() {
       </View>
     );
   };
+
   // ---- Step 5: Auto-Assignments message -----------------------------------
   const Step5 = () => (
     <View style={styles.section}>
