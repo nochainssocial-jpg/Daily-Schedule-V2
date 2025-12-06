@@ -1,7 +1,7 @@
 // app/edit/participants.tsx
 // Edit screen for attending participants with participant pool.
 // Integrates with outings: participants on outing are shown as outline pills.
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   Platform,
   useWindowDimensions,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
 
 import { useSchedule } from '@/hooks/schedule-store';
@@ -32,7 +34,6 @@ const makePartMap = () => {
   });
   return map;
 };
-
 
 const sortByName = (list: any[]) =>
   list.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -87,45 +88,53 @@ function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
+/**
+ * Gradient behaviour meter:
+ * - behaviours 1–3 from Supabase
+ * - 1 → ~33%, 2 → ~66%, 3 → 100% of the bar
+ * - smooth animated fill on change
+ */
 function BehaviourMeter({ value }: { value?: number | null }) {
-  // behaviours is 1–3 from Supabase, but we show 5 segments:
-  // 1 = 2 green segments, 2 = 3 amber segments, 3 = 5 red/orange segments.
   const raw = typeof value === 'number' ? value : 0;
   const clamped = Math.max(0, Math.min(3, raw));
 
-  let filledSegments = 0;
-  if (clamped === 1) filledSegments = 2;
-  else if (clamped === 2) filledSegments = 3;
-  else if (clamped === 3) filledSegments = 5;
+  // 0 → 0, 1 → 0.33, 2 → 0.66, 3 → 1
+  const target = clamped === 0 ? 0 : clamped / 3;
+
+  const progress = useRef(new Animated.Value(target)).current;
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: target,
+      duration: 350,
+      useNativeDriver: false, // width animation
+    }).start();
+  }, [target, progress]);
+
+  const animatedWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, trackWidth || 0],
+  });
 
   return (
-    <View style={styles.behaviourMeter}>
-      {[1, 2, 3, 4, 5].map((level) => {
-        const isFilled = level <= filledSegments;
-
-        let extraStyle = null;
-        if (!isFilled) {
-          extraStyle = styles.behaviourSegmentOff;
-        } else if (clamped === 1) {
-          extraStyle = styles.behaviourSegmentLow;
-        } else if (clamped === 2) {
-          extraStyle = styles.behaviourSegmentMedium;
-        } else if (clamped === 3) {
-          extraStyle = styles.behaviourSegmentHigh;
-        }
-
-        return (
-          <View
-            key={level}
-            style={[styles.behaviourSegment, extraStyle]}
+    <View
+      style={styles.behaviourTrack}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+    >
+      {trackWidth > 0 && (
+        <Animated.View style={[styles.behaviourFill, { width: animatedWidth }]}>
+          <LinearGradient
+            colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
           />
-        );
-      })}
+        </Animated.View>
+      )}
     </View>
   );
 }
-
-
 
 export default function EditParticipantsScreen() {
   const { width } = useWindowDimensions();
@@ -137,9 +146,11 @@ export default function EditParticipantsScreen() {
   useEffect(() => {
     let isMounted = true;
     async function loadRatings() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('participants')
-        .select('id, name, behaviours, personal_care, communication, sensory, social, community, safety');
+        .select(
+          'id, name, behaviours, personal_care, communication, sensory, social, community, safety',
+        );
       if (!isMounted || !data) return;
       const map: Record<string, ParticipantRatingRow> = {};
       (data as any[]).forEach((row) => {
@@ -173,29 +184,27 @@ export default function EditParticipantsScreen() {
 
   const allParts = useMemo(
     () => sortByName(participantsSource.slice()),
-    [participantsSource]
+    [participantsSource],
   );
 
   const attendingSet = useMemo(
     () => new Set<string>((attendingParticipants ?? []) as string[]),
-    [attendingParticipants]
+    [attendingParticipants],
   );
 
   const attendingList = useMemo(
-    () =>
-      allParts.filter((p) => attendingSet.has(p.id as ID)),
-    [allParts, attendingSet]
+    () => allParts.filter((p) => attendingSet.has(p.id as ID)),
+    [allParts, attendingSet],
   );
 
   const poolList = useMemo(
-    () =>
-      allParts.filter((p) => !attendingSet.has(p.id as ID)),
-    [allParts, attendingSet]
+    () => allParts.filter((p) => !attendingSet.has(p.id as ID)),
+    [allParts, attendingSet],
   );
 
   const outingParticipantSet = useMemo(
     () => new Set<string>(outingGroup?.participantIds ?? []),
-    [outingGroup]
+    [outingGroup],
   );
 
   const toggleParticipant = (id: ID) => {
@@ -236,13 +245,16 @@ export default function EditParticipantsScreen() {
         <View style={[styles.inner, { width: contentWidth }]}>
           <Text style={styles.title}>Attending Participants</Text>
           <Text style={styles.subtitle}>
-            Tap participants to mark who is attending at B2 today. Attending participants
-            show up in Assignments, Floating, Pickups and Dropoffs screens.
+            Tap participants to mark who is attending at B2 today. Attending
+            participants show up in Assignments, Floating, Pickups and Dropoffs
+            screens.
           </Text>
 
           <Text style={styles.sectionTitle}>Attending</Text>
           {attendingList.length === 0 ? (
-            <Text style={styles.empty}>No participants have been selected yet.</Text>
+            <Text style={styles.empty}>
+              No participants have been selected yet.
+            </Text>
           ) : (
             <View style={styles.attendingGrid}>
               {attendingList.map((p) => {
@@ -289,13 +301,15 @@ export default function EditParticipantsScreen() {
                           </View>
                         )}
                       </View>
-                        <View style={styles.behaviourMeterContainer}>
-                          <BehaviourMeter
-                            value={
-                              ratingMap[`name:${String(p.name || '').toLowerCase()}`]?.behaviours ?? null
-                            }
-                          />
-                        </View>
+                      <View style={styles.behaviourMeterContainer}>
+                        <BehaviourMeter
+                          value={
+                            ratingMap[
+                              `name:${String(p.name || '').toLowerCase()}`
+                            ]?.behaviours ?? null
+                          }
+                        />
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -417,7 +431,7 @@ const styles = StyleSheet.create({
   attendingPillContent: {
     flex: 1,
     flexDirection: 'column',
-    marginLeft: 3,   // <-- add this
+    marginLeft: 3,
   },
   attendingHeaderRow: {
     flexDirection: 'row',
@@ -426,7 +440,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   attendingName: {
-
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
@@ -436,7 +449,7 @@ const styles = StyleSheet.create({
     color: '#F54FA5',
   },
 
-  // 5‑segment behaviour meter inside pill
+  // Gradient behaviour meter inside pill
   behaviourMeterContainer: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 2,
@@ -447,36 +460,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 2,
   },
-  
-  behaviourMeter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  behaviourSegment: {
-    width: 7,
-    height: 16,
-    borderRadius: 3,
-    marginHorizontal: 1.5,
-  },
-  behaviourSegmentOff: {
+  behaviourTrack: {
+    width: 72,
+    height: 10,
+    borderRadius: 999,
     backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
   },
-  behaviourSegmentLow: {
-    backgroundColor: '#4ADE80',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',// green for low‑risk
+  behaviourFill: {
+    height: '100%',
+    borderRadius: 999,
   },
-  behaviourSegmentMedium: {
-    backgroundColor: '#FACC15',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',// amber for medium‑risk
-  },
-  behaviourSegmentHigh: {
-    backgroundColor: '#F97316',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',// orange‑red for high‑risk
-  },
-// Score bubble on left of pill
+
+  // Score bubble on left of pill
   scoreBubble: {
     minWidth: 28,
     paddingHorizontal: 6,
