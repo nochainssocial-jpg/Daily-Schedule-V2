@@ -447,13 +447,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   behaviourSegmentLow: {
-    backgroundColor: '#4ADE80', // green for low‑risk
+    backgroundColor: '#4ADE80',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',// green for low‑risk
   },
   behaviourSegmentMedium: {
-    backgroundColor: '#FACC15', // amber for medium‑risk
+    backgroundColor: '#FACC15',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',// amber for medium‑risk
   },
   behaviourSegmentHigh: {
-    backgroundColor: '#F97316', // orange‑red for high‑risk
+    backgroundColor: '#F97316',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',// orange‑red for high‑risk
   },
 // Score bubble on left of pill
   scoreBubble: {
@@ -470,15 +476,15 @@ const styles = StyleSheet.create({
   },
   scoreBubbleLow: {
     backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
+    borderColor: '#FFFFFF',
   },
   scoreBubbleMedium: {
     backgroundColor: '#fef9c3',
-    borderColor: '#feea55',
+    borderColor: '#FFFFFF',
   },
   scoreBubbleHigh: {
     backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
+    borderColor: '#FFFFFF',
   },
   scoreBubbleText: {
     fontSize: 11,
