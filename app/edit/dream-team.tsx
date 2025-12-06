@@ -1,7 +1,8 @@
 // app/edit/dream-team.tsx
 // Edit screen for working staff (Dream Team) with staff pool.
-// Integrates with outings: staff on outing are shown as outline pills.
-import React, { useMemo } from 'react';
+// Integrates with outings + training + live ratings from Supabase.
+
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +20,7 @@ import { STAFF as STATIC_STAFF } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import Chip from '@/components/Chip';
+import { supabase } from '@/lib/supabase';
 
 type ID = string;
 
@@ -66,13 +68,50 @@ export default function EditDreamTeamScreen() {
     updateSchedule,
   } = useSchedule() as any;
 
-  // Single source of truth for staff:
-  //   • Prefer staff from the current schedule snapshot (Supabase)
-  //   • Fall back to STATIC_STAFF only if nothing is stored yet
-  const staffSource =
+  // Base staff list from snapshot or static fallback
+  const baseStaffSource =
     (Array.isArray(scheduleStaff) && scheduleStaff.length
       ? scheduleStaff
       : STATIC_STAFF) || [];
+
+  // Live ratings from Supabase – keyed by staff id
+  const [ratingLookup, setRatingLookup] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRatings() {
+      try {
+        const { data, error } = await supabase
+          .from('staff')
+          .select(
+            'id,experience_level,behaviour_capability,personal_care_skill,mobility_assistance,communication_support,reliability_rating',
+          );
+
+        if (error || !data || cancelled) return;
+
+        const map: Record<string, any> = {};
+        (data as any[]).forEach((row) => {
+          const id = String(row.id);
+          if (id) map[id] = row;
+        });
+
+        if (!cancelled) {
+          setRatingLookup(map);
+        }
+      } catch (e) {
+        console.warn('[dream-team] failed to load staff ratings', e);
+      }
+    }
+
+    loadRatings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const staffSource = baseStaffSource;
 
   const staffById = useMemo(() => {
     const map: Record<string, any> = {};
@@ -164,7 +203,6 @@ export default function EditDreamTeamScreen() {
     <View style={styles.screen}>
       <SaveExit touchKey="dreamTeam" />
 
-      {/* Web-only hero icon for larger layouts */}
       {Platform.OS === 'web' && width >= 900 && (
         <View pointerEvents="none" style={styles.heroIcon}>
           <Ionicons name="people-circle-outline" size={260} color="#f0e7ff" />
@@ -180,7 +218,6 @@ export default function EditDreamTeamScreen() {
             Names are always sorted alphabetically.
           </Text>
 
-          {/* Dream Team – uses onsite/offsite styling */}
           <Text style={styles.sectionTitle}>Working at B2 (Dream Team)</Text>
           {dreamTeam.length === 0 ? (
             <Text style={styles.empty}>No staff have been selected yet.</Text>
@@ -191,11 +228,13 @@ export default function EditDreamTeamScreen() {
                 const isOutOnOuting = outingStaffSet.has(id);
                 const isTraining = trainingSet.has(id);
 
-                const score = getStaffScore(s);
+                // Prefer Supabase ratings if present
+                const ratingSource = ratingLookup[id] ?? s;
+
+                const score = getStaffScore(ratingSource);
                 const band = getScoreBand(score);
                 const showScore = score > 0;
 
-                // Training overrides the ons/off styling visually
                 const mode = (
                   isTraining
                     ? 'training'
@@ -251,7 +290,6 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          {/* Staff Pool – visually like participant pool, but still shows “offsite” if on outing */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
             Staff Pool
           </Text>
@@ -264,7 +302,8 @@ export default function EditDreamTeamScreen() {
                 const isOutOnOuting = outingStaffSet.has(id);
                 const isTraining = trainingSet.has(id);
 
-                const score = getStaffScore(s);
+                const ratingSource = ratingLookup[id] ?? s;
+                const score = getStaffScore(ratingSource);
                 const band = getScoreBand(score);
                 const showScore = score > 0;
 
