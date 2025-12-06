@@ -197,70 +197,56 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   useEffect(() => {
     Animated.timing(progress, {
       toValue: fraction,
-      duration: 600,
-      useNativeDriver: false,
+      duration: 350,
+      useNativeDriver: false, // animating width
     }).start();
   }, [fraction, progress]);
 
-  const animatedStyle = {
-    width: progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, trackWidth || 1],
-    }),
-  };
+  // Width of the grey mask that hides the *unfilled* part of the bar
+  const maskWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [trackWidth, 0], // 0% score = full mask, 100% = no mask
+  });
 
   return (
     <View
       style={{
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 2,
-        paddingHorizontal: 4,
-        borderRadius: 8,
-        alignSelf: 'flex-start',
+        width: 110,
+        height: 10,
+        borderRadius: 999,
+        overflow: 'hidden',
+        backgroundColor: '#E5E7EB',
       }}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
     >
-      <View
-        style={{
-          width: 110,
-          height: 10,
-          borderRadius: 999,
-          overflow: 'hidden',
-          backgroundColor: '#E5E7EB',
-        }}
-        onLayout={(e) => {
-          setTrackWidth(e.nativeEvent.layout.width);
-        }}
-      >
-        {trackWidth > 0 && (
-          <>
-            <LinearGradient
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              locations={[0, 0.45, 0.75, 1]}
-              colors={['#4CAF50', '#F4C21A', '#F28A00', '#E53935']}
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                right: 0,
-              }}
-            />
-            <Animated.View
-              style={[
-                {
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  backgroundColor: '#E5E7EB',
-                },
-                animatedStyle,
-              ]}
-            />
-          </>
-        )}
-      </View>
+      {trackWidth > 0 && (
+        <>
+          {/* Same gradient as Attending screen */}
+          <LinearGradient
+            colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+            }}
+          />
+          {/* Grey mask from the right, hiding the unfilled portion */}
+          <Animated.View
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              backgroundColor: '#E5E7EB',
+              width: maskWidth,
+            }}
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -1319,6 +1305,7 @@ export default function FloatingScreen() {
                     Scotty
                   </Text>
                 </View>
+              
                 <View
                   style={{
                     flex: 1,
@@ -1330,39 +1317,10 @@ export default function FloatingScreen() {
                     alignItems: 'center',
                   }}
                 >
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: '#000000',
-                      backgroundColor: '#ffffff',
-                      marginRight: 8,
-                      marginBottom: 6,
-                      gap: 6,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        backgroundColor: '#3b82f6', // Scott = male
-                      }}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: '#111827',
-                        fontWeight: '500',
-                      }}
-                    >
-                      Scott
-                    </Text>
-                  </View>
+                  <LegendParticipantPill
+                    person={{ name: 'Scott', female: false }}
+                    rating={ratingMap['name:scott']}
+                  />
                 </View>
               </View>
 
