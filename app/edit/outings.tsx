@@ -21,6 +21,71 @@ type ID = string;
 
 const PINK = '#F54FA5';
 
+type StaffLike = {
+  experience_level?: number | null;
+  behaviour_capability?: number | null;
+  personal_care_skill?: number | null;
+  mobility_assistance?: number | null;
+  communication_support?: number | null;
+  reliability_rating?: number | null;
+};
+
+type ParticipantLike = {
+  behaviours?: number | null;
+  personal_care?: number | null;
+  communication?: number | null;
+  sensory?: number | null;
+  social?: number | null;
+  community?: number | null;
+  safety?: number | null;
+};
+
+function getStaffTotalScore(member: StaffLike | any): number | null {
+  if (!member) return null;
+
+  const values = [
+    member.experience_level,
+    member.behaviour_capability,
+    member.personal_care_skill,
+    member.mobility_assistance,
+    member.communication_support,
+    member.reliability_rating,
+  ].filter((v: any): v is number => typeof v === 'number' && !Number.isNaN(v));
+
+  if (!values.length) return null;
+  return values.reduce((sum: number, v: number) => sum + v, 0);
+}
+
+function getStaffScoreLevel(total: number): 'low' | 'medium' | 'high' {
+  if (total >= 15) return 'high';
+  if (total >= 10) return 'medium';
+  return 'low';
+}
+
+function getParticipantTotalScore(member: ParticipantLike | any): number | null {
+  if (!member) return null;
+
+  const values = [
+    member.behaviours,
+    member.personal_care,
+    member.communication,
+    member.sensory,
+    member.social,
+    member.community,
+    member.safety,
+  ].filter((v: any): v is number => typeof v === 'number' && !Number.isNaN(v));
+
+  if (!values.length) return null;
+  return values.reduce((sum: number, v: number) => sum + v, 0);
+}
+
+function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
+  // 7 criteria, range 7–21. Same bands as Participants Settings screen
+  if (total >= 16) return 'high';
+  if (total >= 10) return 'medium';
+  return 'low';
+}
+
 export default function OutingsScreen() {
   const {
     staff,
@@ -195,8 +260,12 @@ export default function OutingsScreen() {
               </Text>
             ) : (
               <View style={styles.chipGrid}>
-                {workingStaffObjs.map((st) => {
+                {workingStaffObjs.map((st: any) => {
                   const selected = staffOnOuting.has(st.id);
+                  const total = getStaffTotalScore(st);
+                  const level =
+                    total !== null ? getStaffScoreLevel(total) : null;
+
                   return (
                     <TouchableOpacity
                       key={st.id}
@@ -204,15 +273,29 @@ export default function OutingsScreen() {
                       activeOpacity={0.85}
                       style={[styles.chip, selected && styles.chipSelected]}
                     >
-                      <Text
-                        style={[
-                          styles.chipLabel,
-                          selected && styles.chipLabelSelected,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {st.name}
-                      </Text>
+                      <View style={styles.chipContent}>
+                        <Text
+                          style={[
+                            styles.chipLabel,
+                            selected && styles.chipLabelSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {st.name}
+                        </Text>
+                        {total !== null && (
+                          <View
+                            style={[
+                              styles.scoreBubble,
+                              level === 'low' && styles.scoreBubbleLow,
+                              level === 'medium' && styles.scoreBubbleMedium,
+                              level === 'high' && styles.scoreBubbleHigh,
+                            ]}
+                          >
+                            <Text style={styles.scoreBubbleText}>{total}</Text>
+                          </View>
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -233,8 +316,12 @@ export default function OutingsScreen() {
               </Text>
             ) : (
               <View style={styles.chipGrid}>
-                {attendingPartsObjs.map((p) => {
+                {attendingPartsObjs.map((p: any) => {
                   const selected = partsOnOuting.has(p.id);
+                  const total = getParticipantTotalScore(p);
+                  const level =
+                    total !== null ? getParticipantScoreLevel(total) : null;
+
                   return (
                     <TouchableOpacity
                       key={p.id}
@@ -242,15 +329,29 @@ export default function OutingsScreen() {
                       activeOpacity={0.85}
                       style={[styles.chip, selected && styles.chipSelected]}
                     >
-                      <Text
-                        style={[
-                          styles.chipLabel,
-                          selected && styles.chipLabelSelected,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {p.name}
-                      </Text>
+                      <View style={styles.chipContent}>
+                        <Text
+                          style={[
+                            styles.chipLabel,
+                            selected && styles.chipLabelSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {p.name}
+                        </Text>
+                        {total !== null && (
+                          <View
+                            style={[
+                              styles.scoreBubble,
+                              level === 'low' && styles.scoreBubbleLow,
+                              level === 'medium' && styles.scoreBubbleMedium,
+                              level === 'high' && styles.scoreBubbleHigh,
+                            ]}
+                          >
+                            <Text style={styles.scoreBubbleText}>{total}</Text>
+                          </View>
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -376,6 +477,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDBA74',
     borderColor: '#FB923C',
   },
+  chipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   chipLabel: {
     fontSize: 13,
     color: '#000', // black chip text
@@ -383,6 +489,32 @@ const styles = StyleSheet.create({
   chipLabelSelected: {
     fontWeight: '600',
     color: '#000', // black chip text even when selected
+  },
+  scoreBubble: {
+    minWidth: 26,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreBubbleLow: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  scoreBubbleMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  scoreBubbleHigh: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
+  scoreBubbleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#111827',
   },
   empty: {
     fontSize: 13,
@@ -407,3 +539,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
