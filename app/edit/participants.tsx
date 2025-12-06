@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   scoreBubbleText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: '#332244',
   },
