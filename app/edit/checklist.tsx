@@ -1,3 +1,6 @@
+// CHECKLIST.TSX — FULLY PATCHED VERSION
+// --------------------------------------------------
+
 import React, { useMemo } from 'react';
 import {
   ScrollView,
@@ -39,12 +42,12 @@ export default function EditChecklistScreen() {
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
 
-  // Prefer staff from the schedule (after create), fallback to static constants
+  // Prefer schedule staff, fallback to static
   const staff = (scheduleStaff && scheduleStaff.length
     ? scheduleStaff
     : STATIC_STAFF) as typeof STATIC_STAFF;
 
-  // Last-to-leave options: Dream Team if available, otherwise all staff
+  // Dream Team (if present) or all staff
   const staffPool = useMemo(
     () =>
       workingStaff && workingStaff.length
@@ -56,17 +59,17 @@ export default function EditChecklistScreen() {
   const selectedStaff =
     staffPool.find((s) => s.id === finalChecklistStaff) || null;
 
+  const blockReadOnly = () =>
+    push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+
   const handleSelectStaff = (id: ID) => {
-    if (readOnly) {
-      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-      return;
-    }
+    if (readOnly) return blockReadOnly();
     updateSchedule({ finalChecklistStaff: id });
     push('Final checklist staff updated', 'checklist');
   };
 
   const handleToggleItem = (itemId: ID | number) => {
-    // Checkboxes are always interactive – even in B2 read-only mode
+    // Checkboxes ALWAYS allowed
     const key = String(itemId);
     const next = { ...(finalChecklist || {}) };
     next[key] = !next[key];
@@ -78,17 +81,8 @@ export default function EditChecklistScreen() {
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="checklist" />
-      {Platform.OS === 'web' && !isMobileWeb && (
-        <Ionicons
-          name="checkbox-outline"
-          size={220}
-          color="#86A2FF"
-          style={styles.heroIcon}
-        />
-      )}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* NEW white card container */}
         <View style={styles.card}>
           <View style={styles.inner}>
             <Text style={styles.title}>End of Shift Checklist</Text>
@@ -97,12 +91,13 @@ export default function EditChecklistScreen() {
               leave and responsible for closing tasks.
             </Text>
 
-            {/* Working staff / last-to-leave selector */}
+            {/* STAFF SELECTOR */}
             <Text style={styles.sectionTitle}>Who is last to leave?</Text>
+
             {staffPool.length === 0 ? (
               <Text style={styles.helperText}>
                 No staff available. Create a schedule and select working staff so
-                you can assign the checklist to someone.
+                someone can be assigned.
               </Text>
             ) : (
               <View style={styles.chipRow}>
@@ -127,21 +122,23 @@ export default function EditChecklistScreen() {
                 <Chip
                   label={selectedStaff.name}
                   selected
-                  mode="onsite"   // ← apply onsite styling
+                  mode="onsite"
                 />
               ) : (
                 <Text style={styles.helperText}>Not yet selected</Text>
               )}
             </View>
 
-            {/* Checklist items */}
+            {/* CHECKLIST */}
             <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
               Checklist items
             </Text>
+
             {DEFAULT_CHECKLIST.map((item) => {
               const key = String(item.id);
               const checked = !!finalChecklist?.[key];
               const label = (item as any).name || (item as any).label || '';
+
               return (
                 <View key={key} style={styles.itemRow}>
                   <Checkbox
@@ -164,19 +161,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E0E7FF',
   },
-  heroIcon: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
-    opacity: 1,
-    zIndex: 0,
-  },
   scroll: {
     paddingVertical: 24,
     alignItems: 'center',
     paddingHorizontal: 16,
   },
-  // NEW white card
   card: {
     width: '100%',
     maxWidth: MAX_WIDTH,
@@ -226,15 +215,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     color: '#7a688c',
     marginBottom: 8,
-  },
-  currentStaff: {
-    fontSize: 13,
-    color: '#5a486b',
-    marginTop: 4,
-  },
-  currentStaffName: {
-    fontWeight: '600',
-    color: '#3c234c',
   },
   itemRow: {
     paddingVertical: 4,
