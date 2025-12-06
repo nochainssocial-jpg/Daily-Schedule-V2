@@ -348,7 +348,7 @@ function LegendParticipantPill({
           >
             <Text
               style={{
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: '700',
                 color: '#FFFFFF',
               }}
@@ -1199,7 +1199,7 @@ export default function FloatingScreen() {
           <View style={{ marginTop: 24 }}>
             <Text
               style={{
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: '700',
                 color: '#000000',
                 marginBottom: 8,
@@ -1225,7 +1225,7 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '25%',
+                    width: '18%',
                     paddingVertical: 10,
                     paddingHorizontal: 16,
                     borderRightWidth: 1,
@@ -1247,12 +1247,11 @@ export default function FloatingScreen() {
                 <View
                   style={{
                     flex: 1,
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    marginBottom: 4,
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
-                    gap: 10,
+                    gap: 6,
                     alignItems: 'center',
                   }}
                 >
@@ -1287,7 +1286,7 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '25%',
+                    width: '18%',
                     paddingVertical: 10,
                     paddingHorizontal: 16,
                     borderRightWidth: 1,
@@ -1310,12 +1309,11 @@ export default function FloatingScreen() {
                 <View
                   style={{
                     flex: 1,
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    marginBottom: 4,
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
-                    gap: 10,
+                    gap: 6,
                     alignItems: 'center',
                   }}
                 >
@@ -1334,7 +1332,7 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '25%',
+                    width: '18%',
                     paddingVertical: 10,
                     paddingHorizontal: 16,
                     borderRightWidth: 1,
@@ -1356,12 +1354,11 @@ export default function FloatingScreen() {
                 <View
                   style={{
                     flex: 1,
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    marginBottom: 4,
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
-                    gap: 10,
+                    gap: 6,
                     alignItems: 'center',
                   }}
                 >
