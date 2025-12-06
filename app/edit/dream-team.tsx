@@ -10,8 +10,8 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -22,7 +22,6 @@ import Chip from '@/components/Chip';
 
 type ID = string;
 
-// same file, near top – add helper:
 const STAFF_SCORE_KEYS: Array<keyof any> = [
   'experience_level',
   'behaviour_capability',
@@ -35,7 +34,7 @@ const STAFF_SCORE_KEYS: Array<keyof any> = [
 function getStaffScore(row: any): number {
   if (!row) return 0;
   return STAFF_SCORE_KEYS.reduce((sum, key) => {
-    const raw = row?.[key];
+    const raw = (row as any)?.[key];
     const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
     return Number.isFinite(n) ? sum + n : sum;
   }, 0);
@@ -47,6 +46,7 @@ function getScoreBand(score: number): 'none' | 'junior' | 'mid' | 'senior' {
   if (score >= 9) return 'mid';
   return 'junior';
 }
+
 const sortByName = (list: any[]) =>
   list
     .slice()
@@ -65,11 +65,6 @@ export default function EditDreamTeamScreen() {
     outingGroup,
     updateSchedule,
   } = useSchedule() as any;
-
-  const trainingSet = useMemo(
-    () => new Set<string>((trainingStaffToday || []).map(String)),
-    [trainingStaffToday],
-  );
 
   // Single source of truth for staff:
   //   • Prefer staff from the current schedule snapshot (Supabase)
@@ -95,6 +90,11 @@ export default function EditDreamTeamScreen() {
     [workingStaff],
   );
 
+  const trainingSet = useMemo(
+    () => new Set<string>((trainingStaffToday as ID[]).map((id) => String(id))),
+    [trainingStaffToday],
+  );
+
   const allStaff = useMemo(() => sortByName(staffSource), [staffSource]);
 
   const dreamTeam = useMemo(
@@ -109,15 +109,13 @@ export default function EditDreamTeamScreen() {
 
   const staffPool = useMemo(
     () =>
-      sortByName(
-        allStaff.filter((s: any) => !workingSet.has(String(s.id))),
-      ),
+      sortByName(allStaff.filter((s: any) => !workingSet.has(String(s.id)))),
     [allStaff, workingSet],
   );
 
   const outingStaffSet = useMemo(() => {
     const ids = ((outingGroup?.staffIds ?? []) as (string | number)[]).map(
-      (id) => String(id),
+      (raw) => String(raw),
     );
     return new Set<string>(ids);
   }, [outingGroup]);
@@ -127,19 +125,6 @@ export default function EditDreamTeamScreen() {
       push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
-
-    const toggleTraining = (staffId: ID) => {
-    const id = String(staffId);
-    const next = new Set(trainingSet);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-
-    updateSchedule?.({ trainingStaffToday: Array.from(next) });
-    push?.('Training status updated', 'dream-team');
-  };
 
     const key = String(id);
     const next = new Set<string>(Array.from(workingSet));
@@ -154,6 +139,25 @@ export default function EditDreamTeamScreen() {
     push?.('Dream Team updated', 'dream-team');
   };
 
+  const toggleTraining = (id: ID) => {
+    if (readOnly) {
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+
+    const key = String(id);
+    const next = new Set<string>(Array.from(trainingSet));
+
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+
+    updateSchedule?.({ trainingStaffToday: Array.from(next) });
+    push?.('Training status updated', 'dream-team');
+  };
+
   const contentWidth = Math.min(width - 32, 880);
 
   return (
@@ -162,12 +166,9 @@ export default function EditDreamTeamScreen() {
 
       {/* Web-only hero icon for larger layouts */}
       {Platform.OS === 'web' && width >= 900 && (
-        <Ionicons
-          name="people-circle-outline"
-          size={220}
-          color="#FBCA04"
-          style={styles.heroIcon}
-        />
+        <View pointerEvents="none" style={styles.heroIcon}>
+          <Ionicons name="people-circle-outline" size={260} color="#f0e7ff" />
+        </View>
       )}
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -194,16 +195,24 @@ export default function EditDreamTeamScreen() {
                 const band = getScoreBand(score);
                 const showScore = score > 0;
 
-                // Training overrides the normal onsite/offsite colour
-                const mode = (isTraining ? 'training' : (isOutOnOuting ? 'offsite' : 'onsite')) as any;
+                // Training overrides the ons/off styling visually
+                const mode = (
+                  isTraining
+                    ? 'training'
+                    : isOutOnOuting
+                    ? 'offsite'
+                    : 'onsite'
+                ) as any;
 
                 const leftAddon = showScore ? (
-                  <View style={[
-                    styles.scoreCircle,
-                    band === 'senior' && styles.scoreCircleSenior,
-                    band === 'mid' && styles.scoreCircleMid,
-                    band === 'junior' && styles.scoreCircleJunior,
-                  ]}>
+                  <View
+                    style={[
+                      styles.scoreCircle,
+                      band === 'senior' && styles.scoreCircleSenior,
+                      band === 'mid' && styles.scoreCircleMid,
+                      band === 'junior' && styles.scoreCircleJunior,
+                    ]}
+                  >
                     <Text style={styles.scoreText}>{score}</Text>
                   </View>
                 ) : null;
@@ -238,7 +247,6 @@ export default function EditDreamTeamScreen() {
                     onLongPress={() => toggleTraining(s.id as ID)}
                   />
                 );
-
               })}
             </View>
           )}
@@ -260,15 +268,23 @@ export default function EditDreamTeamScreen() {
                 const band = getScoreBand(score);
                 const showScore = score > 0;
 
-                const mode = (isTraining ? 'training' : (isOutOnOuting ? 'offsite' : 'default')) as any;
+                const mode = (
+                  isTraining
+                    ? 'training'
+                    : isOutOnOuting
+                    ? 'offsite'
+                    : 'default'
+                ) as any;
 
                 const leftAddon = showScore ? (
-                  <View style={[
-                    styles.scoreCircle,
-                    band === 'senior' && styles.scoreCircleSenior,
-                    band === 'mid' && styles.scoreCircleMid,
-                    band === 'junior' && styles.scoreCircleJunior,
-                  ]}>
+                  <View
+                    style={[
+                      styles.scoreCircle,
+                      band === 'senior' && styles.scoreCircleSenior,
+                      band === 'mid' && styles.scoreCircleMid,
+                      band === 'junior' && styles.scoreCircleJunior,
+                    ]}
+                  >
                     <Text style={styles.scoreText}>{score}</Text>
                   </View>
                 ) : null;
@@ -343,7 +359,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#4b164c',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
@@ -365,6 +381,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  scoreCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5E7EB',
+  },
+  scoreCircleJunior: {
+    backgroundColor: '#BFDBFE',
+  },
+  scoreCircleMid: {
+    backgroundColor: '#FDE68A',
+  },
+  scoreCircleSenior: {
+    backgroundColor: '#C4B5FD',
+  },
+  scoreText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
   },
   legendRow: {
     flexDirection: 'row',
@@ -389,29 +429,5 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontSize: 12,
     color: '#4b164c',
-  },
-    scoreCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E5E7EB', // default (no band)
-  },
-  scoreCircleJunior: {
-    backgroundColor: '#BFDBFE', // light blue
-  },
-  scoreCircleMid: {
-    backgroundColor: '#FDE68A', // amber
-  },
-  scoreCircleSenior: {
-    backgroundColor: '#C4B5FD', // purple-ish
-  },
-  scoreText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#111827',
   },
 });
