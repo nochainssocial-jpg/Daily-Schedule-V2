@@ -76,22 +76,36 @@ function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
 }
 
 function BehaviourMeter({ value }: { value?: number | null }) {
-  const v = typeof value === 'number' ? value : 0;
+  // behaviours is 1–3 from Supabase, but we show 5 segments:
+  // 1 = 2 green segments, 2 = 3 amber segments, 3 = 5 red/orange segments.
+  const raw = typeof value === 'number' ? value : 0;
+  const clamped = Math.max(0, Math.min(3, raw));
+
+  let filledSegments = 0;
+  if (clamped === 1) filledSegments = 2;
+  else if (clamped === 2) filledSegments = 3;
+  else if (clamped === 3) filledSegments = 5;
 
   return (
     <View style={styles.behaviourMeter}>
       {[1, 2, 3, 4, 5].map((level) => {
-        const isActive = v >= level;
-        const isHigh = v >= 4 && level >= 4;
+        const isFilled = level <= filledSegments;
+
+        let extraStyle = null;
+        if (!isFilled) {
+          extraStyle = styles.behaviourSegmentOff;
+        } else if (clamped === 1) {
+          extraStyle = styles.behaviourSegmentLow;
+        } else if (clamped === 2) {
+          extraStyle = styles.behaviourSegmentMedium;
+        } else if (clamped === 3) {
+          extraStyle = styles.behaviourSegmentHigh;
+        }
 
         return (
           <View
             key={level}
-            style={[
-              styles.behaviourSegment,
-              isActive && styles.behaviourSegmentActive,
-              isHigh && styles.behaviourSegmentHigh,
-            ]}
+            style={[styles.behaviourSegment, extraStyle]}
           />
         );
       })}
@@ -107,6 +121,7 @@ export default function EditParticipantsScreen() {
   const readOnly = !isAdmin;
 
   const {
+    participants,
     attendingParticipants = [],
     outingGroup,
     updateSchedule,
@@ -115,9 +130,15 @@ export default function EditParticipantsScreen() {
   const { push } = useNotifications();
 
   const partById = useMemo(makePartMap, []);
+
+  // Prefer Supabase participants snapshot when available so we get live ratings.
+  const participantsSource = (participants && participants.length
+    ? participants
+    : STATIC_PARTICIPANTS) as any[];
+
   const allParts = useMemo(
-    () => sortByName(STATIC_PARTICIPANTS.slice()),
-    []
+    () => sortByName(participantsSource.slice()),
+    [participantsSource]
   );
 
   const attendingSet = useMemo(
@@ -203,34 +224,37 @@ export default function EditParticipantsScreen() {
                 if (level === 'high') scoreStyles.push(styles.scoreBubbleHigh);
 
                 return (
-                  <View key={p.id as ID} style={styles.attendingItem}>
-                    {total !== null && (
-                      <View style={scoreStyles}>
-                        <Text style={styles.scoreBubbleText}>{total}</Text>
+                  <TouchableOpacity
+                    key={p.id as ID}
+                    activeOpacity={0.85}
+                    onPress={() => toggleParticipant(p.id as ID)}
+                    style={[
+                      styles.attendingPill,
+                      mode === 'offsite'
+                        ? styles.attendingPillOffsite
+                        : styles.attendingPillOnsite,
+                    ]}
+                  >
+                    <View style={styles.attendingPillContent}>
+                      <View style={styles.attendingHeaderRow}>
+                        <Text
+                          style={[
+                            styles.attendingName,
+                            mode === 'offsite' && styles.attendingNameOffsite,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {p.name}
+                        </Text>
+                        {total !== null && (
+                          <View style={scoreStyles}>
+                            <Text style={styles.scoreBubbleText}>{total}</Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => toggleParticipant(p.id as ID)}
-                      style={[
-                        styles.attendingPill,
-                        mode === 'offsite'
-                          ? styles.attendingPillOffsite
-                          : styles.attendingPillOnsite,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.attendingName,
-                          mode === 'offsite' && styles.attendingNameOffsite,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {p.name}
-                      </Text>
                       <BehaviourMeter value={(p as any).behaviours} />
-                    </TouchableOpacity>
-                  </View>
+                    </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -346,7 +370,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
   },
+  attendingPillContent: {
+    flex: 1,
+  },
+  attendingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
   attendingName: {
+
     fontSize: 13,
     fontWeight: '600',
     color: '#FFFFFF',
@@ -366,16 +400,20 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 2,
     marginHorizontal: 1,
-    backgroundColor: '#E5E7EB', // off
   },
-  behaviourSegmentActive: {
-    backgroundColor: '#86EFAC', // green for lower risk
+  behaviourSegmentOff: {
+    backgroundColor: '#E5E7EB',
+  },
+  behaviourSegmentLow: {
+    backgroundColor: '#4ADE80', // green for low‑risk
+  },
+  behaviourSegmentMedium: {
+    backgroundColor: '#FACC15', // amber for medium‑risk
   },
   behaviourSegmentHigh: {
-    backgroundColor: '#F97316', // orange‑red for higher risk
+    backgroundColor: '#F97316', // orange‑red for high‑risk
   },
-
-  // Score bubble on left of pill
+// Score bubble on left of pill
   scoreBubble: {
     minWidth: 28,
     paddingHorizontal: 8,
