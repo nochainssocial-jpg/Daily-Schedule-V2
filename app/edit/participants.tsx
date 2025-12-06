@@ -469,8 +469,8 @@ const styles = StyleSheet.create({
   // Score bubble on left of pill
   scoreBubble: {
     minWidth: 28,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 3,
+    paddingVertical: 3,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e7dff2',
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   scoreBubbleLow: {
     backgroundColor: '#dcfce7',
