@@ -9,6 +9,8 @@ import useSchedule from '@/hooks/schedule-adapter';
 import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/schedule-store';
 import { STAFF, PARTICIPANTS, DROPOFF_OPTIONS } from '@/constants/data';
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
+import { supabase } from '@/lib/supabase';
+import type { Staff, Participant } from '@/constants/data';
 
 type ID = string;
 
@@ -57,11 +59,65 @@ export default function CreateScheduleScreen() {
   };
 
   // ---- sources & defaults --------------------------------------------------
-  const staffSource = STAFF || [];
-  const partsSource =
-    (Array.isArray(participants) && participants.length ? participants : PARTICIPANTS) || [];
+  const [staffSource, setStaffSource] = useState<Staff[]>(
+    () => (Array.isArray(staff) && staff.length ? (staff as Staff[]) : (STAFF as Staff[])) || [],
+  );
+
+  const [partsSource, setPartsSource] = useState<Participant[]>(
+    () =>
+      ((Array.isArray(participants) && participants.length
+        ? (participants as Participant[])
+        : (PARTICIPANTS as Participant[])) || []) as Participant[],
+  );
+
   const everyone = staffSource.find(s => isEveryone(s.name));
   const everyoneId = everyone?.id;
+
+    // Load latest master staff + participants from Supabase when starting fresh
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadMasterData() {
+      // If we already have staff from a loaded snapshot, don’t override
+      if (Array.isArray(staff) && staff.length) return;
+      try {
+        const { data: staffRows } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+
+        if (!isCancelled && staffRows) {
+          const mapped: Staff[] = (staffRows as any[]).map(row => ({
+            ...(row as any),
+            id: String(row.id),
+          }));
+          setStaffSource(mapped);
+        }
+
+        const { data: partRows } = await supabase
+          .from('participants')
+          .select('*')
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+
+        if (!isCancelled && partRows) {
+          const mappedParts: Participant[] = (partRows as any[]).map(row => ({
+            ...(row as any),
+            id: String(row.id),
+          }));
+          setPartsSource(mappedParts);
+        }
+      } catch {
+        // fail silently – fall back to local constants
+      }
+    }
+
+    loadMasterData();
+    return () => {
+      isCancelled = true;
+    };
+  }, [staff, participants]);
 
   const [workingStaff, setWorkingStaff] = useState<string[]>(() =>
     everyoneId ? [everyoneId] : [],
