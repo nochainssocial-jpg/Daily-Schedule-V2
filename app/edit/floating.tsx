@@ -1294,34 +1294,39 @@ export default function FloatingScreen() {
             </View>
 
             {/* Scotty row */}
-            <View
-              style={{
-                flexDirection: 'row',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e5e7eb',
-              }}
-            >
-              <View
-                style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
-                }}
-              >
-                <Text
+                <View
                   style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: '#000000',
+                    backgroundColor: '#ffffff',
+                    marginRight: 8,
+                    marginBottom: 6,
+                    gap: 6,
                   }}
                 >
-                  Scotty
-                </Text>
-              </View>
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: '#3b82f6', // Scott = male
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: '#111827',
+                      fontWeight: '500',
+                    }}
+                  >
+                    Scott
+                  </Text>
+                </View>
               <View
                 style={{
                   flex: 1,
