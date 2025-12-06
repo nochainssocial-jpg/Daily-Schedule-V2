@@ -289,11 +289,13 @@ export default function EditParticipantsScreen() {
                           </View>
                         )}
                       </View>
-                      <BehaviourMeter
-                        value={
-                          ratingMap[`name:${String(p.name || '').toLowerCase()}`]?.behaviours ?? null
-                        }
-                      />
+                        <View style={styles.behaviourMeterContainer}>
+                          <BehaviourMeter
+                            value={
+                              ratingMap[`name:${String(p.name || '').toLowerCase()}`]?.behaviours ?? null
+                            }
+                          />
+                        </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -433,15 +435,26 @@ const styles = StyleSheet.create({
   },
 
   // 5‑segment behaviour meter inside pill
+  behaviourMeterContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  
   behaviourMeter: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   behaviourSegment: {
-    width: 6,
-    height: 15,
+    width: 7,
+    height: 16,
     borderRadius: 3,
-    marginHorizontal: 2,
+    marginHorizontal: 1.5,
   },
   behaviourSegmentOff: {
     backgroundColor: '#E5E7EB',
