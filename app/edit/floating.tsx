@@ -236,9 +236,10 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
         {trackWidth > 0 && (
           <>
             <LinearGradient
-              colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              locations={[0, 0.45, 0.75, 1]}
+              colors={['#4CAF50', '#F4C21A', '#F28A00', '#E53935']}
               style={{
                 position: 'absolute',
                 left: 0,
