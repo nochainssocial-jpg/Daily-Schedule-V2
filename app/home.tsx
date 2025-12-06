@@ -75,6 +75,15 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.buttonRow}>
+            {/* New: Admin Login – same style as Go to Edit Hub */}
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => router.push(ROUTES.SHARE)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryLabel}>Admin Login</Text>
+            </TouchableOpacity>
+            
             <TouchableOpacity
               style={styles.primaryButton}
               onPress={() => router.push(ROUTES.CREATE)}
@@ -91,14 +100,6 @@ export default function HomeScreen() {
               <Text style={styles.secondaryLabel}>Go to Edit Hub</Text>
             </TouchableOpacity>
 
-            {/* New: Admin Login – same style as Go to Edit Hub */}
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => router.push(ROUTES.SHARE)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.secondaryLabel}>Admin Login</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Quick Start Guide Updated */}
