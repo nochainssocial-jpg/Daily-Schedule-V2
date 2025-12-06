@@ -1417,7 +1417,6 @@ export default function FloatingScreen() {
                     />
                   );
                 })}
-                ))}
               </View>
             </View>
           </View>
