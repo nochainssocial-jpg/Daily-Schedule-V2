@@ -47,7 +47,8 @@ export default function ParticipantsSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [legendCollapsed, setLegendCollapsed] = useState(false);
+  const [legendCollapsed, setLegendCollapsed] = useState(true);
+  const [addCollapsed, setAddCollapsed] = useState(true);
 
   const [newName, setNewName] = useState('');
   const [newGender, setNewGender] = useState<'Male' | 'Female' | ''>('');
@@ -240,9 +241,11 @@ export default function ParticipantsSettingsScreen() {
                 style={styles.legendToggle}
                 activeOpacity={0.8}
               >
-                <Text style={styles.legendToggleText}>
-                  {legendCollapsed ? 'Show legend ▼' : 'Hide legend ▲'}
-                </Text>
+                <MaterialCommunityIcons
+                  name={legendCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={18}
+                  color="#6b5a7d"
+                />
               </TouchableOpacity>
             </View>
 
@@ -314,117 +317,135 @@ export default function ParticipantsSettingsScreen() {
 
           {/* ADD NEW PARTICIPANT */}
           <View style={styles.addWrap}>
-            <Text style={styles.addTitle}>Add new participant</Text>
-            <View style={styles.addRow}>
-              {/* Name */}
-              <TextInput
-                style={styles.addInput}
-                placeholder="Participant name"
-                value={newName}
-                onChangeText={setNewName}
-                placeholderTextColor="#b8a8d6"
-              />
-
-              {/* Gender: Male / Female */}
-              <View style={styles.addInlineGroup}>
-                <TouchableOpacity
-                  style={[
-                    styles.addInlinePill,
-                    newGender === 'Male' && styles.addInlinePillActive,
-                  ]}
-                  onPress={() => setNewGender('Male')}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.addInlineText,
-                      newGender === 'Male' && styles.addInlineTextActive,
-                    ]}
-                  >
-                    M
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.addInlinePill,
-                    newGender === 'Female' && styles.addInlinePillActive,
-                  ]}
-                  onPress={() => setNewGender('Female')}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.addInlineText,
-                      newGender === 'Female' && styles.addInlineTextActive,
-                    ]}
-                  >
-                    F
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Colour: blue (boys) / pink (girls) */}
-              <View style={styles.addInlineGroup}>
-                <TouchableOpacity
-                  style={[
-                    styles.addInlinePill,
-                    newColor === 'blue' && styles.addInlinePillActive,
-                  ]}
-                  onPress={() => setNewColor('blue')}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.addInlineColorDot,
-                      { backgroundColor: '#60a5fa' },
-                    ]}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.addInlinePill,
-                    newColor === 'pink' && styles.addInlinePillActive,
-                  ]}
-                  onPress={() => setNewColor('pink')}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.addInlineColorDot,
-                      { backgroundColor: '#f472b6' },
-                    ]}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Add button */}
+            <View style={styles.addHeaderRow}>
+              <Text style={styles.addTitle}>Add new participant</Text>
               <TouchableOpacity
-                style={[
-                  styles.addButton,
-                  (
-                    !newName.trim() ||
-                    !newGender ||
-                    !newColor ||
-                    savingNew
-                  ) && styles.addButtonDisabled,
-                ]}
-                onPress={addParticipant}
-                disabled={
-                  !newName.trim() ||
-                  !newGender ||
-                  !newColor ||
-                  savingNew
-                }
-                activeOpacity={0.85}
+                onPress={() => setAddCollapsed(prev => !prev)}
+                style={styles.addToggle}
+                activeOpacity={0.8}
               >
-                <Text style={styles.addButtonText}>
-                  {savingNew ? 'Saving…' : 'Add'}
-                </Text>
+                <MaterialCommunityIcons
+                  name={addCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={18}
+                  color="#6b5a7d"
+                />
               </TouchableOpacity>
             </View>
-            <Text style={styles.addHint}>
-              Only add participants who attend the day program.
-            </Text>
+
+            {!addCollapsed && (
+              <>
+                <View style={styles.addRow}>
+                  {/* Name */}
+                  <TextInput
+                    style={styles.addInput}
+                    placeholder="Participant name"
+                    value={newName}
+                    onChangeText={setNewName}
+                    placeholderTextColor="#b8a8d6"
+                  />
+
+                  {/* Gender: Male / Female */}
+                  <View style={styles.addInlineGroup}>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newGender === 'Male' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewGender('Male')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.addInlineText,
+                          newGender === 'Male' && styles.addInlineTextActive,
+                        ]}
+                      >
+                        M
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newGender === 'Female' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewGender('Female')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.addInlineText,
+                          newGender === 'Female' && styles.addInlineTextActive,
+                        ]}
+                      >
+                        F
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Colour: blue (boys) / pink (girls) */}
+                  <View style={styles.addInlineGroup}>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newColor === 'blue' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewColor('blue')}
+                      activeOpacity={0.8}
+                    >
+                      <View
+                        style={[
+                          styles.addInlineColorDot,
+                          { backgroundColor: '#60a5fa' },
+                        ]}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newColor === 'pink' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewColor('pink')}
+                      activeOpacity={0.8}
+                    >
+                      <View
+                        style={[
+                          styles.addInlineColorDot,
+                          { backgroundColor: '#f472b6' },
+                        ]}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Add button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.addButton,
+                      (
+                        !newName.trim() ||
+                        !newGender ||
+                        !newColor ||
+                        savingNew
+                      ) && styles.addButtonDisabled,
+                    ]}
+                    onPress={addParticipant}
+                    disabled={
+                      !newName.trim() ||
+                      !newGender ||
+                      !newColor ||
+                      savingNew
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.addButtonText}>
+                      {savingNew ? 'Saving…' : 'Add'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.addHint}>
+                  Only add participants who attend the day program.
+                </Text>
+              </>
+            )}
           </View>
 
           {/* Participants list */}
@@ -707,12 +728,9 @@ const styles = StyleSheet.create({
     color: '#332244',
   },
   legendToggle: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e7dff2',
-    backgroundColor: '#f8f2ff',
   },
   legendToggleText: {
     fontSize: 11,
@@ -752,6 +770,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
+  },
+  addHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  addToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   addTitle: {
     fontSize: 15,
