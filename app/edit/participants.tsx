@@ -98,8 +98,11 @@ function BehaviourMeter({ value }: { value?: number | null }) {
   const raw = typeof value === 'number' ? value : 0;
   const clamped = Math.max(0, Math.min(3, raw));
 
-  // 0 → 0, 1 → 0.33, 2 → 0.66, 3 → 1
-  const target = clamped === 0 ? 0 : clamped / 3;
+// Use total participant score instead of behaviours-only
+const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
+const maxScore = 35; // 7 criteria × 5 each
+
+const target = Math.max(0, Math.min(1, rawTotal / maxScore));
 
   const progress = useRef(new Animated.Value(target)).current;
   const [trackWidth, setTrackWidth] = useState(0);
