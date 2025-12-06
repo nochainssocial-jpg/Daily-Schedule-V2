@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 6,
+    marginRight: 6,
   },
   scoreBubbleLow: {
     backgroundColor: '#dcfce7',
