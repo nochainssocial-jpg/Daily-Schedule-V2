@@ -1,3 +1,6 @@
+// CLEANING.TSX — FULLY PATCHED VERSION
+// --------------------------------------------------
+
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   Modal,
@@ -87,13 +90,12 @@ export default function CleaningEditScreen() {
     );
   }, [staff, workingSet, outingGroup]);
 
-  // ✅ Set of staff allowed to hold cleaning duties (onsite only)
   const allowedStaffIds = useMemo(
     () => new Set<string>(workingStaffList.map((s) => String(s.id))),
     [workingStaffList],
   );
 
-  // ✅ Normalise assignments: drop any chores assigned to off-site staff
+  // Auto-clear off-site staff assignments
   useEffect(() => {
     if (!cleaningAssignments) return;
 
@@ -112,11 +114,12 @@ export default function CleaningEditScreen() {
     }
   }, [allowedStaffIds, cleaningAssignments, updateSchedule]);
 
+  const blockReadOnly = () => {
+    push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+  };
+
   const handleSelectStaff = (staffId: string | null) => {
-    if (readOnly) {
-      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-      return;
-    }
+    if (readOnly) return blockReadOnly();
     if (!activeChoreId) return;
 
     const chore = chores.find((c) => String(c.id) === String(activeChoreId));
@@ -139,41 +142,28 @@ export default function CleaningEditScreen() {
     setActiveChoreId(null);
   };
 
-  // 🌙 Special long-press behaviour for "Take the bins out"
-  // 0 = default (from data.ts), 1 = red + yellow, 2 = red + green
-  const [binsVariant, setBinsVariant] = useState<0 | 1 | 2>(0);
+  // Bin text variants
+  const [binsVariant, setBinsVariant] = useState<0 | 1 | 2 | 3>(0);
 
   const cycleBinsVariant = () => {
-    if (readOnly) {
-      // Same B2 message as everywhere else
-      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-      return;
-    }
+    if (readOnly) return blockReadOnly();
     setBinsVariant((prev) => ((prev + 1) % 4) as 0 | 1 | 2 | 3);
   };
 
   const isBinsChore = (chore: Chore) => {
     const name = String(chore.name).toLowerCase();
-    // match by id (10) or phrase, to be safe
-    return String(chore.id) === '10' || name.includes('take bins out');
+    return String(chore.id) === '10' || name.includes('bin');
   };
 
   const getBinsLabel = (base: string) => {
-    if (binsVariant === 1) {
-      return 'Take Red Domestic and Yellow Recycling bins out.';
-    }
-    if (binsVariant === 2) {
-      return 'Take Red Domestic and Green Waste bins out.';
-    }
-    if (binsVariant === 3) {
-      return 'Bring the bins in and clean them.';
-    }
-    // 0 = whatever default text you set in data.ts
+    if (binsVariant === 1) return 'Take Red Domestic and Yellow Recycling bins out.';
+    if (binsVariant === 2) return 'Take Red Domestic and Green Waste bins out.';
+    if (binsVariant === 3) return 'Bring the bins in and clean them.';
     return base;
   };
 
-  // 🔀 Re-shuffle all chores fairly across onsite staff (round-robin)
   const reshuffleCleaning = () => {
+    if (readOnly) return blockReadOnly();
     if (!workingStaffList.length) {
       push('No onsite staff available to assign cleaning duties.', 'cleaning');
       return;
@@ -197,17 +187,8 @@ export default function CleaningEditScreen() {
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="cleaning" />
-      {Platform.OS === 'web' && !isMobileWeb && (
-        <Ionicons
-          name="sparkles-outline"
-          size={220}
-          color="#62F194"
-          style={styles.heroIcon}
-        />
-      )}
 
       <View style={styles.wrap}>
-        {/* NEW white card container */}
         <View style={styles.card}>
           <Text style={styles.heading}>Cleaning Duties</Text>
           <Text style={styles.subheading}>
@@ -215,7 +196,6 @@ export default function CleaningEditScreen() {
             currently working onsite can be assigned.
           </Text>
 
-          {/* Re-shuffle button */}
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.shuffleBtn}
@@ -227,17 +207,12 @@ export default function CleaningEditScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Main chores list */}
-          <ScrollView
-            style={styles.list}
-            contentContainerStyle={{ paddingBottom: 30 }}
-            showsVerticalScrollIndicator={true}
-          >
+          {/* LIST */}
+          <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 30 }}>
             {chores.map((chore) => {
               const choreId = String(chore.id);
               const assignedStaffId = (cleaningAssignments as any)[choreId];
 
-              // Look up staff from full list, but off-site staff are auto-cleared
               const st =
                 (staff || []).find((s: Staff) => String(s.id) === String(assignedStaffId)) ||
                 null;
@@ -245,9 +220,13 @@ export default function CleaningEditScreen() {
               const label = st ? st.name : 'Not assigned';
               const isAssigned = !!st;
 
+              const openModal = () => {
+                if (readOnly) return blockReadOnly();
+                setActiveChoreId(choreId);
+              };
+
               return (
                 <View key={choreId} style={styles.row}>
-                  {/* Long press on the chore text to cycle bin instructions */}
                   <TouchableOpacity
                     style={styles.taskCol}
                     activeOpacity={0.9}
@@ -264,23 +243,17 @@ export default function CleaningEditScreen() {
                   <View style={styles.staffCol}>
                     <TouchableOpacity
                       activeOpacity={0.85}
-                      onPress={() => setActiveChoreId(choreId)}
+                      onPress={openModal}
                       style={[styles.pill, isAssigned && styles.pillAssigned]}
                     >
                       <Text
-                        style={[
-                          styles.pillText,
-                          isAssigned && styles.pillTextAssigned,
-                        ]}
+                        style={[styles.pillText, isAssigned && styles.pillTextAssigned]}
                         numberOfLines={1}
                       >
                         {label}
                       </Text>
                       <Text
-                        style={[
-                          styles.pillChevron,
-                          isAssigned && styles.pillTextAssigned,
-                        ]}
+                        style={[styles.pillChevron, isAssigned && styles.pillTextAssigned]}
                       >
                         ▾
                       </Text>
@@ -293,7 +266,7 @@ export default function CleaningEditScreen() {
         </View>
       </View>
 
-      {/* Staff picker modal */}
+      {/* MODAL */}
       <Modal
         visible={!!activeChore}
         animationType="fade"
@@ -307,11 +280,9 @@ export default function CleaningEditScreen() {
               <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
-            {/* Scrollable staff list inside modal */}
             <ScrollView
               style={styles.modalScroll}
               contentContainerStyle={styles.scroll}
-              showsVerticalScrollIndicator={true}
             >
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
@@ -327,10 +298,7 @@ export default function CleaningEditScreen() {
                         style={[styles.chip, selected && styles.chipSel]}
                       >
                         <Text
-                          style={[
-                            styles.chipLabel,
-                            selected && styles.chipLabelSel,
-                          ]}
+                          style={[styles.chipLabel, selected && styles.chipLabelSel]}
                           numberOfLines={1}
                         >
                           {st.name}
@@ -374,13 +342,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#DCFCE7',
   },
-  heroIcon: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
-    opacity: 1,
-    zIndex: 0,
-  },
   wrap: {
     flex: 1,
     width: '100%',
@@ -399,14 +360,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
-    alignSelf: 'stretch',
-    flexShrink: 1,
   },
-  list: {
-    flex: 1,
-    marginTop: 16,
-  },
-
   heading: {
     fontSize: 24,
     fontWeight: '700',
@@ -417,7 +371,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7A7485',
   },
-
   actionsRow: {
     marginTop: 12,
     flexDirection: 'row',
@@ -437,7 +390,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,7 +410,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#000000',
   },
-
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -487,8 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7A7485',
   },
-
-  // modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
