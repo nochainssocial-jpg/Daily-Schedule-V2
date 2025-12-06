@@ -416,6 +416,8 @@ const styles = StyleSheet.create({
   },
   attendingPillContent: {
     flex: 1,
+    flexDirection: 'column',
+    marginLeft: 3,   // <-- add this
   },
   attendingHeaderRow: {
     flexDirection: 'row',
