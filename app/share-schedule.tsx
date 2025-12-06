@@ -1,5 +1,5 @@
 // app/share-schedule.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,13 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useAccessControl } from '@/hooks/access-control';
 import { useNotifications } from '@/hooks/notifications';
 import Footer from '@/components/Footer';
 import { loadScheduleFromSupabase } from '@/lib/loadSchedule';
+import { ROUTES } from '@/constants/ROUTES';
 
 const MAX_WIDTH = 880;
 
@@ -36,10 +37,19 @@ export default function ShareScheduleScreen() {
   const [adminPin, setAdminPin] = useState('');
   const [pinError, setPinError] = useState('');
 
+  const adminPinRef = useRef<TextInput | null>(null);
+
   const MD_ADMIN_PIN = '7474'; // Dalida (MD)
   const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
 
   const showWebBranding = Platform.OS === 'web';
+
+  // Autofocus the admin PIN field when this screen mounts
+  useEffect(() => {
+    if (adminPinRef.current && typeof adminPinRef.current.focus === 'function') {
+      adminPinRef.current.focus();
+    }
+  }, []);
 
   // Derive initial code from state, with localStorage fallback on web
   const initialCode = (() => {
@@ -125,19 +135,23 @@ export default function ShareScheduleScreen() {
       return;
     }
 
-    if (adminPin === MD_ADMIN_PIN) {
-      setAdminMd();
+    const goHome = () => {
       setPinError('');
       setAdminPin('');
+      router.replace(ROUTES.HOME);
+    };
+
+    if (adminPin === MD_ADMIN_PIN) {
+      setAdminMd();
       push('Admin Mode Enabled - Full Access', 'general');
+      goHome();
       return;
     }
 
     if (adminPin === BRUNO_ADMIN_PIN) {
       setAdminBruno();
-      setPinError('');
-      setAdminPin('');
       push('Admin Mode Enabled - Full Access', 'general');
+      goHome();
       return;
     }
 
@@ -334,38 +348,38 @@ export default function ShareScheduleScreen() {
               on trusted devices.
             </Text>
 
-          <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
-          
-          <View style={styles.row}>
-          <TextInput
-            value={adminPin}
-            onChangeText={(text) => {
-              setAdminPin(text);
-              if (pinError) setPinError('');
-            }}
-            secureTextEntry
-            keyboardType="number-pad"
-            placeholder="Enter admin PIN"
-            maxLength={4}
-            returnKeyType="done"
-            blurOnSubmit={false}
-            onSubmitEditing={handleAdminAccess}   // ← 🔥 ENTER triggers button
-            style={[styles.input, styles.pinInput]}
-          />
-          
-            <TouchableOpacity
-              onPress={handleAdminAccess}
-              style={[styles.button, styles.btnLavender]}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.btnText}>Enable Admin Access</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {pinError ? (
-            <Text style={styles.errorText}>{pinError}</Text>
-          ) : null}
+            <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
 
+            <View style={styles.row}>
+              <TextInput
+                ref={adminPinRef}
+                value={adminPin}
+                onChangeText={(text) => {
+                  setAdminPin(text);
+                  if (pinError) setPinError('');
+                }}
+                secureTextEntry
+                keyboardType="number-pad"
+                placeholder="Enter admin PIN"
+                maxLength={4}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                onSubmitEditing={handleAdminAccess} // ENTER triggers same handler
+                style={[styles.input, styles.pinInput]}
+              />
+
+              <TouchableOpacity
+                onPress={handleAdminAccess}
+                style={[styles.button, styles.btnLavender]}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.btnText}>Enable Admin Access</Text>
+              </TouchableOpacity>
+            </View>
+
+            {pinError ? (
+              <Text style={styles.errorText}>{pinError}</Text>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -473,8 +487,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f472b6',
   },
   pinInput: {
-  flex: 0,
-  width: 200,     // perfect 4-digit width
-  marginBottom: 20,
-},
+    flex: 0,
+    width: 200,
+    marginBottom: 20,
+  },
 });
