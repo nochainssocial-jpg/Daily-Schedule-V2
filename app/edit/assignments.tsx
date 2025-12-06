@@ -55,6 +55,33 @@ function getScoreBand(score: number): 'none' | 'junior' | 'mid' | 'senior' {
   return 'junior';
 }
 
+const PARTICIPANT_SCORE_KEYS: Array<keyof any> = [
+  'behaviours',
+  'personal_care',
+  'communication',
+  'sensory',
+  'social',
+  'community',
+  'safety',
+];
+
+function getParticipantScore(row: any): number {
+  if (!row) return 0;
+  return PARTICIPANT_SCORE_KEYS.reduce((sum, key) => {
+    const raw = (row as any)?.[key];
+    const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
+}
+
+function getParticipantBand(score: number): 'low' | 'medium' | 'high' {
+  if (!score || score <= 0) return 'low';
+  if (score >= 16) return 'high';
+  if (score >= 10) return 'medium';
+  return 'low';
+}
+
+
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
@@ -106,6 +133,8 @@ export default function EditAssignmentsScreen() {
     {},
   );
 
+  const [participantLookup, setParticipantLookup] = React.useState<Record<string, any>>({});
+
   React.useEffect(() => {
     let cancelled = false;
 
@@ -144,6 +173,45 @@ export default function EditAssignmentsScreen() {
     }
 
     loadRatings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadParticipantRatings() {
+      try {
+        const { data, error } = await supabase
+          .from('participants')
+          .select(
+            'id,name,behaviours,personal_care,communication,sensory,social,community,safety',
+          );
+
+        if (error || !data || cancelled) return;
+
+        const map: Record<string, any> = {};
+        (data as any[]).forEach((row) => {
+          if (!row || !row.name) return;
+
+          const uuidKey = row.id ? String(row.id) : null;
+          const nameKey = `name:${String(row.name).toLowerCase()}`;
+
+          if (uuidKey) map[uuidKey] = row;
+          if (nameKey) map[nameKey] = row;
+        });
+
+        if (!cancelled) {
+          setParticipantLookup(map);
+        }
+      } catch (e) {
+        console.warn('[assignments] failed to load participant ratings', e);
+      }
+    }
+
+    loadParticipantRatings();
 
     return () => {
       cancelled = true;
@@ -345,6 +413,16 @@ export default function EditAssignmentsScreen() {
                       {availablePids.map((pid) => {
                         const isAssigned = staffAssigned.includes(pid);
                         const part = partsById.get(pid);
+                        const partName = part?.name || '—';
+                        const partNameKey = `name:${String(partName).toLowerCase()}`;
+                        const ratingRow =
+                          participantLookup[pid as ID] ??
+                          participantLookup[partNameKey];
+                        const partScore = getParticipantScore(ratingRow);
+                        const partBand =
+                          partScore > 0 ? getParticipantBand(partScore) : 'low';
+                        const chipLabel =
+                          partScore > 0 ? `${partName} ${partScore}` : partName;
 
                         return (
                           <TouchableOpacity
@@ -360,6 +438,18 @@ export default function EditAssignmentsScreen() {
                               styles.chip,
                               isAssigned && styles.chipSel,
                               !canAssign && styles.chipDisabled,
+                              !isAssigned &&
+                                partScore > 0 &&
+                                partBand === 'low' &&
+                                styles.chipLow,
+                              !isAssigned &&
+                                partScore > 0 &&
+                                partBand === 'medium' &&
+                                styles.chipMedium,
+                              !isAssigned &&
+                                partScore > 0 &&
+                                partBand === 'high' &&
+                                styles.chipHigh,
                             ]}
                           >
                             <Text
@@ -369,7 +459,7 @@ export default function EditAssignmentsScreen() {
                               ]}
                               numberOfLines={1}
                             >
-                              {part?.name || '—'}
+                              {chipLabel}
                             </Text>
                             {isAssigned && (
                               <Text style={styles.checkMark}>✓</Text>
@@ -507,6 +597,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: PILL,
     gap: 6,
+  },
+  chipLow: {
+    borderColor: '#bbf7d0',
+    backgroundColor: '#f0fdf4',
+  },
+  chipMedium: {
+    borderColor: '#facc15',
+    backgroundColor: '#fef9c3',
+  },
+  chipHigh: {
+    borderColor: '#fecaca',
+    backgroundColor: '#fee2e2',
   },
   chipDisabled: {
     opacity: 0.5,
