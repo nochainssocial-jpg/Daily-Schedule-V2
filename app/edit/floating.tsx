@@ -420,10 +420,6 @@ function LegendParticipantPill({
   );
 }
 
-
-}
-
-
 function parseTimeToMinutes(time?: string | null): number | null {
   if (!time) return null;
   let t = String(time).trim().toLowerCase();
