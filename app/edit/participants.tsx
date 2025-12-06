@@ -438,10 +438,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   behaviourSegment: {
-    width: 4,
-    height: 10,
-    borderRadius: 2,
-    marginHorizontal: 1,
+    width: 6,
+    height: 15,
+    borderRadius: 3,
+    marginHorizontal: 2,
   },
   behaviourSegmentOff: {
     backgroundColor: '#E5E7EB',
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
 // Score bubble on left of pill
   scoreBubble: {
     minWidth: 28,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
     borderWidth: 1,
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
+    marginLeft: 6,
   },
   scoreBubbleLow: {
     backgroundColor: '#dcfce7',
