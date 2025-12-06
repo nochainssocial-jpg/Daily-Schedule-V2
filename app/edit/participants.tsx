@@ -34,6 +34,69 @@ const makePartMap = () => {
 const sortByName = (list: any[]) =>
   list.slice().sort((a, b) => a.name.localeCompare(b.name));
 
+// ---- Ratings + behaviour helpers ----
+
+type ParticipantRating = {
+  behaviours?: number | null;
+  personal_care?: number | null;
+  communication?: number | null;
+  sensory?: number | null;
+  social?: number | null;
+  community?: number | null;
+  safety?: number | null;
+};
+
+function getParticipantTotalScore(member: ParticipantRating | any): number | null {
+  if (!member) return null;
+
+  const values = [
+    member.behaviours,
+    member.personal_care,
+    member.communication,
+    member.sensory,
+    member.social,
+    member.community,
+    member.safety,
+  ].filter(
+    (v: any): v is number =>
+      typeof v === 'number' && !Number.isNaN(v),
+  );
+
+  if (!values.length) return null;
+  return values.reduce((sum: number, v: number) => sum + v, 0);
+}
+
+function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
+  // Same bands as Participants Settings: 7–21
+  if (total >= 16) return 'high';
+  if (total >= 10) return 'medium';
+  return 'low';
+}
+
+function BehaviourMeter({ value }: { value?: number | null }) {
+  const v = typeof value === 'number' ? value : 0;
+
+  return (
+    <View style={styles.behaviourMeter}>
+      {[1, 2, 3].map((level) => {
+        const isActive = v >= level;
+        const isHigh = v === 3 && level === 3;
+
+        return (
+          <View
+            key={level}
+            style={[
+              styles.behaviourDot,
+              isActive && styles.behaviourDotActive,
+              isHigh && styles.behaviourDotHigh,
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
 export default function EditParticipantsScreen() {
   const { width } = useWindowDimensions();
   const isAdmin = useIsAdmin();
@@ -137,6 +200,39 @@ export default function EditParticipantsScreen() {
             </View>
           )}
 
+          {/* Ratings & behaviour for attending participants */}
+          {attendingList.length > 0 && (
+            <View style={styles.ratingsSection}>
+              <Text style={styles.ratingsTitle}>
+                Ratings &amp; behaviour (attending only)
+              </Text>
+              {attendingList.map((p) => {
+                const total = getParticipantTotalScore(p);
+                const level =
+                  total !== null ? getParticipantScoreLevel(total) : null;
+
+                const scoreStyles = [styles.scoreBubble];
+                if (level === 'low') scoreStyles.push(styles.scoreBubbleLow);
+                if (level === 'medium') scoreStyles.push(styles.scoreBubbleMedium);
+                if (level === 'high') scoreStyles.push(styles.scoreBubbleHigh);
+
+                return (
+                  <View key={p.id as ID} style={styles.ratingRow}>
+                    <View style={styles.ratingNameBlock}>
+                      <Text style={styles.ratingName}>{p.name}</Text>
+                      <BehaviourMeter value={(p as any).behaviours} />
+                    </View>
+                    {total !== null && (
+                      <View style={scoreStyles}>
+                        <Text style={styles.scoreBubbleText}>{total}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
             Participant Pool
           </Text>
@@ -218,6 +314,91 @@ const styles = StyleSheet.create({
     opacity: 0.75,
     color: '#64748B',
   },
+
+  // Ratings / behaviour panel
+  ratingsSection: {
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    gap: 6,
+  },
+  ratingsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ratingNameBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#0F172A',
+    marginRight: 6,
+  },
+
+  // Behaviour meter (3 levels)
+  behaviourMeter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  behaviourDot: {
+    width: 6,
+    height: 12,
+    borderRadius: 3,
+    marginHorizontal: 1,
+    backgroundColor: '#E5E7EB', // off
+  },
+  behaviourDotActive: {
+    backgroundColor: '#FBBF24', // amber for 1–2
+  },
+  behaviourDotHigh: {
+    backgroundColor: '#F97316', // deeper orange when 3 (high)
+  },
+
+  // Score bubble
+  scoreBubble: {
+    minWidth: 28,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    backgroundColor: '#f8f2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  scoreBubbleLow: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  scoreBubbleMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  scoreBubbleHigh: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
+  scoreBubbleText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#332244',
+  },
+
+  // Legend
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
