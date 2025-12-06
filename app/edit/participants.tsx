@@ -139,19 +139,13 @@ export default function EditParticipantsScreen() {
     async function loadRatings() {
       const { data, error } = await supabase
         .from('participants')
-        .select('id, behaviours, personal_care, communication, sensory, social, community, safety');
+        .select('id, name, behaviours, personal_care, communication, sensory, social, community, safety');
       if (!isMounted || !data) return;
       const map: Record<string, ParticipantRatingRow> = {};
       (data as any[]).forEach((row) => {
-        if (!row) return;
-        const uuidKey = row.id ? String(row.id) : null;
-        const nameKey =
-          row.name && typeof row.name === 'string'
-            ? `name:${row.name.toLowerCase()}`
-            : null;
-
-        if (uuidKey) map[uuidKey] = row as ParticipantRatingRow;
-        if (nameKey) map[nameKey] = row as ParticipantRatingRow;
+        if (!row || !row.name) return;
+        const nameKey = `name:${String(row.name).toLowerCase()}`;
+        map[nameKey] = row as ParticipantRatingRow;
       });
       setRatingMap(map);
     }
@@ -256,7 +250,7 @@ export default function EditParticipantsScreen() {
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
 
                 const nameKey = `name:${String(p.name || '').toLowerCase()}`;
-                const rating = ratingMap[p.id as ID] ?? ratingMap[nameKey];
+                const rating = ratingMap[nameKey];
                 const total = rating ? getParticipantTotalScore(rating) : null;
                 const level =
                   total !== null ? getParticipantScoreLevel(total) : null;
@@ -297,8 +291,7 @@ export default function EditParticipantsScreen() {
                       </View>
                       <BehaviourMeter
                         value={
-                          (ratingMap[p.id as ID] ??
-                            ratingMap[`name:${String(p.name || '').toLowerCase()}`])?.behaviours ?? null
+                          ratingMap[`name:${String(p.name || '').toLowerCase()}`]?.behaviours ?? null
                         }
                       />
                     </View>
@@ -409,7 +402,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    width: 180,
+    width: 150,
   },
   attendingPillOnsite: {
     backgroundColor: '#F54FA5',
@@ -430,7 +423,7 @@ const styles = StyleSheet.create({
   },
   attendingName: {
 
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
     marginRight: 6,
