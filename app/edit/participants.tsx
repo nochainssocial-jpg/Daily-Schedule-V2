@@ -89,20 +89,15 @@ function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
 }
 
 /**
- * Gradient behaviour meter:
- * - behaviours 1–3 from Supabase
- * - 1 → ~33%, 2 → ~66%, 3 → 100% of the bar
- * - smooth animated fill on change
+ * Gradient behaviour meter driven by TOTAL participant score:
+ * - totalScore: 0–35 (7 criteria × 5)
+ * - fill = totalScore / 35 (clamped 0–1)
+ * - animated so the bar eases between values
  */
-function BehaviourMeter({ value }: { value?: number | null }) {
-  const raw = typeof value === 'number' ? value : 0;
-  const clamped = Math.max(0, Math.min(3, raw));
-
-// Use total participant score instead of behaviours-only
-const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
-const maxScore = 35; // 7 criteria × 5 each
-
-const target = Math.max(0, Math.min(1, rawTotal / maxScore));
+function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
+  const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
+  const maxScore = 35; // 7 criteria × 5 each
+  const target = Math.max(0, Math.min(1, rawTotal / maxScore));
 
   const progress = useRef(new Animated.Value(target)).current;
   const [trackWidth, setTrackWidth] = useState(0);
@@ -111,7 +106,7 @@ const target = Math.max(0, Math.min(1, rawTotal / maxScore));
     Animated.timing(progress, {
       toValue: target,
       duration: 350,
-      useNativeDriver: false, // width animation
+      useNativeDriver: false, // animating width
     }).start();
   }, [target, progress]);
 
@@ -155,6 +150,7 @@ export default function EditParticipantsScreen() {
           'id, name, behaviours, personal_care, communication, sensory, social, community, safety',
         );
       if (!isMounted || !data) return;
+
       const map: Record<string, ParticipantRatingRow> = {};
       (data as any[]).forEach((row) => {
         if (!row || !row.name) return;
@@ -223,7 +219,6 @@ export default function EditParticipantsScreen() {
     }
     const next = Array.from(current);
     updateSchedule?.({ attendingParticipants: next });
-    // 🔔 Toast for participant changes
     push?.('Attending participants updated', 'participants');
   };
 
@@ -305,13 +300,7 @@ export default function EditParticipantsScreen() {
                         )}
                       </View>
                       <View style={styles.behaviourMeterContainer}>
-                        <BehaviourMeter
-                          value={
-                            ratingMap[
-                              `name:${String(p.name || '').toLowerCase()}`
-                            ]?.behaviours ?? null
-                          }
-                        />
+                        <BehaviourMeter totalScore={total} />
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -464,8 +453,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   behaviourTrack: {
-    width: 72,
-    height: 10,
+    width: 118,
+    height: 8,
     borderRadius: 999,
     backgroundColor: '#E5E7EB',
     overflow: 'hidden',
