@@ -456,7 +456,7 @@ export default function ParticipantsSettingsScreen() {
                     {
                       width: 70,
                       textAlign: 'right',
-                      marginRight: 25,
+                      marginRight: 30,
                       marginTop: -4,
                     },
                   ]}
@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   headerCell: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
     color: '#7a678e',
   },
