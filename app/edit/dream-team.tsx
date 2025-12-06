@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -21,6 +22,31 @@ import Chip from '@/components/Chip';
 
 type ID = string;
 
+// same file, near top – add helper:
+const STAFF_SCORE_KEYS: Array<keyof any> = [
+  'experience_level',
+  'behaviour_capability',
+  'personal_care_skill',
+  'mobility_assistance',
+  'communication_support',
+  'reliability_rating',
+];
+
+function getStaffScore(row: any): number {
+  if (!row) return 0;
+  return STAFF_SCORE_KEYS.reduce((sum, key) => {
+    const raw = row?.[key];
+    const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
+}
+
+function getScoreBand(score: number): 'none' | 'junior' | 'mid' | 'senior' {
+  if (!score || score <= 0) return 'none';
+  if (score >= 15) return 'senior';
+  if (score >= 9) return 'mid';
+  return 'junior';
+}
 const sortByName = (list: any[]) =>
   list
     .slice()
@@ -35,9 +61,17 @@ export default function EditDreamTeamScreen() {
   const {
     staff: scheduleStaff,
     workingStaff = [],
+    trainingStaffToday = [],
     outingGroup,
     updateSchedule,
   } = useSchedule() as any;
+
+  const { push } = useNotifications();
+
+  const trainingSet = useMemo(
+    () => new Set<string>((trainingStaffToday || []).map(String)),
+    [trainingStaffToday],
+  );
 
   // Single source of truth for staff:
   //   • Prefer staff from the current schedule snapshot (Supabase)
@@ -96,6 +130,19 @@ export default function EditDreamTeamScreen() {
       return;
     }
 
+    const toggleTraining = (staffId: ID) => {
+    const id = String(staffId);
+    const next = new Set(trainingSet);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+
+    updateSchedule?.({ trainingStaffToday: Array.from(next) });
+    push?.('Training status updated', 'dream-team');
+  };
+
     const key = String(id);
     const next = new Set<string>(Array.from(workingSet));
 
@@ -141,16 +188,59 @@ export default function EditDreamTeamScreen() {
           ) : (
             <View style={styles.chipGrid}>
               {dreamTeam.map((s: any) => {
-                const isOutOnOuting = outingStaffSet.has(String(s.id));
-                const mode = isOutOnOuting ? 'offsite' : 'onsite';
+                const id = String(s.id);
+                const isOutOnOuting = outingStaffSet.has(id);
+                const isTraining = trainingSet.has(id);
+
+                const score = getStaffScore(s);
+                const band = getScoreBand(score);
+                const showScore = score > 0;
+
+                // Training overrides the normal onsite/offsite colour
+                const mode = (isTraining ? 'training' : (isOutOnOuting ? 'offsite' : 'onsite')) as any;
+
+                const leftAddon = showScore ? (
+                  <View style={[
+                    styles.scoreCircle,
+                    band === 'senior' && styles.scoreCircleSenior,
+                    band === 'mid' && styles.scoreCircleMid,
+                    band === 'junior' && styles.scoreCircleJunior,
+                  ]}>
+                    <Text style={styles.scoreText}>{score}</Text>
+                  </View>
+                ) : null;
+
+                let rightAddon: React.ReactNode = null;
+                if (isTraining) {
+                  rightAddon = (
+                    <MaterialCommunityIcons
+                      name="account-supervisor"
+                      size={16}
+                      color="#1C5F87"
+                    />
+                  );
+                } else if (band === 'senior') {
+                  rightAddon = (
+                    <MaterialCommunityIcons
+                      name="account-star"
+                      size={16}
+                      color="#FBBF24"
+                    />
+                  );
+                }
+
                 return (
                   <Chip
                     key={s.id}
                     label={s.name}
-                    mode={mode as any}
+                    mode={mode}
+                    leftAddon={leftAddon}
+                    rightAddon={rightAddon}
                     onPress={() => toggleStaff(s.id as ID)}
+                    onLongPress={() => toggleTraining(s.id as ID)}
                   />
                 );
+
               })}
             </View>
           )}
@@ -164,14 +254,55 @@ export default function EditDreamTeamScreen() {
           ) : (
             <View style={styles.chipGrid}>
               {staffPool.map((s: any) => {
-                const isOutOnOuting = outingStaffSet.has(String(s.id));
-                const mode = isOutOnOuting ? 'offsite' : 'default';
+                const id = String(s.id);
+                const isOutOnOuting = outingStaffSet.has(id);
+                const isTraining = trainingSet.has(id);
+
+                const score = getStaffScore(s);
+                const band = getScoreBand(score);
+                const showScore = score > 0;
+
+                const mode = (isTraining ? 'training' : (isOutOnOuting ? 'offsite' : 'default')) as any;
+
+                const leftAddon = showScore ? (
+                  <View style={[
+                    styles.scoreCircle,
+                    band === 'senior' && styles.scoreCircleSenior,
+                    band === 'mid' && styles.scoreCircleMid,
+                    band === 'junior' && styles.scoreCircleJunior,
+                  ]}>
+                    <Text style={styles.scoreText}>{score}</Text>
+                  </View>
+                ) : null;
+
+                let rightAddon: React.ReactNode = null;
+                if (isTraining) {
+                  rightAddon = (
+                    <MaterialCommunityIcons
+                      name="account-supervisor"
+                      size={16}
+                      color="#1C5F87"
+                    />
+                  );
+                } else if (band === 'senior') {
+                  rightAddon = (
+                    <MaterialCommunityIcons
+                      name="account-star"
+                      size={16}
+                      color="#FBBF24"
+                    />
+                  );
+                }
+
                 return (
                   <Chip
                     key={s.id}
                     label={s.name}
-                    mode={mode as any}
+                    mode={mode}
+                    leftAddon={leftAddon}
+                    rightAddon={rightAddon}
                     onPress={() => toggleStaff(s.id as ID)}
+                    onLongPress={() => toggleTraining(s.id as ID)}
                   />
                 );
               })}
@@ -260,5 +391,29 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontSize: 12,
     color: '#4b164c',
+  },
+    scoreCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5E7EB', // default (no band)
+  },
+  scoreCircleJunior: {
+    backgroundColor: '#BFDBFE', // light blue
+  },
+  scoreCircleMid: {
+    backgroundColor: '#FDE68A', // amber
+  },
+  scoreCircleSenior: {
+    backgroundColor: '#C4B5FD', // purple-ish
+  },
+  scoreText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
   },
 });
