@@ -23,7 +23,6 @@ import SaveExit from '@/components/SaveExit';
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
 
-
 const WRAP = {
   width: '100%',
   maxWidth: 880,
@@ -129,7 +128,6 @@ function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
 }
-
 
 // ---- Participant ratings + behaviour helpers (for legend pills) ----
 
@@ -406,7 +404,6 @@ function LegendParticipantPill({
     </View>
   );
 }
-
 
 function parseTimeToMinutes(time?: string | null): number | null {
   if (!time) return null;
@@ -826,7 +823,6 @@ export default function FloatingScreen() {
     return active.length ? active : ROOM_KEYS;
   };
 
-
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
@@ -1196,7 +1192,7 @@ export default function FloatingScreen() {
                 <Ionicons
                   name="print-outline"
                   size={42}
-                  color="#OOA86A"
+                  color="#00A86A"
                   style={{ marginBottom: 6 }}
                 />
                 <Text
@@ -1213,221 +1209,219 @@ export default function FloatingScreen() {
             </View>
           )}
 
-        {/* Legend */}
-        <View style={{ marginTop: 24 }}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: '700',
-              color: '#000000',
-              marginBottom: 8,
-            }}
-          >
-            Legend
-          </Text>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: '#e5e7eb',
-              borderRadius: 8,
-              overflow: 'hidden',
-            }}
-          >
-            {/* Front Room row */}
-            <View
+          {/* Legend */}
+          <View style={{ marginTop: 24 }}>
+            <Text
               style={{
-                flexDirection: 'row',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e5e7eb',
+                fontSize: 18,
+                fontWeight: '700',
+                color: '#000000',
+                marginBottom: 8,
               }}
             >
+              Legend
+            </Text>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Front Room row */}
               <View
                 style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
-                  }}
-                >
-                  Front Room
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
                   flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  { name: 'Paul', female: false },
-                  { name: 'Jessica', female: true },
-                  { name: 'Naveed', female: false },
-                  { name: 'Tiffany', female: true },
-                  { name: 'Sumera', female: true },
-                  { name: 'Jacob', female: false },
-                ].map((p) => {
-                  const nameKey = `name:${String(p.name).toLowerCase()}`;
-                  const rating = ratingMap[nameKey];
-                  return (
-                    <LegendParticipantPill
-                      key={p.name}
-                      person={p}
-                      rating={rating}
-                    />
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Scotty row */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: '#000000',
-                    backgroundColor: '#ffffff',
-                    marginRight: 8,
-                    marginBottom: 6,
-                    gap: 6,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      backgroundColor: '#3b82f6', // Scott = male
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: '#111827',
-                      fontWeight: '500',
-                    }}
-                  >
-                    Scott
-                  </Text>
-                </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
                 }}
               >
                 <View
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    width: '32%',
+                    paddingVertical: 10,
                     paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 999,
-                    backgroundColor: '#f1f5f9',
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Front Room
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
                     gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[
+                    { name: 'Paul', female: false },
+                    { name: 'Jessica', female: true },
+                    { name: 'Naveed', female: false },
+                    { name: 'Tiffany', female: true },
+                    { name: 'Sumera', female: true },
+                    { name: 'Jacob', female: false },
+                  ].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Scotty row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
+                }}
+              >
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Scotty
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
                   }}
                 >
                   <View
                     style={{
-                      width: 8,
-                      height: 8,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
                       borderRadius: 999,
-                      backgroundColor: '#3b82f6', // Scott = male
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: '#111827',
-                      fontWeight: '500',
+                      borderWidth: 1,
+                      borderColor: '#000000',
+                      backgroundColor: '#ffffff',
+                      marginRight: 8,
+                      marginBottom: 6,
+                      gap: 6,
                     }}
                   >
-                    Scott
-                  </Text>
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        backgroundColor: '#3b82f6', // Scott = male
+                      }}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: '#111827',
+                        fontWeight: '500',
+                      }}
+                    >
+                      Scott
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            {/* Twins / FSO row */}
-            <View
-              style={{
-                flexDirection: 'row',
-              }}
-            >
+              {/* Twins / FSO row */}
               <View
                 style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
+                  flexDirection: 'row',
                 }}
               >
-                <Text
+                <View
                   style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
                   }}
                 >
-                  Twins / FSO
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  { name: 'Zara', female: true },
-                  { name: 'Zoya', female: true },
-                ].map((p) => {
-                  const nameKey = `name:${String(p.name).toLowerCase()}`;
-                  const rating = ratingMap[nameKey];
-                  return (
-                    <LegendParticipantPill
-                      key={p.name}
-                      person={p}
-                      rating={rating}
-                    />
-                  );
-                })}
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Twins / FSO
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[
+                    { name: 'Zara', female: true },
+                    { name: 'Zoya', female: true },
+                  ].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
               </View>
             </View>
           </View>
-        </View>
-
         </View>
       </ScrollView>
 
