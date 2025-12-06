@@ -443,8 +443,8 @@ export default function ParticipantsSettingsScreen() {
                     styles.headerCell,
                     {
                       flex: 1,
-                      marginTop: -4,
-                      marginBottom: -4,
+                      marginTop: -8,
+                      marginBottom: 4,
                     },
                   ]}
                 >
@@ -457,7 +457,8 @@ export default function ParticipantsSettingsScreen() {
                       width: 70,
                       textAlign: 'right',
                       marginRight: 30,
-                      marginTop: -4,
+                      marginTop: -8,
+                      marginBottom: 4,
                     },
                   ]}
                 >
@@ -835,7 +836,7 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   headerCell: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#7a678e',
   },
