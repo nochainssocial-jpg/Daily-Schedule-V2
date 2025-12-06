@@ -16,6 +16,9 @@ type PersistParams = {
   workingStaff: ID[];
   attendingParticipants: ID[];
 
+  // Staff explicitly marked as "training today" (no own assignments)
+  trainingStaffToday?: ID[];
+
   // assignments: staff ID -> array of participant IDs (team daily assignments)
   assignments?: Record<ID, ID[]>;
 
@@ -53,6 +56,7 @@ export async function persistFinish(params: PersistParams) {
     participants = [],
     workingStaff = [],
     attendingParticipants = [],
+    trainingStaffToday = [],
     assignments = {},
     floatingAssignments = {
       frontRoom: null,
@@ -73,14 +77,20 @@ export async function persistFinish(params: PersistParams) {
     recentSnapshots = [],
   } = params;
 
-  const now = new Date();
+  const staffById = new Map<ID, Staff>();
+  const participantsById = new Map<ID, Participant>();
 
-  // ---------- Normalise staff / participants ----------
-  const staffById = new Map<ID, Staff>(staff.map((s) => [s.id as ID, s]));
-  const participantsById = new Map<ID, Participant>(
-    participants.map((p) => [p.id as ID, p]),
-  );
+  staff.forEach((s) => {
+    if (!s || !s.id) return;
+    staffById.set(s.id as ID, s);
+  });
 
+  participants.forEach((p) => {
+    if (!p || !p.id) return;
+    participantsById.set(p.id as ID, p);
+  });
+
+  // Ensure workingStaff is always non-empty; fallback to "everyone" if it's empty
   const workingSet = new Set<ID>(
     (workingStaff && workingStaff.length
       ? workingStaff
@@ -114,12 +124,9 @@ export async function persistFinish(params: PersistParams) {
   ) as ID[];
 
   // ---------- DROPOFFS ----------
-  // Canonical shape: staffId -> participantIds[]
   const cleanedDropoffs: Record<ID, ID[]> = {};
-
   for (const [staffId, pids] of Object.entries(dropoffAssignments || {})) {
     if (!workingSet.has(staffId as ID)) continue;
-
     const cleanedPids = (pids || []).filter((pid) =>
       attendingSet.has(pid as ID),
     ) as ID[];
@@ -129,167 +136,125 @@ export async function persistFinish(params: PersistParams) {
     cleanedDropoffs[staffId as ID] = cleanedPids;
   }
 
-// ---------- CLEANING FAIRNESS ----------
-const chores =
-  ((Data as any).DEFAULT_CHORES as
-    | { id: ID; name: string; slotId?: ID }[]
-    | undefined) || [];
-
-  const timeSlots =
-    ((Data as any).TIME_SLOTS as { id: ID; label: string }[] | undefined) ||
-    [];
-
-  const rooms =
-    ((Data as any).FLOATING_ROOMS as
-      | { id: ID; label: string; icon?: string }[]
+  // ---------- CLEANING FAIRNESS ----------
+  const chores =
+    ((Data as any).DEFAULT_CHORES as
+      | { id: ID; name: string; slotId?: ID }[]
       | undefined) || [];
 
-  const normalizedCleaning: Record<ID, ID> = {};
-  for (const [choreId, staffId] of Object.entries(cleaningAssignments || {})) {
-    if (!staffById.has(staffId as ID)) continue;
-    const validChore = chores.some((c: any) => c.id === choreId);
-    if (!validChore) continue;
-    normalizedCleaning[choreId as ID] = staffId as ID;
-  }
+  const nextCleaning: ScheduleSnapshot['cleaningAssignments'] = {};
 
-  let finalCleaning: Record<ID, ID> = { ...normalizedCleaning };
+  // Bring in any existing cleaning assignments that still make sense
+  if (cleaningAssignments && Object.keys(cleaningAssignments).length > 0) {
+    for (const [choreId, staffId] of Object.entries(cleaningAssignments)) {
+      if (!staffId) continue;
+      if (!workingSet.has(staffId as ID)) continue;
+      const choreStillExists = chores.some((c) => c.id === choreId);
+      if (!choreStillExists) continue;
 
-  if (!Object.keys(finalCleaning).length && chores.length) {
-    const pool = (staff.filter((s) => workingSet.has(s.id as ID)) || staff) as Staff[];
-
-    if (pool.length) {
-      const history = (recentSnapshots || []).slice(-7);
-
-      const historyByChore: Record<string, Record<ID, number>> = {};
-      const totalHistoryByStaff: Record<ID, number> = {};
-
-      for (const snap of history) {
-        const ca = (snap as any).cleaningAssignments as
-          | Record<string, ID>
-          | undefined;
-        if (!ca) continue;
-
-        for (const [choreId, staffId] of Object.entries(ca)) {
-          const sid = staffId as ID;
-
-          totalHistoryByStaff[sid] = (totalHistoryByStaff[sid] ?? 0) + 1;
-
-          if (!historyByChore[choreId]) {
-            historyByChore[choreId] = {};
-          }
-          historyByChore[choreId][sid] =
-            (historyByChore[choreId][sid] ?? 0) + 1;
-        }
-      }
-
-      const getScore = (sid: ID, choreId: ID): number => {
-        const choreHistory = historyByChore[choreId] || {};
-        const timesOnThisChore = choreHistory[sid] ?? 0;
-        const totalLoad = totalHistoryByStaff[sid] ?? 0;
-
-        return timesOnThisChore * 10 + totalLoad;
+      nextCleaning[staffId as ID] = {
+        slotId: chores.find((c) => c.id === choreId)?.slotId ?? choreId,
+        label:
+          chores.find((c) => c.id === choreId)?.name ??
+          (choreId as unknown as string),
       };
-
-      const assignmentsForToday: Record<ID, ID | null> = {};
-      const usedStaff = new Set<ID>();
-
-      for (const chore of chores) {
-        const choreId = chore.id;
-        const candidates = pool.filter(
-          (s) => !usedStaff.has(s.id as ID) && workingSet.has(s.id as ID),
-        );
-
-        if (!candidates.length) {
-          assignmentsForToday[choreId] = null;
-          continue;
-        }
-
-        let best: Staff | null = null;
-        let bestScore = Infinity;
-
-        for (const s of candidates) {
-          const sid = s.id as ID;
-          const score = getScore(sid, choreId);
-
-          if (score < bestScore) {
-            bestScore = score;
-            best = s;
-          }
-        }
-
-        if (best) {
-          const sid = best.id as ID;
-          assignmentsForToday[choreId] = sid;
-          usedStaff.add(sid);
-        } else {
-          assignmentsForToday[choreId] = null;
-        }
-      }
-
-      const result: Record<ID, ID> = {};
-      for (const [choreId, sid] of Object.entries(assignmentsForToday)) {
-        if (!sid) continue;
-        result[choreId as ID] = sid as ID;
-      }
-
-      finalCleaning = result;
     }
   }
 
-  // ---------- FLOATING FAIRNESS ----------
-  const floatingPool =
-    (staff.filter((s) => workingSet.has(s.id as ID)) || staff) as Staff[];
+  // Auto-fill any missing chores in a fairness-aware way based on recentSnapshots
+  const recent = recentSnapshots || [];
+  const recentCleaningStats: Record<ID, number> = {};
 
-  const fsoSlotIds: ID[] = ((Data as any).TWIN_FSO_TIME_SLOT_IDS ||
-    []) as ID[];
+  for (const snap of recent) {
+    if (!snap || !snap.cleaningAssignments) continue;
+    for (const [staffId, assignment] of Object.entries(
+      snap.cleaningAssignments,
+    )) {
+      if (!assignment) continue;
+      const current = recentCleaningStats[staffId as ID] ?? 0;
+      recentCleaningStats[staffId as ID] = current + 1;
+    }
+  }
 
-  let prevSlotStaff = new Set<ID>();
+  const availableStaff = staff.filter((s) =>
+    workingSet.has(s.id as ID),
+  ) as Staff[];
 
-  for (const slot of timeSlots) {
-    const usedThisSlot = new Set<ID>();
+  type CleaningEntry = {
+    choreId: ID;
+    slotId: ID;
+    label: string;
+  };
 
-    for (const room of rooms) {
-      let eligible = floatingPool;
+  const choresToAssign: CleaningEntry[] = chores.map((c) => ({
+    choreId: c.id as ID,
+    slotId: (c.slotId ?? c.id) as ID,
+    label: c.name,
+  }));
 
-      const isTwinsRoom = room.id === ('twins' as ID);
-      const isTwinsFSO =
-        isTwinsRoom && fsoSlotIds.length && fsoSlotIds.includes(slot.id);
+  const remainingAssignments: CleaningEntry[] = [];
 
-      if (isTwinsFSO) {
-        const females = floatingPool.filter((s) => s.gender === 'female');
-        if (females.length) {
-          eligible = females;
-        }
-      }
+  choresToAssign.forEach((entry) => {
+    const alreadyAssigned = Object.values(nextCleaning).some(
+      (assigned) =>
+        assigned.slotId === entry.slotId && assigned.label === entry.label,
+    );
+    if (!alreadyAssigned) {
+      remainingAssignments.push(entry);
+    }
+  });
 
-      if (!eligible.length) {
-        continue;
-      }
+  remainingAssignments.sort((a, b) => a.label.localeCompare(b.label));
 
-      let candidates = eligible.filter((s) => !usedThisSlot.has(s.id as ID));
-      if (!candidates.length) {
-        candidates = eligible;
-      }
+  const finalCleaning: ScheduleSnapshot['cleaningAssignments'] = {
+    ...nextCleaning,
+  };
 
-      candidates = candidates.filter((s) => !prevSlotStaff.has(s.id as ID));
-      if (!candidates.length) {
-        candidates = eligible;
-      }
+  let prevSlotStaff: Set<ID> = new Set();
 
-      const chosen = candidates[0];
-      if (!chosen) continue;
+  for (const entry of remainingAssignments) {
+    const slotId = entry.slotId;
+    const eligible = availableStaff.filter((s) => {
+      const sId = s.id as ID;
+      if (!workingSet.has(sId)) return false;
+      if (finalCleaning[sId]?.slotId === slotId) return false;
+      return true;
+    });
 
-      usedThisSlot.add(chosen.id as ID);
+    if (!eligible.length) continue;
+
+    let candidates = eligible.slice().sort((a, b) => {
+      const countA = recentCleaningStats[a.id as ID] ?? 0;
+      const countB = recentCleaningStats[b.id as ID] ?? 0;
+      if (countA !== countB) return countA - countB;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+    candidates = candidates.filter((s) => !prevSlotStaff.has(s.id as ID));
+    if (!candidates.length) {
+      candidates = eligible;
     }
 
-    prevSlotStaff = usedThisSlot;
+    const chosen = candidates[0];
+    if (!chosen) continue;
+
+    finalCleaning[chosen.id as ID] = {
+      slotId: entry.slotId,
+      label: entry.label,
+    };
+
+    prevSlotStaff = new Set([...prevSlotStaff, chosen.id as ID]);
   }
+
+  // ---------- FINAL SNAPSHOT ----------
+  const now = new Date();
 
   const snapshot: ScheduleSnapshot = {
     staff,
     participants,
     workingStaff,
     attendingParticipants,
+    trainingStaffToday,
 
     assignments: seededAssignments,
     floatingAssignments,
