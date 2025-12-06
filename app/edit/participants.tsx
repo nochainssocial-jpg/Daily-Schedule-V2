@@ -143,7 +143,15 @@ export default function EditParticipantsScreen() {
       if (!isMounted || !data) return;
       const map: Record<string, ParticipantRatingRow> = {};
       (data as any[]).forEach((row) => {
-        map[row.id] = row as ParticipantRatingRow;
+        if (!row) return;
+        const uuidKey = row.id ? String(row.id) : null;
+        const nameKey =
+          row.name && typeof row.name === 'string'
+            ? `name:${row.name.toLowerCase()}`
+            : null;
+
+        if (uuidKey) map[uuidKey] = row as ParticipantRatingRow;
+        if (nameKey) map[nameKey] = row as ParticipantRatingRow;
       });
       setRatingMap(map);
     }
@@ -247,7 +255,8 @@ export default function EditParticipantsScreen() {
                 const isOutOnOuting = outingParticipantSet.has(p.id as ID);
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
 
-                const rating = ratingMap[p.id as ID];
+                const nameKey = `name:${String(p.name || '').toLowerCase()}`;
+                const rating = ratingMap[p.id as ID] ?? ratingMap[nameKey];
                 const total = rating ? getParticipantTotalScore(rating) : null;
                 const level =
                   total !== null ? getParticipantScoreLevel(total) : null;
@@ -286,7 +295,12 @@ export default function EditParticipantsScreen() {
                           </View>
                         )}
                       </View>
-                      <BehaviourMeter value={ratingMap[p.id as ID]?.behaviours ?? null} />
+                      <BehaviourMeter
+                        value={
+                          (ratingMap[p.id as ID] ??
+                            ratingMap[`name:${String(p.name || '').toLowerCase()}`])?.behaviours ?? null
+                        }
+                      />
                     </View>
                   </TouchableOpacity>
                 );
@@ -395,7 +409,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    width: 148,
+    width: 180,
   },
   attendingPillOnsite: {
     backgroundColor: '#F54FA5',
