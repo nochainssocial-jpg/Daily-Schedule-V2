@@ -23,6 +23,7 @@ import SaveExit from '@/components/SaveExit';
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
 
+
 const WRAP = {
   width: '100%',
   maxWidth: 880,
@@ -129,6 +130,7 @@ function isEveryone(staff: any): boolean {
   return name === 'everyone';
 }
 
+
 // ---- Participant ratings + behaviour helpers (for legend pills) ----
 
 type ParticipantRatingRow = {
@@ -202,7 +204,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
     }).start();
   }, [fraction, progress]);
 
-  // Width of the grey mask that hides the *unfilled* part of the bar
+  // Width of the grey mask that hides the right side of the gradient
   const maskWidth = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [trackWidth, 0], // 0% score = full mask, 100% = no mask
@@ -211,7 +213,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   return (
     <View
       style={{
-        width: 110,
+        width: 90,
         height: 10,
         borderRadius: 999,
         overflow: 'hidden',
@@ -221,7 +223,6 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
     >
       {trackWidth > 0 && (
         <>
-          {/* Same gradient as Attending screen */}
           <LinearGradient
             colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
             start={{ x: 0, y: 0.5 }}
@@ -234,7 +235,6 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
               bottom: 0,
             }}
           />
-          {/* Grey mask from the right, hiding the unfilled portion */}
           <Animated.View
             style={{
               position: 'absolute',
@@ -298,98 +298,131 @@ function LegendParticipantPill({
         borderWidth: 1,
         borderColor: '#111827',
         borderRadius: 999,
-        paddingVertical: 4,
+        paddingVertical: 6,
         paddingHorizontal: 10,
         marginRight: 8,
         marginBottom: 8,
         backgroundColor: '#FFFFFF',
-        minWidth: 140,
+        flexBasis: '31%',
+        maxWidth: '31%',
+        minWidth: 0,
       }}
     >
+      {/* Header row */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          marginBottom: total !== null ? 4 : 0,
+          justifyContent: 'space-between',
+          marginBottom: total !== null ? 6 : 0,
         }}
       >
+        {/* Left: gender dot + name */}
         <View
           style={{
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            backgroundColor: person.female ? '#ec4899' : '#3b82f6',
-            marginRight: 6,
-          }}
-        />
-        <Text
-          style={{
-            fontSize: 13,
-            fontWeight: '600',
-            color: '#111827',
+            flexDirection: 'row',
+            alignItems: 'center',
             flexShrink: 1,
+            minWidth: 0,
           }}
-          numberOfLines={1}
         >
-          {person.name}
-        </Text>
-
-        {behaviourRisk && riskLetter && (
           <View
             style={{
-              width: 22,
-              height: 22,
+              width: 8,
+              height: 8,
               borderRadius: 999,
-              backgroundColor: riskColor,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginLeft: 4,
+              backgroundColor: person.female ? '#ec4899' : '#3b82f6',
+              marginRight: 6,
             }}
-          >
-            <Text
-              style={{
-                fontSize: 12,
-                fontWeight: '700',
-                color: '#FFFFFF',
-              }}
-            >
-              {riskLetter}
-            </Text>
-          </View>
-        )}
-
-        {total !== null && (
-          <View
+          />
+          <Text
             style={{
-              minWidth: 24,
-              height: 24,
-              paddingHorizontal: 6,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: scoreBorder,
-              backgroundColor: scoreBg,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginLeft: 4,
+              fontSize: 13,
+              fontWeight: '600',
+              color: '#111827',
             }}
+            numberOfLines={1}
           >
-            <Text
+            {person.name}
+          </Text>
+        </View>
+
+        {/* Right: behaviour risk + score */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginLeft: 8,
+          }}
+        >
+          {behaviourRisk && riskLetter && (
+            <View
               style={{
-                fontSize: 12,
-                fontWeight: '700',
-                color: '#111827',
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                backgroundColor: riskColor,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 6,
               }}
             >
-              {total}
-            </Text>
-          </View>
-        )}
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: '#FFFFFF',
+                }}
+              >
+                {riskLetter}
+              </Text>
+            </View>
+          )}
+
+          {total !== null && (
+            <View
+              style={{
+                minWidth: 26,
+                height: 24,
+                paddingHorizontal: 6,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: scoreBorder,
+                backgroundColor: scoreBg,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: '#111827',
+                }}
+              >
+                {total}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      {total !== null && <BehaviourMeter totalScore={total} />}
+      {total !== null && (
+        <View
+          style={{
+            alignItems: 'center',
+          }}
+        >
+          <BehaviourMeter totalScore={total} />
+        </View>
+      )}
     </View>
   );
 }
+
+
+}
+
 
 function parseTimeToMinutes(time?: string | null): number | null {
   if (!time) return null;
@@ -809,6 +842,7 @@ export default function FloatingScreen() {
     return active.length ? active : ROOM_KEYS;
   };
 
+
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
@@ -869,8 +903,8 @@ export default function FloatingScreen() {
         <View style={WRAP as any}>
           <Text
             style={{
-              fontSize: 30,
-              fontWeight: '800',
+              fontSize: 24,
+              fontWeight: '700',
               marginTop: 40,
               marginBottom: 10,
             }}
@@ -1178,7 +1212,7 @@ export default function FloatingScreen() {
                 <Ionicons
                   name="print-outline"
                   size={42}
-                  color="#00A86A"
+                  color="#OOA86A"
                   style={{ marginBottom: 6 }}
                 />
                 <Text
@@ -1195,191 +1229,198 @@ export default function FloatingScreen() {
             </View>
           )}
 
-          {/* Legend */}
-          <View style={{ marginTop: 24 }}>
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: '700',
-                color: '#000000',
-                marginBottom: 8,
-              }}
-            >
-              Legend
-            </Text>
+        {/* Legend */}
+        <View style={{ marginTop: 24 }}>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: '700',
+              color: '#000000',
+              marginBottom: 8,
+            }}
+          >
+            Legend
+          </Text>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Front Room row */}
             <View
               style={{
-                borderWidth: 1,
-                borderColor: '#e5e7eb',
-                borderRadius: 8,
-                overflow: 'hidden',
+                flexDirection: 'row',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
               }}
             >
-              {/* Front Room row */}
               <View
                 style={{
-                  flexDirection: 'row',
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#e5e7eb',
+                  width: '32%',
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRightWidth: 1,
+                  borderRightColor: '#e5e7eb',
+                  justifyContent: 'center',
+                  backgroundColor: '#f9fafb',
                 }}
               >
-                <View
+                <Text
                   style={{
-                    width: '18%',
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    borderRightWidth: 1,
-                    borderRightColor: '#e5e7eb',
-                    justifyContent: 'center',
-                    backgroundColor: '#f9fafb',
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: '#000000',
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: '700',
-                      color: '#000000',
-                    }}
-                  >
-                    Front Room
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    flex: 1,
-                    paddingVertical: 6,
-                    paddingHorizontal: 8,
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    alignItems: 'center',
-                  }}
-                >
-                  {[
-                    { name: 'Paul', female: false },
-                    { name: 'Jessica', female: true },
-                    { name: 'Naveed', female: false },
-                    { name: 'Tiffany', female: true },
-                    { name: 'Sumera', female: true },
-                    { name: 'Jacob', female: false },
-                  ].map((p) => {
-                    const nameKey = `name:${String(p.name).toLowerCase()}`;
-                    const rating = ratingMap[nameKey];
-                    return (
-                      <LegendParticipantPill
-                        key={p.name}
-                        person={p}
-                        rating={rating}
-                      />
-                    );
-                  })}
-                </View>
+                  Front Room
+                </Text>
               </View>
-
-              {/* Scotty row */}
               <View
                 style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
                   flexDirection: 'row',
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#e5e7eb',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
                 }}
               >
-                <View
-                  style={{
-                    width: '18%',
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    borderRightWidth: 1,
-                    borderRightColor: '#e5e7eb',
-                    justifyContent: 'center',
-                    backgroundColor: '#f9fafb',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: '700',
-                      color: '#000000',
-                    }}
-                  >
-                    Scotty
-                  </Text>
-                </View>
-              
-                <View
-                  style={{
-                    flex: 1,
-                    paddingVertical: 6,
-                    paddingHorizontal: 8,
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    alignItems: 'center',
-                  }}
-                >
-                  <LegendParticipantPill
-                    person={{ name: 'Scott', female: false }}
-                    rating={ratingMap['name:scott']}
-                  />
-                </View>
+                {[
+                  { name: 'Paul', female: false },
+                  { name: 'Jessica', female: true },
+                  { name: 'Naveed', female: false },
+                  { name: 'Tiffany', female: true },
+                  { name: 'Sumera', female: true },
+                  { name: 'Jacob', female: false },
+                ].map((p) => {
+                  const nameKey = `name:${String(p.name).toLowerCase()}`;
+                  const rating = ratingMap[nameKey];
+                  return (
+                    <LegendParticipantPill
+                      key={p.name}
+                      person={p}
+                      rating={rating}
+                    />
+                  );
+                })}
               </View>
+            </View>
 
-              {/* Twins / FSO row */}
+                        {/* Scotty row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
+              }}
+            >
               <View
                 style={{
-                  flexDirection: 'row',
+                  width: '32%',
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRightWidth: 1,
+                  borderRightColor: '#e5e7eb',
+                  justifyContent: 'center',
+                  backgroundColor: '#f9fafb',
                 }}
               >
-                <View
+                <Text
                   style={{
-                    width: '18%',
-                    paddingVertical: 10,
-                    paddingHorizontal: 16,
-                    borderRightWidth: 1,
-                    borderRightColor: '#e5e7eb',
-                    justifyContent: 'center',
-                    backgroundColor: '#f9fafb',
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: '#000000',
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: '700',
-                      color: '#000000',
-                    }}
-                  >
-                    Twins / FSO
-                  </Text>
-                </View>
-                <View
+                  Scotty
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
+                }}
+              >
+                {[
+                  { name: 'Scott', female: false },
+                ].map((p) => {
+                  const nameKey = `name:${String(p.name).toLowerCase()}`;
+                  const rating = ratingMap[nameKey];
+                  return (
+                    <LegendParticipantPill
+                      key={p.name}
+                      person={p}
+                      rating={rating}
+                    />
+                  );
+                })}
+              </View>
+            </View>{/* Twins / FSO row */}
+            <View
+              style={{
+                flexDirection: 'row',
+              }}
+            >
+              <View
+                style={{
+                  width: '32%',
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRightWidth: 1,
+                  borderRightColor: '#e5e7eb',
+                  justifyContent: 'center',
+                  backgroundColor: '#f9fafb',
+                }}
+              >
+                <Text
                   style={{
-                    flex: 1,
-                    paddingVertical: 6,
-                    paddingHorizontal: 8,
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    alignItems: 'center',
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: '#000000',
                   }}
                 >
-                  {[
-                    { name: 'Zara', female: true },
-                    { name: 'Zoya', female: true },
-                  ].map((p) => {
-                    const nameKey = `name:${String(p.name).toLowerCase()}`;
-                    const rating = ratingMap[nameKey];
-                    return (
-                      <LegendParticipantPill
-                        key={p.name}
-                        person={p}
-                        rating={rating}
-                      />
-                    );
-                  })}
-                </View>
+                  Twins / FSO
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  alignItems: 'center',
+                }}
+              >
+                {[
+                  { name: 'Zara', female: true },
+                  { name: 'Zoya', female: true },
+                ].map((p) => {
+                  const nameKey = `name:${String(p.name).toLowerCase()}`;
+                  const rating = ratingMap[nameKey];
+                  return (
+                    <LegendParticipantPill
+                      key={p.name}
+                      person={p}
+                      rating={rating}
+                    />
+                  );
+                })}
               </View>
             </View>
           </View>
+        </View>
+
         </View>
       </ScrollView>
 
