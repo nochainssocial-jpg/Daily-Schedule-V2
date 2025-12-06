@@ -74,7 +74,7 @@ export default function EditDreamTeamScreen() {
       ? scheduleStaff
       : STATIC_STAFF) || [];
 
-  // Live ratings from Supabase – keyed by staff id
+  // Live ratings from Supabase – keyed by staff id / legacy_id / name
   const [ratingLookup, setRatingLookup] = useState<Record<string, any>>({});
 
   useEffect(() => {
@@ -85,15 +85,25 @@ export default function EditDreamTeamScreen() {
         const { data, error } = await supabase
           .from('staff')
           .select(
-            'id,experience_level,behaviour_capability,personal_care_skill,mobility_assistance,communication_support,reliability_rating',
+            'id,legacy_id,name,experience_level,behaviour_capability,personal_care_skill,mobility_assistance,communication_support,reliability_rating',
           );
 
         if (error || !data || cancelled) return;
 
         const map: Record<string, any> = {};
         (data as any[]).forEach((row) => {
-          const id = String(row.id);
-          if (id) map[id] = row;
+          if (!row) return;
+
+          const uuidKey = row.id ? String(row.id) : null;
+          const legacyKey = row.legacy_id ? String(row.legacy_id) : null;
+          const nameKey =
+            row.name && typeof row.name === 'string'
+              ? `name:${row.name.toLowerCase()}`
+              : null;
+
+          if (uuidKey) map[uuidKey] = row;
+          if (legacyKey) map[legacyKey] = row;
+          if (nameKey) map[nameKey] = row;
         });
 
         if (!cancelled) {
@@ -130,7 +140,8 @@ export default function EditDreamTeamScreen() {
   );
 
   const trainingSet = useMemo(
-    () => new Set<string>((trainingStaffToday as ID[]).map((id) => String(id))),
+    () =>
+      new Set<string>((trainingStaffToday as ID[]).map((id) => String(id))),
     [trainingStaffToday],
   );
 
@@ -199,6 +210,73 @@ export default function EditDreamTeamScreen() {
 
   const contentWidth = Math.min(width - 32, 880);
 
+  const renderStaffChip = (s: any, inDreamTeam: boolean) => {
+    const id = String(s.id);
+    const isOutOnOuting = outingStaffSet.has(id);
+    const isTraining = trainingSet.has(id);
+
+    const nameKey = `name:${String(s.name || '').toLowerCase()}`;
+    const ratingSource = ratingLookup[id] ?? ratingLookup[nameKey] ?? s;
+
+    const score = getStaffScore(ratingSource);
+    const band = getScoreBand(score);
+    const showScore = score > 0;
+
+    const mode = (
+      isTraining
+        ? 'training'
+        : isOutOnOuting
+        ? 'offsite'
+        : inDreamTeam
+        ? 'onsite'
+        : 'default'
+    ) as any;
+
+    const leftAddon = showScore ? (
+      <View
+        style={[
+          styles.scoreCircle,
+          band === 'senior' && styles.scoreCircleSenior,
+          band === 'mid' && styles.scoreCircleMid,
+          band === 'junior' && styles.scoreCircleJunior,
+        ]}
+      >
+        <Text style={styles.scoreText}>{score}</Text>
+      </View>
+    ) : null;
+
+    let rightAddon: React.ReactNode = null;
+    if (isTraining) {
+      rightAddon = (
+        <MaterialCommunityIcons
+          name="account-supervisor"
+          size={16}
+          color="#1C5F87"
+        />
+      );
+    } else if (band === 'senior') {
+      rightAddon = (
+        <MaterialCommunityIcons
+          name="account-star"
+          size={16}
+          color="#FBBF24"
+        />
+      );
+    }
+
+    return (
+      <Chip
+        key={s.id}
+        label={s.name}
+        mode={mode}
+        leftAddon={leftAddon}
+        rightAddon={rightAddon}
+        onPress={() => toggleStaff(s.id as ID)}
+        onLongPress={() => toggleTraining(s.id as ID)}
+      />
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="dreamTeam" />
@@ -223,70 +301,7 @@ export default function EditDreamTeamScreen() {
             <Text style={styles.empty}>No staff have been selected yet.</Text>
           ) : (
             <View style={styles.chipGrid}>
-              {dreamTeam.map((s: any) => {
-                const id = String(s.id);
-                const isOutOnOuting = outingStaffSet.has(id);
-                const isTraining = trainingSet.has(id);
-
-                // Prefer Supabase ratings if present
-                const ratingSource = ratingLookup[id] ?? s;
-
-                const score = getStaffScore(ratingSource);
-                const band = getScoreBand(score);
-                const showScore = score > 0;
-
-                const mode = (
-                  isTraining
-                    ? 'training'
-                    : isOutOnOuting
-                    ? 'offsite'
-                    : 'onsite'
-                ) as any;
-
-                const leftAddon = showScore ? (
-                  <View
-                    style={[
-                      styles.scoreCircle,
-                      band === 'senior' && styles.scoreCircleSenior,
-                      band === 'mid' && styles.scoreCircleMid,
-                      band === 'junior' && styles.scoreCircleJunior,
-                    ]}
-                  >
-                    <Text style={styles.scoreText}>{score}</Text>
-                  </View>
-                ) : null;
-
-                let rightAddon: React.ReactNode = null;
-                if (isTraining) {
-                  rightAddon = (
-                    <MaterialCommunityIcons
-                      name="account-supervisor"
-                      size={16}
-                      color="#1C5F87"
-                    />
-                  );
-                } else if (band === 'senior') {
-                  rightAddon = (
-                    <MaterialCommunityIcons
-                      name="account-star"
-                      size={16}
-                      color="#FBBF24"
-                    />
-                  );
-                }
-
-                return (
-                  <Chip
-                    key={s.id}
-                    label={s.name}
-                    mode={mode}
-                    leftAddon={leftAddon}
-                    rightAddon={rightAddon}
-                    onPress={() => toggleStaff(s.id as ID)}
-                    onLongPress={() => toggleTraining(s.id as ID)}
-                  />
-                );
-              })}
+              {dreamTeam.map((s: any) => renderStaffChip(s, true))}
             </View>
           )}
 
@@ -297,68 +312,7 @@ export default function EditDreamTeamScreen() {
             <Text style={styles.empty}>Everyone is working at B2 today.</Text>
           ) : (
             <View style={styles.chipGrid}>
-              {staffPool.map((s: any) => {
-                const id = String(s.id);
-                const isOutOnOuting = outingStaffSet.has(id);
-                const isTraining = trainingSet.has(id);
-
-                const ratingSource = ratingLookup[id] ?? s;
-                const score = getStaffScore(ratingSource);
-                const band = getScoreBand(score);
-                const showScore = score > 0;
-
-                const mode = (
-                  isTraining
-                    ? 'training'
-                    : isOutOnOuting
-                    ? 'offsite'
-                    : 'default'
-                ) as any;
-
-                const leftAddon = showScore ? (
-                  <View
-                    style={[
-                      styles.scoreCircle,
-                      band === 'senior' && styles.scoreCircleSenior,
-                      band === 'mid' && styles.scoreCircleMid,
-                      band === 'junior' && styles.scoreCircleJunior,
-                    ]}
-                  >
-                    <Text style={styles.scoreText}>{score}</Text>
-                  </View>
-                ) : null;
-
-                let rightAddon: React.ReactNode = null;
-                if (isTraining) {
-                  rightAddon = (
-                    <MaterialCommunityIcons
-                      name="account-supervisor"
-                      size={16}
-                      color="#1C5F87"
-                    />
-                  );
-                } else if (band === 'senior') {
-                  rightAddon = (
-                    <MaterialCommunityIcons
-                      name="account-star"
-                      size={16}
-                      color="#FBBF24"
-                    />
-                  );
-                }
-
-                return (
-                  <Chip
-                    key={s.id}
-                    label={s.name}
-                    mode={mode}
-                    leftAddon={leftAddon}
-                    rightAddon={rightAddon}
-                    onPress={() => toggleStaff(s.id as ID)}
-                    onLongPress={() => toggleTraining(s.id as ID)}
-                  />
-                );
-              })}
+              {staffPool.map((s: any) => renderStaffChip(s, false))}
             </View>
           )}
 
