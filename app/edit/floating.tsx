@@ -1225,9 +1225,9 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '32%',
+                    width: '45%',
                     paddingVertical: 10,
-                    paddingHorizontal: 10,
+                    paddingHorizontal: 16,
                     borderRightWidth: 1,
                     borderRightColor: '#e5e7eb',
                     justifyContent: 'center',
@@ -1248,7 +1248,7 @@ export default function FloatingScreen() {
                   style={{
                     flex: 1,
                     paddingVertical: 10,
-                    paddingHorizontal: 10,
+                    paddingHorizontal: 16,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
                     gap: 6,
@@ -1286,9 +1286,9 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '32%',
+                    width: '45%',
                     paddingVertical: 10,
-                    paddingHorizontal: 10,
+                    paddingHorizontal: 16,
                     borderRightWidth: 1,
                     borderRightColor: '#e5e7eb',
                     justifyContent: 'center',
@@ -1310,7 +1310,7 @@ export default function FloatingScreen() {
                   style={{
                     flex: 1,
                     paddingVertical: 10,
-                    paddingHorizontal: 10,
+                    paddingHorizontal: 16,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
                     gap: 6,
@@ -1332,9 +1332,9 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '32%',
+                    width: '45%',
                     paddingVertical: 10,
-                    paddingHorizontal: 10,
+                    paddingHorizontal: 16,
                     borderRightWidth: 1,
                     borderRightColor: '#e5e7eb',
                     justifyContent: 'center',
@@ -1355,7 +1355,7 @@ export default function FloatingScreen() {
                   style={{
                     flex: 1,
                     paddingVertical: 10,
-                    paddingHorizontal: 10,
+                    paddingHorizontal: 16,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
                     gap: 6,
