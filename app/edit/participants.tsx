@@ -122,14 +122,13 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
     >
       {trackWidth > 0 && (
         <Animated.View style={[styles.behaviourFill, { width: animatedWidth }]}>
-            colors={[
-              '#22c55e',  // strong green
-              '#22c55e',  // extend green region
-              '#eab308',  // yellow only in middle range
-              '#ef4444',  // red only near very end
-            ]}
-            locations={[0, 0.55, 0.80, 1]}
-          />
+            <LinearGradient
+              colors={['#22c55e', '#22c55e', '#eab308', '#ef4444']}
+              locations={[0, 0.55, 0.80, 1]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
         </Animated.View>
       )}
     </View>
@@ -412,7 +411,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    width: 150,
+    width: 160,
   },
   attendingPillOnsite: {
     backgroundColor: '#F54FA5',
