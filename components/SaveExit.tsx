@@ -49,15 +49,23 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       participants: schedule.participants,
       workingStaff: schedule.workingStaff,
       attendingParticipants: schedule.attendingParticipants,
+
+      // ✅ persist training flags when saving
+      trainingStaffToday: schedule.trainingStaffToday,
+
       assignments: schedule.assignments,
       floatingAssignments: schedule.floatingAssignments,
       cleaningAssignments: schedule.cleaningAssignments,
+
       finalChecklist: schedule.finalChecklist,
       finalChecklistStaff: schedule.finalChecklistStaff,
+
       pickupParticipants: schedule.pickupParticipants,
       helperStaff: schedule.helperStaff,
+
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
+
       outingGroup: schedule.outingGroup ?? null,
       date: schedule.date,
       meta: schedule.meta ?? {},
