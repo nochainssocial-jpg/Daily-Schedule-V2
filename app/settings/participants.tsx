@@ -444,6 +444,7 @@ export default function ParticipantsSettingsScreen() {
                     {
                       flex: 1,
                       marginTop: -4,
+                      marginBottom: -4,
                     },
                   ]}
                 >
