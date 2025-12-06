@@ -250,7 +250,7 @@ export default function EditDreamTeamScreen() {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-supervisor"
-          size={16}
+          size={20}
           color="#1C5F87"
         />
       );
@@ -258,7 +258,7 @@ export default function EditDreamTeamScreen() {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-star"
-          size={16}
+          size={20}
           color="#FBBF24"
         />
       );
