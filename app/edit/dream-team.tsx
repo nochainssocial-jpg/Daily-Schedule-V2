@@ -66,8 +66,6 @@ export default function EditDreamTeamScreen() {
     updateSchedule,
   } = useSchedule() as any;
 
-  const { push } = useNotifications();
-
   const trainingSet = useMemo(
     () => new Set<string>((trainingStaffToday || []).map(String)),
     [trainingStaffToday],
