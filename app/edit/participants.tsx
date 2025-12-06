@@ -22,6 +22,7 @@ import { useIsAdmin } from '@/hooks/access-control';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
+import { View, Text, StyleSheet, ScrollView, Platform, useWindowDimensions, TouchableOpacity, Animated } from 'react-native';
 
 type ID = string;
 
@@ -88,31 +89,43 @@ function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
+// Behaviour risk from behaviours 1–3
+function getBehaviourRisk(
+  behaviours?: number | null,
+): 'low' | 'medium' | 'high' | null {
+  if (typeof behaviours !== 'number') return null;
+  if (behaviours <= 1) return 'low';
+  if (behaviours === 2) return 'medium';
+  if (behaviours >= 3) return 'high';
+  return null;
+}
+
 /**
- * Gradient behaviour meter driven by TOTAL participant score:
+ * Gradient meter driven by TOTAL participant score:
  * - totalScore: 0–35 (7 criteria × 5)
  * - fill = totalScore / 35 (clamped 0–1)
- * - animated so the bar eases between values
+ * - gradient compressed so red only appears toward the end
  */
 function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
-  const maxScore = 35; // 7 criteria × 5 each
-  const target = Math.max(0, Math.min(1, rawTotal / maxScore));
+  const maxScore = 35; // 7 criteria × 5
+  const fraction = Math.max(0, Math.min(1, rawTotal / maxScore));
 
-  const progress = useRef(new Animated.Value(target)).current;
   const [trackWidth, setTrackWidth] = useState(0);
+  const progress = useRef(new Animated.Value(fraction)).current;
 
   useEffect(() => {
     Animated.timing(progress, {
-      toValue: target,
+      toValue: fraction,
       duration: 350,
       useNativeDriver: false, // animating width
     }).start();
-  }, [target, progress]);
+  }, [fraction, progress]);
 
-  const animatedWidth = progress.interpolate({
+  // Width of the grey "mask" that hides the right side of the gradient
+  const maskWidth = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, trackWidth || 0],
+    outputRange: [trackWidth, 0], // 0% score = full mask, 100% = no mask
   });
 
   return (
@@ -121,15 +134,17 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
       onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
     >
       {trackWidth > 0 && (
-        <Animated.View style={[styles.behaviourFill, { width: animatedWidth }]}>
-            <LinearGradient
-              colors={['#22c55e', '#22c55e', '#eab308', '#ef4444']}
-              locations={[0, 0.55, 0.80, 1]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={StyleSheet.absoluteFill}
-            />
-        </Animated.View>
+        <>
+          {/* Full-range gradient: 0 → 35 */}
+          <LinearGradient
+            colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+          {/* Grey mask from the right, hiding the unfilled portion */}
+          <Animated.View style={[styles.behaviourMask, { width: maskWidth }]} />
+        </>
       )}
     </View>
   );
@@ -265,11 +280,27 @@ export default function EditParticipantsScreen() {
                 const total = rating ? getParticipantTotalScore(rating) : null;
                 const level =
                   total !== null ? getParticipantScoreLevel(total) : null;
+                const behaviourRisk = rating
+                  ? getBehaviourRisk(rating.behaviours)
+                  : null;
 
                 const scoreStyles = [styles.scoreBubble];
                 if (level === 'low') scoreStyles.push(styles.scoreBubbleLow);
                 if (level === 'medium') scoreStyles.push(styles.scoreBubbleMedium);
                 if (level === 'high') scoreStyles.push(styles.scoreBubbleHigh);
+
+                let riskLetter = '';
+                let riskStyle = styles.riskBadgeNeutral;
+                if (behaviourRisk === 'low') {
+                  riskLetter = 'L';
+                  riskStyle = styles.riskBadgeLow;
+                } else if (behaviourRisk === 'medium') {
+                  riskLetter = 'M';
+                  riskStyle = styles.riskBadgeMedium;
+                } else if (behaviourRisk === 'high') {
+                  riskLetter = 'H';
+                  riskStyle = styles.riskBadgeHigh;
+                }
 
                 return (
                   <TouchableOpacity
@@ -294,11 +325,21 @@ export default function EditParticipantsScreen() {
                         >
                           {p.name}
                         </Text>
-                        {total !== null && (
-                          <View style={scoreStyles}>
-                            <Text style={styles.scoreBubbleText}>{total}</Text>
-                          </View>
-                        )}
+
+                        <View style={styles.rightHeaderRow}>
+                          {behaviourRisk && (
+                            <View style={[styles.riskBadge, riskStyle]}>
+                              <Text style={styles.riskBadgeText}>
+                                {riskLetter}
+                              </Text>
+                            </View>
+                          )}
+                          {total !== null && (
+                            <View style={scoreStyles}>
+                              <Text style={styles.scoreBubbleText}>{total}</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                       <View style={styles.behaviourMeterContainer}>
                         <BehaviourMeter totalScore={total} />
@@ -411,7 +452,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    width: 160,
+    width: 150,
   },
   attendingPillOnsite: {
     backgroundColor: '#F54FA5',
@@ -432,6 +473,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 2,
   },
+  rightHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   attendingName: {
     fontSize: 15,
     fontWeight: '600',
@@ -448,25 +494,26 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 4,
     borderRadius: 8,
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 2,
-    alignSelf: 'center',
   },
   behaviourTrack: {
-    width: 110,
-    height: 8,
+    width: 110,          // or whatever width you like
+    height: 10,
     borderRadius: 999,
-    backgroundColor: '#E5E7EB',
     overflow: 'hidden',
   },
-  behaviourFill: {
-    height: '100%',
-    borderRadius: 999,
+  behaviourMask: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#E5E7EB',
   },
 
-  // Score bubble on left of pill
+  // Score bubble on right of header
   scoreBubble: {
     minWidth: 28,
     paddingHorizontal: 3,
@@ -477,7 +524,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
+    marginLeft: 4,
     marginBottom: 6,
   },
   scoreBubbleLow: {
@@ -496,6 +543,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#332244',
+  },
+
+  // Behaviour risk dial (L / M / H)
+  riskBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
+  },
+  riskBadgeNeutral: {
+    backgroundColor: '#CBD5E1',
+  },
+  riskBadgeLow: {
+    backgroundColor: '#22C55E',
+  },
+  riskBadgeMedium: {
+    backgroundColor: '#F97316',
+  },
+  riskBadgeHigh: {
+    backgroundColor: '#EF4444',
+  },
+  riskBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 
   legend: {
