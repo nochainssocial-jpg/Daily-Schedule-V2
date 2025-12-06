@@ -514,7 +514,8 @@ const styles = StyleSheet.create({
 
   // Score bubble on right of header
   scoreBubble: {
-    minWidth: 28,
+    width: 24,
+    height: 24,
     paddingHorizontal: 3,
     paddingVertical: 3,
     borderRadius: 999,
@@ -546,14 +547,15 @@ const styles = StyleSheet.create({
 
   // Behaviour risk dial (L / M / H)
   riskBadge: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderRadius: 999,
     borderWidth: 2,
     borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 2,
+    marginBottom: 6,
   },
   riskBadgeNeutral: {
     backgroundColor: '#CBD5E1',
