@@ -19,166 +19,185 @@ type PersistParams = {
   // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday?: ID[];
 
-  // assignments: staff ID -> array of participant IDs (team daily assignments)
-  assignments?: Record<ID, ID[]>;
+  // assignments: participant ID -> staff ID
+  assignments?: Record<ID, ID | null>;
 
-  // floating room assignments (front room, Scotty, twins)
+  // floating room assignments
   floatingAssignments?: {
     frontRoom: ID | null;
     scotty: ID | null;
     twins: ID | null;
   };
 
-  // cleaning assignments: chore ID -> staff ID
-  cleaningAssignments?: Record<ID, ID>;
+  // cleaning assignments: staff ID -> { slotId, label }
+  cleaningAssignments?: ScheduleSnapshot['cleaningAssignments'];
 
-  finalChecklist?: {
-    isPrinted: boolean;
-    isSigned: boolean;
-  };
+  // helper staff
+  helperStaff?: ID | null;
 
+  // dropoffs
+  dropoffAssignments?: ScheduleSnapshot['dropoffAssignments'];
+  dropoffLocations?: ScheduleSnapshot['dropoffLocations'];
+
+  // pickups / helpers / dropoffs (participants)
+  pickupParticipants?: ID[];
+  helperPickupStaff?: ID[];
+
+  // final checklist
+  finalChecklist?: ScheduleSnapshot['finalChecklist'];
   finalChecklistStaff?: ID[];
 
-  pickupParticipants?: ID[];
-  helperStaff?: ID[];
-  dropoffAssignments?: Record<ID, ID[]>;
-  dropoffLocations?: Record<ID, number>;
-
-  date?: string;
-
+  // prior snapshots for cleaning fairness
   recentSnapshots?: ScheduleSnapshot[];
+
+  // explicit schedule date (optional; we overwrite with "today" below)
+  date?: string;
 };
 
 export async function persistFinish(params: PersistParams) {
   const {
     createSchedule,
+
     staff = [],
     participants = [],
+
     workingStaff = [],
     attendingParticipants = [],
+
     trainingStaffToday = [],
+
     assignments = {},
     floatingAssignments = {
       frontRoom: null,
       scotty: null,
       twins: null,
     },
+
     cleaningAssignments = {},
+    helperStaff = null,
+
+    dropoffAssignments = {},
+    dropoffLocations = {},
+
+    pickupParticipants = [],
+    helperPickupStaff = [],
+
     finalChecklist = {
       isPrinted: false,
       isSigned: false,
     },
     finalChecklistStaff = [],
-    pickupParticipants = [],
-    helperStaff = [],
-    dropoffAssignments = {},
-    dropoffLocations = {},
-    date,
+
     recentSnapshots = [],
   } = params;
 
-  const staffById = new Map<ID, Staff>();
-  const participantsById = new Map<ID, Participant>();
+  // Build maps for quick validation
+  const staffMap = new Map<ID, Staff>();
+  const participantMap = new Map<ID, Participant>();
 
   staff.forEach((s) => {
     if (!s || !s.id) return;
-    staffById.set(s.id as ID, s);
+    staffMap.set(s.id as ID, s);
   });
 
   participants.forEach((p) => {
     if (!p || !p.id) return;
-    participantsById.set(p.id as ID, p);
+    participantMap.set(p.id as ID, p);
   });
 
-  // Ensure workingStaff is always non-empty; fallback to "everyone" if it's empty
   const workingSet = new Set<ID>(
-    (workingStaff && workingStaff.length
-      ? workingStaff
-      : staff.map((s) => s.id)) as ID[],
+    (workingStaff && workingStaff.length ? workingStaff : staff.map((s) => s.id)) as ID[],
   );
 
   const attendingSet = new Set<ID>(attendingParticipants as ID[]);
 
-  // ---------- TEAM DAILY ASSIGNMENTS ----------
-  const seededAssignments: Record<ID, ID[]> = {};
+  // ---------------------------------------------------------------------------
+  // TEAM DAILY ASSIGNMENTS (participant -> staff)
+  // ---------------------------------------------------------------------------
 
-  if (assignments) {
-    for (const [sid, partIds] of Object.entries(assignments)) {
-      if (!staffById.has(sid as ID)) continue;
-      const cleaned = (partIds || []).filter(
-        (pid) => participantsById.has(pid as ID) && attendingSet.has(pid as ID),
-      ) as ID[];
-      if (cleaned.length) {
-        seededAssignments[sid as ID] = cleaned;
-      }
+  const normalizedAssignments: Record<ID, ID | null> = {};
+
+  Object.entries(assignments || {}).forEach(([pid, sid]) => {
+    const participantId = pid as ID;
+    const staffId = sid as ID | null;
+
+    // Participant must exist and be attending
+    if (!participantMap.has(participantId) || !attendingSet.has(participantId)) {
+      normalizedAssignments[participantId] = null;
+      return;
     }
-  }
 
-  // ---------- PICKUPS & HELPERS ----------
-  const validPickup = pickupParticipants.filter((id) =>
-    attendingSet.has(id as ID),
-  );
+    // Staff must exist and be working
+    if (!staffId || !staffMap.has(staffId) || !workingSet.has(staffId)) {
+      normalizedAssignments[participantId] = null;
+      return;
+    }
 
-  const validHelpers = (helperStaff || []).filter((id) =>
-    workingSet.has(id as ID),
-  ) as ID[];
+    normalizedAssignments[participantId] = staffId;
+  });
 
-  // ---------- DROPOFFS ----------
-  const cleanedDropoffs: Record<ID, ID[]> = {};
-  for (const [staffId, pids] of Object.entries(dropoffAssignments || {})) {
-    if (!workingSet.has(staffId as ID)) continue;
-    const cleanedPids = (pids || []).filter((pid) =>
-      attendingSet.has(pid as ID),
-    ) as ID[];
+  // ---------------------------------------------------------------------------
+  // FLOATING ASSIGNMENTS
+  // ---------------------------------------------------------------------------
 
-    if (!cleanedPids.length) continue;
+  const normalizedFloating: ScheduleSnapshot['floatingAssignments'] = {
+    frontRoom: null,
+    scotty: null,
+    twins: null,
+  };
 
-    cleanedDropoffs[staffId as ID] = cleanedPids;
-  }
+  (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
+    const id = floatingAssignments?.[key] ?? null;
+    if (id && staffMap.has(id) && workingSet.has(id)) {
+      normalizedFloating[key] = id;
+    } else {
+      normalizedFloating[key] = null;
+    }
+  });
 
-  // ---------- CLEANING FAIRNESS ----------
+  // ---------------------------------------------------------------------------
+  // CLEANING – fairness based on recent snapshots
+  // ---------------------------------------------------------------------------
+
   const chores =
     ((Data as any).DEFAULT_CHORES as
       | { id: ID; name: string; slotId?: ID }[]
       | undefined) || [];
 
-  const nextCleaning: ScheduleSnapshot['cleaningAssignments'] = {};
+  const timeSlots =
+    ((Data as any).TIME_SLOTS as { id: ID; label: string }[] | undefined) ||
+    [];
 
-  // Bring in any existing cleaning assignments that still make sense
-  if (cleaningAssignments && Object.keys(cleaningAssignments).length > 0) {
-    for (const [choreId, staffId] of Object.entries(cleaningAssignments)) {
-      if (!staffId) continue;
-      if (!workingSet.has(staffId as ID)) continue;
-      const choreStillExists = chores.some((c) => c.id === choreId);
-      if (!choreStillExists) continue;
+  const rooms =
+    ((Data as any).FLOATING_ROOMS as
+      | { id: ID; label: string; icon?: string }[]
+      | undefined) || [];
 
-      nextCleaning[staffId as ID] = {
-        slotId: chores.find((c) => c.id === choreId)?.slotId ?? choreId,
-        label:
-          chores.find((c) => c.id === choreId)?.name ??
-          (choreId as unknown as string),
-      };
-    }
-  }
+  // Start from any existing (manual) cleaning assignments that still make sense
+  const baseCleaning: ScheduleSnapshot['cleaningAssignments'] = {};
 
-  // Auto-fill any missing chores in a fairness-aware way based on recentSnapshots
-  const recent = recentSnapshots || [];
+  Object.entries(cleaningAssignments || {}).forEach(([sid, assignment]) => {
+    const staffId = sid as ID;
+    if (!assignment) return;
+    if (!workingSet.has(staffId)) return;
+
+    baseCleaning[staffId] = {
+      slotId: assignment.slotId,
+      label: assignment.label,
+    };
+  });
+
+  // Fairness stats from recent snapshots
   const recentCleaningStats: Record<ID, number> = {};
+  (recentSnapshots || []).forEach((snap) => {
+    if (!snap || !snap.cleaningAssignments) return;
+    Object.keys(snap.cleaningAssignments).forEach((sid) => {
+      const staffId = sid as ID;
+      recentCleaningStats[staffId] = (recentCleaningStats[staffId] ?? 0) + 1;
+    });
+  });
 
-  for (const snap of recent) {
-    if (!snap || !snap.cleaningAssignments) continue;
-    for (const [staffId, assignment] of Object.entries(
-      snap.cleaningAssignments,
-    )) {
-      if (!assignment) continue;
-      const current = recentCleaningStats[staffId as ID] ?? 0;
-      recentCleaningStats[staffId as ID] = current + 1;
-    }
-  }
-
-  const availableStaff = staff.filter((s) =>
-    workingSet.has(s.id as ID),
-  ) as Staff[];
+  const availableStaff = staff.filter((s) => workingSet.has(s.id as ID));
 
   type CleaningEntry = {
     choreId: ID;
@@ -191,6 +210,8 @@ export async function persistFinish(params: PersistParams) {
     slotId: (c.slotId ?? c.id) as ID,
     label: c.name,
   }));
+
+  const nextCleaning: ScheduleSnapshot['cleaningAssignments'] = { ...baseCleaning };
 
   const remainingAssignments: CleaningEntry[] = [];
 
@@ -206,23 +227,21 @@ export async function persistFinish(params: PersistParams) {
 
   remainingAssignments.sort((a, b) => a.label.localeCompare(b.label));
 
-  const finalCleaning: ScheduleSnapshot['cleaningAssignments'] = {
-    ...nextCleaning,
-  };
-
   let prevSlotStaff: Set<ID> = new Set();
 
   for (const entry of remainingAssignments) {
     const slotId = entry.slotId;
+
     const eligible = availableStaff.filter((s) => {
       const sId = s.id as ID;
       if (!workingSet.has(sId)) return false;
-      if (finalCleaning[sId]?.slotId === slotId) return false;
+      if (nextCleaning[sId]?.slotId === slotId) return false;
       return true;
     });
 
     if (!eligible.length) continue;
 
+    // Sort by fairness (fewest recent chores first) then by name
     let candidates = eligible.slice().sort((a, b) => {
       const countA = recentCleaningStats[a.id as ID] ?? 0;
       const countB = recentCleaningStats[b.id as ID] ?? 0;
@@ -230,6 +249,7 @@ export async function persistFinish(params: PersistParams) {
       return String(a.name || '').localeCompare(String(b.name || ''));
     });
 
+    // Avoid giving the same slot to the same person repeatedly in this run
     candidates = candidates.filter((s) => !prevSlotStaff.has(s.id as ID));
     if (!candidates.length) {
       candidates = eligible;
@@ -238,7 +258,7 @@ export async function persistFinish(params: PersistParams) {
     const chosen = candidates[0];
     if (!chosen) continue;
 
-    finalCleaning[chosen.id as ID] = {
+    nextCleaning[chosen.id as ID] = {
       slotId: entry.slotId,
       label: entry.label,
     };
@@ -246,7 +266,59 @@ export async function persistFinish(params: PersistParams) {
     prevSlotStaff = new Set([...prevSlotStaff, chosen.id as ID]);
   }
 
-  // ---------- FINAL SNAPSHOT ----------
+  // ---------------------------------------------------------------------------
+  // DROPOFFS
+  // ---------------------------------------------------------------------------
+
+  const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+
+  Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
+    const participantId = pid as ID;
+
+    if (!assignment) {
+      normalizedDropoffs[participantId] = null;
+      return;
+    }
+
+    const staffId = assignment.staffId as ID | null;
+    const locationId = assignment.locationId;
+
+    if (!participantMap.has(participantId) || !attendingSet.has(participantId)) {
+      normalizedDropoffs[participantId] = null;
+      return;
+    }
+
+    if (!staffId || !staffMap.has(staffId) || !workingSet.has(staffId)) {
+      normalizedDropoffs[participantId] = null;
+      return;
+    }
+
+    normalizedDropoffs[participantId] = {
+      staffId,
+      locationId,
+    };
+  });
+
+  const normalizedDropoffLocations: ScheduleSnapshot['dropoffLocations'] = {
+    ...(dropoffLocations || {}),
+  };
+
+  // ---------------------------------------------------------------------------
+  // PICKUPS & HELPERS (participants)
+  // ---------------------------------------------------------------------------
+
+  const validPickupParticipants = (pickupParticipants || []).filter((id) =>
+    attendingSet.has(id as ID),
+  ) as ID[];
+
+  const validHelperPickupStaff = (helperPickupStaff || []).filter((id) =>
+    workingSet.has(id as ID),
+  ) as ID[];
+
+  // ---------------------------------------------------------------------------
+  // FINAL SNAPSHOT
+  // ---------------------------------------------------------------------------
+
   const now = new Date();
 
   const snapshot: ScheduleSnapshot = {
@@ -254,29 +326,35 @@ export async function persistFinish(params: PersistParams) {
     participants,
     workingStaff,
     attendingParticipants,
-    trainingStaffToday,
 
-    assignments: seededAssignments,
-    floatingAssignments,
-    cleaningAssignments: finalCleaning,
+    // ✅ Persist training flags
+    trainingStaffToday: Array.from(new Set(trainingStaffToday as ID[])),
+
+    assignments: normalizedAssignments,
+    floatingAssignments: normalizedFloating,
+
+    cleaningAssignments: nextCleaning,
+
+    helperStaff: helperStaff ?? null,
+
+    dropoffAssignments: normalizedDropoffs,
+    dropoffLocations: normalizedDropoffLocations,
+
+    pickupParticipants: validPickupParticipants,
+    helperPickupStaff: validHelperPickupStaff,
 
     finalChecklist,
     finalChecklistStaff,
 
-    pickupParticipants: validPickup,
-    helperStaff: validHelpers,
-    dropoffAssignments: cleanedDropoffs,
-    dropoffLocations: dropoffLocations || {},
-
     outingGroup: null,
 
-    // Use local calendar date for the schedule
-    // ⬇️ ONLY CHANGE: always stamp today instead of reusing old `date`
+    // Use local calendar date for the schedule (today)
     date: [
       now.getFullYear(),
       String(now.getMonth() + 1).padStart(2, '0'),
       String(now.getDate()).padStart(2, '0'),
     ].join('-'),
+
     meta: { from: 'create-wizard' },
   };
 
