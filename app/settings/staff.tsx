@@ -485,7 +485,7 @@ export default function StaffSettingsScreen() {
                     styles.headerCell,
                     {
                       flex: 1,
-                      marginTop: -4,
+                      marginTop: -8,
                       marginBottom: 4,
                     },
                   ]}
@@ -499,7 +499,8 @@ export default function StaffSettingsScreen() {
                       width: 70,
                       textAlign: 'right',
                       marginRight: 30,
-                      marginTop: -4,
+                      marginTop: -8,
+                      marginBottom: 4,
                     },
                   ]}
                 >
