@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   behaviourTrack: {
-    width: 118,
+    width: 100,
     height: 8,
     borderRadius: 999,
     backgroundColor: '#E5E7EB',
@@ -476,6 +476,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
+    marginBottom: 4,
   },
   scoreBubbleLow: {
     backgroundColor: '#dcfce7',
