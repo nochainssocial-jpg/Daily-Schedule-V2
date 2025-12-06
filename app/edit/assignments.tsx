@@ -387,13 +387,13 @@ React.useEffect(() => {
                       {isTraining ? (
                         <MaterialCommunityIcons
                           name="account-supervisor"
-                          size={20}
+                          size={24}
                           color="#1C5F87"
                         />
                       ) : band === 'senior' ? (
                         <MaterialCommunityIcons
                           name="account-star"
-                          size={20}
+                          size={24}
                           color="#FBBF24"
                         />
                       ) : null}
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E6ECF5',
   },
   staffName: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#101828',
     fontWeight: '600',
   },
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#C4B5FD',
   },
   scoreText: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
     color: '#111827',
   },
@@ -618,14 +618,14 @@ const styles = StyleSheet.create({
     borderColor: ACCENT,
   },
   chipTxt: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#101828',
   },
   chipTxtSel: {
     color: '#FFFFFF',
   },
   checkMark: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#FFFFFF',
   },
 });
