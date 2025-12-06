@@ -1,7 +1,7 @@
 // app/edit/participants.tsx
 // Edit screen for attending participants with participant pool.
 // Integrates with outings: participants on outing are shown as outline pills.
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
@@ -37,6 +38,17 @@ const sortByName = (list: any[]) =>
   list.slice().sort((a, b) => a.name.localeCompare(b.name));
 
 // ---- Ratings + behaviour helpers ----
+
+type ParticipantRatingRow = {
+  id: string;
+  behaviours?: number | null;
+  personal_care?: number | null;
+  communication?: number | null;
+  sensory?: number | null;
+  social?: number | null;
+  community?: number | null;
+  safety?: number | null;
+};
 
 type ParticipantRating = {
   behaviours?: number | null;
@@ -119,6 +131,27 @@ export default function EditParticipantsScreen() {
   const { width } = useWindowDimensions();
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
+
+  const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadRatings() {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('id, behaviours, personal_care, communication, sensory, social, community, safety');
+      if (!isMounted || !data) return;
+      const map: Record<string, ParticipantRatingRow> = {};
+      (data as any[]).forEach((row) => {
+        map[row.id] = row as ParticipantRatingRow;
+      });
+      setRatingMap(map);
+    }
+    loadRatings();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const {
     participants,
@@ -214,7 +247,8 @@ export default function EditParticipantsScreen() {
                 const isOutOnOuting = outingParticipantSet.has(p.id as ID);
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
 
-                const total = getParticipantTotalScore(p);
+                const rating = ratingMap[p.id as ID];
+                const total = rating ? getParticipantTotalScore(rating) : null;
                 const level =
                   total !== null ? getParticipantScoreLevel(total) : null;
 
@@ -252,7 +286,7 @@ export default function EditParticipantsScreen() {
                           </View>
                         )}
                       </View>
-                      <BehaviourMeter value={(p as any).behaviours} />
+                      <BehaviourMeter value={ratingMap[p.id as ID]?.behaviours ?? null} />
                     </View>
                   </TouchableOpacity>
                 );
@@ -361,6 +395,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
+    width: 148,
   },
   attendingPillOnsite: {
     backgroundColor: '#F54FA5',
