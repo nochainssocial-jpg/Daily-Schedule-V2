@@ -22,7 +22,6 @@ import { useIsAdmin } from '@/hooks/access-control';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
-import { View, Text, StyleSheet, ScrollView, Platform, useWindowDimensions, TouchableOpacity, Animated } from 'react-native';
 
 type ID = string;
 
