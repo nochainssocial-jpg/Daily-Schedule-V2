@@ -81,6 +81,16 @@ function getParticipantBand(score: number): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
+// Behaviour risk from behaviours 1–3
+function getBehaviourRisk(
+  behaviours?: number | null,
+): 'low' | 'medium' | 'high' | null {
+  if (typeof behaviours !== 'number') return null;
+  if (behaviours <= 1) return 'low';
+  if (behaviours === 2) return 'medium';
+  if (behaviours >= 3) return 'high';
+  return null;
+}
 
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
@@ -421,16 +431,21 @@ React.useEffect(() => {
                         const partScore = getParticipantScore(ratingRow);
                         const partBand =
                           partScore > 0 ? getParticipantBand(partScore) : 'low';
-                        const chipLabel =
-                          partScore > 0 ? `${partName} ${partScore}` : partName;
-
+                        
+                        const behaviourRisk = ratingRow
+                          ? getBehaviourRisk((ratingRow as any).behaviours)
+                          : null;
+                        
+                        let riskLetter = '';
+                        if (behaviourRisk === 'low') riskLetter = 'L';
+                        else if (behaviourRisk === 'medium') riskLetter = 'M';
+                        else if (behaviourRisk === 'high') riskLetter = 'H';
+                        
                         return (
                           <TouchableOpacity
                             key={pid}
                             onPress={
-                              canAssign
-                                ? () => handleToggle(staffId, pid)
-                                : undefined
+                              canAssign ? () => handleToggle(staffId, pid) : undefined
                             }
                             disabled={!canAssign}
                             activeOpacity={0.85}
@@ -452,6 +467,7 @@ React.useEffect(() => {
                                 styles.chipHigh,
                             ]}
                           >
+                            {/* Name */}
                             <Text
                               style={[
                                 styles.chipTxt,
@@ -459,11 +475,39 @@ React.useEffect(() => {
                               ]}
                               numberOfLines={1}
                             >
-                              {chipLabel}
+                              {partName}
                             </Text>
-                            {isAssigned && (
-                              <Text style={styles.checkMark}>✓</Text>
+                        
+                            {/* Behaviour risk dial L/M/H */}
+                            {behaviourRisk && (
+                              <View
+                                style={[
+                                  styles.riskBadge,
+                                  behaviourRisk === 'low' && styles.riskBadgeLow,
+                                  behaviourRisk === 'medium' && styles.riskBadgeMedium,
+                                  behaviourRisk === 'high' && styles.riskBadgeHigh,
+                                ]}
+                              >
+                                <Text style={styles.riskBadgeText}>{riskLetter}</Text>
+                              </View>
                             )}
+                        
+                            {/* Total score bubble */}
+                            {partScore > 0 && (
+                              <View
+                                style={[
+                                  styles.scoreBubble,
+                                  partBand === 'low' && styles.scoreBubbleLow,
+                                  partBand === 'medium' && styles.scoreBubbleMedium,
+                                  partBand === 'high' && styles.scoreBubbleHigh,
+                                ]}
+                              >
+                                <Text style={styles.scoreBubbleText}>{partScore}</Text>
+                              </View>
+                            )}
+                        
+                            {/* Check if assigned */}
+                            {isAssigned && <Text style={styles.checkMark}>✓</Text>}
                           </TouchableOpacity>
                         );
                       })}
@@ -581,6 +625,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#667085',
     marginBottom: 2,
+  },
+    // Participant rating bubbles (match Participants screen)
+  scoreBubble: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    backgroundColor: '#f8f2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreBubbleLow: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#FFFFFF',
+  },
+  scoreBubbleMedium: {
+    backgroundColor: '#fef9c3',
+    borderColor: '#FFFFFF',
+  },
+  scoreBubbleHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#FFFFFF',
+  },
+  scoreBubbleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#332244',
+  },
+
+  riskBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  riskBadgeLow: {
+    backgroundColor: '#22C55E',
+  },
+  riskBadgeMedium: {
+    backgroundColor: '#F97316',
+  },
+  riskBadgeHigh: {
+    backgroundColor: '#EF4444',
+  },
+  riskBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   chipWrap: {
     flexDirection: 'row',
