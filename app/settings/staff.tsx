@@ -486,6 +486,7 @@ export default function StaffSettingsScreen() {
                     {
                       flex: 1,
                       marginTop: -4,
+                      marginBottom: 4,
                     },
                   ]}
                 >
