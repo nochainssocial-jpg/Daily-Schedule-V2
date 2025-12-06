@@ -498,7 +498,7 @@ export default function StaffSettingsScreen() {
                     {
                       width: 70,
                       textAlign: 'right',
-                      marginRight: 25,
+                      marginRight: 30,
                       marginTop: -4,
                     },
                   ]}
@@ -889,7 +889,7 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   headerCell: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: '#7a678e',
   },
