@@ -26,7 +26,6 @@ export default function HomeScreen() {
       width < 900 ||
       height < 700);
 
-
   useEffect(() => {
     // For now, hard-coded to B2
     initScheduleForToday('B2');
@@ -90,6 +89,15 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.secondaryLabel}>Go to Edit Hub</Text>
+            </TouchableOpacity>
+
+            {/* New: Admin Login – same style as Go to Edit Hub */}
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => router.push(ROUTES.SHARE)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryLabel}>Admin Login</Text>
             </TouchableOpacity>
           </View>
 
@@ -161,7 +169,7 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     top: 40,
-    right: 100,      // ~100px from right edge
+    right: 100,
     opacity: 0.95,
     pointerEvents: 'none',
   },
