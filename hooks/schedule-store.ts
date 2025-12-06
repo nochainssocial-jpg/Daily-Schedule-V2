@@ -43,6 +43,9 @@ export type ScheduleSnapshot = {
   workingStaff: ID[];
   attendingParticipants: ID[];
 
+  // Staff explicitly marked as "training today" (no own assignments)
+  trainingStaffToday: ID[];
+
   // Core person → staff assignments
   assignments: Record<ID, ID | null>;
 
@@ -121,6 +124,7 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     participants: [],
     workingStaff: [],
     attendingParticipants: [],
+    trainingStaffToday: [],
     assignments: {},
     floatingAssignments: {
       frontRoom: null,
