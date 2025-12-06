@@ -241,72 +241,79 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       };
 
       // If workingStaff changed, clean dependent assignments
-      if (patch.workingStaff) {
-        const oldStaff = state.workingStaff;
-        const newStaff = patch.workingStaff;
-        const removed = oldStaff.filter((id) => !newStaff.includes(id));
+if (patch.workingStaff) {
+  const oldStaff = state.workingStaff;
+  const newStaff = patch.workingStaff;
+  const removed = oldStaff.filter((id) => !newStaff.includes(id));
 
-        if (removed.length > 0) {
-          // 1) Team daily assignments
-          const newAssignments = { ...next.assignments };
-          for (const [pid, sid] of Object.entries(newAssignments)) {
-            if (sid && removed.includes(sid as ID)) {
-              newAssignments[pid as ID] = null;
-            }
-          }
-          next.assignments = newAssignments;
+  if (removed.length > 0) {
+    // 1) Team daily assignments
+    const newAssignments = { ...next.assignments };
+    for (const [pid, sid] of Object.entries(newAssignments)) {
+      if (sid && removed.includes(sid as ID)) {
+        newAssignments[pid as ID] = null;
+      }
+    }
+    next.assignments = newAssignments;
 
-          // 2) Floating
-          const newFloating = { ...next.floatingAssignments };
-          (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
-            const sid = newFloating[key];
-            if (sid && removed.includes(sid)) {
-              newFloating[key] = null;
-            }
-          });
-          next.floatingAssignments = newFloating;
+    // 2) Floating
+    const newFloating = { ...next.floatingAssignments };
+    (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
+      const sid = newFloating[key];
+      if (sid && removed.includes(sid)) {
+        newFloating[key] = null;
+      }
+    });
+    next.floatingAssignments = newFloating;
 
-          // 3) Cleaning
-          const newCleaning = { ...next.cleaningAssignments };
-          for (const [sid, slot] of Object.entries(newCleaning)) {
-            if (removed.includes(sid as ID)) {
-              delete newCleaning[sid as ID];
-            }
-          }
-          next.cleaningAssignments = newCleaning;
+    // 3) Cleaning
+    const newCleaning = { ...next.cleaningAssignments };
+    for (const [sid, slot] of Object.entries(newCleaning)) {
+      if (removed.includes(sid as ID)) {
+        delete newCleaning[sid as ID];
+      }
+    }
+    next.cleaningAssignments = newCleaning;
 
-          // 4) Helper staff
-          if (next.helperStaff && removed.includes(next.helperStaff)) {
-            next.helperStaff = null;
-          }
+    // 4) Training staff – remove flags for staff no longer working
+    if (next.trainingStaffToday && next.trainingStaffToday.length) {
+      next.trainingStaffToday = next.trainingStaffToday.filter(
+        (id) => !removed.includes(id),
+      );
+    }
 
-          // 5) Dropoffs – clean staff & reindex locations
-          if (Object.keys(next.dropoffAssignments).length > 0) {
-            const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
-            for (const [pid, assignment] of Object.entries(
-              next.dropoffAssignments
-            )) {
-              if (!assignment) {
-                newDropoffs[pid as ID] = null;
-                continue;
-              }
-              const { staffId, locationId } = assignment;
-              const keepStaff =
-                staffId && !removed.includes(staffId as ID)
-                  ? (staffId as ID)
-                  : null;
-              newDropoffs[pid as ID] = {
-                staffId: keepStaff,
-                locationId,
-              };
-            }
-            next.dropoffAssignments = newDropoffs;
-          }
+    // 5) Helper staff
+    if (next.helperStaff && removed.includes(next.helperStaff)) {
+      next.helperStaff = null;
+    }
 
-          // Locations themselves don’t depend on staff, but if you ever add
-          // per-staff locations, you’d clean here too.
+    // 6) Dropoffs – clean staff & reindex locations
+    if (Object.keys(next.dropoffAssignments).length > 0) {
+      const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+      for (const [pid, assignment] of Object.entries(
+        next.dropoffAssignments,
+      )) {
+        if (!assignment) {
+          newDropoffs[pid as ID] = null;
+          continue;
+        }
+        const { staffId, locationId } = assignment;
+        const keepStaff =
+          staffId && !removed.includes(staffId as ID) ? staffId : null;
+
+        if (!keepStaff) {
+          newDropoffs[pid as ID] = null;
+        } else {
+          newDropoffs[pid as ID] = {
+            staffId: keepStaff,
+            locationId,
+          };
         }
       }
+      next.dropoffAssignments = newDropoffs;
+    }
+  }
+}
 
       // If attendingParticipants changed, clean assignments that refer to removed participants
       if (patch.attendingParticipants) {
