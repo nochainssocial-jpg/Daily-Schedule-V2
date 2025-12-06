@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform,
   useWindowDimensions,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -30,6 +31,7 @@ const makePartMap = () => {
   });
   return map;
 };
+
 
 const sortByName = (list: any[]) =>
   list.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -78,17 +80,17 @@ function BehaviourMeter({ value }: { value?: number | null }) {
 
   return (
     <View style={styles.behaviourMeter}>
-      {[1, 2, 3].map((level) => {
+      {[1, 2, 3, 4, 5].map((level) => {
         const isActive = v >= level;
-        const isHigh = v === 3 && level === 3;
+        const isHigh = v >= 4 && level >= 4;
 
         return (
           <View
             key={level}
             style={[
-              styles.behaviourDot,
-              isActive && styles.behaviourDotActive,
-              isHigh && styles.behaviourDotHigh,
+              styles.behaviourSegment,
+              isActive && styles.behaviourSegmentActive,
+              isHigh && styles.behaviourSegmentHigh,
             ]}
           />
         );
@@ -96,6 +98,8 @@ function BehaviourMeter({ value }: { value?: number | null }) {
     </View>
   );
 }
+
+
 
 export default function EditParticipantsScreen() {
   const { width } = useWindowDimensions();
@@ -184,29 +188,11 @@ export default function EditParticipantsScreen() {
           {attendingList.length === 0 ? (
             <Text style={styles.empty}>No participants have been selected yet.</Text>
           ) : (
-            <View style={styles.chipGrid}>
+            <View style={styles.attendingGrid}>
               {attendingList.map((p) => {
                 const isOutOnOuting = outingParticipantSet.has(p.id as ID);
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
-                return (
-                  <Chip
-                    key={p.id}
-                    label={p.name}
-                    mode={mode as any}
-                    onPress={() => toggleParticipant(p.id as ID)}
-                  />
-                );
-              })}
-            </View>
-          )}
 
-          {/* Ratings & behaviour for attending participants */}
-          {attendingList.length > 0 && (
-            <View style={styles.ratingsSection}>
-              <Text style={styles.ratingsTitle}>
-                Ratings &amp; behaviour (attending only)
-              </Text>
-              {attendingList.map((p) => {
                 const total = getParticipantTotalScore(p);
                 const level =
                   total !== null ? getParticipantScoreLevel(total) : null;
@@ -217,16 +203,33 @@ export default function EditParticipantsScreen() {
                 if (level === 'high') scoreStyles.push(styles.scoreBubbleHigh);
 
                 return (
-                  <View key={p.id as ID} style={styles.ratingRow}>
-                    <View style={styles.ratingNameBlock}>
-                      <Text style={styles.ratingName}>{p.name}</Text>
-                      <BehaviourMeter value={(p as any).behaviours} />
-                    </View>
+                  <View key={p.id as ID} style={styles.attendingItem}>
                     {total !== null && (
                       <View style={scoreStyles}>
                         <Text style={styles.scoreBubbleText}>{total}</Text>
                       </View>
                     )}
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => toggleParticipant(p.id as ID)}
+                      style={[
+                        styles.attendingPill,
+                        mode === 'offsite'
+                          ? styles.attendingPillOffsite
+                          : styles.attendingPillOnsite,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.attendingName,
+                          mode === 'offsite' && styles.attendingNameOffsite,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {p.name}
+                      </Text>
+                      <BehaviourMeter value={(p as any).behaviours} />
+                    </TouchableOpacity>
                   </View>
                 );
               })}
@@ -315,59 +318,64 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
 
-  // Ratings / behaviour panel
-  ratingsSection: {
-    marginTop: 16,
+  // Attending grid with score + pill
+  attendingGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  attendingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
     marginBottom: 8,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
+  },
+  attendingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#E0E7FF',
-    gap: 6,
   },
-  ratingsTitle: {
-    fontSize: 14,
+  attendingPillOnsite: {
+    backgroundColor: '#F54FA5',
+    borderColor: '#F54FA5',
+  },
+  attendingPillOffsite: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#F54FA5',
+  },
+  attendingName: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  ratingNameBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ratingName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#0F172A',
+    color: '#FFFFFF',
     marginRight: 6,
   },
+  attendingNameOffsite: {
+    color: '#F54FA5',
+  },
 
-  // Behaviour meter (3 levels)
+  // 5‑segment behaviour meter inside pill
   behaviourMeter: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  behaviourDot: {
-    width: 6,
-    height: 12,
-    borderRadius: 3,
+  behaviourSegment: {
+    width: 4,
+    height: 10,
+    borderRadius: 2,
     marginHorizontal: 1,
     backgroundColor: '#E5E7EB', // off
   },
-  behaviourDotActive: {
-    backgroundColor: '#FBBF24', // amber for 1–2
+  behaviourSegmentActive: {
+    backgroundColor: '#86EFAC', // green for lower risk
   },
-  behaviourDotHigh: {
-    backgroundColor: '#F97316', // deeper orange when 3 (high)
+  behaviourSegmentHigh: {
+    backgroundColor: '#F97316', // orange‑red for higher risk
   },
 
-  // Score bubble
+  // Score bubble on left of pill
   scoreBubble: {
     minWidth: 28,
     paddingHorizontal: 8,
@@ -378,19 +386,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginRight: 6,
   },
   scoreBubbleLow: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
-  },
-  scoreBubbleMedium: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a',
-  },
-  scoreBubbleHigh: {
     backgroundColor: '#dcfce7',
     borderColor: '#bbf7d0',
+  },
+  scoreBubbleMedium: {
+    backgroundColor: '#fef9c3',
+    borderColor: '#feea55',
+  },
+  scoreBubbleHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
   },
   scoreBubbleText: {
     fontSize: 11,
@@ -398,7 +406,6 @@ const styles = StyleSheet.create({
     color: '#332244',
   },
 
-  // Legend
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
