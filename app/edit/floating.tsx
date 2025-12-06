@@ -1225,7 +1225,7 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '45%',
+                    width: '25%',
                     paddingVertical: 10,
                     paddingHorizontal: 16,
                     borderRightWidth: 1,
@@ -1249,9 +1249,10 @@ export default function FloatingScreen() {
                     flex: 1,
                     paddingVertical: 10,
                     paddingHorizontal: 16,
+                    marginBottom: 4,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
-                    gap: 6,
+                    gap: 10,
                     alignItems: 'center',
                   }}
                 >
@@ -1286,7 +1287,7 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '45%',
+                    width: '25%',
                     paddingVertical: 10,
                     paddingHorizontal: 16,
                     borderRightWidth: 1,
@@ -1311,9 +1312,10 @@ export default function FloatingScreen() {
                     flex: 1,
                     paddingVertical: 10,
                     paddingHorizontal: 16,
+                    marginBottom: 4,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
-                    gap: 6,
+                    gap: 10,
                     alignItems: 'center',
                   }}
                 >
@@ -1332,7 +1334,7 @@ export default function FloatingScreen() {
               >
                 <View
                   style={{
-                    width: '45%',
+                    width: '25%',
                     paddingVertical: 10,
                     paddingHorizontal: 16,
                     borderRightWidth: 1,
@@ -1356,9 +1358,10 @@ export default function FloatingScreen() {
                     flex: 1,
                     paddingVertical: 10,
                     paddingHorizontal: 16,
+                    marginBottom: 4,
                     flexDirection: 'row',
                     flexWrap: 'wrap',
-                    gap: 6,
+                    gap: 10,
                     alignItems: 'center',
                   }}
                 >
