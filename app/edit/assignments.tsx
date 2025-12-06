@@ -7,9 +7,9 @@ import {
   View,
   TouchableOpacity,
   Platform,
-  useWindowDimensions
+  useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import {
   STAFF as STATIC_STAFF,
@@ -18,6 +18,7 @@ import {
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
+import { supabase } from '@/lib/supabase';
 
 type ID = string;
 
@@ -29,11 +30,37 @@ const MAX_WIDTH = 880;
 const PILL = 999;
 const ACCENT = '#4862f1b3'; // indigo
 
+const STAFF_SCORE_KEYS: Array<keyof any> = [
+  'experience_level',
+  'behaviour_capability',
+  'personal_care_skill',
+  'mobility_assistance',
+  'communication_support',
+  'reliability_rating',
+];
+
+function getStaffScore(row: any): number {
+  if (!row) return 0;
+  return STAFF_SCORE_KEYS.reduce((sum, key) => {
+    const raw = (row as any)?.[key];
+    const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
+}
+
+function getScoreBand(score: number): 'none' | 'junior' | 'mid' | 'senior' {
+  if (!score || score <= 0) return 'none';
+  if (score >= 15) return 'senior';
+  if (score >= 9) return 'mid';
+  return 'junior';
+}
+
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' &&
+      /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
@@ -46,8 +73,9 @@ export default function EditAssignmentsScreen() {
     assignments,
     workingStaff,
     attendingParticipants,
+    trainingStaffToday = [],
     updateSchedule,
-  } = useSchedule();
+  } = useSchedule() as any;
   const { push } = useNotifications();
 
   const staffSource =
@@ -74,6 +102,84 @@ export default function EditAssignmentsScreen() {
     return !anto;
   });
 
+  const [ratingLookup, setRatingLookup] = React.useState<Record<string, any>>(
+    {},
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadRatings() {
+      try {
+        const { data, error } = await supabase
+          .from('staff')
+          .select(
+            'id,legacy_id,name,experience_level,behaviour_capability,personal_care_skill,mobility_assistance,communication_support,reliability_rating',
+          );
+
+        if (error || !data || cancelled) return;
+
+        const map: Record<string, any> = {};
+        (data as any[]).forEach((row) => {
+          if (!row) return;
+
+          const uuidKey = row.id ? String(row.id) : null;
+          const legacyKey = row.legacy_id ? String(row.legacy_id) : null;
+          const nameKey =
+            row.name && typeof row.name === 'string'
+              ? `name:${row.name.toLowerCase()}`
+              : null;
+
+          if (uuidKey) map[uuidKey] = row;
+          if (legacyKey) map[legacyKey] = row;
+          if (nameKey) map[nameKey] = row;
+        });
+
+        if (!cancelled) {
+          setRatingLookup(map);
+        }
+      } catch (e) {
+        console.warn('[assignments] failed to load staff ratings', e);
+      }
+    }
+
+    loadRatings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const trainingSet = React.useMemo(
+    () => new Set<ID>((trainingStaffToday as ID[]) || []),
+    [trainingStaffToday],
+  );
+
+  // Ensure training staff do not keep participant assignments
+  React.useEffect(() => {
+    if (!assignments) return;
+    if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
+
+    const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
+    const current = assignments as Record<ID, ID[]>;
+    let changed = false;
+    const next: Record<ID, ID[]> = {};
+
+    Object.entries(current).forEach(([sid, pids]) => {
+      if (!Array.isArray(pids)) return;
+      const key = sid as ID;
+      if (trainingIds.has(key)) {
+        if ((pids as ID[]).length > 0) changed = true;
+        return;
+      }
+      next[key] = pids as ID[];
+    });
+
+    if (changed) {
+      updateSchedule({ assignments: next });
+    }
+  }, [assignments, trainingStaffToday, updateSchedule]);
+
   const assignmentsMap: Record<ID, ID[]> = (assignments || {}) as any;
 
   const attendingIds: ID[] =
@@ -87,6 +193,7 @@ export default function EditAssignmentsScreen() {
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
   const assignedByParticipant: Record<ID, ID> = {};
+
   Object.entries(assignmentsMap).forEach(([sid, pids]) => {
     if (!Array.isArray(pids)) return;
     (pids as ID[]).forEach((pid) => {
@@ -118,6 +225,7 @@ export default function EditAssignmentsScreen() {
           (id) => id !== participantId,
         );
       }
+
       const arr = next[staffId] || [];
       if (!arr.includes(participantId)) arr.push(participantId);
       next[staffId] = arr;
@@ -157,6 +265,18 @@ export default function EditAssignmentsScreen() {
             <View style={{ gap: 10 }}>
               {rowStaff.map((st) => {
                 const staffId = st.id as ID;
+
+                const nameKey = `name:${String(st.name || '').toLowerCase()}`;
+                const ratingSource =
+                  ratingLookup[staffId as ID] ?? ratingLookup[nameKey] ?? st;
+
+                const score = getStaffScore(ratingSource);
+                const band = getScoreBand(score);
+                const showScore = score > 0;
+
+                const isTraining = trainingSet.has(staffId);
+                const canAssign = !isTraining;
+
                 const staffAssigned = (assignmentsMap[staffId] || []).filter(
                   (pid) => attendingSet.has(pid as ID),
                 ) as ID[];
@@ -171,8 +291,11 @@ export default function EditAssignmentsScreen() {
                   return !owner || owner === staffId;
                 });
 
+                const cardStyles = [styles.card] as any[];
+                if (isTraining) cardStyles.push(styles.cardTraining);
+
                 return (
-                  <View key={staffId} style={styles.card}>
+                  <View key={staffId} style={cardStyles}>
                     <View style={styles.cardHeader}>
                       <View
                         style={[
@@ -180,25 +303,64 @@ export default function EditAssignmentsScreen() {
                           { backgroundColor: st.color || '#ddd' },
                         ]}
                       />
+                      {showScore && (
+                        <View
+                          style={[
+                            styles.scoreCircle,
+                            band === 'senior' && styles.scoreCircleSenior,
+                            band === 'mid' && styles.scoreCircleMid,
+                            band === 'junior' && styles.scoreCircleJunior,
+                          ]}
+                        >
+                          <Text style={styles.scoreText}>{score}</Text>
+                        </View>
+                      )}
                       <Text style={styles.staffName}>{st.name}</Text>
+                      {isTraining ? (
+                        <MaterialCommunityIcons
+                          name="account-supervisor"
+                          size={20}
+                          color="#1C5F87"
+                        />
+                      ) : band === 'senior' ? (
+                        <MaterialCommunityIcons
+                          name="account-star"
+                          size={20}
+                          color="#FBBF24"
+                        />
+                      ) : null}
                     </View>
 
-                    {staffAssigned.length > 0 && (
+                    {isTraining ? (
+                      <Text style={styles.trainingNote}>
+                        Training today – no direct participant assignments.
+                      </Text>
+                    ) : staffAssigned.length > 0 ? (
                       <Text style={styles.assignedSummary}>
                         Assigned: {assignedNames}
                       </Text>
-                    )}
+                    ) : null}
 
                     <View style={styles.chipWrap}>
                       {availablePids.map((pid) => {
                         const isAssigned = staffAssigned.includes(pid);
                         const part = partsById.get(pid);
+
                         return (
                           <TouchableOpacity
                             key={pid}
-                            onPress={() => handleToggle(staffId, pid)}
+                            onPress={
+                              canAssign
+                                ? () => handleToggle(staffId, pid)
+                                : undefined
+                            }
+                            disabled={!canAssign}
                             activeOpacity={0.85}
-                            style={[styles.chip, isAssigned && styles.chipSel]}
+                            style={[
+                              styles.chip,
+                              isAssigned && styles.chipSel,
+                              !canAssign && styles.chipDisabled,
+                            ]}
                           >
                             <Text
                               style={[
@@ -232,7 +394,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E5DEFF',
   },
-    scroll: {
+  scroll: {
     paddingVertical: 32,
     alignItems: 'center',
     paddingBottom: 160,
@@ -274,6 +436,10 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#ffffff',
   },
+  cardTraining: {
+    opacity: 0.75,
+    backgroundColor: '#F9FAFB',
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -290,6 +456,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#101828',
     fontWeight: '600',
+  },
+  scoreCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5E7EB',
+  },
+  scoreCircleJunior: {
+    backgroundColor: '#BFDBFE',
+  },
+  scoreCircleMid: {
+    backgroundColor: '#FDE68A',
+  },
+  scoreCircleSenior: {
+    backgroundColor: '#C4B5FD',
+  },
+  scoreText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  trainingNote: {
+    fontSize: 12,
+    color: '#7a688c',
+    marginBottom: 2,
+    fontStyle: 'italic',
   },
   assignedSummary: {
     fontSize: 12,
@@ -311,6 +507,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: PILL,
     gap: 6,
+  },
+  chipDisabled: {
+    opacity: 0.5,
   },
   chipSel: {
     backgroundColor: ACCENT,
