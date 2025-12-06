@@ -122,11 +122,13 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
     >
       {trackWidth > 0 && (
         <Animated.View style={[styles.behaviourFill, { width: animatedWidth }]}>
-          <LinearGradient
-            colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
+            colors={[
+              '#22c55e',  // strong green
+              '#22c55e',  // extend green region
+              '#eab308',  // yellow only in middle range
+              '#ef4444',  // red only near very end
+            ]}
+            locations={[0, 0.55, 0.80, 1]}
           />
         </Animated.View>
       )}
@@ -451,9 +453,10 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 2,
+    alignSelf: 'center',
   },
   behaviourTrack: {
-    width: 100,
+    width: 110,
     height: 8,
     borderRadius: 999,
     backgroundColor: '#E5E7EB',
