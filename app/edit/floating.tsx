@@ -20,7 +20,6 @@ import SaveExit from '@/components/SaveExit';
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
 
-
 const WRAP = {
   width: '100%',
   maxWidth: 880,
@@ -36,50 +35,6 @@ const TIME_SLOTS: Array<{
 }> = Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : [];
 
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
-
-// Participant groups for each floating room
-const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
-  ? ((Data as any).PARTICIPANTS as any[])
-  : [];
-
-function findParticipantIdByName(name: string): string | null {
-  const lower = name.trim().toLowerCase();
-  const found = PARTICIPANTS.find((p) =>
-    String(p?.name || '').trim().toLowerCase() === lower,
-  );
-  return found ? String(found.id) : null;
-}
-
-const FRONT_ROOM_GROUP: string[] = [];
-['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) FRONT_ROOM_GROUP.push(id);
-});
-
-const SCOTTY_GROUP: string[] = [];
-['Scott'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) SCOTTY_GROUP.push(id);
-});
-
-const TWINS_GROUP: string[] = [];
-['Zara', 'Zoya'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) TWINS_GROUP.push(id);
-});
-
-function getParticipantGroupForRoom(col: ColKey): string[] {
-  switch (col) {
-    case 'frontRoom':
-      return FRONT_ROOM_GROUP;
-    case 'scotty':
-      return SCOTTY_GROUP;
-    case 'twins':
-      return TWINS_GROUP;
-    default:
-      return [];
-  }
-}
 
 function slotLabel(slot: any): string {
   if (!slot) return '';
@@ -121,7 +76,7 @@ function isAntoinette(staff: any): boolean {
   return name.includes('antoinette');
 }
 
-// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
+// 🔹 helper to exclude the "Everyone" pseudo-staff
 function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
@@ -203,10 +158,11 @@ function isRoomOffsiteForSlot(
   col: ColKey,
   slot: any,
   outingGroup: any,
+  groupMap: Record<ColKey, string[]>,
 ): boolean {
   if (!outingGroup) return false;
 
-  const groupIds = getParticipantGroupForRoom(col);
+  const groupIds = groupMap[col] || [];
   if (!groupIds.length) return false;
 
   const outingIds = new Set(
@@ -357,6 +313,7 @@ export default function FloatingScreen() {
     touch,
     selectedDate,
     attendingParticipants = [],
+    participants = [],
   } = useSchedule() as any;
 
   const staffById = useMemo(() => {
@@ -407,6 +364,56 @@ export default function FloatingScreen() {
     [onsiteWorking],
   );
 
+  // 🔹 Build participant groups from Supabase participants by name
+  const participantsById = useMemo(() => {
+    const m: Record<string, any> = {};
+    (participants || []).forEach((p: any) => {
+      if (p?.id != null) {
+        m[String(p.id)] = p;
+      }
+    });
+    return m;
+  }, [participants]);
+
+  const participantGroups = useMemo(() => {
+    const byName = new Map<string, any>();
+    (participants || []).forEach((p: any) => {
+      const key = String(p.name || '').trim().toLowerCase();
+      if (key) byName.set(key, p);
+    });
+
+    const buildGroup = (names: string[]): string[] => {
+      const ids: string[] = [];
+      names.forEach((n) => {
+        const p = byName.get(n.trim().toLowerCase());
+        if (p?.id != null) ids.push(String(p.id));
+      });
+      return ids;
+    };
+
+    return {
+      frontRoom: buildGroup(['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob']),
+      scotty: buildGroup(['Scott']),
+      twins: buildGroup(['Zara', 'Zoya']),
+    } as Record<ColKey, string[]>;
+  }, [participants]);
+
+  // 🔹 Legend groups (full participant objects)
+  const legendGroups = useMemo(
+    () => ({
+      frontRoom: (participantGroups.frontRoom || [])
+        .map((id) => participantsById[id])
+        .filter(Boolean),
+      scotty: (participantGroups.scotty || [])
+        .map((id) => participantsById[id])
+        .filter(Boolean),
+      twins: (participantGroups.twins || [])
+        .map((id) => participantsById[id])
+        .filter(Boolean),
+    }),
+    [participantGroups, participantsById],
+  );
+
   // 🔹 Attendance-based room availability (Not attending)
   const participantsAttendingSet = useMemo(
     () =>
@@ -418,23 +425,26 @@ export default function FloatingScreen() {
 
   const roomNotAttending = useMemo(
     () => ({
-      frontRoom: FRONT_ROOM_GROUP.length
-        ? FRONT_ROOM_GROUP.every(
-            (id) => !participantsAttendingSet.has(String(id)),
-          )
-        : false,
-      scotty: SCOTTY_GROUP.length
-        ? SCOTTY_GROUP.every(
-            (id) => !participantsAttendingSet.has(String(id)),
-          )
-        : false,
-      twins: TWINS_GROUP.length
-        ? TWINS_GROUP.every(
-            (id) => !participantsAttendingSet.has(String(id)),
-          )
-        : false,
+      frontRoom:
+        (participantGroups.frontRoom || []).length > 0
+          ? (participantGroups.frontRoom || []).every(
+              (id) => !participantsAttendingSet.has(String(id)),
+            )
+          : false,
+      scotty:
+        (participantGroups.scotty || []).length > 0
+          ? (participantGroups.scotty || []).every(
+              (id) => !participantsAttendingSet.has(String(id)),
+            )
+          : false,
+      twins:
+        (participantGroups.twins || []).length > 0
+          ? (participantGroups.twins || []).every(
+              (id) => !participantsAttendingSet.has(String(id)),
+            )
+          : false,
     }),
-    [participantsAttendingSet],
+    [participantsAttendingSet, participantGroups],
   );
 
   const [open, setOpen] = useState(false);
@@ -502,7 +512,9 @@ export default function FloatingScreen() {
 
   const activeRoomsForSlot = (slot: any): ColKey[] => {
     const offsite: ColKey[] = outingGroup
-      ? ROOM_KEYS.filter((col) => isRoomOffsiteForSlot(col, slot, outingGroup))
+      ? ROOM_KEYS.filter((col) =>
+          isRoomOffsiteForSlot(col, slot, outingGroup, participantGroups),
+        )
       : [];
 
     const inactiveAttendance: ColKey[] = ROOM_KEYS.filter((col) => {
@@ -519,11 +531,14 @@ export default function FloatingScreen() {
     return active.length ? active : ROOM_KEYS;
   };
 
-
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
+      const next = buildAutoAssignments(
+        onsiteWorking,
+        TIME_SLOTS,
+        activeRoomsForSlot,
+      );
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
@@ -535,7 +550,11 @@ export default function FloatingScreen() {
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;
-    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+    );
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
@@ -681,9 +700,24 @@ export default function FloatingScreen() {
               let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
-              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot, outingGroup);
-              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot, outingGroup);
-              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot, outingGroup);
+              const isFrontOffsite = isRoomOffsiteForSlot(
+                'frontRoom',
+                slot,
+                outingGroup,
+                participantGroups,
+              );
+              const isScottyOffsite = isRoomOffsiteForSlot(
+                'scotty',
+                slot,
+                outingGroup,
+                participantGroups,
+              );
+              const isTwinsOffsite = isRoomOffsiteForSlot(
+                'twins',
+                slot,
+                outingGroup,
+                participantGroups,
+              );
               const isFrontNotAttending = roomNotAttending.frontRoom;
               const isScottyNotAttending = roomNotAttending.scotty;
               const isTwinsNotAttending = roomNotAttending.twins;
@@ -790,7 +824,9 @@ export default function FloatingScreen() {
                         : sc
                     }
                     gender={
-                      isScottyOffsite || isScottyNotAttending ? undefined : scStaff?.gender
+                      isScottyOffsite || isScottyNotAttending
+                        ? undefined
+                        : scStaff?.gender
                     }
                     onPress={() => {
                       if (isScottyOffsite || isScottyNotAttending) return;
@@ -830,7 +866,9 @@ export default function FloatingScreen() {
                         : ''
                     }
                     gender={
-                      isTwinsOffsite || isTwinsNotAttending ? undefined : twStaff?.gender
+                      isTwinsOffsite || isTwinsNotAttending
+                        ? undefined
+                        : twStaff?.gender
                     }
                     fsoTag={fso && !isTwinsOffsite && !isTwinsNotAttending}
                     onPress={() => {
@@ -889,7 +927,7 @@ export default function FloatingScreen() {
                 <Ionicons
                   name="print-outline"
                   size={42}
-                  color="#OOA86A"
+                  color="#00A86A"
                   style={{ marginBottom: 6 }}
                 />
                 <Text
@@ -906,258 +944,163 @@ export default function FloatingScreen() {
             </View>
           )}
 
-        {/* Legend */}
-        <View style={{ marginTop: 24 }}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: '700',
-              color: '#000000',
-              marginBottom: 8,
-            }}
-          >
-            Legend
-          </Text>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: '#e5e7eb',
-              borderRadius: 8,
-              overflow: 'hidden',
-            }}
-          >
-            {/* Front Room row */}
-            <View
+          {/* Legend with ratings + meter only */}
+          <View style={{ marginTop: 24 }}>
+            <Text
               style={{
-                flexDirection: 'row',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e5e7eb',
+                fontSize: 18,
+                fontWeight: '700',
+                color: '#000000',
+                marginBottom: 8,
               }}
             >
-              <View
-                style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
-                  }}
-                >
-                  Front Room
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  { name: 'Paul', female: false },
-                  { name: 'Jessica', female: true },
-                  { name: 'Naveed', female: false },
-                  { name: 'Tiffany', female: true },
-                  { name: 'Sumera', female: true },
-                  { name: 'Jacob', female: false },
-                ].map((p) => (
-                  <View
-                    key={p.name}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 999,
-                      backgroundColor: '#f1f5f9',
-                      gap: 6,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        backgroundColor: p.female ? '#ec4899' : '#3b82f6',
-                      }}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: '#111827',
-                        fontWeight: '500',
-                      }}
-                    >
-                      {p.name}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            {/* Scotty row */}
+              Legend
+            </Text>
             <View
               style={{
-                flexDirection: 'row',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e5e7eb',
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                borderRadius: 8,
+                overflow: 'hidden',
               }}
             >
+              {/* Front Room row */}
               <View
                 style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
-                  }}
-                >
-                  Scotty
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
                   flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
                 }}
               >
                 <View
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    width: '32%',
+                    paddingVertical: 10,
                     paddingHorizontal: 10,
-                    paddingVertical: 4,
-                    borderRadius: 999,
-                    backgroundColor: '#f1f5f9',
-                    gap: 6,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
                   }}
                 >
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      backgroundColor: '#3b82f6', // Scott = male
-                    }}
-                  />
                   <Text
                     style={{
-                      fontSize: 14,
-                      color: '#111827',
-                      fontWeight: '500',
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
                     }}
                   >
-                    Scott
+                    Front Room
                   </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {legendGroups.frontRoom.map((p: any) => (
+                    <ParticipantLegendChip key={p.id} participant={p} />
+                  ))}
+                </View>
+              </View>
+
+              {/* Scotty row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
+                }}
+              >
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Scotty
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {legendGroups.scotty.map((p: any) => (
+                    <ParticipantLegendChip key={p.id} participant={p} />
+                  ))}
+                </View>
+              </View>
+
+              {/* Twins / FSO row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                }}
+              >
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Twins / FSO
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {legendGroups.twins.map((p: any) => (
+                    <ParticipantLegendChip key={p.id} participant={p} />
+                  ))}
                 </View>
               </View>
             </View>
-
-            {/* Twins / FSO row */}
-            <View
-              style={{
-                flexDirection: 'row',
-              }}
-            >
-              <View
-                style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
-                  }}
-                >
-                  Twins / FSO
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  { name: 'Zara', female: true },
-                  { name: 'Zoya', female: true },
-                ].map((p) => (
-                  <View
-                    key={p.name}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 999,
-                      backgroundColor: '#f1f5f9',
-                      gap: 6,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        backgroundColor: '#ec4899',
-                      }}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: '#111827',
-                        fontWeight: '500',
-                      }}
-                    >
-                      {p.name}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
           </View>
-        </View>
-
         </View>
       </ScrollView>
 
@@ -1333,7 +1276,7 @@ function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
         style,
       ]}
     >
-      {isEmpty ? (
+      {isEmpty || isOffsite ? (
         <Text
           style={{
             color: '#64748b',
@@ -1411,6 +1354,104 @@ function Tag({ children }: { children: React.ReactNode }) {
       >
         {children as any}
       </Text>
+    </View>
+  );
+}
+
+function ParticipantLegendChip({ participant }: { participant: any }) {
+  const genderRaw = String(participant.gender || '').toLowerCase();
+  const isFemale =
+    genderRaw === 'female' || genderRaw === 'f';
+  const isMale =
+    genderRaw === 'male' || genderRaw === 'm';
+
+  const genderColor = isFemale
+    ? '#ec4899' // pink
+    : isMale
+    ? '#3b82f6' // blue
+    : '#cbd5e1'; // neutral
+
+  // Flexible score lookup – adjust to match your Supabase schema
+  const rawScore =
+    typeof participant.totalScore === 'number'
+      ? participant.totalScore
+      : typeof participant.score === 'number'
+      ? participant.score
+      : 0;
+
+  const maxScore = 35; // 7 criteria * 5 – adjust if needed
+  const clamped = Math.max(0, Math.min(maxScore, rawScore || 0));
+  const pct = maxScore ? clamped / maxScore : 0;
+
+  let barColor = '#22c55e'; // green (low complexity)
+  if (pct >= 0.66) barColor = '#dc2626'; // red (high)
+  else if (pct >= 0.33) barColor = '#facc15'; // amber (medium)
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 999,
+        backgroundColor: '#f1f5f9',
+        gap: 6,
+      }}
+    >
+      <View
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          backgroundColor: genderColor,
+        }}
+      />
+      <Text
+        style={{
+          fontSize: 14,
+          color: '#111827',
+          fontWeight: '500',
+        }}
+      >
+        {participant.name}
+      </Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginLeft: 6,
+          gap: 4,
+        }}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 4,
+            borderRadius: 999,
+            backgroundColor: '#e5e7eb',
+            overflow: 'hidden',
+          }}
+        >
+          <View
+            style={{
+              width: `${pct * 100}%`,
+              height: '100%',
+              borderRadius: 999,
+              backgroundColor: barColor,
+            }}
+          />
+        </View>
+        <Text
+          style={{
+            fontSize: 11,
+            color: '#111827',
+            fontWeight: '600',
+          }}
+        >
+          {clamped}
+        </Text>
+      </View>
     </View>
   );
 }
