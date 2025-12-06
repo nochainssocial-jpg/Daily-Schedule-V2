@@ -22,12 +22,12 @@ export type FloatingAssignments = {
   twins: ID | null;
 };
 
-export type CleaningAssignments = {
-  [staffId: ID]: {
-    slotId: ID;
-    label: string;
-  };
+export type CleaningAssignment = {
+  slotId: ID;
+  label: string;
 };
+
+export type CleaningAssignments = Record<ID, CleaningAssignment>;
 
 export type DropoffAssignment = {
   staffId: ID | null;
@@ -46,7 +46,7 @@ export type ScheduleSnapshot = {
   // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday: ID[];
 
-  // Core person → staff assignments
+  // Core person → staff assignments (participant -> staff)
   assignments: Record<ID, ID | null>;
 
   // Floating staff by room
@@ -141,8 +141,8 @@ function makeInitialSnapshot(): ScheduleSnapshot {
   };
 }
 
-function normalizeDropoffAssignments(raw: any): Record<ID, ID[]> {
-  const result: Record<ID, ID[]> = {};
+function normalizeDropoffAssignments(raw: any): Record<ID, DropoffAssignment | null> {
+  const result: Record<ID, DropoffAssignment | null> = {};
 
   if (!raw || typeof raw !== 'object') {
     return result;
@@ -150,48 +150,38 @@ function normalizeDropoffAssignments(raw: any): Record<ID, ID[]> {
 
   Object.entries(raw as Record<string, any>).forEach(([key, value]) => {
     if (!value) {
+      result[key as ID] = null;
       return;
     }
 
-    // Newer shape: staffId -> participantIds[]
-    if (Array.isArray(value)) {
-      const staffId = key as ID;
-      const pids = (value as ID[]).filter(Boolean) as ID[];
-      if (pids.length) {
-        result[staffId] = pids;
-      }
+    // Newer shape: { staffId, locationId }
+    if (
+      typeof value === 'object' &&
+      Object.prototype.hasOwnProperty.call(value, 'staffId') &&
+      Object.prototype.hasOwnProperty.call(value, 'locationId')
+    ) {
+      const staffId = (value as any).staffId as ID | null;
+      const locationId =
+        typeof (value as any).locationId === 'number'
+          ? (value as any).locationId
+          : null;
+
+      result[key as ID] = {
+        staffId,
+        locationId,
+      };
       return;
     }
 
-    // Legacy shape: participantId -> { staffId, locationId }
-    if (typeof value === 'object' && 'staffId' in (value as any)) {
-      const v = value as { staffId?: ID | null };
-      if (v.staffId) {
-        const staffId = v.staffId as ID;
-        if (!result[staffId]) result[staffId] = [];
-        result[staffId].push(key as ID);
-      }
-      return;
-    }
-
-    // Fallback: treat value as a single participantId with key as staffId
-    const staffId = key as ID;
-    const pid = value as ID;
-    if (!result[staffId]) result[staffId] = [];
-    result[staffId].push(pid);
+    // Older shape: staffId only
+    const staffId = value as ID | null;
+    result[key as ID] = {
+      staffId,
+      locationId: null,
+    };
   });
 
   return result;
-}
-
-
-
-// Simple helper to turn Date → YYYY-MM-DD in local time
-export function toLocalDateKey(date: Date): string {
-  const yr = date.getFullYear();
-  const mo = String(date.getMonth() + 1).padStart(2, '0');
-  const dy = String(date.getDate()).padStart(2, '0');
-  return `${yr}-${mo}-${dy}`;
 }
 
 // ----------------------------------------------------------------------------------
@@ -241,101 +231,110 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       };
 
       // If workingStaff changed, clean dependent assignments
-if (patch.workingStaff) {
-  const oldStaff = state.workingStaff;
-  const newStaff = patch.workingStaff;
-  const removed = oldStaff.filter((id) => !newStaff.includes(id));
+      if (patch.workingStaff) {
+        const oldStaff = state.workingStaff;
+        const newStaff = patch.workingStaff;
+        const removed = oldStaff.filter((id) => !newStaff.includes(id));
 
-  if (removed.length > 0) {
-    // 1) Team daily assignments
-    const newAssignments = { ...next.assignments };
-    for (const [pid, sid] of Object.entries(newAssignments)) {
-      if (sid && removed.includes(sid as ID)) {
-        newAssignments[pid as ID] = null;
-      }
-    }
-    next.assignments = newAssignments;
+        if (removed.length > 0) {
+          // 1) Team daily assignments
+          const newAssignments = { ...next.assignments };
+          for (const [pid, sid] of Object.entries(newAssignments)) {
+            if (sid && removed.includes(sid as ID)) {
+              newAssignments[pid as ID] = null;
+            }
+          }
+          next.assignments = newAssignments;
 
-    // 2) Floating
-    const newFloating = { ...next.floatingAssignments };
-    (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
-      const sid = newFloating[key];
-      if (sid && removed.includes(sid)) {
-        newFloating[key] = null;
-      }
-    });
-    next.floatingAssignments = newFloating;
+          // 2) Floating
+          const newFloating = { ...next.floatingAssignments };
+          (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
+            const sid = newFloating[key];
+            if (sid && removed.includes(sid)) {
+              newFloating[key] = null;
+            }
+          });
+          next.floatingAssignments = newFloating;
 
-    // 3) Cleaning
-    const newCleaning = { ...next.cleaningAssignments };
-    for (const [sid, slot] of Object.entries(newCleaning)) {
-      if (removed.includes(sid as ID)) {
-        delete newCleaning[sid as ID];
-      }
-    }
-    next.cleaningAssignments = newCleaning;
+          // 3) Cleaning
+          const newCleaning = { ...next.cleaningAssignments };
+          for (const [sid, slot] of Object.entries(newCleaning)) {
+            if (removed.includes(sid as ID)) {
+              delete newCleaning[sid as ID];
+            }
+          }
+          next.cleaningAssignments = newCleaning;
 
-    // 4) Training staff – remove flags for staff no longer working
-    if (next.trainingStaffToday && next.trainingStaffToday.length) {
-      next.trainingStaffToday = next.trainingStaffToday.filter(
-        (id) => !removed.includes(id),
-      );
-    }
+          // 4) Training staff – remove flags for staff no longer working
+          if (next.trainingStaffToday && next.trainingStaffToday.length) {
+            next.trainingStaffToday = next.trainingStaffToday.filter(
+              (id) => !removed.includes(id),
+            );
+          }
 
-    // 5) Helper staff
-    if (next.helperStaff && removed.includes(next.helperStaff)) {
-      next.helperStaff = null;
-    }
+          // 5) Helper staff
+          if (next.helperStaff && removed.includes(next.helperStaff)) {
+            next.helperStaff = null;
+          }
 
-    // 6) Dropoffs – clean staff & reindex locations
-    if (Object.keys(next.dropoffAssignments).length > 0) {
-      const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
-      for (const [pid, assignment] of Object.entries(
-        next.dropoffAssignments,
-      )) {
-        if (!assignment) {
-          newDropoffs[pid as ID] = null;
-          continue;
+          // 6) Dropoffs – clean staff & reindex locations
+          if (Object.keys(next.dropoffAssignments).length > 0) {
+            const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+            for (const [pid, assignment] of Object.entries(
+              next.dropoffAssignments,
+            )) {
+              if (!assignment) {
+                newDropoffs[pid as ID] = null;
+                continue;
+              }
+              const { staffId, locationId } = assignment;
+              const keepStaff =
+                staffId && !removed.includes(staffId as ID)
+                  ? (staffId as ID)
+                  : null;
+
+              if (!keepStaff) {
+                newDropoffs[pid as ID] = null;
+              } else {
+                newDropoffs[pid as ID] = {
+                  staffId: keepStaff,
+                  locationId,
+                };
+              }
+            }
+            next.dropoffAssignments = newDropoffs;
+          }
+
+          // Locations themselves don’t depend on staff, but if you ever add
+          // per-staff locations, you’d clean here too.
         }
-        const { staffId, locationId } = assignment;
-        const keepStaff =
-          staffId && !removed.includes(staffId as ID) ? staffId : null;
-
-        if (!keepStaff) {
-          newDropoffs[pid as ID] = null;
-        } else {
-          newDropoffs[pid as ID] = {
-            staffId: keepStaff,
-            locationId,
-          };
-        }
       }
-      next.dropoffAssignments = newDropoffs;
-    }
-  }
-}
 
       // If attendingParticipants changed, clean assignments that refer to removed participants
       if (patch.attendingParticipants) {
         const oldAtt = state.attendingParticipants;
         const newAtt = patch.attendingParticipants;
         const removed = oldAtt.filter((id) => !newAtt.includes(id));
+
         if (removed.length > 0) {
           const newAssignments = { ...next.assignments };
           const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+
           for (const [pid, sid] of Object.entries(newAssignments)) {
             if (removed.includes(pid as ID)) {
               delete newAssignments[pid as ID];
             }
           }
+
           for (const [pid, assignment] of Object.entries(
-            next.dropoffAssignments
+            next.dropoffAssignments,
           )) {
             if (removed.includes(pid as ID)) {
               continue;
             }
             newDropoffs[pid as ID] = assignment;
           }
+
           next.assignments = newAssignments;
           next.dropoffAssignments = newDropoffs;
         }
@@ -365,12 +364,15 @@ if (patch.workingStaff) {
   touch: () => set((state) => ({ ...state })),
 }));
 
-// Hook wrapper for derived data in screens
+// ----------------------------------------------------------------------------------
+// Derived helpers
+// ----------------------------------------------------------------------------------
+
 export function useWorkingStaff() {
   const { staff, workingStaff } = useSchedule();
   return useMemo(
     () => staff.filter((s) => workingStaff.includes(s.id)),
-    [staff, workingStaff]
+    [staff, workingStaff],
   );
 }
 
@@ -378,13 +380,16 @@ export function useAttendingParticipants() {
   const { participants, attendingParticipants } = useSchedule();
   return useMemo(
     () => participants.filter((p) => attendingParticipants.includes(p.id)),
-    [participants, attendingParticipants]
+    [participants, attendingParticipants],
   );
 }
 
+// ----------------------------------------------------------------------------------
+// Init / banner helpers
+// ----------------------------------------------------------------------------------
+
 /**
- * Legacy helper used by home + edit hub screens.
- * Computes today's YYYY-MM-DD key and calls initialiseScheduleForTodayIfNeeded.
+ * Initialise schedule for today if we haven't already.
  */
 export async function initScheduleForToday(houseId: string) {
   const now = new Date();
@@ -403,11 +408,11 @@ export async function initScheduleForToday(houseId: string) {
  */
 export async function initialiseScheduleForTodayIfNeeded(
   houseId: string,
-  todayKey: string
+  todayKey: string,
 ) {
   const state = useSchedule.getState();
 
-  // If we've already initialised for this date, don't do it again
+  // If we've already initialised for this date, do nothing
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
     return;
   }
@@ -415,8 +420,8 @@ export async function initialiseScheduleForTodayIfNeeded(
   try {
     const result = await fetchLatestScheduleForHouse(houseId);
 
-    if (!result.ok) {
-      // If there's an error, just create a fresh empty schedule for today
+    if (!result.ok || !result.data) {
+      // Treat as new schedule for today
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
@@ -449,49 +454,31 @@ export async function initialiseScheduleForTodayIfNeeded(
       return;
     }
 
-    // We have a snapshot; decide if it's for today, yesterday, or an older day.
-    const sourceDate = scheduleDate ?? todayKey;
-
-    // For now we always set the schedule date to todayKey (we are editing today's schedule),
-    // but the banner message explains where it was prefilled from.
-    const isSameDay = sourceDate === todayKey;
-
-    let type: ScheduleBannerType;
-    let bannerScheduleDate = todayKey;
-    let bannerSourceDate: string | undefined = undefined;
-
-    if (!scheduleDate) {
-      // We got a snapshot but no explicit date in the DB
-      type = 'created';
-      bannerScheduleDate = todayKey;
-    } else if (isSameDay) {
-      type = 'loaded';
-      bannerScheduleDate = todayKey;
-    } else {
-      type = 'prefilled';
-      bannerScheduleDate = todayKey;
-      bannerSourceDate = sourceDate;
-    }
-
+    // Normalise dropoffs and merge snapshot
     const normalizedDropoffs = normalizeDropoffAssignments(
       (snapshot as any).dropoffAssignments,
     );
 
     const normalizedSnapshot: ScheduleSnapshot = {
       ...makeInitialSnapshot(),
-      ...snapshot,
+      ...(snapshot as ScheduleSnapshot),
       dropoffAssignments: normalizedDropoffs,
+    };
+
+    // Decide banner type
+    const bannerType: ScheduleBannerType =
+      scheduleDate === todayKey ? 'loaded' : 'prefilled';
+
+    const banner: ScheduleBanner = {
+      type: bannerType,
+      scheduleDate: todayKey,
+      ...(bannerType === 'prefilled' ? { sourceDate: scheduleDate } : {}),
     };
 
     useSchedule.setState((s) => ({
       ...s,
       ...normalizedSnapshot,
-      date: todayKey,
-      banner: {
-        type,
-        scheduleDate: bannerScheduleDate,
-        sourceDate: bannerSourceDate,
-      },
+      banner,
       hasInitialisedToday: true,
       currentInitDate: todayKey,
     }));
