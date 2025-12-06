@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { Participant } from '@/constants/data';
 import { DROPOFF_OPTIONS } from '@/constants/data';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
@@ -51,8 +50,8 @@ export default function EditPickupsDropoffsScreen() {
   const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
   const [showHelpers, setShowHelpers] = useState(false);
-const [showAllPickupCandidates, setShowAllPickupCandidates] =
-  useState(false);
+  const [showAllPickupCandidates, setShowAllPickupCandidates] =
+    useState(false);
 
   const staffById = useMemo(
     () => new Map(staff.map((s) => [s.id as ID, s])),
@@ -165,7 +164,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
     return map;
   }, [assignments]);
 
-  const getDropoffLabel = (p: Participant): string => {
+  const getDropoffLabel = (p: { id: ID; name: string }): string => {
     const options = DROPOFF_OPTIONS[p.id as ID];
     if (!options || options.length === 0) return p.name;
     const index =
@@ -460,7 +459,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
                         <Text style={styles.assignedSummary}>
                           {assigned.length
                             ? `Assigned: ${assigned
-                                .map((p) => getDropoffLabel(p as Participant))
+                                .map((p) => getDropoffLabel(p as any))
                                 .join(', ')}`
                             : 'No dropoff assignments yet.'}
                         </Text>
@@ -505,7 +504,7 @@ const [showAllPickupCandidates, setShowAllPickupCandidates] =
                                 selected && styles.chipTxtSel,
                               ]}
                             >
-                              {getDropoffLabel(p as Participant)}
+                              {getDropoffLabel(p as any)}
                             </Text>
                           </TouchableOpacity>
                         );
