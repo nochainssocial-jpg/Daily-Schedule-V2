@@ -399,16 +399,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  legendRow: {
+  legend: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 24,
+    gap: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  legendDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+  legendSwatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
     borderWidth: 1,
   },
   legendOnsite: {
@@ -421,6 +426,6 @@ const styles = StyleSheet.create({
   },
   legendLabel: {
     fontSize: 12,
-    color: '#4b164c',
+    color: '#0F172A',
   },
 });
