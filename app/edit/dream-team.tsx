@@ -319,10 +319,6 @@ export default function EditDreamTeamScreen() {
           <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
             Legend
           </Text>
-          
-            <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
-              Legend
-            </Text>
             
             <View style={styles.legendCard}>
               <View style={[styles.legend, styles.legendCentered]}>
