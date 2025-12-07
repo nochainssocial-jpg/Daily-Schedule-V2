@@ -316,15 +316,19 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          <Text style={[styles.sectionTitle, { marginTop: 32 }]}>\n            Legend\n          </Text>\n\n          {/* Legend: match Participants onsite/outing, plus rating + icon explainer */}
-          <View style={styles.legend}>
+          <Text style={[styles.sectionTitle, { marginTop: 32 }]}>
+            Legend
+          </Text>
+          
+          <View style={[styles.legend, styles.legendCentered]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
-              <Text style={styles.legendLabel}>On-Site at B2</Text>
+              <Text style={styles.legendLabel}>On-site at B2</Text>
             </View>
+          
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOffsite]} />
-              <Text style={styles.legendLabel}>On Outing / Off-Site</Text>
+              <Text style={styles.legendLabel}>On outing / off-site</Text>
             </View>
           </View>
 
