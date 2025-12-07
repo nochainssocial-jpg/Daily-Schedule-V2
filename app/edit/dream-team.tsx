@@ -316,7 +316,7 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          {/* Legend: match Participants onsite/outing, plus rating + icon explainer */}
+          <Text style={[styles.sectionTitle, { marginTop: 32 }]}>\n            Legend\n          </Text>\n\n          {/* Legend: match Participants onsite/outing, plus rating + icon explainer */}
           <View style={styles.legend}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />

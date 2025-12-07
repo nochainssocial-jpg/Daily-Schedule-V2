@@ -376,7 +376,7 @@ export default function EditParticipantsScreen() {
           )}
 
           {/* Legend: onsite/outing, then behaviour risk + overall score bands */}
-          <View style={styles.legend}>
+          <View style={[styles.legend, styles.legendCentered]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
               <Text style={styles.legendLabel}>On-site</Text>
@@ -387,7 +387,7 @@ export default function EditParticipantsScreen() {
             </View>
           </View>
 
-          <View style={[styles.legend, { marginTop: 12 }]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.riskBadge, styles.riskBadgeLow]}>
                 <Text style={styles.riskBadgeText}>L</Text>
@@ -408,7 +408,7 @@ export default function EditParticipantsScreen() {
             </View>
           </View>
 
-          <View style={[styles.legend, { marginTop: 12 }]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
                 <Text style={styles.scoreBubbleText}>L</Text>
@@ -653,6 +653,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
   },
+  legendCentered: {
+    justifyContent: 'center',
+  },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',   // ⬅ vertical centering in the row
@@ -661,8 +664,6 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontSize: 12,
     color: '#0F172A',
-    // optional: makes the text height hug the font a bit tighter
     lineHeight: 14,
-    marginBottom: 3,
   },
 });
