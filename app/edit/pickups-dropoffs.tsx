@@ -263,9 +263,24 @@ export default function PickupsDropoffsScreen() {
       }
     });
 
-    // Already owned by this staff -> toggle off
+    // Already owned by this staff -> toggle off (this will unassign the participant)
     if (previousOwner === sid) {
-      updateSchedule({ dropoffAssignments: current });
+      // Rebuild canonical participant -> { staffId, locationId } map
+      const canonical: Record<ID, { staffId: ID | null; locationId: number | null } | null> = {};
+      Object.entries(current).forEach(([staffId, pids]) => {
+        (pids || []).forEach((participantId) => {
+          const locIndex =
+            (dropoffLocations && typeof dropoffLocations[participantId as ID] === 'number')
+              ? (dropoffLocations[participantId as ID] as number)
+              : null;
+          canonical[participantId as ID] = {
+            staffId: staffId as ID,
+            locationId: locIndex,
+          };
+        });
+      });
+
+      updateSchedule({ dropoffAssignments: canonical });
       push('Dropoff assignments updated', 'pickups');
       return;
     }
@@ -274,7 +289,23 @@ export default function PickupsDropoffsScreen() {
     if (!list.includes(pid)) {
       current[sid] = [...list, pid];
     }
-    updateSchedule({ dropoffAssignments: current });
+
+    // Rebuild canonical participant -> { staffId, locationId } map
+    const canonical: Record<ID, { staffId: ID | null; locationId: number | null } | null> = {};
+    Object.entries(current).forEach(([staffId, pids]) => {
+      (pids || []).forEach((participantId) => {
+        const locIndex =
+          (dropoffLocations && typeof dropoffLocations[participantId as ID] === 'number')
+            ? (dropoffLocations[participantId as ID] as number)
+            : null;
+        canonical[participantId as ID] = {
+          staffId: staffId as ID,
+          locationId: locIndex,
+        };
+      });
+    });
+
+    updateSchedule({ dropoffAssignments: canonical });
     push('Dropoff assignments updated', 'pickups');
   };
 
