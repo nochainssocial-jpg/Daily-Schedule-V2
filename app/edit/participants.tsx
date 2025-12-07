@@ -659,8 +659,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   legendSwatch: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     borderRadius: 999,
     borderWidth: 1,
   },
