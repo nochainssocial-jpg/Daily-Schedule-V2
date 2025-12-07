@@ -438,6 +438,7 @@ export default function EditParticipantsScreen() {
                   </View>
                 </View>
               </View>
+        </View>
       </ScrollView>
     </View>
   );
