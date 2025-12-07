@@ -51,7 +51,17 @@ export default function SchedulePrintable() {
     .map(findStaff)
     .filter(Boolean) as typeof staff;
 
-  const dropoffEntries = Object.entries(dropoffAssignments);
+  // Derive staffId -> participantIds[] from canonical participantId -> { staffId, locationId }
+  const dropoffEntries = React.useMemo(() => {
+    const staffMap: Record<ID, ID[]> = {};
+    Object.entries(dropoffAssignments || {}).forEach(([participantId, assignment]) => {
+      if (!assignment || !assignment.staffId) return;
+      const staffId = assignment.staffId as ID;
+      if (!staffMap[staffId]) staffMap[staffId] = [];
+      staffMap[staffId].push(participantId as ID);
+    });
+    return Object.entries(staffMap);
+  }, [dropoffAssignments]);
 
   const checklistStaff = findStaff(finalChecklistStaff || null);
 
