@@ -16,6 +16,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { supabase } from '@/lib/supabase';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
+import { getRiskBand, MAX_PARTICIPANT_SCORE, RISK_GRADIENT_COLORS, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
@@ -166,9 +167,8 @@ function getParticipantTotalScore(member: ParticipantRating | any): number | nul
 }
 
 function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  if (total >= 16) return 'high';
-  if (total >= 10) return 'medium';
-  return 'low';
+  // Delegate to shared participant risk bands (0–35)
+  return getRiskBand(total);
 }
 
 // Behaviour risk from behaviours 1–3
@@ -190,7 +190,7 @@ function getBehaviourRisk(
  */
 function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
-  const maxScore = 35; // 7 criteria × 5
+  const maxScore = MAX_PARTICIPANT_SCORE; // 7 criteria × 5
   const fraction = Math.max(0, Math.min(1, rawTotal / maxScore));
 
   const [trackWidth, setTrackWidth] = useState(0);
@@ -224,7 +224,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
       {trackWidth > 0 && (
         <>
           <LinearGradient
-            colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
+            colors={RISK_GRADIENT_COLORS} // green → yellow → red (shared theme)
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={{
@@ -281,14 +281,14 @@ function LegendParticipantPill({
   let scoreBg = '#f8f2ff';
   let scoreBorder = '#e7dff2';
   if (level === 'low') {
-    scoreBg = '#dcfce7';
-    scoreBorder = '#bbf7d0';
+    scoreBg = SCORE_BUBBLE_STYLES.low.bg;
+    scoreBorder = SCORE_BUBBLE_STYLES.low.border;
   } else if (level === 'medium') {
-    scoreBg = '#fef9c3';
-    scoreBorder = '#fef9c3';
+    scoreBg = SCORE_BUBBLE_STYLES.medium.bg;
+    scoreBorder = SCORE_BUBBLE_STYLES.medium.border;
   } else if (level === 'high') {
-    scoreBg = '#fee2e2';
-    scoreBorder = '#fecaca';
+    scoreBg = SCORE_BUBBLE_STYLES.high.bg;
+    scoreBorder = SCORE_BUBBLE_STYLES.high.border;
   }
 
   return (

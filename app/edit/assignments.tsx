@@ -15,6 +15,7 @@ import {
   STAFF as STATIC_STAFF,
   PARTICIPANTS as STATIC_PARTS,
 } from '@/constants/data';
+import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
@@ -76,9 +77,8 @@ function getParticipantScore(row: any): number {
 
 function getParticipantBand(score: number): 'low' | 'medium' | 'high' {
   if (!score || score <= 0) return 'low';
-  if (score >= 16) return 'high';
-  if (score >= 10) return 'medium';
-  return 'low';
+  // Delegate to shared participant risk bands (0–35)
+  return getRiskBand(score);
 }
 
 // Behaviour risk from behaviours 1–3
@@ -639,16 +639,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scoreBubbleLow: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#FFFFFF',
+    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
+    borderColor: SCORE_BUBBLE_STYLES.low.border,
   },
   scoreBubbleMedium: {
-    backgroundColor: '#fef9c3',
-    borderColor: '#FFFFFF',
+    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
+    borderColor: SCORE_BUBBLE_STYLES.medium.border,
   },
   scoreBubbleHigh: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#FFFFFF',
+    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
+    borderColor: SCORE_BUBBLE_STYLES.high.border,
   },
   scoreBubbleText: {
     fontSize: 13,

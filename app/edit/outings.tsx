@@ -16,6 +16,7 @@ import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 import { PARTICIPANTS, STAFF } from '@/constants/data';
+import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 
 type ID = string;
 
@@ -80,10 +81,8 @@ function getParticipantTotalScore(member: ParticipantLike | any): number | null 
 }
 
 function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  // 7 criteria, range 7–21. Same bands as Participants Settings screen
-  if (total >= 16) return 'high';
-  if (total >= 10) return 'medium';
-  return 'low';
+  // Delegate to shared participant risk bands (0–35)
+  return getRiskBand(total);
 }
 
 export default function OutingsScreen() {
@@ -500,16 +499,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scoreBubbleLow: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
+    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
+    borderColor: SCORE_BUBBLE_STYLES.low.border,
   },
   scoreBubbleMedium: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a',
+    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
+    borderColor: SCORE_BUBBLE_STYLES.medium.border,
   },
   scoreBubbleHigh: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
+    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
+    borderColor: SCORE_BUBBLE_STYLES.high.border,
   },
   scoreBubbleText: {
     fontSize: 11,

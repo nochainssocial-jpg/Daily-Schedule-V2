@@ -20,6 +20,7 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
+import { getRiskBand, MAX_PARTICIPANT_SCORE, RISK_GRADIENT_COLORS, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
 
@@ -82,10 +83,8 @@ function getParticipantTotalScore(member: ParticipantRating | any): number | nul
 }
 
 function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  // Same bands as Participants Settings: 7–21
-  if (total >= 16) return 'high';
-  if (total >= 10) return 'medium';
-  return 'low';
+  // Delegate to shared participant risk bands (0–35)
+  return getRiskBand(total);
 }
 
 // Behaviour risk from behaviours 1–3
@@ -107,7 +106,7 @@ function getBehaviourRisk(
  */
 function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
-  const maxScore = 35; // 7 criteria × 5
+  const maxScore = MAX_PARTICIPANT_SCORE; // 7 criteria × 5
   const fraction = Math.max(0, Math.min(1, rawTotal / maxScore));
 
   const [trackWidth, setTrackWidth] = useState(0);
@@ -136,7 +135,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
         <>
           {/* Full-range gradient: 0 → 35 */}
           <LinearGradient
-            colors={['#22c55e', '#eab308', '#ef4444']} // green → yellow → red
+            colors={RISK_GRADIENT_COLORS} // green → yellow → red (shared theme)
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={StyleSheet.absoluteFill}
@@ -528,16 +527,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   scoreBubbleLow: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#FFFFFF',
+    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
+    borderColor: SCORE_BUBBLE_STYLES.low.border,
   },
   scoreBubbleMedium: {
-    backgroundColor: '#fef9c3',
-    borderColor: '#FFFFFF',
+    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
+    borderColor: SCORE_BUBBLE_STYLES.medium.border,
   },
   scoreBubbleHigh: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#FFFFFF',
+    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
+    borderColor: SCORE_BUBBLE_STYLES.high.border,
   },
   scoreBubbleText: {
     fontSize: 13,

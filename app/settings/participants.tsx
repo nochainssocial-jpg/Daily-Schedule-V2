@@ -14,6 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
+import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
@@ -206,10 +207,8 @@ export default function ParticipantsSettingsScreen() {
   }
 
   function getScoreLevel(total: number): 'low' | 'medium' | 'high' {
-    // 7 criteria, range 7–21. Rough bands:
-    if (total >= 16) return 'high';
-    if (total >= 10) return 'medium';
-    return 'low';
+    // Delegate to shared participant risk bands (0–35)
+    return getRiskBand(total);
   }
 
   return (
@@ -946,16 +945,16 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   scoreBubbleLow: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
+    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
+    borderColor: SCORE_BUBBLE_STYLES.low.border,
   },
   scoreBubbleMedium: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a',
+    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
+    borderColor: SCORE_BUBBLE_STYLES.medium.border,
   },
   scoreBubbleHigh: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
+    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
+    borderColor: SCORE_BUBBLE_STYLES.high.border,
   },
   scoreBubbleText: {
     fontSize: 13,
