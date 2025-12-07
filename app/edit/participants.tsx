@@ -636,9 +636,10 @@ const styles = StyleSheet.create({
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
+    justifyContent: 'center',
     gap: 16,
     flexWrap: 'wrap',
+    paddingVertical: 4,   // 🔥 makes all rows same height and spacing
   },
   legendItem: {
     flexDirection: 'row',
