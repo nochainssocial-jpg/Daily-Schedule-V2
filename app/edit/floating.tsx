@@ -882,7 +882,7 @@ export default function FloatingScreen() {
       <SaveExit touchKey="floating" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="swap-vertical-outline"
+          name="refresh-circle-outline"
           size={220}
           color="#F6C1FF"
           style={{
