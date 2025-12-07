@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   },
   legendItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'left',
     gap: 8,
   },
   legendSwatch: {
