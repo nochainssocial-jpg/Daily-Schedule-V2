@@ -320,56 +320,49 @@ export default function EditDreamTeamScreen() {
             Legend
           </Text>
           
-          <View style={[styles.legend, styles.legendCentered]}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, styles.legendOnsite]} />
-              <Text style={styles.legendLabel}>On-site at B2</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
+              Legend
+            </Text>
+            
+            <View style={styles.legendCard}>
+              <View style={[styles.legend, styles.legendCentered]}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendSwatch, styles.legendOnsite]} />
+                  <Text style={styles.legendLabel}>On-site at B2</Text>
+                </View>
+            
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendSwatch, styles.legendOffsite]} />
+                  <Text style={styles.legendLabel}>On outing / off-site</Text>
+                </View>
+              </View>
+            
+              <View style={[styles.legend, { marginTop: 12 }]}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
+                  <Text style={styles.legendLabel}>Beginner / Junior</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
+                  <Text style={styles.legendLabel}>Intermediate</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
+                  <Text style={styles.legendLabel}>Senior / Experienced</Text>
+                </View>
+              </View>
+            
+              <View style={[styles.legend, { marginTop: 12 }]}>
+                <View style={styles.legendItem}>
+                  <MaterialCommunityIcons name="account-supervisor" size={24} color="#1C5F87" />
+                  <Text style={styles.legendLabel}>Training</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <MaterialCommunityIcons name="account-star" size={24} color="#FBBF24" />
+                  <Text style={styles.legendLabel}>Senior</Text>
+                </View>
+              </View>
             </View>
-          
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, styles.legendOffsite]} />
-              <Text style={styles.legendLabel}>On outing / off-site</Text>
-            </View>
-          </View>
-
-          <View style={[styles.legend, { marginTop: 12 }]}>
-            <View style={styles.legendItem}>
-              <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
-              <Text style={styles.legendLabel}>Beginner / Junior</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
-              <Text style={styles.legendLabel}>Intermediate</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
-              <Text style={styles.legendLabel}>
-                Senior / Experienced
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.legend, { marginTop: 12 }]}>
-            <View style={styles.legendItem}>
-              <MaterialCommunityIcons
-                name="account-supervisor"
-                size={24}
-                color="#1C5F87"
-              />
-              <Text style={styles.legendLabel}>
-                Training
-              </Text>
-            </View>
-            <View style={styles.legendItem}>
-              <MaterialCommunityIcons
-                name="account-star"
-                size={24}
-                color="#FBBF24"
-              />
-              <Text style={styles.legendLabel}>Senior</Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -445,6 +438,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#111827',
+  },
+  legendCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   legend: {
     flexDirection: 'row',
