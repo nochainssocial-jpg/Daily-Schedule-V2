@@ -57,11 +57,17 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       floatingAssignments: schedule.floatingAssignments,
       cleaningAssignments: schedule.cleaningAssignments,
 
+      // ✅ NEW: persist bins variant so "Take the bins out" survives reload
+      cleaningBinsVariant: schedule.cleaningBinsVariant ?? 0,
+
       finalChecklist: schedule.finalChecklist,
       finalChecklistStaff: schedule.finalChecklistStaff,
 
       pickupParticipants: schedule.pickupParticipants,
       helperStaff: schedule.helperStaff,
+
+      // ✅ NEW: persist helper pickup staff as well (transport helpers)
+      helperPickupStaff: schedule.helperPickupStaff || [],
 
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
