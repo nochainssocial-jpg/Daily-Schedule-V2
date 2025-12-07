@@ -48,6 +48,7 @@ export default function PickupsDropoffsScreen() {
 
   const { push } = useNotifications();
 
+  // Attending participants for today
   const attending = useMemo(
     () =>
       participants.filter((p) =>
@@ -90,7 +91,7 @@ export default function PickupsDropoffsScreen() {
     [staff, helperSet],
   );
 
-  // NEW: map of staffId -> staff row (for detecting legacy shapes)
+  // Map of staffId -> staff row (for legacy shapes / safety)
   const staffById = useMemo(() => {
     const map = new Map<ID, (typeof staff)[number]>();
     staff.forEach((s) => {
@@ -112,7 +113,7 @@ export default function PickupsDropoffsScreen() {
         return;
       }
 
-      // Already in the new shape: staffId -> participantId[]
+      // New shape: staffId -> participantId[]
       if (Array.isArray(pids)) {
         normalised[sid as ID] = (pids as ID[]).filter(Boolean) as ID[];
         return;
@@ -124,7 +125,7 @@ export default function PickupsDropoffsScreen() {
         if (value.staffId) {
           const staffId = value.staffId as ID;
           if (!normalised[staffId]) normalised[staffId] = [];
-          normalised[staffId].push(sid as ID); // sid is the participantId here
+          normalised[staffId].push(sid as ID); // sid is participantId
         }
         return;
       }
@@ -145,11 +146,11 @@ export default function PickupsDropoffsScreen() {
     return normalised;
   }, [dropoffAssignments, staffById]);
 
-  // Participants that can take dropoffs
+  // Participants that can take dropoffs = attending & NOT pickups
   const visibleDropoffParticipants = useMemo(
     () =>
       attending.filter(
-        (p) => !pickupsSet.has(p.id as ID), // pickups not shown in dropoffs
+        (p) => !pickupsSet.has(p.id as ID),
       ),
     [attending, pickupsSet],
   );
@@ -163,14 +164,17 @@ export default function PickupsDropoffsScreen() {
     return map;
   }, [assignments]);
 
+  // Label for dropoff chips = participant name + current location option
   const getDropoffLabel = (p: { id: ID; name: string }): string => {
     const options = DROPOFF_OPTIONS[p.id as ID];
     if (!options || options.length === 0) return p.name;
     const index =
       (dropoffLocations && dropoffLocations[p.id as ID]) ?? 0;
-    return options[index] ?? options[0];
+    const location = options[index] ?? options[0];
+    return `${p.name} – ${location}`;
   };
 
+  // Long-press to cycle dropoff location
   const cycleDropoffLocation = (pid: ID) => {
     const options = DROPOFF_OPTIONS[pid];
     if (!options || options.length === 0) return;
@@ -298,7 +302,7 @@ export default function PickupsDropoffsScreen() {
 
           {/* PICKUPS */}
           <View style={{ marginTop: 16 }}>
-            <View className="dropoffsHeaderRow" style={styles.dropoffsHeaderRow}>
+            <View style={styles.dropoffsHeaderRow}>
               <Text style={styles.sectionTitle}>Pickups</Text>
               {attending.length > 0 && (
                 <TouchableOpacity
@@ -426,7 +430,8 @@ export default function PickupsDropoffsScreen() {
             </View>
             <Text style={styles.sectionSub}>
               Tap participants inside each staff card to assign or move
-              dropoffs. Each participant can only belong to one staff member at
+              dropoffs. Long-press a participant to cycle their dropoff
+              location. Each participant can only belong to one staff member at
               a time.
             </Text>
 
@@ -435,7 +440,14 @@ export default function PickupsDropoffsScreen() {
                 (p) => participantAssignedTo.get(p.id as ID) === s.id,
               );
 
-              const visibleForStaff = visibleDropoffParticipants;
+              // KEY BEHAVIOUR:
+              // Show unassigned participants + those assigned to THIS staff only.
+              const visibleForStaff = visibleDropoffParticipants.filter(
+                (p) => {
+                  const owner = participantAssignedTo.get(p.id as ID);
+                  return !owner || owner === (s.id as ID);
+                },
+              );
 
               const hasAssigned = assigned.length > 0;
               const collapsed = collapsedStaff[s.id as ID] ?? !hasAssigned;
