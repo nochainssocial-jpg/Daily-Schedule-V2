@@ -640,8 +640,10 @@ const styles = StyleSheet.create({
     gap: 16,
     flexWrap: 'wrap',
   },
-  legendCentered: {
-    justifyContent: 'center',
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   legendSwatch: {
     width: 20,
@@ -657,14 +659,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
   },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   legendLabel: {
     fontSize: 12,
     color: '#0F172A',
-    lineHeight: 14,
   },
 });
