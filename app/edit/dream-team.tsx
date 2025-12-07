@@ -349,7 +349,7 @@ export default function EditDreamTeamScreen() {
             <View style={styles.legendItem}>
               <MaterialCommunityIcons
                 name="account-supervisor"
-                size={18}
+                size={22}
                 color="#1C5F87"
               />
               <Text style={styles.legendLabel}>
@@ -359,7 +359,7 @@ export default function EditDreamTeamScreen() {
             <View style={styles.legendItem}>
               <MaterialCommunityIcons
                 name="account-star"
-                size={18}
+                size={22}
                 color="#FBBF24"
               />
               <Text style={styles.legendLabel}>Senior staff highlight</Text>
