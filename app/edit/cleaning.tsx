@@ -187,6 +187,51 @@ export default function CleaningEditScreen() {
     return base;
   };
 
+  // ⬇️ NEW: rich label with coloured dots for the bins chore
+  const renderBinsLabel = (base: string) => {
+    if (binsVariant === 1) {
+      // Red Domestic + Yellow Recycling
+      return (
+        <Text style={styles.taskLabel}>
+          Take{' '}
+          <Text style={[styles.binDot, styles.binDotRed]}>●</Text>
+          {' '}Red Domestic and{' '}
+          <Text style={[styles.binDot, styles.binDotYellow]}>●</Text>
+          {' '}Yellow Recycling bins out front of property.
+        </Text>
+      );
+    }
+    if (binsVariant === 2) {
+      // Red Domestic + Green Waste
+      return (
+        <Text style={styles.taskLabel}>
+          Take{' '}
+          <Text style={[styles.binDot, styles.binDotRed]}>●</Text>
+          {' '}Red Domestic and{' '}
+          <Text style={[styles.binDot, styles.binDotGreen]}>●</Text>
+          {' '}Green Waste bins out front of property.
+        </Text>
+      );
+    }
+    if (binsVariant === 3) {
+      // Bring all bins in & clean – show all three dots
+      return (
+        <Text style={styles.taskLabel}>
+          Bring the{' '}
+          <Text style={[styles.binDot, styles.binDotRed]}>●</Text>
+          {' '}
+          <Text style={[styles.binDot, styles.binDotYellow]}>●</Text>
+          {' '}
+          <Text style={[styles.binDot, styles.binDotGreen]}>●</Text>
+          {' '}bins in and clean them.
+        </Text>
+      );
+    }
+
+    // Variant 0 – fall back to standard text (no dots)
+    return <Text style={styles.taskLabel}>{getBinsLabel(base)}</Text>;
+  };
+
   // 🔀 Re-shuffle all chores fairly across onsite staff (round-robin)
   const reshuffleCleaning = () => {
     if (readOnly) {
@@ -257,19 +302,21 @@ export default function CleaningEditScreen() {
               const label = st ? st.name : 'Not assigned';
               const isAssigned = !!st;
 
+              const isBins = isBinsChore(chore);
+
               return (
                 <View key={choreId} style={styles.row}>
                   <TouchableOpacity
                     style={styles.taskCol}
                     activeOpacity={0.9}
-                    onLongPress={isBinsChore(chore) ? cycleBinsVariant : undefined}
+                    onLongPress={isBins ? cycleBinsVariant : undefined}
                     delayLongPress={300}
                   >
-                    <Text style={styles.taskLabel}>
-                      {isBinsChore(chore)
-                        ? getBinsLabel(String(chore.name))
-                        : chore.name}
-                    </Text>
+                    {isBins ? (
+                      renderBinsLabel(String(chore.name))
+                    ) : (
+                      <Text style={styles.taskLabel}>{chore.name}</Text>
+                    )}
                   </TouchableOpacity>
 
                   <View style={styles.staffCol}>
@@ -472,6 +519,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#000000',
+  },
+
+  // ⬇️ NEW: coloured bin dots
+  binDot: {
+    fontSize: 14,
+  },
+  binDotRed: {
+    color: '#EF4444',
+  },
+  binDotYellow: {
+    color: '#EAB308',
+  },
+  binDotGreen: {
+    color: '#22C55E',
   },
 
   pill: {
