@@ -380,7 +380,7 @@ export default function EditParticipantsScreen() {
             Legend
           </Text>
 
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
+          <View style={[styles.legend, styles.legendCentered]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
               <Text style={styles.legendLabel}>On-site</Text>
@@ -391,7 +391,7 @@ export default function EditParticipantsScreen() {
             </View>
           </View>
 
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.riskBadge, styles.riskBadgeLow]}>
                 <Text style={styles.riskBadgeText}>L</Text>
@@ -412,7 +412,7 @@ export default function EditParticipantsScreen() {
             </View>
           </View>
 
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
                 <Text style={styles.scoreBubbleText}>L</Text>
@@ -636,14 +636,13 @@ const styles = StyleSheet.create({
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'left',
     gap: 16,
     flexWrap: 'wrap',
     paddingVertical: 4,   // 🔥 makes all rows same height and spacing
   },
   legendItem: {
     flexDirection: 'row',
-    alignItems: 'left',
+    alignItems: 'center',
     gap: 8,
   },
   legendSwatch: {
@@ -651,7 +650,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 999,
     borderWidth: 1,
-    alignItems: 'left',
   },
   legendOnsite: {
     backgroundColor: '#F54FA5',
