@@ -611,7 +611,6 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 2,
@@ -622,12 +621,15 @@ const styles = StyleSheet.create({
   },
   riskBadgeLow: {
     backgroundColor: '#22C55E',
+    borderColor: '#22C55E',
   },
   riskBadgeMedium: {
     backgroundColor: '#F97316',
+    borderColor: '#F97316',
   },
   riskBadgeHigh: {
     backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
   },
   riskBadgeText: {
     fontSize: 12,
