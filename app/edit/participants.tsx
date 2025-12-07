@@ -392,19 +392,19 @@ export default function EditParticipantsScreen() {
               <View style={[styles.riskBadge, styles.riskBadgeLow]}>
                 <Text style={styles.riskBadgeText}>L</Text>
               </View>
-              <Text style={styles.legendLabel}>Low behaviour risk</Text>
+              <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
                 <Text style={styles.riskBadgeText}>M</Text>
               </View>
-              <Text style={styles.legendLabel}>Medium risk</Text>
+              <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
                 <Text style={styles.riskBadgeText}>H</Text>
               </View>
-              <Text style={styles.legendLabel}>High risk</Text>
+              <Text style={styles.legendLabel}>High Risk Behaviour</Text>
             </View>
           </View>
 
@@ -414,7 +414,7 @@ export default function EditParticipantsScreen() {
                 <Text style={styles.scoreBubbleText}>L</Text>
               </View>
               <Text style={styles.legendLabel}>
-                Lower overall complexity / support needs
+                Low Complexity
               </Text>
             </View>
             <View style={styles.legendItem}>
@@ -428,7 +428,7 @@ export default function EditParticipantsScreen() {
                 <Text style={styles.scoreBubbleText}>H</Text>
               </View>
               <Text style={styles.legendLabel}>
-                Higher complexity / support needs
+                Highly complexity
               </Text>
             </View>
           </View>
@@ -652,9 +652,6 @@ const styles = StyleSheet.create({
   legendOffsite: {
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
-  },
-  legendCentered: {
-    justifyContent: 'center',
   },
   legendItem: {
     flexDirection: 'row',
