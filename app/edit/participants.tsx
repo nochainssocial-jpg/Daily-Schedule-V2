@@ -662,6 +662,6 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontSize: 12,
     color: '#0F172A',
-    lineHeight: 20,
+    marginTop: -6,
   },
 });
