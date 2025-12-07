@@ -651,6 +651,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 999,
     borderWidth: 1,
+    alignItems: 'left',
   },
   legendOnsite: {
     backgroundColor: '#F54FA5',
