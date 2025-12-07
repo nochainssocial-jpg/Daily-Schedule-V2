@@ -283,7 +283,7 @@ export default function EditDreamTeamScreen() {
 
       {Platform.OS === 'web' && width >= 900 && (
         <View pointerEvents="none" style={styles.heroIcon}>
-          <Ionicons name="people-circle-outline" size={260} color="#f0e7ff" />
+          <Ionicons name="people-circle-outline" size={260} color="#ffd5b4" />
         </View>
       )}
 
@@ -331,7 +331,7 @@ export default function EditDreamTeamScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F4F0FB',
+    backgroundColor: '#fcf2d8',
   },
   heroIcon: {
     position: 'absolute',
