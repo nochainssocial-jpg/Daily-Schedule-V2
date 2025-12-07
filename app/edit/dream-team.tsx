@@ -316,7 +316,7 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          <Text style={[styles.sectionTitle, { marginTop: 32 }]}>
+          <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
             Legend
           </Text>
           
@@ -353,7 +353,7 @@ export default function EditDreamTeamScreen() {
             <View style={styles.legendItem}>
               <MaterialCommunityIcons
                 name="account-supervisor"
-                size={22}
+                size={24}
                 color="#1C5F87"
               />
               <Text style={styles.legendLabel}>
@@ -363,7 +363,7 @@ export default function EditDreamTeamScreen() {
             <View style={styles.legendItem}>
               <MaterialCommunityIcons
                 name="account-star"
-                size={22}
+                size={24}
                 color="#FBBF24"
               />
               <Text style={styles.legendLabel}>Senior</Text>
