@@ -101,28 +101,38 @@ export default function PickupsDropoffsScreen() {
         return;
       }
 
+      // Already in the new shape: staffId -> participantId[]
       if (Array.isArray(pids)) {
         normalised[sid as ID] = (pids as ID[]).filter(Boolean) as ID[];
         return;
       }
 
+      // Legacy shape: participantId -> { staffId, locationId }
       if (typeof pids === 'object' && 'staffId' in (pids as any)) {
-        // Legacy shape: participantId -> { staffId, locationId }
         const value = pids as { staffId?: ID | null };
         if (value.staffId) {
           const staffId = value.staffId as ID;
           if (!normalised[staffId]) normalised[staffId] = [];
-          normalised[staffId].push(sid as ID);
+          normalised[staffId].push(sid as ID); // sid is the participantId here
         }
         return;
       }
 
-      // Fallback: treat as single participant ID
-      normalised[sid as ID] = [pids as ID];
+      // Shape: participantId -> staffId (value is a staff id string)
+      const valueId = String(pids) as ID;
+      if (staffById.has(valueId)) {
+        const staffId = valueId;
+        if (!normalised[staffId]) normalised[staffId] = [];
+        normalised[staffId].push(sid as ID); // sid is participantId
+        return;
+      }
+
+      // Fallback: treat as "staffId -> single participantId"
+      normalised[sid as ID] = [valueId];
     });
 
     return normalised;
-  }, [dropoffAssignments]);
+  }, [dropoffAssignments, staffById]);
 
   // Participants that can take dropoffs
   const visibleDropoffParticipants = useMemo(
