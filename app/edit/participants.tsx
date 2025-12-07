@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
   },
   legendItem: {
     flexDirection: 'row',
-    alignItems: 'center',   // ⬅ vertical centering in the row
+    alignItems: 'center',
     gap: 8,
   },
   legendLabel: {
