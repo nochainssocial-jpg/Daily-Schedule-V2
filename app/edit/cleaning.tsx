@@ -36,7 +36,6 @@ export default function CleaningEditScreen() {
     workingStaff,
     cleaningAssignments = {},
     outingGroup = null,
-    // ⬇️ NEW: hydrate bins variant from schedule state (fallback to 0)
     cleaningBinsVariant = 0,
     updateSchedule,
   } = useSchedule() as any;
@@ -146,12 +145,12 @@ export default function CleaningEditScreen() {
   };
 
   // 🌙 Special long-press behaviour for "Take the bins out"
-  // 0 = default (from data.ts), 1 = red + yellow, 2 = red + green, 3 = bring in / clean
+  // 0 = default (from data.ts), 1 = red + yellow, 2 = red + green, 3 = bring in & clean
   const [binsVariant, setBinsVariant] = useState<0 | 1 | 2 | 3>(
     (cleaningBinsVariant ?? 0) as 0 | 1 | 2 | 3,
   );
 
-  // ⬇️ keep local state in sync when schedule is loaded / changed
+  // keep local state in sync with store when loading / switching schedules
   useEffect(() => {
     setBinsVariant((cleaningBinsVariant ?? 0) as 0 | 1 | 2 | 3);
   }, [cleaningBinsVariant]);
@@ -161,10 +160,8 @@ export default function CleaningEditScreen() {
       blockReadOnly();
       return;
     }
-
     setBinsVariant((prev) => {
       const next = ((prev + 1) % 4) as 0 | 1 | 2 | 3;
-      // write-through to schedule so Save & Exit can persist it
       updateSchedule?.({ cleaningBinsVariant: next });
       return next;
     });
@@ -203,13 +200,10 @@ export default function CleaningEditScreen() {
 
     const staffIds = workingStaffList.map((s) => String(s.id));
     const next: Record<string, string | undefined> = {};
-    let idx = 0;
 
-    chores.forEach((chore) => {
-      const choreId = String(chore.id);
-      const staffId = staffIds[idx % staffIds.length];
-      next[choreId] = staffId;
-      idx += 1;
+    chores.forEach((chore, index) => {
+      const staffId = staffIds[index % staffIds.length];
+      next[String(chore.id)] = staffId;
     });
 
     updateSchedule?.({ cleaningAssignments: next });
@@ -229,7 +223,6 @@ export default function CleaningEditScreen() {
       )}
 
       <View style={styles.wrap}>
-        {/* NEW white card container */}
         <View style={styles.card}>
           <Text style={styles.heading}>Cleaning Duties</Text>
           <Text style={styles.subheading}>
@@ -237,7 +230,6 @@ export default function CleaningEditScreen() {
             currently working onsite can be assigned.
           </Text>
 
-          {/* Re-shuffle button */}
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.shuffleBtn}
@@ -249,7 +241,6 @@ export default function CleaningEditScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Main chores list */}
           <ScrollView
             style={styles.list}
             contentContainerStyle={{ paddingBottom: 30 }}
@@ -259,7 +250,6 @@ export default function CleaningEditScreen() {
               const choreId = String(chore.id);
               const assignedStaffId = (cleaningAssignments as any)[choreId];
 
-              // Look up staff from full list, but off-site staff are auto-cleared
               const st =
                 (staff || []).find((s: Staff) => String(s.id) === String(assignedStaffId)) ||
                 null;
@@ -269,7 +259,6 @@ export default function CleaningEditScreen() {
 
               return (
                 <View key={choreId} style={styles.row}>
-                  {/* Long press on the chore text to cycle bin instructions */}
                   <TouchableOpacity
                     style={styles.taskCol}
                     activeOpacity={0.9}
@@ -321,7 +310,6 @@ export default function CleaningEditScreen() {
         </View>
       </View>
 
-      {/* Staff picker modal */}
       <Modal
         visible={!!activeChore}
         animationType="fade"
@@ -335,7 +323,6 @@ export default function CleaningEditScreen() {
               <Text style={styles.modalTaskLabel}>{activeChore.name}</Text>
             )}
 
-            {/* Scrollable staff list inside modal */}
             <ScrollView
               style={styles.modalScroll}
               contentContainerStyle={styles.scroll}
@@ -516,7 +503,6 @@ const styles = StyleSheet.create({
     color: '#7A7485',
   },
 
-  // modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
