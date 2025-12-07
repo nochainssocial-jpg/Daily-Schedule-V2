@@ -170,6 +170,8 @@ export default function DailyAssignmentsTrackerScreen() {
             Fri: [],
           } as Record<WeekDayLabel, string[]>);
 
+        // NOTE: we now key by normalised staff *name* so the same person
+        // doesn't appear multiple times if their ID format changed between days.
         const summary: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
@@ -191,17 +193,22 @@ export default function DailyAssignmentsTrackerScreen() {
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
             if (!Array.isArray(participantIds)) return;
 
-            if (!summary[staffId]) {
-              summary[staffId] = {
+            const staffName = staffById[staffId] ?? staffId;
+            const key = staffName
+              ? staffName.trim().toLowerCase()
+              : String(staffId);
+
+            if (!summary[key]) {
+              summary[key] = {
                 staffId,
-                name: staffById[staffId] ?? staffId,
+                name: staffName,
                 byDay: makeDays(),
               };
             }
 
             participantIds.forEach((pid) => {
               const name = participantsById[pid];
-              if (name) summary[staffId].byDay[label].push(name);
+              if (name) summary[key].byDay[label].push(name);
             });
           });
         }
