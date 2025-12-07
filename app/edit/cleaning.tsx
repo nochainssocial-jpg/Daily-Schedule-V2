@@ -36,6 +36,8 @@ export default function CleaningEditScreen() {
     workingStaff,
     cleaningAssignments = {},
     outingGroup = null,
+    // ⬇️ NEW: hydrate bins variant from schedule state (fallback to 0)
+    cleaningBinsVariant = 0,
     updateSchedule,
   } = useSchedule() as any;
 
@@ -144,15 +146,28 @@ export default function CleaningEditScreen() {
   };
 
   // 🌙 Special long-press behaviour for "Take the bins out"
-  // 0 = default (from data.ts), 1 = red + yellow, 2 = red + green
-  const [binsVariant, setBinsVariant] = useState<0 | 1 | 2>(0);
+  // 0 = default (from data.ts), 1 = red + yellow, 2 = red + green, 3 = bring in / clean
+  const [binsVariant, setBinsVariant] = useState<0 | 1 | 2 | 3>(
+    (cleaningBinsVariant ?? 0) as 0 | 1 | 2 | 3,
+  );
+
+  // ⬇️ keep local state in sync when schedule is loaded / changed
+  useEffect(() => {
+    setBinsVariant((cleaningBinsVariant ?? 0) as 0 | 1 | 2 | 3);
+  }, [cleaningBinsVariant]);
 
   const cycleBinsVariant = () => {
     if (readOnly) {
       blockReadOnly();
       return;
     }
-    setBinsVariant((prev) => ((prev + 1) % 4) as 0 | 1 | 2 | 3);
+
+    setBinsVariant((prev) => {
+      const next = ((prev + 1) % 4) as 0 | 1 | 2 | 3;
+      // write-through to schedule so Save & Exit can persist it
+      updateSchedule?.({ cleaningBinsVariant: next });
+      return next;
+    });
   };
 
   const isBinsChore = (chore: Chore) => {
