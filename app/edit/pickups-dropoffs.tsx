@@ -167,9 +167,8 @@ export default function PickupsDropoffsScreen() {
     push('Dropoff location updated', 'pickups');
   };
 
-  // Hide staff cards with no dropoffs if requested
+  // Merge working staff and selected helpers, de-duplicated by id
   const staffForCards = useMemo(() => {
-    // Merge working staff and selected helpers, de-duplicated by id
     const merged = [...workingStaffList, ...helperStaffList];
     const byId = new Map<ID, (typeof staff)[number]>();
 
@@ -189,10 +188,10 @@ export default function PickupsDropoffsScreen() {
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>(
     {},
   );
+  const [helpersCollapsed, setHelpersCollapsed] = useState(true); // NEW: helpers auto-hidden
 
   const togglePickup = (pid: ID) => {
     if (readOnly) {
-      console.log("READ-ONLY BLOCK TRIGGERED");
       push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
@@ -270,7 +269,7 @@ export default function PickupsDropoffsScreen() {
 
           {/* PICKUPS */}
           <View style={{ marginTop: 16 }}>
-            <View style={styles.dropoffsHeaderRow}>
+            <View className="dropoffsHeaderRow" style={styles.dropoffsHeaderRow}>
               <Text style={styles.sectionTitle}>Pickups</Text>
               {attending.length > 0 && (
                 <TouchableOpacity
@@ -330,42 +329,55 @@ export default function PickupsDropoffsScreen() {
           <View style={{ marginTop: 24 }}>
             <View style={styles.dropoffsHeaderRow}>
               <Text style={styles.sectionTitle}>Helpers</Text>
+              <TouchableOpacity
+                onPress={() => setHelpersCollapsed((v) => !v)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.hideToggle}>
+                  {helpersCollapsed ? 'Show helpers list' : 'Hide helpers list'}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.sectionSub}>
-              Helpers are staff who aren&apos;t working at B2 but can support
-              pickups and dropoffs. Tap to add or remove helpers.
-            </Text>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 8 }}
-            >
-              <View style={styles.chipRow}>
-                {staff
-                  .filter((s) => !workingSet.has(String(s.id)) && !isEveryone(s.name))
-                  .map((s) => {
-                    const selected = helperSet.has(String(s.id));
-                    return (
-                      <TouchableOpacity
-                        key={s.id}
-                        onPress={() => toggleHelper(s.id as ID)}
-                        activeOpacity={0.85}
-                        style={[styles.chip, selected && styles.chipSel]}
-                      >
-                        <Text
-                          style={[
-                            styles.chipTxt,
-                            selected && styles.chipTxtSel,
-                          ]}
-                        >
-                          {s.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-              </View>
-            </ScrollView>
+            {!helpersCollapsed && (
+              <>
+                <Text style={styles.sectionSub}>
+                  Helpers are staff who aren&apos;t working at B2 but can support
+                  pickups and dropoffs. Tap to add or remove helpers.
+                </Text>
+
+                <View style={{ paddingVertical: 8 }}>
+                  <View style={styles.chipRow}>
+                    {staff
+                      .filter(
+                        (s) =>
+                          !workingSet.has(String(s.id)) &&
+                          !isEveryone(s.name),
+                      )
+                      .map((s) => {
+                        const selected = helperSet.has(String(s.id));
+                        return (
+                          <TouchableOpacity
+                            key={s.id}
+                            onPress={() => toggleHelper(s.id as ID)}
+                            activeOpacity={0.85}
+                            style={[styles.chip, selected && styles.chipSel]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipTxt,
+                                selected && styles.chipTxtSel,
+                              ]}
+                            >
+                              {s.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
           {/* DROPOFFS */}
