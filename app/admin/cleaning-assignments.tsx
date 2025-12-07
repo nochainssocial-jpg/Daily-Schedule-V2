@@ -218,9 +218,6 @@ const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
         const summaryArr = Object.values(staffSummary).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
-const summaryArr = Object.values(staffSummary).sort((a, b) =>
-          a.name.localeCompare(b.name, 'en-AU'),
-        );
 
         if (!cancelled) {
           setRows(summaryArr);
