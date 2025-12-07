@@ -20,10 +20,10 @@ type ID = string;
 const MAX_WIDTH = 880;
 const ACCENT = '#10B981'; // emerald to match Edit Hub tile
 
-const isEveryone = (name?: string | null) =>
-  (name || '').trim().toLowerCase() === 'everyone';
+const isEveryone = (name: string | null | undefined) =>
+  typeof name === 'string' && name.trim().toLowerCase() === 'everyone';
 
-export default function EditPickupsDropoffsScreen() {
+export default function PickupsDropoffsScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
@@ -45,24 +45,14 @@ export default function EditPickupsDropoffsScreen() {
     dropoffLocations,
     updateSchedule,
   } = useSchedule();
+
   const { push } = useNotifications();
-
-  const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
-  const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>({});
-  const [showHelpers, setShowHelpers] = useState(false);
-  const [showAllPickupCandidates, setShowAllPickupCandidates] =
-    useState(false);
-
-  const staffById = useMemo(
-    () => new Map(staff.map((s) => [s.id as ID, s])),
-    [staff],
-  );
 
   const attending = useMemo(
     () =>
-      participants
-        .filter((p) => attendingParticipants.includes(p.id))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+      participants.filter((p) =>
+        attendingParticipants.includes(p.id as ID),
+      ),
     [participants, attendingParticipants],
   );
 
@@ -87,18 +77,6 @@ export default function EditPickupsDropoffsScreen() {
       staff
         .filter(
           (s) => workingSet.has(String(s.id)) && !isEveryone(s.name),
-        )
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [staff, workingSet],
-  );
-
-  // Helpers = staff not working @ B2, excluding "Everyone"
-  const helperPool = useMemo(
-    () =>
-      staff
-        .filter(
-          (s) =>
-            !workingSet.has(String(s.id)) && !isEveryone(s.name),
         )
         .sort((a, b) => a.name.localeCompare(b.name)),
     [staff, workingSet],
@@ -194,23 +172,23 @@ export default function EditPickupsDropoffsScreen() {
     // Merge working staff and selected helpers, de-duplicated by id
     const merged = [...workingStaffList, ...helperStaffList];
     const byId = new Map<ID, (typeof staff)[number]>();
+
     merged.forEach((s) => {
-      if (!byId.has(s.id as ID)) {
-        byId.set(s.id as ID, s);
-      }
+      if (!s.id) return;
+      byId.set(s.id as ID, s);
     });
 
-    const list = Array.from(byId.values()).sort((a, b) =>
+    return Array.from(byId.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
+  }, [workingStaffList, helperStaffList, staff]);
 
-    if (!hideEmptyStaff) return list;
-
-    return list.filter((s) => {
-      const assignedList = assignments[s.id as ID];
-      return Array.isArray(assignedList) && assignedList.length > 0;
-    });
-  }, [workingStaffList, helperStaffList, assignments, hideEmptyStaff, staff]);
+  const [showAllPickupCandidates, setShowAllPickupCandidates] =
+    useState(false);
+  const [hideEmptyStaff, setHideEmptyStaff] = useState(false);
+  const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>(
+    {},
+  );
 
   const togglePickup = (pid: ID) => {
     if (readOnly) {
@@ -221,7 +199,7 @@ export default function EditPickupsDropoffsScreen() {
     if (current.has(pid)) current.delete(pid);
     else current.add(pid);
     updateSchedule({ pickupParticipants: Array.from(current) });
-    push('Pickups updated', 'pickups');
+    push('Pickup participants updated', 'pickups');
   };
 
   const toggleHelper = (sid: ID) => {
@@ -313,24 +291,24 @@ export default function EditPickupsDropoffsScreen() {
               can add or remove pickups here even after the schedule wizard has
               been completed.
             </Text>
-            <View style={styles.chipRow}>
-              {attending
-                .filter(
-                  (p) =>
-                    showAllPickupCandidates ||
-                    pickupsSet.has(p.id as ID),
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 8 }}
+            >
+              <View style={styles.chipRow}>
+                {(showAllPickupCandidates ? attending : attending.filter((p) =>
+                  pickupsSet.has(p.id as ID),
                 )
-                .map((p) => {
+                ).map((p) => {
                   const selected = pickupsSet.has(p.id as ID);
                   return (
                     <TouchableOpacity
                       key={p.id}
                       onPress={() => togglePickup(p.id as ID)}
                       activeOpacity={0.85}
-                      style={[
-                        styles.chip,
-                        selected && styles.chipSel,
-                      ]}
+                      style={[styles.chip, selected && styles.chipSel]}
                     >
                       <Text
                         style={[
@@ -343,68 +321,54 @@ export default function EditPickupsDropoffsScreen() {
                     </TouchableOpacity>
                   );
                 })}
-            </View>
-            {attending.length === 0 && (
-              <Text style={styles.emptyHint}>
-                No attending participants have been set for today yet.
-              </Text>
-            )}
-            {!pickupsSet.size && attending.length > 0 && !showAllPickupCandidates && (
-              <Text style={styles.emptyHint}>
-                No pickups selected yet. Switch to &quot;Show all attendees&quot;
-                to choose pickups.
-              </Text>
-            )}
+              </View>
+            </ScrollView>
           </View>
 
           {/* HELPERS */}
           <View style={{ marginTop: 24 }}>
             <View style={styles.dropoffsHeaderRow}>
-              <Text style={styles.sectionTitle}>Helpers (optional)</Text>
-              {helperPool.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setShowHelpers((v) => !v)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.hideToggle}>
-                    {showHelpers ? 'Hide helpers' : 'Show helpers'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <Text style={styles.sectionTitle}>Helpers</Text>
             </View>
             <Text style={styles.sectionSub}>
-              Select staff who will assist with pickups and dropoffs. Only team
-              members not working at B2 are shown here.
+              Helpers are staff who aren&apos;t working at B2 but can support
+              pickups and dropoffs. Tap to add or remove helpers.
             </Text>
 
-            {showHelpers && helperPool.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 8 }}
+            >
               <View style={styles.chipRow}>
-                {helperPool.map((s) => {
-                  const selected = (helperStaff || []).includes(s.id as ID);
-                  return (
-                    <TouchableOpacity
-                      key={s.id}
-                      onPress={() => toggleHelper(s.id as ID)}
-                      activeOpacity={0.85}
-                      style={[styles.chip, selected && styles.chipSel]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipTxt,
-                          selected && styles.chipTxtSel,
-                        ]}
+                {staff
+                  .filter((s) => !workingSet.has(String(s.id)) && !isEveryone(s.name))
+                  .map((s) => {
+                    const selected = helperSet.has(String(s.id));
+                    return (
+                      <TouchableOpacity
+                        key={s.id}
+                        onPress={() => toggleHelper(s.id as ID)}
+                        activeOpacity={0.85}
+                        style={[styles.chip, selected && styles.chipSel]}
                       >
-                        {s.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                        <Text
+                          style={[
+                            styles.chipTxt,
+                            selected && styles.chipTxtSel,
+                          ]}
+                        >
+                          {s.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
               </View>
-            )}
+            </ScrollView>
           </View>
 
-          {/* DROPOFFS – cards per staff */}
-          <View style={{ marginTop: 24 }}>
+          {/* DROPOFFS */}
+          <View style={{ marginTop: 24, marginBottom: 20 }}>
             <View style={styles.dropoffsHeaderRow}>
               <Text style={styles.sectionTitle}>Dropoffs</Text>
               <TouchableOpacity
@@ -429,13 +393,14 @@ export default function EditPickupsDropoffsScreen() {
                 (p) => participantAssignedTo.get(p.id as ID) === s.id,
               );
 
-              const visibleForStaff = visibleDropoffParticipants.filter((p) => {
-                const assignedStaff = participantAssignedTo.get(p.id as ID);
-                return !assignedStaff || assignedStaff === (s.id as ID);
-              });
+              const visibleForStaff = visibleDropoffParticipants;
 
               const hasAssigned = assigned.length > 0;
               const collapsed = collapsedStaff[s.id as ID] ?? !hasAssigned;
+
+              if (hideEmptyStaff && !hasAssigned) {
+                return null;
+              }
 
               return (
                 <View key={s.id} style={styles.assignmentCard}>
@@ -531,117 +496,113 @@ export default function EditPickupsDropoffsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFE4E6',
+    backgroundColor: '#F9FAFB',
   },
   heroIcon: {
     position: 'absolute',
-    top: '25%',
-    left: '10%',
-    opacity: 1,
-    zIndex: 0,
+    right: -40,
+    top: 40,
+    opacity: 0.08,
   },
   scroll: {
-    paddingVertical: 32,
+    paddingBottom: 120,
     alignItems: 'center',
-    paddingBottom: 160,
   },
   inner: {
     width: '100%',
     maxWidth: MAX_WIDTH,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#3C234C',
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
   },
   subtitle: {
-    fontSize: 13,
-    color: '#6B5B7A',
+    fontSize: 14,
+    color: '#4B5563',
+    marginTop: 4,
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#3C234C',
+    color: '#111827',
   },
   sectionSub: {
-    fontSize: 12,
-    color: '#7B688C',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: 8,
-    rowGap: 8,
-    marginTop: 4,
-  },
-  chip: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#CCF4E1',
-    backgroundColor: '#FFFFFF',
-  },
-  chipSel: {
-    backgroundColor: ACCENT,
-    borderColor: ACCENT,
-  },
-  chipTxt: {
     fontSize: 13,
-    color: '#3C234C',
-  },
-  chipTxtSel: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: '#4B5563',
+    marginTop: 4,
   },
   dropoffsHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
   },
   hideToggle: {
     fontSize: 12,
     color: ACCENT,
     fontWeight: '600',
   },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  chip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  chipSel: {
+    backgroundColor: '#ECFEFF',
+    borderColor: '#0EA5E9',
+  },
+  chipTxt: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  chipTxtSel: {
+    color: '#0369A1',
+    fontWeight: '600',
+  },
   assignmentCard: {
     marginTop: 12,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E0D0F0',
+    borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
   },
   assignmentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    columnGap: 8,
-    marginBottom: 4,
+    justifyContent: 'space-between',
   },
   rect: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: '#E6ECF5',
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    marginRight: 8,
   },
   assignmentName: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#3C234C',
+    fontWeight: '600',
+    color: '#111827',
   },
   assignedSummary: {
     fontSize: 12,
-    color: '#7B688C',
+    color: '#6B7280',
+    marginTop: 2,
   },
   emptyHint: {
-    fontSize: 12,
-    color: '#9B8DA9',
+    fontSize: 13,
+    color: '#6B7280',
     marginTop: 8,
   },
 });
