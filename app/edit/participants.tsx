@@ -376,6 +376,10 @@ export default function EditParticipantsScreen() {
           )}
 
           {/* Legend: onsite/outing, then behaviour risk + overall score bands */}
+          <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
+            Legend
+          </Text>
+
           <View style={[styles.legend, styles.legendCentered]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
