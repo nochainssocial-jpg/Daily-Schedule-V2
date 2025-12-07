@@ -316,11 +316,54 @@ export default function EditDreamTeamScreen() {
             </View>
           )}
 
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, styles.legendOnsite]} />
-            <Text style={styles.legendLabel}>Onsite at B2</Text>
-            <View style={[styles.legendDot, styles.legendOffsite]} />
-            <Text style={styles.legendLabel}>Out on Outing</Text>
+          {/* Legend: match Participants onsite/outing, plus rating + icon explainer */}
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, styles.legendOnsite]} />
+              <Text style={styles.legendLabel}>On-site at B2</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, styles.legendOffsite]} />
+              <Text style={styles.legendLabel}>On outing / off-site</Text>
+            </View>
+          </View>
+
+          <View style={[styles.legend, { marginTop: 12 }]}>
+            <View style={styles.legendItem}>
+              <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
+              <Text style={styles.legendLabel}>Developing / Junior</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
+              <Text style={styles.legendLabel}>Intermediate</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
+              <Text style={styles.legendLabel}>
+                Senior / highly experienced
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.legend, { marginTop: 12 }]}>
+            <View style={styles.legendItem}>
+              <MaterialCommunityIcons
+                name="account-supervisor"
+                size={18}
+                color="#1C5F87"
+              />
+              <Text style={styles.legendLabel}>
+                Training / mentoring shift today
+              </Text>
+            </View>
+            <View style={styles.legendItem}>
+              <MaterialCommunityIcons
+                name="account-star"
+                size={18}
+                color="#FBBF24"
+              />
+              <Text style={styles.legendLabel}>Senior staff highlight</Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -404,6 +447,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 24,
     gap: 16,
+    flexWrap: 'wrap',
   },
   legendItem: {
     flexDirection: 'row',
