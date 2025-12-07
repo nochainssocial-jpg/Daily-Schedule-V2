@@ -250,7 +250,7 @@ export default function EditDreamTeamScreen() {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-supervisor"
-          size={20}
+          size={22}
           color="#1C5F87"
         />
       );
@@ -258,7 +258,7 @@ export default function EditDreamTeamScreen() {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-star"
-          size={20}
+          size={22}
           color="#FBBF24"
         />
       );
@@ -320,18 +320,18 @@ export default function EditDreamTeamScreen() {
           <View style={styles.legend}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
-              <Text style={styles.legendLabel}>On-site at B2</Text>
+              <Text style={styles.legendLabel}>On-Site at B2</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOffsite]} />
-              <Text style={styles.legendLabel}>On outing / off-site</Text>
+              <Text style={styles.legendLabel}>On Outing / Off-Site</Text>
             </View>
           </View>
 
           <View style={[styles.legend, { marginTop: 12 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
-              <Text style={styles.legendLabel}>Developing / Junior</Text>
+              <Text style={styles.legendLabel}>Beginner / Junior</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
@@ -340,7 +340,7 @@ export default function EditDreamTeamScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
               <Text style={styles.legendLabel}>
-                Senior / highly experienced
+                Senior / Experienced
               </Text>
             </View>
           </View>
@@ -353,7 +353,7 @@ export default function EditDreamTeamScreen() {
                 color="#1C5F87"
               />
               <Text style={styles.legendLabel}>
-                Training / mentoring shift today
+                Training
               </Text>
             </View>
             <View style={styles.legendItem}>
@@ -362,7 +362,7 @@ export default function EditDreamTeamScreen() {
                 size={22}
                 color="#FBBF24"
               />
-              <Text style={styles.legendLabel}>Senior staff highlight</Text>
+              <Text style={styles.legendLabel}>Senior</Text>
             </View>
           </View>
         </View>
