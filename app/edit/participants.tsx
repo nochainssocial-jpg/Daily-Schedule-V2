@@ -663,5 +663,6 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     // optional: makes the text height hug the font a bit tighter
     lineHeight: 14,
+    marginBottom: 3,
   },
 });
