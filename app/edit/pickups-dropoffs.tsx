@@ -229,7 +229,12 @@ export default function PickupsDropoffsScreen() {
       push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
-    const current = { ...(dropoffAssignments || {}) } as Record<ID, ID[]>;
+
+    // Start from the normalised staffId -> participantIds mapping
+    const current: Record<ID, ID[]> = {};
+    Object.entries(assignments).forEach(([staffId, pids]) => {
+      current[staffId as ID] = [...(pids || [])] as ID[];
+    });
 
     let previousOwner: ID | null = null;
 
@@ -237,8 +242,9 @@ export default function PickupsDropoffsScreen() {
       if (!Array.isArray(pids)) return;
       if (pids.includes(pid)) {
         previousOwner = staffId as ID;
-        current[staffId as ID] = pids.filter((x) => x !== pid);
-        if (!current[staffId as ID].length) delete current[staffId as ID];
+        const filtered = pids.filter((x) => x !== pid);
+        if (filtered.length) current[staffId as ID] = filtered;
+        else delete current[staffId as ID];
       }
     });
 
@@ -250,7 +256,9 @@ export default function PickupsDropoffsScreen() {
     }
 
     const list = current[sid] || [];
-    current[sid] = [...list, pid];
+    if (!list.includes(pid)) {
+      current[sid] = [...list, pid];
+    }
     updateSchedule({ dropoffAssignments: current });
     push('Dropoff assignments updated', 'pickups');
   };
