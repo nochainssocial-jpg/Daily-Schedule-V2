@@ -550,13 +550,14 @@ export default function PickupsDropoffsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#ffcaae',
   },
   heroIcon: {
     position: 'absolute',
-    right: -40,
-    top: 40,
-    opacity: 0.08,
+    top: '25%',
+    left: '10%',
+    opacity: 1,
+    zIndex: 0,
   },
   scroll: {
     paddingBottom: 120,
