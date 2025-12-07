@@ -376,67 +376,68 @@ export default function EditParticipantsScreen() {
           )}
 
           {/* Legend: onsite/outing, then behaviour risk + overall score bands */}
-          <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
-            Legend
-          </Text>
-
-          <View style={[styles.legend, styles.legendCentered]}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, styles.legendOnsite]} />
-              <Text style={styles.legendLabel}>On-site</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, styles.legendOffsite]} />
-              <Text style={styles.legendLabel}>On outing</Text>
-            </View>
-          </View>
-
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
-            <View style={styles.legendItem}>
-              <View style={[styles.riskBadge, styles.riskBadgeLow]}>
-                <Text style={styles.riskBadgeText}>L</Text>
-              </View>
-              <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
-                <Text style={styles.riskBadgeText}>M</Text>
-              </View>
-              <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
-                <Text style={styles.riskBadgeText}>H</Text>
-              </View>
-              <Text style={styles.legendLabel}>High Risk Behaviour</Text>
-            </View>
-          </View>
-
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
-            <View style={styles.legendItem}>
-              <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
-                <Text style={styles.scoreBubbleText}>L</Text>
-              </View>
-              <Text style={styles.legendLabel}>
-                Low Complexity
+              <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
+                Legend
               </Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
-                <Text style={styles.scoreBubbleText}>M</Text>
+              
+              <View style={styles.legendCard}>
+                <View style={[styles.legend, styles.legendCentered]}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendSwatch, styles.legendOnsite]} />
+                    <Text style={styles.legendLabel}>On-site</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendSwatch, styles.legendOffsite]} />
+                    <Text style={styles.legendLabel}>On outing</Text>
+                  </View>
+                </View>
+              
+                <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.riskBadge, styles.riskBadgeLow]}>
+                      <Text style={styles.riskBadgeText}>L</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
+                  </View>
+              
+                  <View style={styles.legendItem}>
+                    <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
+                      <Text style={styles.riskBadgeText}>M</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
+                  </View>
+              
+                  <View style={styles.legendItem}>
+                    <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
+                      <Text style={styles.riskBadgeText}>H</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>High Risk Behaviour</Text>
+                  </View>
+                </View>
+              
+                <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
+                      <Text style={styles.scoreBubbleText}>L</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Low Complexity</Text>
+                  </View>
+              
+                  <View style={styles.legendItem}>
+                    <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
+                      <Text style={styles.scoreBubbleText}>M</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Moderate Complexity</Text>
+                  </View>
+              
+                  <View style={styles.legendItem}>
+                    <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
+                      <Text style={styles.scoreBubbleText}>H</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Highly Complex</Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.legendLabel}>Moderate complexity</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
-                <Text style={styles.scoreBubbleText}>H</Text>
-              </View>
-              <Text style={styles.legendLabel}>
-                Highly complexity
-              </Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -632,7 +633,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
   },
-
+  legendCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
