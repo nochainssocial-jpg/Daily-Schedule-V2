@@ -224,9 +224,6 @@ export default function DailyAssignmentsReportScreen() {
         const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
-const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
-          a.name.localeCompare(b.name, 'en-AU'),
-        );
 
         if (!cancelled) {
           setRows(summaryArr);
