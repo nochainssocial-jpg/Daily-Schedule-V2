@@ -90,7 +90,18 @@ export default function PickupsDropoffsScreen() {
     [staff, helperSet],
   );
 
-  // Normalise dropoff assignments so values are always ID[]
+  // NEW: map of staffId -> staff row (for detecting legacy shapes)
+  const staffById = useMemo(() => {
+    const map = new Map<ID, (typeof staff)[number]>();
+    staff.forEach((s) => {
+      if (s.id) {
+        map.set(s.id as ID, s);
+      }
+    });
+    return map;
+  }, [staff]);
+
+  // Normalise dropoff assignments so values are always staffId -> participantId[]
   const assignments = React.useMemo(() => {
     const raw = (dropoffAssignments || {}) as Record<ID, any>;
     const normalised: Record<ID, ID[]> = {};
@@ -198,7 +209,7 @@ export default function PickupsDropoffsScreen() {
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>(
     {},
   );
-  const [helpersCollapsed, setHelpersCollapsed] = useState(true); // NEW: helpers auto-hidden
+  const [helpersCollapsed, setHelpersCollapsed] = useState(true); // helpers auto-hidden
 
   const togglePickup = (pid: ID) => {
     if (readOnly) {
