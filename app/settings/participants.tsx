@@ -1012,16 +1012,16 @@ const styles = StyleSheet.create({
   },
 
   pillSelectedLow: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
+    backgroundColor: '#D4F8E3',
+    borderColor: '#4CAF50',
   },
   pillSelectedMedium: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a',
+    backgroundColor: '#FFF5D0',
+    borderColor: '#FFC107',
   },
   pillSelectedHigh: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
+    backgroundColor: '#FFE0E0',
+    borderColor: '#F44336',
   },
 
   pillMinus: {
