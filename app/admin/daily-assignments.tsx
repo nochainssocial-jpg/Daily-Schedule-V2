@@ -165,6 +165,7 @@ export default function DailyAssignmentsReportScreen() {
           }
         }
 
+        
         const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Mon: [],
           Tue: [],
@@ -173,6 +174,8 @@ export default function DailyAssignmentsReportScreen() {
           Fri: [],
         });
 
+        // Group by normalised staff *name* so the same person doesn't
+        // appear multiple times if their ID changed between days.
         const summaryByStaff: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
@@ -195,15 +198,20 @@ export default function DailyAssignmentsReportScreen() {
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
             if (!staffId || !Array.isArray(participantIds)) return;
 
-            if (!summaryByStaff[staffId]) {
-              summaryByStaff[staffId] = {
+            const staffName = staffById[staffId] ?? staffId;
+            const key = staffName
+              ? staffName.trim().toLowerCase()
+              : String(staffId);
+
+            if (!summaryByStaff[key]) {
+              summaryByStaff[key] = {
                 staffId,
-                name: staffById[staffId] ?? staffId,
+                name: staffName,
                 byDay: makeEmptyDays(),
               };
             }
 
-            const row = summaryByStaff[staffId];
+            const row = summaryByStaff[key];
 
             participantIds.forEach((pid) => {
               const participantName = participantsById[pid];
@@ -214,6 +222,9 @@ export default function DailyAssignmentsReportScreen() {
         }
 
         const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
+          a.name.localeCompare(b.name, 'en-AU'),
+        );
+const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
 

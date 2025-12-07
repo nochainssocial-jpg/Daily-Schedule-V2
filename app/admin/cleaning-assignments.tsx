@@ -167,7 +167,8 @@ export default function CleaningAssignmentsReportScreen() {
           }
         }
 
-        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
+        
+const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Mon: [],
           Tue: [],
           Wed: [],
@@ -175,6 +176,8 @@ export default function CleaningAssignmentsReportScreen() {
           Fri: [],
         });
 
+        // Group by normalised staff *name* so the same person doesn't
+        // appear multiple times if their ID changed between days.
         const staffSummary: Record<string, CleaningRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
@@ -198,19 +201,24 @@ export default function CleaningAssignmentsReportScreen() {
             const choreLabel =
               CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
 
-            if (!staffSummary[staffId]) {
-              staffSummary[staffId] = {
+            const key = staffName.trim().toLowerCase();
+
+            if (!staffSummary[key]) {
+              staffSummary[key] = {
                 staffId,
                 name: staffName,
                 byDay: makeEmptyDays(),
               };
             }
 
-            staffSummary[staffId].byDay[label].push(choreLabel);
+            staffSummary[key].byDay[label].push(choreLabel);
           });
         }
 
         const summaryArr = Object.values(staffSummary).sort((a, b) =>
+          a.name.localeCompare(b.name, 'en-AU'),
+        );
+const summaryArr = Object.values(staffSummary).sort((a, b) =>
           a.name.localeCompare(b.name, 'en-AU'),
         );
 
