@@ -31,6 +31,7 @@ type StaffRow = {
   mobility_assistance?: number | null;
   communication_support?: number | null;
   reliability_rating?: number | null;
+  supervisor_notes?: string | null;
 };
 
 type Option = {
@@ -658,6 +659,20 @@ export default function StaffSettingsScreen() {
                             )}
                           </View>
                         </View>
+
+                        <View style={styles.notesSection}>
+                          <Text style={styles.notesLabel}>Supervisor comments</Text>
+                          <TextInput
+                            style={styles.notesInput}
+                            multiline
+                            value={s.supervisor_notes ?? ''}
+                            onChangeText={text =>
+                              updateStaff(s.id, 'supervisor_notes', text)
+                            }
+                            placeholder="Progress notes, training needs, reasons ratings changed…"
+                            placeholderTextColor="#a78bb7"
+                          />
+                        </View>
                       </View>
                     )}
                   </View>
@@ -1077,6 +1092,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#ef4444',
     fontWeight: '700',
+  },
+  notesSection: {
+    marginTop: 10,
+  },
+  notesLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#553a75',
+    marginBottom: 4,
+    marginTop: 2,
+  },
+  notesInput: {
+    minHeight: 70,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    backgroundColor: '#f8f4fb',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#332244',
   },
 });
 
