@@ -34,7 +34,7 @@ const CARDS: CardConfig[] = [
     title: 'The Dream Team (Working at B2)',
     description: 'Choose who is working at B2 today and who is away.',
     icon: 'people-circle-outline',
-    iconBg: '#FDE68A',
+    iconBg: '#ffd5b4',
     route: '/edit/dream-team',
   },
   {
