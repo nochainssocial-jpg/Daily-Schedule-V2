@@ -192,6 +192,7 @@ export default function PickupsDropoffsScreen() {
 
   const togglePickup = (pid: ID) => {
     if (readOnly) {
+      console.log("READ-ONLY BLOCK TRIGGERED");
       push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
