@@ -359,6 +359,7 @@ export default function EditDreamTeamScreen() {
                 </View>
               </View>
             </View>
+        </View>
       </ScrollView>
     </View>
   );
