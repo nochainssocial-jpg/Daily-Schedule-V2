@@ -380,7 +380,7 @@ export default function EditParticipantsScreen() {
             Legend
           </Text>
 
-          <View style={[styles.legend, styles.legendCentered]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
               <Text style={styles.legendLabel}>On-site</Text>
@@ -391,7 +391,7 @@ export default function EditParticipantsScreen() {
             </View>
           </View>
 
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.riskBadge, styles.riskBadgeLow]}>
                 <Text style={styles.riskBadgeText}>L</Text>
@@ -412,7 +412,7 @@ export default function EditParticipantsScreen() {
             </View>
           </View>
 
-          <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
+          <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
                 <Text style={styles.scoreBubbleText}>L</Text>
