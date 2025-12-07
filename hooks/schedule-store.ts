@@ -22,16 +22,16 @@ export type FloatingAssignments = {
   twins: ID | null;
 };
 
-export type CleaningAssignment = {
-  slotId: ID;
-  label: string;
-};
-
-export type CleaningAssignments = Record<ID, CleaningAssignment>;
+export type CleaningAssignments = Record<ID, ID | null>;
 
 export type DropoffAssignment = {
   staffId: ID | null;
   locationId: number | null;
+};
+
+export type FinalChecklist = {
+  isPrinted: boolean;
+  isSigned: boolean;
 };
 
 export type ScheduleSnapshot = {
@@ -54,6 +54,10 @@ export type ScheduleSnapshot = {
 
   // Cleaning / chores
   cleaningAssignments: CleaningAssignments;
+
+  // Special bins variant for "Take the bins out" task
+  // 0 = default, 1 = red + yellow, 2 = red + green, 3 = bring in & clean
+  cleaningBinsVariant?: 0 | 1 | 2 | 3;
 
   // Helper staff (single person backing up)
   helperStaff: ID | null;
@@ -80,29 +84,26 @@ export type ScheduleBannerType = 'created' | 'loaded' | 'prefilled';
 
 export type ScheduleBanner = {
   type: ScheduleBannerType;
-  scheduleDate: string; // YYYY-MM-DD for the schedule being edited
-  sourceDate?: string;  // YYYY-MM-DD for the older schedule we reused, when type === 'prefilled'
-  message?: string;     // Optional preformatted message (not used yet, we compute in component)
+  scheduleDate: string; // YYYY-MM-DD for the schedule being edit
 };
 
 export type ScheduleState = ScheduleSnapshot & {
-  // Wizard / UI state
   scheduleStep: number;
   selectedDate?: string;
 
-  // Banner + auto-init state
   banner: ScheduleBanner | null;
-  currentInitDate?: string;
   hasInitialisedToday: boolean;
+  currentInitDate?: string;
 
-  // Cleaning history snapshots for fairness
+  // prior snapshots for cleaning fairness
   recentCleaningSnapshots: ScheduleSnapshot[];
 
-  // Core ops
+  // core actions
   createSchedule: (snapshot: ScheduleSnapshot) => Promise<void> | void;
   patchSchedule: (patch: Partial<ScheduleSnapshot>) => void;
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
 
+  // wizard helpers
   setScheduleStep: (step: number) => void;
   setSelectedDate: (date?: string) => void;
 
@@ -132,6 +133,7 @@ function makeInitialSnapshot(): ScheduleSnapshot {
       twins: null,
     },
     cleaningAssignments: {},
+    cleaningBinsVariant: 0,
     helperStaff: null,
     dropoffAssignments: {},
     dropoffLocations: {},
@@ -141,24 +143,28 @@ function makeInitialSnapshot(): ScheduleSnapshot {
   };
 }
 
-function normalizeDropoffAssignments(raw: any): Record<ID, DropoffAssignment | null> {
-  const result: Record<ID, DropoffAssignment | null> = {};
+function normalizeDropoffAssignments(
+  value: ScheduleSnapshot['dropoffAssignments'] | undefined | null,
+): ScheduleSnapshot['dropoffAssignments'] {
+  const result: ScheduleSnapshot['dropoffAssignments'] = {};
 
-  if (!raw || typeof raw !== 'object') {
+  if (!value || typeof value !== 'object') {
     return result;
   }
 
-  Object.entries(raw as Record<string, any>).forEach(([key, value]) => {
-    if (!value) {
+  for (const [key, assignment] of Object.entries(value)) {
+    if (!assignment) {
       result[key as ID] = null;
-      return;
+      continue;
     }
+
+    const v = assignment as any;
 
     // Newer shape: { staffId, locationId }
     if (
-      typeof value === 'object' &&
-      Object.prototype.hasOwnProperty.call(value, 'staffId') &&
-      Object.prototype.hasOwnProperty.call(value, 'locationId')
+      typeof v === 'object' &&
+      'staffId' in v &&
+      'locationId' in v
     ) {
       const staffId = (value as any).staffId as ID | null;
       const locationId =
@@ -170,7 +176,7 @@ function normalizeDropoffAssignments(raw: any): Record<ID, DropoffAssignment | n
         staffId,
         locationId,
       };
-      return;
+      continue;
     }
 
     // Older shape: staffId only
@@ -179,7 +185,7 @@ function normalizeDropoffAssignments(raw: any): Record<ID, DropoffAssignment | n
       staffId,
       locationId: null,
     };
-  });
+  }
 
   return result;
 }
@@ -191,38 +197,24 @@ function normalizeDropoffAssignments(raw: any): Record<ID, DropoffAssignment | n
 export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
 
-  // wizard / UI state
-  scheduleStep: 1,
+  scheduleStep: 0,
   selectedDate: undefined,
 
-  // banner/init
   banner: null,
-  currentInitDate: undefined,
   hasInitialisedToday: false,
+  currentInitDate: undefined,
 
-  // Cleaning history for fairness-aware auto-assignments
   recentCleaningSnapshots: [],
 
-  // Create / replace full schedule
   createSchedule: (snapshot: ScheduleSnapshot) =>
-    set((state) => {
-      const normalizedDropoffs = normalizeDropoffAssignments(
-        (snapshot as any).dropoffAssignments,
-      );
-
-      const normalizedSnapshot: ScheduleSnapshot = {
-        ...makeInitialSnapshot(),
-        ...snapshot,
-        dropoffAssignments: normalizedDropoffs,
-      };
-
-      return {
+    new Promise<void>((resolve) => {
+      set((state) => ({
         ...state,
-        ...normalizedSnapshot,
-      };
+        ...snapshot,
+      }));
+      resolve();
     }),
 
-  // Patch schedule with some changes and clean dependent state
   patchSchedule: (patch: Partial<ScheduleSnapshot>) =>
     set((state) => {
       const next: ScheduleState = {
@@ -230,151 +222,92 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         ...patch,
       };
 
-      // If workingStaff changed, clean dependent assignments
-      if (patch.workingStaff) {
-        const oldStaff = state.workingStaff;
-        const newStaff = patch.workingStaff;
-        const removed = oldStaff.filter((id) => !newStaff.includes(id));
-
-        if (removed.length > 0) {
-          // 1) Team daily assignments
-          const newAssignments = { ...next.assignments };
-          for (const [pid, sid] of Object.entries(newAssignments)) {
-            if (sid && removed.includes(sid as ID)) {
-              newAssignments[pid as ID] = null;
-            }
-          }
-          next.assignments = newAssignments;
-
-          // 2) Floating
-          const newFloating = { ...next.floatingAssignments };
-          (['frontRoom', 'scotty', 'twins'] as const).forEach((key) => {
-            const sid = newFloating[key];
-            if (sid && removed.includes(sid)) {
-              newFloating[key] = null;
-            }
-          });
-          next.floatingAssignments = newFloating;
-
-          // 3) Cleaning
-          const newCleaning = { ...next.cleaningAssignments };
-          for (const [sid, slot] of Object.entries(newCleaning)) {
-            if (removed.includes(sid as ID)) {
-              delete newCleaning[sid as ID];
-            }
-          }
-          next.cleaningAssignments = newCleaning;
-
-          // 4) Training staff – remove flags for staff no longer working
-          if (next.trainingStaffToday && next.trainingStaffToday.length) {
-            next.trainingStaffToday = next.trainingStaffToday.filter(
-              (id) => !removed.includes(id),
-            );
-          }
-
-          // 5) Helper staff
-          if (next.helperStaff && removed.includes(next.helperStaff)) {
-            next.helperStaff = null;
-          }
-
-          // 6) Dropoffs – clean staff & reindex locations
-          if (Object.keys(next.dropoffAssignments).length > 0) {
-            const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
-            for (const [pid, assignment] of Object.entries(
-              next.dropoffAssignments,
-            )) {
-              if (!assignment) {
-                newDropoffs[pid as ID] = null;
-                continue;
-              }
-              const { staffId, locationId } = assignment;
-              const keepStaff =
-                staffId && !removed.includes(staffId as ID)
-                  ? (staffId as ID)
-                  : null;
-
-              if (!keepStaff) {
-                newDropoffs[pid as ID] = null;
-              } else {
-                newDropoffs[pid as ID] = {
-                  staffId: keepStaff,
-                  locationId,
-                };
-              }
-            }
-            next.dropoffAssignments = newDropoffs;
-          }
-
-          // Locations themselves don’t depend on staff, but if you ever add
-          // per-staff locations, you’d clean here too.
-        }
-      }
-
-      // If attendingParticipants changed, clean assignments that refer to removed participants
-      if (patch.attendingParticipants) {
-        const oldAtt = state.attendingParticipants;
-        const newAtt = patch.attendingParticipants;
-        const removed = oldAtt.filter((id) => !newAtt.includes(id));
-
-        if (removed.length > 0) {
-          const newAssignments = { ...next.assignments };
-          const newDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
-
-          for (const [pid, sid] of Object.entries(newAssignments)) {
-            if (removed.includes(pid as ID)) {
-              delete newAssignments[pid as ID];
-            }
-          }
-
-          for (const [pid, assignment] of Object.entries(
-            next.dropoffAssignments,
-          )) {
-            if (removed.includes(pid as ID)) {
-              continue;
-            }
-            newDropoffs[pid as ID] = assignment;
-          }
-
-          next.assignments = newAssignments;
-          next.dropoffAssignments = newDropoffs;
-        }
+      // Normalise dropoffs
+      if (patch.dropoffAssignments) {
+        const normalizedDropoffs = normalizeDropoffAssignments(
+          patch.dropoffAssignments,
+        );
+        next.dropoffAssignments = normalizedDropoffs;
       }
 
       return next;
     }),
 
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
-    const { patchSchedule } = get();
-    patchSchedule(patch);
+    set((state) => {
+      const next: ScheduleState = {
+        ...state,
+        ...patch,
+      };
+
+      // If there's at least one field changed, mark that we've touched the schedule
+      if (Object.keys(patch).length > 0) {
+        next.meta = {
+          ...(state.meta || {}),
+          from: state.meta?.from || 'create-wizard',
+        };
+      }
+
+      return next;
+    });
   },
 
-  setScheduleStep: (step: number) => set({ scheduleStep: step }),
-  setSelectedDate: (date?: string) => set({ selectedDate: date }),
+  setScheduleStep: (step: number) =>
+    set((state) => ({
+      ...state,
+      scheduleStep: step,
+    })),
 
-  setBanner: (banner: ScheduleBanner | null) => set({ banner }),
+  setSelectedDate: (date?: string) =>
+    set((state) => ({
+      ...state,
+      selectedDate: date,
+    })),
+
+  setBanner: (banner: ScheduleBanner | null) =>
+    set((state) => ({
+      ...state,
+      banner,
+    })),
+
   markInitialisedForDate: (date: string) =>
-    set({
+    set((state) => ({
+      ...state,
       hasInitialisedToday: true,
       currentInitDate: date,
-    }),
+    })),
 
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) =>
-    set({ recentCleaningSnapshots: snaps }),
+    set((state) => ({
+      ...state,
+      recentCleaningSnapshots: snaps,
+    })),
 
-  touch: () => set((state) => ({ ...state })),
+  touch: () =>
+    set((state) => ({
+      ...state,
+      meta: {
+        ...(state.meta || {}),
+        from: state.meta?.from || 'create-wizard',
+      },
+    })),
 }));
 
 // ----------------------------------------------------------------------------------
-// Derived helpers
+// Derived selectors
 // ----------------------------------------------------------------------------------
 
 export function useWorkingStaff() {
   const { staff, workingStaff } = useSchedule();
   return useMemo(
-    () => staff.filter((s) => workingStaff.includes(s.id)),
+    () =>
+      staff.filter((s) =>
+        workingStaff.includes(s.id as ID),
+      ),
     [staff, workingStaff],
   );
 }
+
 
 export function useAttendingParticipants() {
   const { participants, attendingParticipants } = useSchedule();
