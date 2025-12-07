@@ -20,7 +20,12 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
-import { getRiskBand, MAX_PARTICIPANT_SCORE, RISK_GRADIENT_COLORS, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
+import {
+  getRiskBand,
+  MAX_PARTICIPANT_SCORE,
+  RISK_GRADIENT_COLORS,
+  SCORE_BUBBLE_STYLES,
+} from '@/constants/ratingsTheme';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
 
@@ -153,7 +158,9 @@ export default function EditParticipantsScreen() {
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
 
-  const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
+  const [ratingMap, setRatingMap] = useState<
+    Record<string, ParticipantRatingRow>
+  >({});
 
   useEffect(() => {
     let isMounted = true;
@@ -284,7 +291,8 @@ export default function EditParticipantsScreen() {
 
                 const scoreStyles = [styles.scoreBubble];
                 if (level === 'low') scoreStyles.push(styles.scoreBubbleLow);
-                if (level === 'medium') scoreStyles.push(styles.scoreBubbleMedium);
+                if (level === 'medium')
+                  scoreStyles.push(styles.scoreBubbleMedium);
                 if (level === 'high') scoreStyles.push(styles.scoreBubbleHigh);
 
                 let riskLetter = '';
@@ -367,6 +375,7 @@ export default function EditParticipantsScreen() {
             </View>
           )}
 
+          {/* Legend: onsite/outing, then behaviour risk + overall score bands */}
           <View style={styles.legend}>
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOnsite]} />
@@ -375,6 +384,52 @@ export default function EditParticipantsScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, styles.legendOffsite]} />
               <Text style={styles.legendLabel}>On outing</Text>
+            </View>
+          </View>
+
+          <View style={[styles.legend, { marginTop: 12 }]}>
+            <View style={styles.legendItem}>
+              <View style={[styles.riskBadge, styles.riskBadgeLow]}>
+                <Text style={styles.riskBadgeText}>L</Text>
+              </View>
+              <Text style={styles.legendLabel}>Low behaviour risk</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
+                <Text style={styles.riskBadgeText}>M</Text>
+              </View>
+              <Text style={styles.legendLabel}>Medium risk</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
+                <Text style={styles.riskBadgeText}>H</Text>
+              </View>
+              <Text style={styles.legendLabel}>High risk</Text>
+            </View>
+          </View>
+
+          <View style={[styles.legend, { marginTop: 12 }]}>
+            <View style={styles.legendItem}>
+              <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
+                <Text style={styles.scoreBubbleText}>L</Text>
+              </View>
+              <Text style={styles.legendLabel}>
+                Lower overall complexity / support needs
+              </Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
+                <Text style={styles.scoreBubbleText}>M</Text>
+              </View>
+              <Text style={styles.legendLabel}>Moderate complexity</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
+                <Text style={styles.scoreBubbleText}>H</Text>
+              </View>
+              <Text style={styles.legendLabel}>
+                Higher complexity / support needs
+              </Text>
             </View>
           </View>
         </View>
@@ -498,7 +553,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   behaviourTrack: {
-    width: 110,          // or whatever width you like
+    width: 110,
     height: 10,
     borderRadius: 999,
     overflow: 'hidden',
@@ -579,6 +634,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 24,
     gap: 16,
+    flexWrap: 'wrap',
   },
   legendItem: {
     flexDirection: 'row',
