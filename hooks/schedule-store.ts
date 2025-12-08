@@ -160,12 +160,8 @@ function normalizeDropoffAssignments(
 
     const v = assignment as any;
 
-    // ✅ Newer shape coming from Supabase: { staffId, locationId }
-    if (
-      typeof v === 'object' &&
-      'staffId' in v &&
-      'locationId' in v
-    ) {
+    // Newer shape: { staffId, locationId }
+    if (typeof v === 'object' && 'staffId' in v && 'locationId' in v) {
       const staffId = (v.staffId ?? null) as ID | null;
       const locationId =
         typeof v.locationId === 'number' ? (v.locationId as number) : null;
@@ -177,7 +173,7 @@ function normalizeDropoffAssignments(
       continue;
     }
 
-    // ✅ Older shape: value is just a staffId string
+    // Older shape: value is a staffId string
     const staffId = (assignment as any) as ID | null;
     result[key as ID] = {
       staffId,

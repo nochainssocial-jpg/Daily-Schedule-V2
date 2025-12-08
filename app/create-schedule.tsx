@@ -1030,54 +1030,20 @@ export default function CreateScheduleScreen() {
       return;
     }
 
-    // 🔹 convert wizard rows → participant -> staff for persistFinish
-    const attendingSet = new Set<ID>(attendingParticipants || []);
+    // 🔹 convert wizard rows → map<ID, ID[]> for persistFinish
+    const attendingSet = new Set(attendingParticipants || []);
+    const assignmentsMap: Record<ID, ID[]> = {};
 
-    // participantId -> staffId (or null when unassigned)
-    const participantAssignments: Record<ID, ID | null> = {};
-
-    // Start everyone as unassigned
-    attendingSet.forEach((pid) => {
-      participantAssignments[pid] = null;
-    });
-
-    // Walk the wizard rows (staffId -> participantIds[]) and flip them
-    (assignments || []).forEach((row) => {
+    (assignments || []).forEach(row => {
       const sid = row.staffId as ID;
       if (!sid) return;
-
-      (row.participantIds || []).forEach((pid) => {
-        const participantId = pid as ID;
-        if (!attendingSet.has(participantId)) return;
-        // Last assignment wins if duplicated
-        participantAssignments[participantId] = sid;
-      });
+      const cleaned = (row.participantIds || []).filter(pid =>
+        attendingSet.has(pid),
+      );
+      assignmentsMap[sid] = cleaned;
     });
 
-    // 🔹 Convert wizard dropoffAssignments (staffId -> participantIds[])
-    //    into canonical map (participantId -> { staffId, locationId })
-    const canonicalDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
-
-    Object.entries(dropoffAssignments || {}).forEach(([sid, pids]) => {
-      if (!Array.isArray(pids)) return;
-
-      (pids as ID[]).forEach((pid) => {
-        const participantId = pid as ID;
-        if (!attendingSet.has(participantId)) return;
-
-        const locIndex =
-          dropoffLocations && typeof dropoffLocations[participantId] === 'number'
-            ? (dropoffLocations[participantId] as number)
-            : null;
-
-        canonicalDropoffs[participantId] = {
-          staffId: sid as ID,
-          locationId: locIndex,
-        };
-      });
-    });
-
-// 🔥 NEW — pull recent cleaning snapshots from the base schedule store
+    // 🔥 NEW — pull recent cleaning snapshots from the base schedule store
     // so persistFinish can apply “previous day / last week” fairness.
     let recentCleaningSnapshots: ScheduleSnapshot[] = [];
     try {
@@ -1098,14 +1064,14 @@ export default function CreateScheduleScreen() {
         participants: partsSource ?? [],
         workingStaff: realWorkers,
         attendingParticipants,
-        assignments: participantAssignments,
+        assignments: assignmentsMap,
         floatingDraft: {},
         cleaningDraft: {},
         finalChecklistDraft: {},
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments: canonicalDropoffs,
+        dropoffAssignments,
         date: selectedDate,
         // 🔥 pass history into fairness engine
         recentSnapshots: recentCleaningSnapshots,
@@ -1127,7 +1093,7 @@ export default function CreateScheduleScreen() {
         workingStaff: state.workingStaff ?? realWorkers,
         attendingParticipants: state.attendingParticipants ?? attendingParticipants,
 
-        assignments: state.assignments ?? participantAssignments,
+        assignments: state.assignments ?? assignmentsMap,
         floatingAssignments: state.floatingAssignments ?? {},
         cleaningAssignments: state.cleaningAssignments ?? {},
 
@@ -1136,7 +1102,7 @@ export default function CreateScheduleScreen() {
 
         pickupParticipants: state.pickupParticipants ?? pickupParticipants,
         helperStaff: state.helperStaff ?? helperStaff,
-        dropoffAssignments: state.dropoffAssignments ?? canonicalDropoffs,
+        dropoffAssignments: state.dropoffAssignments ?? dropoffAssignments,
         dropoffLocations: Object.keys(dropoffLocations || {}).length ? dropoffLocations : (state.dropoffLocations ?? {}),
 
         // ✅ include outingGroup so Outings persists end-to-end
@@ -1157,14 +1123,14 @@ export default function CreateScheduleScreen() {
         participants: partsSource ?? [],
         workingStaff: realWorkers,
         attendingParticipants,
-        assignments: participantAssignments,
+        assignments: assignmentsMap,
         floatingAssignments: {},
         cleaningAssignments: {},
         finalChecklist: {},
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments: canonicalDropoffs,
+        dropoffAssignments,
         dropoffLocations: dropoffLocations || {},
         outingGroup: null,
         date: selectedDate,
