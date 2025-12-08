@@ -1105,7 +1105,7 @@ export default function CreateScheduleScreen() {
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments,
+        dropoffAssignments: canonicalDropoffs,
         date: selectedDate,
         // 🔥 pass history into fairness engine
         recentSnapshots: recentCleaningSnapshots,
