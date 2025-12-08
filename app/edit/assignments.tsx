@@ -339,8 +339,8 @@ React.useEffect(() => {
                 const isTraining = trainingSet.has(staffId);
                 const canAssign = !isTraining;
 
-                const staffAssigned = (assignmentsMap[staffId] || []).filter(
-                  (pid) => attendingSet.has(pid as ID),
+                const staffAssigned = attendingIds.filter(
+                  (pid) => assignmentsMap[pid] === staffId,
                 ) as ID[];
 
                 const assignedNames = staffAssigned
@@ -349,7 +349,7 @@ React.useEffect(() => {
                   .join(', ');
 
                 const availablePids = attendingIds.filter((pid) => {
-                  const owner = assignedByParticipant[pid];
+                  const owner = assignmentsMap[pid];
                   return !owner || owner === staffId;
                 });
 
