@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
   behaviourMeterContainer: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 2,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
     borderRadius: 8,
     alignSelf: 'center',
     shadowColor: '#000',
@@ -559,8 +559,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   behaviourTrack: {
-    width: 110,
-    height: 10,
+    width: 105,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
   },
