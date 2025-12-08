@@ -239,18 +239,16 @@ React.useEffect(() => {
     if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
 
     const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
-    const current = assignments as Record<ID, ID[]>;
+    const current = assignments as Record<ID, ID | null>;
     let changed = false;
-    const next: Record<ID, ID[]> = {};
+    const next: Record<ID, ID | null> = { ...current };
 
-    Object.entries(current).forEach(([sid, pids]) => {
-      if (!Array.isArray(pids)) return;
-      const key = sid as ID;
-      if (trainingIds.has(key)) {
-        if ((pids as ID[]).length > 0) changed = true;
-        return;
+    Object.entries(current).forEach(([pid, sid]) => {
+      if (!sid) return;
+      if (trainingIds.has(sid as ID)) {
+        next[pid as ID] = null;
+        changed = true;
       }
-      next[key] = pids as ID[];
     });
 
     if (changed) {
@@ -258,7 +256,8 @@ React.useEffect(() => {
     }
   }, [assignments, trainingStaffToday, updateSchedule]);
 
-  const assignmentsMap: Record<ID, ID[]> = (assignments || {}) as any;
+  // Canonical assignments: participantId -> staffId | null
+  const assignmentsMap: Record<ID, ID | null> = (assignments || {}) as any;
 
   const attendingIds: ID[] =
     (attendingParticipants && attendingParticipants.length
@@ -270,43 +269,28 @@ React.useEffect(() => {
   const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-  const assignedByParticipant: Record<ID, ID> = {};
-
-  Object.entries(assignmentsMap).forEach(([sid, pids]) => {
-    if (!Array.isArray(pids)) return;
-    (pids as ID[]).forEach((pid) => {
-      if (attendingSet.has(pid as ID)) {
-        assignedByParticipant[pid as ID] = sid as ID;
-      }
-    });
-  });
-
+// Helper: find current owner for a participant (if any)
+  const getOwner = (participantId: ID): ID | null => {
+    const sid = assignmentsMap[participantId];
+    return sid ? (sid as ID) : null;
+  };
   const handleToggle = (staffId: ID, participantId: ID) => {
     if (readOnly) {
       push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
-    const current = assignmentsMap || {};
-    const next: Record<ID, ID[]> = {};
 
-    Object.entries(current).forEach(([sid, pids]) => {
-      next[sid as ID] = Array.isArray(pids) ? [...(pids as ID[])] : [];
-    });
+    const current = (assignmentsMap || {}) as Record<ID, ID | null>;
+    const next: Record<ID, ID | null> = { ...current };
 
-    const currentOwner = assignedByParticipant[participantId];
+    const currentOwner = getOwner(participantId);
 
+    // If this staff already owns the participant, unassign them
     if (currentOwner && currentOwner === staffId) {
-      next[staffId] = (next[staffId] || []).filter((id) => id !== participantId);
+      next[participantId] = null;
     } else {
-      if (currentOwner) {
-        next[currentOwner] = (next[currentOwner] || []).filter(
-          (id) => id !== participantId,
-        );
-      }
-
-      const arr = next[staffId] || [];
-      if (!arr.includes(participantId)) arr.push(participantId);
-      next[staffId] = arr;
+      // Move participant from any previous owner to this staff
+      next[participantId] = staffId;
     }
 
     updateSchedule({ assignments: next });
