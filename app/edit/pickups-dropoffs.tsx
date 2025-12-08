@@ -331,58 +331,58 @@ export default function PickupsDropoffsScreen() {
             member.
           </Text>
 
-{/* PICKUPS */}
-<View style={{ marginTop: 16 }}>
-  <View style={styles.dropoffsHeaderRow}>
-    <Text style={styles.sectionTitle}>Pickups</Text>
-    {attending.length > 0 && (
-      <TouchableOpacity
-        onPress={() =>
-          setShowAllPickupCandidates((v) => !v)
-        }
-        activeOpacity={0.85}
-      >
-        <Text style={styles.hideToggle}>
-          {showAllPickupCandidates
-            ? 'Show selected only'
-            : 'Show all attendees'}
-        </Text>
-      </TouchableOpacity>
-    )}
-  </View>
-  <Text style={styles.sectionSub}>
-    Tap participants who will be picked up by external transport. You
-    can add or remove pickups here even after the schedule wizard has
-    been completed.
-  </Text>
-
-  <View style={{ paddingVertical: 8 }}>
-    <View style={styles.chipRow}>
-      {(showAllPickupCandidates
-        ? attending
-        : attending.filter((p) => pickupsSet.has(p.id as ID))
-      ).map((p) => {
-        const selected = pickupsSet.has(p.id as ID);
-        return (
-          <TouchableOpacity
-            key={p.id}
-            onPress={() => togglePickup(p.id as ID)}
-            activeOpacity={0.85}
-            style={[styles.chip, selected && styles.chipSel]}
-          >
-            <Text
-              style={[
-                styles.chipTxt,
-                selected && styles.chipTxtSel,
-              ]}
-            >
-              {p.name}
+          {/* PICKUPS */}
+          <View style={{ marginTop: 16 }}>
+            <View style={styles.dropoffsHeaderRow}>
+              <Text style={styles.sectionTitle}>Pickups</Text>
+              {attending.length > 0 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setShowAllPickupCandidates((v) => !v)
+                  }
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.hideToggle}>
+                    {showAllPickupCandidates
+                      ? 'Show selected only'
+                      : 'Show all attendees'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.sectionSub}>
+              Tap participants who will be picked up by external transport. You
+              can add or remove pickups here even after the schedule wizard has
+              been completed.
             </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  </View>
+
+            <View style={{ paddingVertical: 8 }}>
+              <View style={styles.chipRow}>
+                {(showAllPickupCandidates
+                  ? attending
+                  : attending.filter((p) => pickupsSet.has(p.id as ID))
+                ).map((p) => {
+                  const selected = pickupsSet.has(p.id as ID);
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => togglePickup(p.id as ID)}
+                      activeOpacity={0.85}
+                      style={[styles.chip, selected && styles.chipSel]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipTxt,
+                          selected && styles.chipTxtSel,
+                        ]}
+                      >
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
           {/* HELPERS */}
           <View style={{ marginTop: 24 }}>
