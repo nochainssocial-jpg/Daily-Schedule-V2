@@ -188,17 +188,6 @@ function normalizeDropoffAssignments(
   return result;
 }
 
-    // Older shape: staffId only
-    const staffId = value as ID | null;
-    result[key as ID] = {
-      staffId,
-      locationId: null,
-    };
-  }
-
-  return result;
-}
-
 // ----------------------------------------------------------------------------------
 // Store
 // ----------------------------------------------------------------------------------
