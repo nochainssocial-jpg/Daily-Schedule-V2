@@ -160,17 +160,15 @@ function normalizeDropoffAssignments(
 
     const v = assignment as any;
 
-    // Newer shape: { staffId, locationId }
+    // ✅ Newer shape: { staffId, locationId }
     if (
       typeof v === 'object' &&
       'staffId' in v &&
       'locationId' in v
     ) {
-      const staffId = (value as any).staffId as ID | null;
+      const staffId = (v.staffId ?? null) as ID | null;
       const locationId =
-        typeof (value as any).locationId === 'number'
-          ? (value as any).locationId
-          : null;
+        typeof v.locationId === 'number' ? (v.locationId as number) : null;
 
       result[key as ID] = {
         staffId,
@@ -178,6 +176,17 @@ function normalizeDropoffAssignments(
       };
       continue;
     }
+
+    // ✅ Older shape: value is just a staffId string
+    const staffId = (assignment as any) as ID | null;
+    result[key as ID] = {
+      staffId,
+      locationId: null,
+    };
+  }
+
+  return result;
+}
 
     // Older shape: staffId only
     const staffId = value as ID | null;
