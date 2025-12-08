@@ -568,8 +568,8 @@ export default function PickupsDropoffsScreen() {
             )}
           </View>
         </View>
+        </View>
       </ScrollView>
-      </View>
     </View>
   );
 }
