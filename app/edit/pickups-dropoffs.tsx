@@ -569,6 +569,7 @@ export default function PickupsDropoffsScreen() {
           </View>
         </View>
       </ScrollView>
+      </View>
     </View>
   );
 }
