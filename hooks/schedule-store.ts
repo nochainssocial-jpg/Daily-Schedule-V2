@@ -160,7 +160,7 @@ function normalizeDropoffAssignments(
 
     const v = assignment as any;
 
-    // ✅ Newer shape: { staffId, locationId }
+    // ✅ Newer shape coming from Supabase: { staffId, locationId }
     if (
       typeof v === 'object' &&
       'staffId' in v &&
