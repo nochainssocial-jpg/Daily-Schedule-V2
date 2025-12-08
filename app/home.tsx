@@ -44,6 +44,15 @@ export default function HomeScreen() {
         />
       )}
 
+            {/* NEW – I Heart NDIS logo on the left side (web only) */}
+      {showWebBranding && (
+        <Image
+          source={require('../assets/images/IheartNDIS.png')}
+          style={styles.leftBrandLogo}
+          resizeMode="contain"
+        />
+      )}
+
       {/* Round logo in top-right – web only */}
       {showWebBranding && (
         <Image
@@ -171,6 +180,15 @@ const styles = StyleSheet.create({
     height: 140,
     top: 40,
     right: 100,
+    opacity: 0.95,
+    pointerEvents: 'none',
+  },
+  leftBrandLogo: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    top: 40,
+    left: 100,
     opacity: 0.95,
     pointerEvents: 'none',
   },
