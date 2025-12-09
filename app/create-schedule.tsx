@@ -1054,6 +1054,23 @@ export default function CreateScheduleScreen() {
       });
     });
 
+        // 🔹 Auto-assign twins (Zara / Zoya) to "Everyone" if attending
+    const everyoneStaff = staffSource.find((s) => isEveryone(s.name));
+    if (everyoneStaff) {
+      attendingSet.forEach((pid) => {
+        const participant = partsSource.find((p) => p.id === pid);
+        if (!participant) return;
+
+        const n = nm(participant.name);
+        const isTwin = n === 'zara' || n === 'zoya';
+
+        // Only auto-assign if they don't already have someone
+        if (isTwin && participantAssignments[pid] == null) {
+          participantAssignments[pid] = everyoneStaff.id as ID;
+        }
+      });
+    }
+
     // 🔹 Convert wizard dropoffAssignments (staffId -> participantIds[])
     //    into canonical map (participantId -> { staffId, locationId })
     const canonicalDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
