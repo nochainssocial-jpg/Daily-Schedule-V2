@@ -23,14 +23,16 @@ export type Participant = {
   [key: string]: any;
 };
 
+// LEGACY type kept for backward compatibility in the validator.
+// Canonical storage now uses staffId -> participantIds[] for dropoffs.
 export type DropoffAssignment = {
   staffId: ID | null;
   locationId: number | null;
 };
 
 export type OutingGroup = {
-  start: string;
-  end: string;
+  start: string;          // canonical: "6:00AM"
+  end: string;            // canonical: "12:00PM"
   staffIds: ID[];
   participantIds: ID[];
 };
@@ -45,19 +47,29 @@ export type CanonicalSchedule = {
   trainingStaffToday: ID[];
   attendingParticipants: ID[];
 
-  // Participant -> staff mapping for daily assignments & cleaning
-  assignments: Record<ID, ID | null>;
+  // Canonical: staffId -> participantIds[] for DAILY ASSIGNMENTS
+  // (legacy participant -> staff mapping is converted in validateSchedule)
+  assignments: Record<ID, ID[]>;
+
+  // Floating is its own custom shape (slot -> { twins, scotty, frontRoom })
   floatingAssignments: Record<string, any>;
+
+  // Cleaning remains: participantId -> staffId | null
   cleaningAssignments: Record<ID, ID | null>;
 
   finalChecklist: Record<string, boolean>;
   finalChecklistStaff: ID | null;
 
   pickupParticipants: ID[];
+
+  // Helper staff IDs for pickups/dropoffs
   helperStaff: ID[];
 
-  // Participant-centric dropoff storage
-  dropoffAssignments: Record<ID, DropoffAssignment | null>;
+  // Canonical: staffId -> participantIds[] for dropoffs
+  // (legacy participant-centric shapes are converted in validateSchedule)
+  dropoffAssignments: Record<ID, ID[]>;
+
+  // Index of location per staff or participant (consumer decides how to interpret)
   dropoffLocations: Record<ID, number | null>;
 
   outingGroup: OutingGroup | null;
@@ -75,12 +87,17 @@ export function validateSchedule(raw: any): CanonicalSchedule {
   const fallbackArr = () => [] as ID[];
   const fallbackObj = <T>() => ({} as Record<ID, T>);
 
-  const date = typeof raw?.date === 'string' ? raw.date : new Date().toISOString().slice(0, 10);
+  const date =
+    typeof raw?.date === 'string'
+      ? raw.date
+      : new Date().toISOString().slice(0, 10);
 
   const staff = Array.isArray(raw?.staff) ? raw.staff : [];
   const participants = Array.isArray(raw?.participants) ? raw.participants : [];
 
-  const workingStaff = Array.isArray(raw?.workingStaff) ? raw.workingStaff : fallbackArr();
+  const workingStaff = Array.isArray(raw?.workingStaff)
+    ? raw.workingStaff
+    : fallbackArr();
   const trainingStaffToday = Array.isArray(raw?.trainingStaffToday)
     ? raw.trainingStaffToday
     : fallbackArr();
@@ -88,13 +105,41 @@ export function validateSchedule(raw: any): CanonicalSchedule {
     ? raw.attendingParticipants
     : fallbackArr();
 
-  const assignments: Record<ID, ID | null> = {};
+  // ---------------------------------------------------------------------------
+  // ASSIGNMENTS (canonical: staffId -> participantIds[])
+  // Supports legacy participantId -> staffId shape and new staffId -> participantIds[].
+  // ---------------------------------------------------------------------------
+  const assignments: Record<ID, ID[]> = {};
   if (raw?.assignments && typeof raw.assignments === 'object') {
-    Object.entries(raw.assignments).forEach(([pid, sid]) => {
-      assignments[pid as ID] = sid ? (sid as ID) : null;
+    Object.entries(raw.assignments).forEach(([key, value]) => {
+      const k = String(key);
+
+      // NEW SHAPE: staffId -> participantIds[]
+      if (Array.isArray(value)) {
+        const staffId = k as ID;
+        const list = (value as any[]).map((v) => String(v) as ID).filter(Boolean);
+        assignments[staffId] = Array.from(new Set(list));
+        return;
+      }
+
+      // LEGACY SHAPE: participantId -> staffId
+      if (typeof value === 'string' && value) {
+        const participantId = k as ID;
+        const staffId = String(value) as ID;
+        if (!assignments[staffId]) assignments[staffId] = [];
+        if (!assignments[staffId].includes(participantId)) {
+          assignments[staffId].push(participantId);
+        }
+        return;
+      }
+
+      // Anything else is ignored.
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // CLEANING ASSIGNMENTS (unchanged: participantId -> staffId | null)
+  // ---------------------------------------------------------------------------
   const cleaningAssignments: Record<ID, ID | null> = {};
   if (raw?.cleaningAssignments && typeof raw.cleaningAssignments === 'object') {
     Object.entries(raw.cleaningAssignments).forEach(([pid, sid]) => {
@@ -113,45 +158,120 @@ export function validateSchedule(raw: any): CanonicalSchedule {
       : {};
 
   const finalChecklistStaff =
-    typeof raw?.finalChecklistStaff === 'string' ? (raw.finalChecklistStaff as ID) : null;
+    typeof raw?.finalChecklistStaff === 'string'
+      ? (raw.finalChecklistStaff as ID)
+      : null;
 
   const pickupParticipants = Array.isArray(raw?.pickupParticipants)
     ? raw.pickupParticipants
     : fallbackArr();
-  const helperStaff = Array.isArray(raw?.helperStaff) ? raw.helperStaff : fallbackArr();
 
-  const dropoffAssignments: Record<ID, DropoffAssignment | null> = {};
+  const helperStaff = Array.isArray(raw?.helperStaff)
+    ? raw.helperStaff.map((id: any) => String(id) as ID)
+    : fallbackArr();
+
+  // ---------------------------------------------------------------------------
+  // DROPOFFS (canonical: staffId -> participantIds[])
+  // Supports:
+  //   - NEW SHAPE: staffId -> participantIds[]
+  //   - LEGACY SHAPE: participantId -> { staffId, locationId }
+  //   - LEGACY SHAPE: participantId -> staffId
+  // ---------------------------------------------------------------------------
+  const dropoffAssignments: Record<ID, ID[]> = {};
+  const dropoffLocations: Record<ID, number | null> = {};
+
   if (raw?.dropoffAssignments && typeof raw.dropoffAssignments === 'object') {
-    Object.entries(raw.dropoffAssignments).forEach(([pid, value]) => {
-      if (!value) {
-        dropoffAssignments[pid as ID] = null;
+    Object.entries(raw.dropoffAssignments).forEach(([key, value]) => {
+      const k = String(key);
+
+      // NEW SHAPE: staffId -> participantIds[]
+      if (Array.isArray(value)) {
+        const staffId = k as ID;
+        const pids = (value as any[]).map((v) => String(v) as ID).filter(Boolean);
+        dropoffAssignments[staffId] = Array.from(new Set(pids));
         return;
       }
-      const v = value as any;
-      const staffId =
-        v && typeof v.staffId === 'string'
-          ? (v.staffId as ID)
-          : (v?.staffId ?? null);
-      const locationId =
-        v && typeof v.locationId === 'number'
-          ? (v.locationId as number)
-          : null;
-      dropoffAssignments[pid as ID] = { staffId, locationId };
+
+      // LEGACY: participantId -> { staffId, locationId }
+      if (value && typeof value === 'object' && ('staffId' in (value as any))) {
+        const v = value as any;
+        const participantId = k as ID;
+        const staffId =
+          typeof v.staffId === 'string'
+            ? (v.staffId as ID)
+            : v.staffId
+            ? String(v.staffId)
+            : null;
+        if (staffId) {
+          if (!dropoffAssignments[staffId]) dropoffAssignments[staffId] = [];
+          if (!dropoffAssignments[staffId].includes(participantId)) {
+            dropoffAssignments[staffId].push(participantId);
+          }
+        }
+        // locationId will be handled separately via dropoffLocations if present
+        return;
+      }
+
+      // LEGACY: participantId -> staffId
+      if (typeof value === 'string' && value) {
+        const participantId = k as ID;
+        const staffId = String(value) as ID;
+        if (!dropoffAssignments[staffId]) dropoffAssignments[staffId] = [];
+        if (!dropoffAssignments[staffId].includes(participantId)) {
+          dropoffAssignments[staffId].push(participantId);
+        }
+        return;
+      }
+
+      // Anything else ignored.
     });
   }
 
-  const dropoffLocations: Record<ID, number | null> = {};
   if (raw?.dropoffLocations && typeof raw.dropoffLocations === 'object') {
-    Object.entries(raw.dropoffLocations).forEach(([pid, idx]) => {
-      dropoffLocations[pid as ID] =
-        typeof idx === 'number' ? (idx as number) : null;
+    Object.entries(raw.dropoffLocations).forEach(([key, idx]) => {
+      const k = String(key) as ID;
+      dropoffLocations[k] = typeof idx === 'number' ? (idx as number) : null;
     });
   }
 
-  const outingGroup =
-    raw?.outingGroup && typeof raw.outingGroup === 'object'
-      ? (raw.outingGroup as OutingGroup)
-      : null;
+  // ---------------------------------------------------------------------------
+  // OUTING GROUP (normalise both new and legacy shapes)
+  // ---------------------------------------------------------------------------
+  let outingGroup: OutingGroup | null = null;
+  if (raw?.outingGroup && typeof raw.outingGroup === 'object') {
+    const og = raw.outingGroup as any;
+
+    const start =
+      typeof og.start === 'string'
+        ? og.start
+        : typeof og.startTime === 'string'
+        ? og.startTime
+        : '';
+
+    const end =
+      typeof og.end === 'string'
+        ? og.end
+        : typeof og.endTime === 'string'
+        ? og.endTime
+        : '';
+
+    const staffIds = Array.isArray(og.staffIds)
+      ? og.staffIds.map((id: any) => String(id) as ID)
+      : Array.isArray(og.staff)
+      ? og.staff.map((id: any) => String(id) as ID)
+      : [];
+
+    const participantIds = Array.isArray(og.participantIds)
+      ? og.participantIds.map((id: any) => String(id) as ID)
+      : [];
+
+    outingGroup = {
+      start,
+      end,
+      staffIds,
+      participantIds,
+    };
+  }
 
   const metaRaw = raw?.meta && typeof raw.meta === 'object' ? raw.meta : {};
   const meta = {
