@@ -481,6 +481,7 @@ export default function EditAssignmentsScreen() {
                               style={[
                                 styles.chipTxt,
                                 isAssigned && styles.chipTxtSel,
+                                isOffsite && styles.chipTxtOffsite, // ⬅️ force dark text for offsite
                               ]}
                               numberOfLines={1}
                             >
@@ -749,6 +750,9 @@ const styles = StyleSheet.create({
   },
   chipTxtSel: {
     color: '#FFFFFF',
+  },
+  chipTxtOffsite: {
+    color: '#101828', // ⬅️ dark text when offsite (overrides white)
   },
   checkMark: {
     fontSize: 14,
