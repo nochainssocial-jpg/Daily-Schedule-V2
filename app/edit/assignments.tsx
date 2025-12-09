@@ -111,7 +111,7 @@ export default function EditAssignmentsScreen() {
     workingStaff,
     attendingParticipants,
     trainingStaffToday = [],
-    outingGroup,
+    outingGroup, // ⬅️ NEW: read outing group for offsite state
     updateSchedule,
   } = useSchedule() as any;
   const { push } = useNotifications();
@@ -143,6 +143,7 @@ export default function EditAssignmentsScreen() {
   const [ratingLookup, setRatingLookup] = React.useState<Record<string, any>>(
     {},
   );
+
   const [participantLookup, setParticipantLookup] =
     React.useState<Record<string, any>>({});
 
@@ -234,20 +235,8 @@ export default function EditAssignmentsScreen() {
     [trainingStaffToday],
   );
 
-  // Canonical assignments: staffId -> participantIds[]
-  const assignmentsByStaff: Record<ID, ID[]> = (assignments || {}) as any;
-
-  // Build a quick lookup: participantId -> owning staffId
-  const ownerByParticipant = React.useMemo(() => {
-    const map: Record<ID, ID> = {};
-    Object.entries(assignmentsByStaff || {}).forEach(([sid, pids]) => {
-      if (!Array.isArray(pids)) return;
-      (pids as ID[]).forEach((pid) => {
-        map[pid as ID] = sid as ID;
-      });
-    });
-    return map;
-  }, [assignmentsByStaff]);
+  // Canonical assignments (in store): participantId -> staffId | null
+  const assignmentsMap: Record<ID, ID | null> = (assignments || {}) as any;
 
   const attendingIds: ID[] =
     (attendingParticipants && attendingParticipants.length
@@ -259,7 +248,7 @@ export default function EditAssignmentsScreen() {
   const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-  // Offsite (outing) participants
+  // 🔹 Offsite participants from outingGroup
   const offsiteParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
     const og = outingGroup as any;
@@ -273,29 +262,32 @@ export default function EditAssignmentsScreen() {
 
   // Ensure training staff do not keep participant assignments
   React.useEffect(() => {
-    if (!assignmentsByStaff) return;
+    if (!assignmentsMap) return;
     if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
 
     const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
+    const current = assignmentsMap as Record<ID, ID | null>;
     let changed = false;
-    const next: Record<ID, ID[]> = {};
+    const next: Record<ID, ID | null> = { ...current };
 
-    Object.entries(assignmentsByStaff).forEach(([sid, pids]) => {
-      const staffId = sid as ID;
-      const list = Array.isArray(pids) ? [...(pids as ID[])] : [];
-      if (trainingIds.has(staffId) && list.length > 0) {
-        // Clear assignments for training staff
-        next[staffId] = [];
+    Object.entries(current).forEach(([pid, sid]) => {
+      if (!sid) return;
+      if (trainingIds.has(sid as ID)) {
+        next[pid as ID] = null;
         changed = true;
-      } else {
-        next[staffId] = list;
       }
     });
 
     if (changed) {
       updateSchedule({ assignments: next });
     }
-  }, [assignmentsByStaff, trainingStaffToday, updateSchedule]);
+  }, [assignmentsMap, trainingStaffToday, updateSchedule]);
+
+  // Helper: current owner for a participant (if any)
+  const getOwner = (participantId: ID): ID | null => {
+    const sid = assignmentsMap[participantId];
+    return sid ? (sid as ID) : null;
+  };
 
   const handleToggle = (staffId: ID, participantId: ID) => {
     if (readOnly) {
@@ -303,28 +295,17 @@ export default function EditAssignmentsScreen() {
       return;
     }
 
-    const current: Record<ID, ID[]> = (assignmentsByStaff || {}) as any;
-    const next: Record<ID, ID[]> = {};
+    const current = (assignmentsMap || {}) as Record<ID, ID | null>;
+    const next: Record<ID, ID | null> = { ...current };
 
-    // Clone all current arrays
-    Object.entries(current).forEach(([sid, pids]) => {
-      next[sid as ID] = Array.isArray(pids) ? [...(pids as ID[])] : [];
-    });
-
-    const currentOwner = ownerByParticipant[participantId];
+    const currentOwner = getOwner(participantId);
 
     // If this staff already owns the participant, unassign them
     if (currentOwner && currentOwner === staffId) {
-      next[staffId] = (next[staffId] || []).filter((pid) => pid !== participantId);
+      next[participantId] = null;
     } else {
-      // Remove from previous owner (if any)
-      if (currentOwner && next[currentOwner]) {
-        next[currentOwner] = next[currentOwner].filter((pid) => pid !== participantId);
-      }
-      // Add to this staff
-      const arr = new Set(next[staffId] || []);
-      arr.add(participantId);
-      next[staffId] = Array.from(arr);
+      // Move participant from any previous owner to this staff
+      next[participantId] = staffId;
     }
 
     updateSchedule({ assignments: next });
@@ -373,16 +354,21 @@ export default function EditAssignmentsScreen() {
                 const isTraining = trainingSet.has(staffId);
                 const canAssign = !isTraining;
 
-                const staffAssigned = (assignmentsByStaff[staffId] || [])
-                  .filter((pid: any) => attendingSet.has(pid as ID)) as ID[];
+                // All participants currently assigned to this staff
+                const staffAssigned = attendingIds.filter(
+                  (pid) => assignmentsMap[pid] === staffId,
+                ) as ID[];
 
                 const assignedNames = staffAssigned
                   .map((pid) => partsById.get(pid)?.name)
                   .filter(Boolean)
                   .join(', ');
 
+                // Participants this staff can see & tap:
+                // - attending
+                // - either unassigned or currently owned by this staff
                 const availablePids = attendingIds.filter((pid) => {
-                  const owner = ownerByParticipant[pid];
+                  const owner = assignmentsMap[pid];
                   return !owner || owner === staffId;
                 });
 
@@ -486,8 +472,8 @@ export default function EditAssignmentsScreen() {
                                 partScore > 0 &&
                                 partBand === 'high' &&
                                 styles.chipHigh,
-                              // Offsite participants: white pill with coloured outline
-                              isOffsite && !isAssigned && styles.chipOffsite,
+                              // ⬇️ Offsite participants: white pill, keep border colour
+                              isOffsite && styles.chipOffsite,
                             ]}
                           >
                             {/* Name */}
@@ -536,7 +522,16 @@ export default function EditAssignmentsScreen() {
                             )}
 
                             {/* Check if assigned */}
-                            {isAssigned && <Text style={styles.checkMark}>✓</Text>}
+                            {isAssigned && (
+                              <Text
+                                style={[
+                                  styles.checkMark,
+                                  isOffsite && styles.checkMarkOffsite,
+                                ]}
+                              >
+                                ✓
+                              </Text>
+                            )}
                           </TouchableOpacity>
                         );
                       })}
@@ -736,7 +731,7 @@ const styles = StyleSheet.create({
     borderColor: '#fecaca',
     backgroundColor: '#fee2e2',
   },
-  // Offsite: keep border colour (risk band) but white pill
+  // Offsite: white pill, keep border colour from risk band or default
   chipOffsite: {
     backgroundColor: '#FFFFFF',
   },
@@ -758,5 +753,8 @@ const styles = StyleSheet.create({
   checkMark: {
     fontSize: 14,
     color: '#FFFFFF',
+  },
+  checkMarkOffsite: {
+    color: '#111827',
   },
 });
