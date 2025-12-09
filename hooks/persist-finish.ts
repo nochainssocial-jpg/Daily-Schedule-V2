@@ -16,26 +16,26 @@ type PersistParams = {
   workingStaff: ID[];
   attendingParticipants: ID[];
 
-  // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday?: ID[];
 
-  // assignments: participant ID -> staff ID (wizard view)
+  // assignments: participant ID -> staff ID
   assignments?: Record<ID, ID | null>;
 
   // floating room assignments
-  floatingAssignments?: ScheduleSnapshot['floatingAssignments'];
+  floatingAssignments?: {
+    frontRoom: ID | null;
+    scotty: ID | null;
+    twins: ID | null;
+  };
 
-  // cleaning assignments: choreId -> staffId
+  // cleaning assignments
   cleaningAssignments?: ScheduleSnapshot['cleaningAssignments'];
-
-  // Special bins variant for "Take the bins out" task
-  // 0 = default, 1 = red + yellow, 2 = red + green, 3 = bring in & clean
   cleaningBinsVariant?: ScheduleSnapshot['cleaningBinsVariant'];
 
-  // helper staff (can be multiple helpers, not just one)
+  // ✅ helper staff (can be multiple helpers, not just one)
   helperStaff?: ID[];
 
-  // dropoffs (wizard view; can be legacy participant-centric or new staff-centric)
+  // dropoffs (canonical: participantId -> { staffId, locationId } | null)
   dropoffAssignments?: ScheduleSnapshot['dropoffAssignments'];
   dropoffLocations?: ScheduleSnapshot['dropoffLocations'];
 
@@ -43,14 +43,11 @@ type PersistParams = {
   pickupParticipants?: ID[];
   helperPickupStaff?: ID[];
 
-  // final checklist
   finalChecklist?: ScheduleSnapshot['finalChecklist'];
   finalChecklistStaff?: ID[];
 
-  // prior snapshots for cleaning fairness
   recentSnapshots?: ScheduleSnapshot[];
 
-  // explicit schedule date (optional; we overwrite with "today" below)
   date?: string;
 };
 
@@ -71,44 +68,46 @@ function findParticipantByName(
 }
 
 export async function persistFinish(params: PersistParams) {
-  const {
-    createSchedule,
+const {
+  createSchedule,
 
-    staff = [],
-    participants = [],
+  staff = [],
+  participants = [],
 
-    workingStaff = [],
-    attendingParticipants = [],
+  workingStaff = [],
+  attendingParticipants = [],
 
-    trainingStaffToday = [],
+  trainingStaffToday = [],
 
-    assignments = {},
-    floatingAssignments = {
-      frontRoom: null,
-      scotty: null,
-      twins: null,
-    },
+  assignments = {},
+  floatingAssignments = {
+    frontRoom: null,
+    scotty: null,
+    twins: null,
+  },
 
-    cleaningAssignments = {},
-    cleaningBinsVariant = 0,
-    helperStaff = [],
+  cleaningAssignments = {},
+  cleaningBinsVariant = 0,
 
-    dropoffAssignments = {},
-    dropoffLocations = {},
+  // 🔹 helpers + dropoffs
+  helperStaff = [],
 
-    pickupParticipants = [],
-    helperPickupStaff = [],
+  dropoffAssignments = {},
+  dropoffLocations = {},
 
-    finalChecklist = {
-      isPrinted: false,
-      isSigned: false,
-    },
-    finalChecklistStaff = [],
+  pickupParticipants = [],
+  helperPickupStaff = [],
 
-    recentSnapshots = [],
+  finalChecklist = {
+    isPrinted: false,
+    isSigned: false,
+  },
+  finalChecklistStaff = [],
 
-    date,
-  } = params;
+  recentSnapshots = [],
+
+  date,
+} = params;
 
   const now = new Date();
 
@@ -283,11 +282,14 @@ export async function persistFinish(params: PersistParams) {
     // Set of helper staff (for dropoffs only – not treated as working @ B2)
   const helperSet = new Set<ID>((helperStaff || []) as ID[]);
 
-  // ---------------------------------------------------------------------------
-  // DROPOFFS
-  // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// DROPOFFS
+// ---------------------------------------------------------------------------
 
-  const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+
+// ✅ helpers can legitimately own dropoffs (not just B2 working staff)
+const helperSet = new Set<ID>((helperStaff || []) as ID[]);
 
   // Staff allowed to own dropoffs = working @ B2 + helpers
   const dropoffStaffSet = new Set<ID>([
@@ -295,33 +297,35 @@ export async function persistFinish(params: PersistParams) {
     ...Array.from(helperSet),
   ]);
 
-  Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
-    const participantId = pid as ID;
+Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
+  const participantId = pid as ID;
 
-    if (!assignment) {
-      normalizedDropoffs[participantId] = null;
-      return;
-    }
+  if (!assignment) {
+    normalizedDropoffs[participantId] = null;
+    return;
+  }
 
-    const staffId = (assignment as any).staffId as ID | null;
-    const locationId =
-      typeof (assignment as any).locationId === 'number'
-        ? (assignment as any).locationId
-        : null;
+  const staffId = (assignment as any).staffId as ID | null;
+  const locationId =
+    typeof (assignment as any).locationId === 'number'
+      ? (assignment as any).locationId
+      : null;
 
-    // If participant is not attending, drop the assignment entirely
-    if (!attendingSet.has(participantId)) {
-      normalizedDropoffs[participantId] = null;
-      return;
-    }
+  if (!attendingSet.has(participantId)) {
+    normalizedDropoffs[participantId] = null;
+    return;
+  }
 
-    // Only keep staffId if they’re a valid dropoff owner (B2 worker or helper)
-    if (staffId && dropoffStaffSet.has(staffId)) {
-      normalizedDropoffs[participantId] = { staffId, locationId };
-    } else {
-      normalizedDropoffs[participantId] = { staffId: null, locationId };
-    }
-  });
+  // 🔹 allow helpers as valid owners, not just workingSet
+  if (
+    staffId &&
+    (workingSet.has(staffId) || helperSet.has(staffId))
+  ) {
+    normalizedDropoffs[participantId] = { staffId, locationId };
+  } else {
+    normalizedDropoffs[participantId] = { staffId: null, locationId };
+  }
+});
 
   // ---------------------------------------------------------------------------
   // PICKUPS & HELPERS (participants)
