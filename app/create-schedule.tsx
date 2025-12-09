@@ -1094,6 +1094,27 @@ export default function CreateScheduleScreen() {
       });
     });
 
+        // 👉 Push wizard data into the schedule store so Edit Hub sees it immediately
+    try {
+      if (typeof updateSchedule === 'function') {
+        updateSchedule({
+          workingStaff: realWorkers,
+          attendingParticipants,
+          assignments: participantAssignments,
+          pickupParticipants,
+          helperStaff,
+          dropoffAssignments: canonicalDropoffs,
+          dropoffLocations,
+          finalChecklistStaff,
+        } as any);
+      }
+    } catch (err) {
+      console.warn(
+        '[create-schedule] preflight updateSchedule failed:',
+        err,
+      );
+    }
+
     // 🔥 NEW — pull recent cleaning snapshots from the base schedule store
     // so persistFinish can apply “previous day / last week” fairness.
     let recentCleaningSnapshots: ScheduleSnapshot[] = [];
