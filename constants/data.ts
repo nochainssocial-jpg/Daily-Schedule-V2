@@ -84,7 +84,6 @@ export const STAFF: Staff[] = [
 
   // Special system entries:
   { id: '1003', name: 'Audit', color: '#9B9B9B', gender: 'other' },
-  { id: '1002', name: 'Drive/Outing', color: '#9B9B9B', gender: 'other' },
   { id: '1001', name: 'Everyone', color: '#9B9B9B', gender: 'other' },
 ];
 
