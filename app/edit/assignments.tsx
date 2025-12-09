@@ -111,6 +111,7 @@ export default function EditAssignmentsScreen() {
     workingStaff,
     attendingParticipants,
     trainingStaffToday = [],
+    outingGroup,
     updateSchedule,
   } = useSchedule() as any;
   const { push } = useNotifications();
@@ -142,8 +143,8 @@ export default function EditAssignmentsScreen() {
   const [ratingLookup, setRatingLookup] = React.useState<Record<string, any>>(
     {},
   );
-
-  const [participantLookup, setParticipantLookup] = React.useState<Record<string, any>>({});
+  const [participantLookup, setParticipantLookup] =
+    React.useState<Record<string, any>>({});
 
   React.useEffect(() => {
     let cancelled = false;
@@ -189,7 +190,7 @@ export default function EditAssignmentsScreen() {
     };
   }, []);
 
-React.useEffect(() => {
+  React.useEffect(() => {
     let cancelled = false;
 
     async function loadParticipantRatings() {
@@ -233,31 +234,20 @@ React.useEffect(() => {
     [trainingStaffToday],
   );
 
-  // Ensure training staff do not keep participant assignments
-  React.useEffect(() => {
-    if (!assignments) return;
-    if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
+  // Canonical assignments: staffId -> participantIds[]
+  const assignmentsByStaff: Record<ID, ID[]> = (assignments || {}) as any;
 
-    const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
-    const current = assignments as Record<ID, ID | null>;
-    let changed = false;
-    const next: Record<ID, ID | null> = { ...current };
-
-    Object.entries(current).forEach(([pid, sid]) => {
-      if (!sid) return;
-      if (trainingIds.has(sid as ID)) {
-        next[pid as ID] = null;
-        changed = true;
-      }
+  // Build a quick lookup: participantId -> owning staffId
+  const ownerByParticipant = React.useMemo(() => {
+    const map: Record<ID, ID> = {};
+    Object.entries(assignmentsByStaff || {}).forEach(([sid, pids]) => {
+      if (!Array.isArray(pids)) return;
+      (pids as ID[]).forEach((pid) => {
+        map[pid as ID] = sid as ID;
+      });
     });
-
-    if (changed) {
-      updateSchedule({ assignments: next });
-    }
-  }, [assignments, trainingStaffToday, updateSchedule]);
-
-  // Canonical assignments: participantId -> staffId | null
-  const assignmentsMap: Record<ID, ID | null> = (assignments || {}) as any;
+    return map;
+  }, [assignmentsByStaff]);
 
   const attendingIds: ID[] =
     (attendingParticipants && attendingParticipants.length
@@ -269,28 +259,72 @@ React.useEffect(() => {
   const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-// Helper: find current owner for a participant (if any)
-  const getOwner = (participantId: ID): ID | null => {
-    const sid = assignmentsMap[participantId];
-    return sid ? (sid as ID) : null;
-  };
+  // Offsite (outing) participants
+  const offsiteParticipantIds = React.useMemo(() => {
+    const set = new Set<ID>();
+    const og = outingGroup as any;
+    if (og && Array.isArray(og.participantIds)) {
+      og.participantIds.forEach((id: any) => {
+        set.add(String(id) as ID);
+      });
+    }
+    return set;
+  }, [outingGroup]);
+
+  // Ensure training staff do not keep participant assignments
+  React.useEffect(() => {
+    if (!assignmentsByStaff) return;
+    if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
+
+    const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
+    let changed = false;
+    const next: Record<ID, ID[]> = {};
+
+    Object.entries(assignmentsByStaff).forEach(([sid, pids]) => {
+      const staffId = sid as ID;
+      const list = Array.isArray(pids) ? [...(pids as ID[])] : [];
+      if (trainingIds.has(staffId) && list.length > 0) {
+        // Clear assignments for training staff
+        next[staffId] = [];
+        changed = true;
+      } else {
+        next[staffId] = list;
+      }
+    });
+
+    if (changed) {
+      updateSchedule({ assignments: next });
+    }
+  }, [assignmentsByStaff, trainingStaffToday, updateSchedule]);
+
   const handleToggle = (staffId: ID, participantId: ID) => {
     if (readOnly) {
       push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
 
-    const current = (assignmentsMap || {}) as Record<ID, ID | null>;
-    const next: Record<ID, ID | null> = { ...current };
+    const current: Record<ID, ID[]> = (assignmentsByStaff || {}) as any;
+    const next: Record<ID, ID[]> = {};
 
-    const currentOwner = getOwner(participantId);
+    // Clone all current arrays
+    Object.entries(current).forEach(([sid, pids]) => {
+      next[sid as ID] = Array.isArray(pids) ? [...(pids as ID[])] : [];
+    });
+
+    const currentOwner = ownerByParticipant[participantId];
 
     // If this staff already owns the participant, unassign them
     if (currentOwner && currentOwner === staffId) {
-      next[participantId] = null;
+      next[staffId] = (next[staffId] || []).filter((pid) => pid !== participantId);
     } else {
-      // Move participant from any previous owner to this staff
-      next[participantId] = staffId;
+      // Remove from previous owner (if any)
+      if (currentOwner && next[currentOwner]) {
+        next[currentOwner] = next[currentOwner].filter((pid) => pid !== participantId);
+      }
+      // Add to this staff
+      const arr = new Set(next[staffId] || []);
+      arr.add(participantId);
+      next[staffId] = Array.from(arr);
     }
 
     updateSchedule({ assignments: next });
@@ -339,9 +373,8 @@ React.useEffect(() => {
                 const isTraining = trainingSet.has(staffId);
                 const canAssign = !isTraining;
 
-                const staffAssigned = attendingIds.filter(
-                  (pid) => assignmentsMap[pid] === staffId,
-                ) as ID[];
+                const staffAssigned = (assignmentsByStaff[staffId] || [])
+                  .filter((pid: any) => attendingSet.has(pid as ID)) as ID[];
 
                 const assignedNames = staffAssigned
                   .map((pid) => partsById.get(pid)?.name)
@@ -349,7 +382,7 @@ React.useEffect(() => {
                   .join(', ');
 
                 const availablePids = attendingIds.filter((pid) => {
-                  const owner = assignmentsMap[pid];
+                  const owner = ownerByParticipant[pid];
                   return !owner || owner === staffId;
                 });
 
@@ -408,23 +441,27 @@ React.useEffect(() => {
                         const isAssigned = staffAssigned.includes(pid);
                         const part = partsById.get(pid);
                         const partName = part?.name || '—';
-                        const partNameKey = `name:${String(partName).toLowerCase()}`;
+                        const partNameKey = `name:${String(
+                          partName,
+                        ).toLowerCase()}`;
                         const ratingRow =
                           participantLookup[pid as ID] ??
                           participantLookup[partNameKey];
                         const partScore = getParticipantScore(ratingRow);
                         const partBand =
                           partScore > 0 ? getParticipantBand(partScore) : 'low';
-                        
+
                         const behaviourRisk = ratingRow
                           ? getBehaviourRisk((ratingRow as any).behaviours)
                           : null;
-                        
+
                         let riskLetter = '';
                         if (behaviourRisk === 'low') riskLetter = 'L';
                         else if (behaviourRisk === 'medium') riskLetter = 'M';
                         else if (behaviourRisk === 'high') riskLetter = 'H';
-                        
+
+                        const isOffsite = offsiteParticipantIds.has(pid);
+
                         return (
                           <TouchableOpacity
                             key={pid}
@@ -449,6 +486,8 @@ React.useEffect(() => {
                                 partScore > 0 &&
                                 partBand === 'high' &&
                                 styles.chipHigh,
+                              // Offsite participants: white pill with coloured outline
+                              isOffsite && !isAssigned && styles.chipOffsite,
                             ]}
                           >
                             {/* Name */}
@@ -461,35 +500,41 @@ React.useEffect(() => {
                             >
                               {partName}
                             </Text>
-                        
+
                             {/* Behaviour risk dial L/M/H */}
                             {behaviourRisk && (
                               <View
                                 style={[
                                   styles.riskBadge,
                                   behaviourRisk === 'low' && styles.riskBadgeLow,
-                                  behaviourRisk === 'medium' && styles.riskBadgeMedium,
+                                  behaviourRisk === 'medium' &&
+                                    styles.riskBadgeMedium,
                                   behaviourRisk === 'high' && styles.riskBadgeHigh,
                                 ]}
                               >
-                                <Text style={styles.riskBadgeText}>{riskLetter}</Text>
+                                <Text style={styles.riskBadgeText}>
+                                  {riskLetter}
+                                </Text>
                               </View>
                             )}
-                        
+
                             {/* Total score bubble */}
                             {partScore > 0 && (
                               <View
                                 style={[
                                   styles.scoreBubble,
                                   partBand === 'low' && styles.scoreBubbleLow,
-                                  partBand === 'medium' && styles.scoreBubbleMedium,
+                                  partBand === 'medium' &&
+                                    styles.scoreBubbleMedium,
                                   partBand === 'high' && styles.scoreBubbleHigh,
                                 ]}
                               >
-                                <Text style={styles.scoreBubbleText}>{partScore}</Text>
+                                <Text style={styles.scoreBubbleText}>
+                                  {partScore}
+                                </Text>
                               </View>
                             )}
-                        
+
                             {/* Check if assigned */}
                             {isAssigned && <Text style={styles.checkMark}>✓</Text>}
                           </TouchableOpacity>
@@ -610,7 +655,7 @@ const styles = StyleSheet.create({
     color: '#667085',
     marginBottom: 2,
   },
-    // Participant rating bubbles (match Participants screen)
+  // Participant rating bubbles (match Participants screen)
   scoreBubble: {
     minWidth: 24,
     height: 24,
@@ -690,6 +735,10 @@ const styles = StyleSheet.create({
   chipHigh: {
     borderColor: '#fecaca',
     backgroundColor: '#fee2e2',
+  },
+  // Offsite: keep border colour (risk band) but white pill
+  chipOffsite: {
+    backgroundColor: '#FFFFFF',
   },
   chipDisabled: {
     opacity: 0.5,
