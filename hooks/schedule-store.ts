@@ -59,8 +59,8 @@ export type ScheduleSnapshot = {
   // 0 = default, 1 = red + yellow, 2 = red + green, 3 = bring in & clean
   cleaningBinsVariant?: 0 | 1 | 2 | 3;
 
-  // Helper staff (single person backing up)
-  helperStaff: ID | null;
+  // Helper staff (one or more staff helping with pickups/dropoffs)
+  helperStaff: ID[];
 
   // Dropoffs (participant → staff + location)
   dropoffAssignments: Record<ID, DropoffAssignment | null>;
@@ -134,7 +134,7 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     },
     cleaningAssignments: {},
     cleaningBinsVariant: 0,
-    helperStaff: null,
+    helperStaff: [],
     dropoffAssignments: {},
     dropoffLocations: {},
     outingGroup: null,
