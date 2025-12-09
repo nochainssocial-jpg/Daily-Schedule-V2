@@ -32,8 +32,8 @@ type PersistParams = {
   // 0 = default, 1 = red + yellow, 2 = red + green, 3 = bring in & clean
   cleaningBinsVariant?: ScheduleSnapshot['cleaningBinsVariant'];
 
-  // helper staff (may come as single ID, array, or null)
-  helperStaff?: ID | ID[] | null;
+  // helper staff (can be multiple helpers, not just one)
+  helperStaff?: ID[];
 
   // dropoffs (wizard view; can be legacy participant-centric or new staff-centric)
   dropoffAssignments?: ScheduleSnapshot['dropoffAssignments'];
@@ -91,7 +91,7 @@ export async function persistFinish(params: PersistParams) {
 
     cleaningAssignments = {},
     cleaningBinsVariant = 0,
-    helperStaff = null,
+    helperStaff = [],
 
     dropoffAssignments = {},
     dropoffLocations = {},
@@ -280,79 +280,48 @@ export async function persistFinish(params: PersistParams) {
     nextCleaning[entry.choreId] = chosen.id as ID;
     prevSlotStaff = new Set([...prevSlotStaff, chosen.id as ID]);
   }
+    // Set of helper staff (for dropoffs only – not treated as working @ B2)
+  const helperSet = new Set<ID>((helperStaff || []) as ID[]);
 
   // ---------------------------------------------------------------------------
   // DROPOFFS
-  //
-  // Canonical: staffId -> participantIds[]
-  // Supports wizard / legacy shapes:
-  //   - staffId -> participantIds[]
-  //   - participantId -> { staffId, locationId }
-  //   - participantId -> staffId
   // ---------------------------------------------------------------------------
 
   const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
 
-  Object.entries(dropoffAssignments || {}).forEach(([key, value]) => {
-    const k = String(key);
+  // Staff allowed to own dropoffs = working @ B2 + helpers
+  const dropoffStaffSet = new Set<ID>([
+    ...Array.from(workingSet),
+    ...Array.from(helperSet),
+  ]);
 
-    // NEW SHAPE: staffId -> participantIds[]
-    if (Array.isArray(value)) {
-      const staffId = k as ID;
-      if (!workingSet.has(staffId)) return;
-      const pids = (value as any[])
-        .map((v) => String(v) as ID)
-        .filter((pid) => attendingSet.has(pid));
-      if (!pids.length) return;
-      const existing = new Set(normalizedDropoffs[staffId] || []);
-      pids.forEach((pid) => existing.add(pid));
-      normalizedDropoffs[staffId] = Array.from(existing);
+  Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
+    const participantId = pid as ID;
+
+    if (!assignment) {
+      normalizedDropoffs[participantId] = null;
       return;
     }
 
-    // LEGACY SHAPE: participantId -> { staffId, locationId }
-    if (value && typeof value === 'object' && 'staffId' in (value as any)) {
-      const v: any = value;
-      const participantId = k as ID;
-      if (!attendingSet.has(participantId)) return;
+    const staffId = (assignment as any).staffId as ID | null;
+    const locationId =
+      typeof (assignment as any).locationId === 'number'
+        ? (assignment as any).locationId
+        : null;
 
-      const staffId =
-        typeof v.staffId === 'string'
-          ? (v.staffId as ID)
-          : v.staffId
-          ? (String(v.staffId) as ID)
-          : null;
-
-      if (!staffId || !workingSet.has(staffId)) return;
-
-      if (!normalizedDropoffs[staffId]) normalizedDropoffs[staffId] = [];
-      if (!normalizedDropoffs[staffId].includes(participantId)) {
-        normalizedDropoffs[staffId].push(participantId);
-      }
+    // If participant is not attending, drop the assignment entirely
+    if (!attendingSet.has(participantId)) {
+      normalizedDropoffs[participantId] = null;
       return;
     }
 
-    // LEGACY SHAPE: participantId -> staffId
-    if (typeof value === 'string' && value) {
-      const participantId = k as ID;
-      if (!attendingSet.has(participantId)) return;
-
-      const staffId = String(value) as ID;
-      if (!workingSet.has(staffId)) return;
-
-      if (!normalizedDropoffs[staffId]) normalizedDropoffs[staffId] = [];
-      if (!normalizedDropoffs[staffId].includes(participantId)) {
-        normalizedDropoffs[staffId].push(participantId);
-      }
-      return;
+    // Only keep staffId if they’re a valid dropoff owner (B2 worker or helper)
+    if (staffId && dropoffStaffSet.has(staffId)) {
+      normalizedDropoffs[participantId] = { staffId, locationId };
+    } else {
+      normalizedDropoffs[participantId] = { staffId: null, locationId };
     }
-
-    // Anything else is ignored.
   });
-
-  const normalizedDropoffLocations: ScheduleSnapshot['dropoffLocations'] = {
-    ...(dropoffLocations || {}),
-  };
 
   // ---------------------------------------------------------------------------
   // PICKUPS & HELPERS (participants)
@@ -406,7 +375,7 @@ export async function persistFinish(params: PersistParams) {
     cleaningAssignments: nextCleaning,
     cleaningBinsVariant: cleaningBinsVariant ?? 0,
 
-    helperStaff: finalHelperStaff,
+    helperStaff: Array.from(helperSet),
 
     dropoffAssignments: normalizedDropoffs,
     dropoffLocations: normalizedDropoffLocations,
