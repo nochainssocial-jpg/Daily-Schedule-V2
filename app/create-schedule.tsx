@@ -1131,6 +1131,20 @@ export default function CreateScheduleScreen() {
       console.warn('persistFinish error, continuing anyway:', e);
     }
 
+    // ✅ Make sure the store sees the participant -> staff map from Step 3
+    try {
+      if (typeof updateSchedule === 'function') {
+        updateSchedule({
+          assignments: participantAssignments,
+        } as any);
+      }
+    } catch (err) {
+      console.warn(
+        '[create-schedule] failed to push wizard assignments into store:',
+        err,
+      );
+    }
+
     // 🔥 After persistFinish, grab the canonical snapshot from the base schedule store
     let snapshot: ScheduleSnapshot;
 
