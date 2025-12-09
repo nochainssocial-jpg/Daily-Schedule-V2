@@ -60,6 +60,59 @@ function safeObject(val: any): Record<string, any> {
   return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
 }
 
+// Normalise assignments from mixed legacy/new shapes into staffId -> participantIds[]
+function normaliseAssignments(raw: any): SnapshotAssignments {
+  const result: SnapshotAssignments = {};
+  const obj = safeObject(raw);
+
+  Object.entries(obj).forEach(([key, value]) => {
+    const k = String(key);
+
+    // NEW SHAPE: staffId -> participantIds[]
+    if (Array.isArray(value)) {
+      const staffId = k;
+      const pids = (value as any[])
+        .map((v) => String(v))
+        .filter(Boolean);
+      if (!pids.length) return;
+
+      const existing = new Set(result[staffId] || []);
+      pids.forEach((pid) => existing.add(pid));
+      result[staffId] = Array.from(existing);
+      return;
+    }
+
+    // OPTIONAL FUTURE SHAPE: staffId -> { participants: string[] }
+    if (value && typeof value === 'object' && Array.isArray((value as any).participants)) {
+      const staffId = k;
+      const pids = ((value as any).participants as any[])
+        .map((v) => String(v))
+        .filter(Boolean);
+      if (!pids.length) return;
+
+      const existing = new Set(result[staffId] || []);
+      pids.forEach((pid) => existing.add(pid));
+      result[staffId] = Array.from(existing);
+      return;
+    }
+
+    // LEGACY SHAPE: participantId -> staffId
+    if (typeof value === 'string' && value) {
+      const participantId = k;
+      const staffId = String(value);
+      if (!result[staffId]) result[staffId] = [];
+      if (!result[staffId].includes(participantId)) {
+        result[staffId].push(participantId);
+      }
+      return;
+    }
+
+    // Anything else ignored.
+  });
+
+  return result;
+}
+
 // ------------------ Normalise Snapshot -------------------------
 
 function normaliseSnapshot(raw: any): Snapshot {
@@ -70,7 +123,8 @@ function normaliseSnapshot(raw: any): Snapshot {
       date: snap.date ?? null,
       staff: safeArray<SnapshotStaff>(snap.staff),
       participants: safeArray<SnapshotParticipant>(snap.participants),
-      assignments: safeObject(snap.assignments),
+      // ✅ Always convert to staffId -> participantIds[]
+      assignments: normaliseAssignments(snap.assignments),
     };
   } catch {
     return {
@@ -188,7 +242,7 @@ export default function DailyAssignmentsTrackerScreen() {
             if (p?.id && p?.name) participantsById[p.id] = p.name;
           });
 
-          const assignments = safeObject(snapshot.assignments);
+          const assignments = snapshot.assignments;
 
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
             if (!Array.isArray(participantIds)) return;
