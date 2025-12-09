@@ -705,14 +705,23 @@ export default function FloatingScreen() {
 
   // 🔹 Only real onsite Dream Team staff – exclude "Everyone"
   const onsiteWorking = useMemo(
-    () =>
-      (staff || []).filter(
+    () => {
+      const hasTimedOuting =
+        !!outingGroup &&
+        typeof outingGroup.startTime === 'string' &&
+        outingGroup.startTime.trim().length > 0 &&
+        typeof outingGroup.endTime === 'string' &&
+        outingGroup.endTime.trim().length > 0;
+
+      return (staff || []).filter(
         (s: any) =>
           !isEveryone(s) &&
           workingSet.has(String(s.id)) &&
-          !outingStaffSet.has(String(s.id)),
-      ),
-    [staff, workingSet, outingStaffSet],
+          // Only treat staff as fully offsite when the outing has no specific time window
+          (!hasTimedOuting || !outingStaffSet.has(String(s.id))),
+      );
+    },
+    [staff, workingSet, outingStaffSet, outingGroup],
   );
 
   const sortedWorking = useMemo(
