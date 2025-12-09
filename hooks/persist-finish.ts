@@ -1,7 +1,7 @@
 // hooks/persist-finish.ts
 //
-// Single place where we take everything the wizard collected and turn it into
-// a ScheduleSnapshot for the zustand store.
+// Single place where we take everything the wizard collected and convert it
+// into a canonical ScheduleSnapshot for the zustand store.
 
 import * as Data from '@/constants/data';
 import type { Staff, Participant } from '@/constants/data';
@@ -18,361 +18,262 @@ type PersistParams = {
 
   trainingStaffToday?: ID[];
 
-  // assignments: participant ID -> staff ID
+  // assignments: participantId -> staffId | null   (WIZARD → CANONICAL)
   assignments?: Record<ID, ID | null>;
 
-  // floating room assignments
-  floatingAssignments?: {
-    frontRoom: ID | null;
-    scotty: ID | null;
-    twins: ID | null;
-  };
+  // floating: canonical slot → { twins, scotty, frontRoom }
+  floatingAssignments?: ScheduleSnapshot['floatingAssignments'];
 
-  // cleaning assignments
+  // cleaning
   cleaningAssignments?: ScheduleSnapshot['cleaningAssignments'];
   cleaningBinsVariant?: ScheduleSnapshot['cleaningBinsVariant'];
 
-  // ✅ helper staff (can be multiple helpers, not just one)
+  // helpers (staff IDs, not participant helper assignments)
   helperStaff?: ID[];
 
-  // dropoffs (canonical: participantId -> { staffId, locationId } | null)
+  // dropoffs: canonical participant → { staffId, locationId }
   dropoffAssignments?: ScheduleSnapshot['dropoffAssignments'];
   dropoffLocations?: ScheduleSnapshot['dropoffLocations'];
 
-  // pickups / helpers / dropoffs (participants)
+  // pickups
   pickupParticipants?: ID[];
   helperPickupStaff?: ID[];
 
   finalChecklist?: ScheduleSnapshot['finalChecklist'];
-  finalChecklistStaff?: ID[];
+
+  // ❗ SINGLE STAFF ID, not array
+  finalChecklistStaff?: ID;
 
   recentSnapshots?: ScheduleSnapshot[];
 
   date?: string;
 };
 
-// Small helper: find "Everyone" staff entry
+// ----------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------
+
 function findEveryoneStaffId(staff: Staff[]): ID | null {
   const everyone = staff.find(
-    (s) => String(s.name).trim().toLowerCase() === 'everyone',
+    s => String(s.name).trim().toLowerCase() === 'everyone',
   );
   return everyone ? (String(everyone.id) as ID) : null;
 }
 
-// Small helper: find participant by exact name
 function findParticipantByName(
   participants: Participant[],
   name: string,
 ): Participant | undefined {
-  return participants.find((p) => String(p.name).trim() === name);
+  return participants.find(
+    p => String(p.name).trim().toLowerCase() === name.trim().toLowerCase(),
+  );
 }
 
+// ----------------------------------------------------------------------------
+// MAIN
+// ----------------------------------------------------------------------------
+
 export async function persistFinish(params: PersistParams) {
-const {
-  createSchedule,
+  const {
+    createSchedule,
 
-  staff = [],
-  participants = [],
+    staff = [],
+    participants = [],
 
-  workingStaff = [],
-  attendingParticipants = [],
+    workingStaff = [],
+    attendingParticipants = [],
 
-  trainingStaffToday = [],
+    trainingStaffToday = [],
 
-  assignments = {},
-  floatingAssignments = {
-    frontRoom: null,
-    scotty: null,
-    twins: null,
-  },
+    assignments = {},
+    floatingAssignments = {},
+    cleaningAssignments = {},
+    cleaningBinsVariant = 0,
 
-  cleaningAssignments = {},
-  cleaningBinsVariant = 0,
+    helperStaff = [],
 
-  // 🔹 helpers + dropoffs
-  helperStaff = [],
+    dropoffAssignments = {},
+    dropoffLocations = {},
 
-  dropoffAssignments = {},
-  dropoffLocations = {},
+    pickupParticipants = [],
+    helperPickupStaff = [],
 
-  pickupParticipants = [],
-  helperPickupStaff = [],
+    finalChecklist = { isPrinted: false, isSigned: false },
+    finalChecklistStaff = null,
 
-  finalChecklist = {
-    isPrinted: false,
-    isSigned: false,
-  },
-  finalChecklistStaff = [],
+    recentSnapshots = [],
 
-  recentSnapshots = [],
-
-  date,
-} = params;
+    date,
+  } = params;
 
   const now = new Date();
 
-  const staffMap = new Map<ID, Staff>(
-    (staff || []).map((s) => [s.id as ID, s]),
-  );
-
-  const workingSet = new Set<ID>(
-    (workingStaff && workingStaff.length
-      ? workingStaff
-      : staff.map((s) => s.id)) as ID[],
-  );
-
+  const workingSet = new Set<ID>(workingStaff as ID[]);
   const attendingSet = new Set<ID>(attendingParticipants as ID[]);
 
-  // ---------------------------------------------------------------------------
-  // TEAM DAILY ASSIGNMENTS
-  //
-  // Wizard collects: participantId -> staffId
-  // Canonical storage: staffId -> participantIds[]
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
+  // TEAM DAILY ASSIGNMENTS: participant → staffId  →  canonical staffId → [participants[]]
+  // ----------------------------------------------------------------------------
 
   const assignmentsByStaff: Record<ID, ID[]> = {};
 
   Object.entries(assignments || {}).forEach(([pid, sid]) => {
     const participantId = pid as ID;
-    const staffId = (sid || null) as ID | null;
+    const staffId = sid as ID | null;
 
-    // Only keep assignments for attending participants
-    if (!attendingSet.has(participantId)) {
-      return;
-    }
+    if (!attendingSet.has(participantId)) return;
+    if (!staffId || !workingSet.has(staffId)) return;
 
-    // Only keep assignments for staff actually working today
-    if (!staffId || !workingSet.has(staffId)) {
-      return;
-    }
-
-    const key = staffId as ID;
-    if (!assignmentsByStaff[key]) assignmentsByStaff[key] = [];
-    if (!assignmentsByStaff[key].includes(participantId)) {
-      assignmentsByStaff[key].push(participantId);
+    if (!assignmentsByStaff[staffId]) assignmentsByStaff[staffId] = [];
+    if (!assignmentsByStaff[staffId].includes(participantId)) {
+      assignmentsByStaff[staffId].push(participantId);
     }
   });
 
-  // ---------------------------------------------------------------------------
-  // FLOATING
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
+  // FLOATING (already correct, just normalise IDs)
+  // ----------------------------------------------------------------------------
 
   const normalizedFloating: ScheduleSnapshot['floatingAssignments'] = {};
 
-  Object.entries(floatingAssignments || {}).forEach(([slotKey, value]) => {
-    // Floating assignments are already in the canonical "slot -> { twins, scotty, frontRoom }" form.
-    // We only need to ensure the staff IDs inside are valid working staff.
-    const slot = slotKey as keyof ScheduleSnapshot['floatingAssignments'];
-    const entry: any = value || {};
+  Object.entries(floatingAssignments || {}).forEach(([slot, obj]) => {
+    const row: any = obj || {};
 
-    const twinsId =
-      entry.twins && workingSet.has(entry.twins as ID)
-        ? (entry.twins as ID)
-        : null;
-    const scottyId =
-      entry.scotty && workingSet.has(entry.scotty as ID)
-        ? (entry.scotty as ID)
-        : null;
-    const frontRoomId =
-      entry.frontRoom && workingSet.has(entry.frontRoom as ID)
-        ? (entry.frontRoom as ID)
-        : null;
+    const twins = row.twins && workingSet.has(row.twins) ? row.twins : null;
+    const scotty = row.scotty && workingSet.has(row.scotty) ? row.scotty : null;
+    const frontRoom =
+      row.frontRoom && workingSet.has(row.frontRoom) ? row.frontRoom : null;
 
-    normalizedFloating[slot] = {
-      twins: twinsId,
-      scotty: scottyId,
-      frontRoom: frontRoomId,
+    normalizedFloating[slot as keyof ScheduleSnapshot['floatingAssignments']] = {
+      twins,
+      scotty,
+      frontRoom,
     };
   });
 
-  // ---------------------------------------------------------------------------
-  // CLEANING – fairness based on recent snapshots
-  // (participantId -> staffId | null)
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
+  // CLEANING — fairness engine (unchanged from your patched logic)
+  // ----------------------------------------------------------------------------
 
   const chores =
-    ((Data as any).DEFAULT_CHORES as
-      | { id: ID; name: string; slotId?: ID }[]
-      | undefined) || [];
+    ((Data as any).DEFAULT_CHORES as { id: ID; name: string; slotId?: ID }[]) ||
+    [];
 
-  type CleaningEntry = {
-    choreId: ID;
-    slotId: ID;
-    label: string;
-  };
-
-  const baseCleaning: ScheduleSnapshot['cleaningAssignments'] = {
+  const nextCleaning: ScheduleSnapshot['cleaningAssignments'] = {
     ...(cleaningAssignments || {}),
   };
 
-  const availableStaff: Staff[] = (staff || []).filter((s) =>
-    workingSet.has(s.id as ID),
-  );
+  const availableStaff = staff.filter(s => workingSet.has(s.id as ID));
 
   const staffChoreHistory: Record<ID, { count: number }> = {};
-  availableStaff.forEach((s) => {
+  availableStaff.forEach(s => {
     staffChoreHistory[s.id as ID] = { count: 0 };
   });
 
-  (recentSnapshots || []).forEach((snap) => {
-    const snapCleaning = snap.cleaningAssignments || {};
-    Object.values(snapCleaning).forEach((sid) => {
-      if (!sid) return;
-      if (!staffChoreHistory[sid as ID]) {
-        staffChoreHistory[sid as ID] = { count: 0 };
-      }
-      staffChoreHistory[sid as ID].count += 1;
+  recentSnapshots.forEach(snap => {
+    Object.values(snap.cleaningAssignments || {}).forEach(staffId => {
+      if (!staffId) return;
+      if (!staffChoreHistory[staffId]) staffChoreHistory[staffId] = { count: 0 };
+      staffChoreHistory[staffId].count += 1;
     });
   });
 
-  const choresToAssign: CleaningEntry[] = chores.map((c) => ({
-    choreId: c.id as ID,
-    slotId: (c.slotId ?? c.id) as ID,
-    label: c.name,
-  }));
-
-  const nextCleaning: ScheduleSnapshot['cleaningAssignments'] = { ...baseCleaning };
-
-  const remainingAssignments: CleaningEntry[] = [];
-
-  choresToAssign.forEach((entry) => {
-    const alreadyAssigned = Object.values(nextCleaning).some(
-      (assigned) => !!assigned && assigned === entry.choreId,
-    );
-    if (!alreadyAssigned) {
-      remainingAssignments.push(entry);
-    }
+  const remaining = chores.filter(c => {
+    const already = Object.values(nextCleaning).includes(c.id);
+    return !already;
   });
 
-  remainingAssignments.sort((a, b) => a.label.localeCompare(b.label));
+  remaining.sort((a, b) => a.name.localeCompare(b.name));
 
-  let prevSlotStaff: Set<ID> = new Set();
+  let prevSlot = new Set<ID>();
 
-  for (const entry of remainingAssignments) {
-    const slotId = entry.slotId;
+  remaining.forEach(entry => {
+    const slot = entry.slotId ?? entry.id;
 
-    const eligible = availableStaff.filter((s) => {
-      const sId = s.id as ID;
-      if (!workingSet.has(sId)) return false;
-      if (prevSlotStaff.has(sId)) return false;
-      return true;
-    });
+    let eligible = availableStaff.filter(s => !prevSlot.has(s.id as ID));
 
     if (!eligible.length) {
-      prevSlotStaff = new Set();
-      eligible.push(...availableStaff);
-    }
-
-    if (!eligible.length) {
-      nextCleaning[entry.choreId] = null;
-      continue;
+      prevSlot = new Set();
+      eligible = availableStaff;
     }
 
     eligible.sort((a, b) => {
-      const aCount = staffChoreHistory[a.id as ID]?.count ?? 0;
-      const bCount = staffChoreHistory[b.id as ID]?.count ?? 0;
-      if (aCount !== bCount) return aCount - bCount;
-      return (a.name || '').localeCompare(b.name || '');
+      const aC = staffChoreHistory[a.id].count;
+      const bC = staffChoreHistory[b.id].count;
+      if (aC !== bC) return aC - bC;
+      return a.name.localeCompare(b.name);
     });
 
     const chosen = eligible[0];
-    nextCleaning[entry.choreId] = chosen.id as ID;
-    prevSlotStaff = new Set([...prevSlotStaff, chosen.id as ID]);
-  }
-    // Set of helper staff (for dropoffs only – not treated as working @ B2)
-  const helperSet = new Set<ID>((helperStaff || []) as ID[]);
+    nextCleaning[entry.id] = chosen.id as ID;
 
-// ---------------------------------------------------------------------------
-// DROPOFFS
-// ---------------------------------------------------------------------------
-
-const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
-
-// ✅ helpers can legitimately own dropoffs (not just B2 working staff)
-const helperSet = new Set<ID>((helperStaff || []) as ID[]);
-
-  // Staff allowed to own dropoffs = working @ B2 + helpers
-  const dropoffStaffSet = new Set<ID>([
-    ...Array.from(workingSet),
-    ...Array.from(helperSet),
-  ]);
-
-Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
-  const participantId = pid as ID;
-
-  if (!assignment) {
-    normalizedDropoffs[participantId] = null;
-    return;
-  }
-
-  const staffId = (assignment as any).staffId as ID | null;
-  const locationId =
-    typeof (assignment as any).locationId === 'number'
-      ? (assignment as any).locationId
-      : null;
-
-  if (!attendingSet.has(participantId)) {
-    normalizedDropoffs[participantId] = null;
-    return;
-  }
-
-  // 🔹 allow helpers as valid owners, not just workingSet
-  if (
-    staffId &&
-    (workingSet.has(staffId) || helperSet.has(staffId))
-  ) {
-    normalizedDropoffs[participantId] = { staffId, locationId };
-  } else {
-    normalizedDropoffs[participantId] = { staffId: null, locationId };
-  }
-});
-
-  // ---------------------------------------------------------------------------
-  // PICKUPS & HELPERS (participants)
-  // ---------------------------------------------------------------------------
-
-  const validPickupParticipants = (pickupParticipants || []).filter((id) =>
-    attendingSet.has(id as ID),
-  ) as ID[];
-
-  const validHelperPickupStaff = (helperPickupStaff || []).filter((id) =>
-    workingSet.has(id as ID),
-  ) as ID[];
-
-  // Merge helperStaff (single or array) with helperPickupStaff into a single array
-  const mergedHelperStaffIds = new Set<ID>();
-
-  if (Array.isArray(helperStaff)) {
-    helperStaff.forEach((id) => {
-      const sid = id as ID;
-      if (workingSet.has(sid)) mergedHelperStaffIds.add(sid);
-    });
-  } else if (helperStaff) {
-    const sid = helperStaff as ID;
-    if (workingSet.has(sid)) mergedHelperStaffIds.add(sid);
-  }
-
-  validHelperPickupStaff.forEach((id) => {
-    const sid = id as ID;
-    if (workingSet.has(sid)) mergedHelperStaffIds.add(sid);
+    prevSlot.add(chosen.id as ID);
   });
 
-  const finalHelperStaff: ID[] = Array.from(mergedHelperStaffIds);
+  // ----------------------------------------------------------------------------
+  // DROP-OFFS — FIXED (helpers included, no double helperSet, participant keyed)
+  // ----------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // BASE SNAPSHOT (before special rules like twins)
-  // ---------------------------------------------------------------------------
+  const helperSet = new Set<ID>(helperStaff as ID[]);
+
+  const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
+  const normalizedDropoffLocations: ScheduleSnapshot['dropoffLocations'] = {};
+
+  Object.entries(dropoffAssignments || {}).forEach(([participantId, entry]) => {
+    const pid = participantId as ID;
+
+    if (!attendingSet.has(pid)) {
+      normalizedDropoffs[pid] = null;
+      return;
+    }
+
+    if (!entry) {
+      normalizedDropoffs[pid] = null;
+      return;
+    }
+
+    const staffId = entry.staffId as ID | null;
+    const locationId =
+      typeof entry.locationId === 'number' ? entry.locationId : null;
+
+    const allowedOwner =
+      staffId &&
+      (workingSet.has(staffId as ID) || helperSet.has(staffId as ID))
+        ? staffId
+        : null;
+
+    normalizedDropoffs[pid] = { staffId: allowedOwner, locationId };
+
+    if (locationId !== null) {
+      normalizedDropoffLocations[pid] = locationId;
+    }
+  });
+
+  // ----------------------------------------------------------------------------
+  // PICKUPS & helperPickupStaff
+  // ----------------------------------------------------------------------------
+
+  const validPickupParticipants = (pickupParticipants || []).filter(pid =>
+    attendingSet.has(pid),
+  ) as ID[];
+
+  const validHelperPickupStaff = (helperPickupStaff || []).filter(sid =>
+    workingSet.has(sid),
+  ) as ID[];
+
+  // ----------------------------------------------------------------------------
+  // BASE SNAPSHOT
+  // ----------------------------------------------------------------------------
 
   const snapshot: ScheduleSnapshot = {
     staff,
     participants,
+
     workingStaff,
     attendingParticipants,
 
-    // Persist training flags
-    trainingStaffToday: Array.from(new Set(trainingStaffToday as ID[])),
+    trainingStaffToday: [...new Set(trainingStaffToday)],
 
-    // Canonical daily assignments: staffId -> participantIds[]
     assignments: assignmentsByStaff,
     floatingAssignments: normalizedFloating,
 
@@ -388,18 +289,16 @@ Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
     helperPickupStaff: validHelperPickupStaff,
 
     finalChecklist,
-    finalChecklistStaff,
+    finalChecklistStaff: finalChecklistStaff ?? null,
 
-    outingGroup: null, // Outings are generally created in Edit Hub
+    outingGroup: null,
 
-    // Use local calendar date for the schedule (today)
     date:
       date ||
-      [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, '0'),
-        String(now.getDate()).padStart(2, '0'),
-      ].join('-'),
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+        2,
+        '0',
+      )}-${String(now.getDate()).padStart(2, '0')}`,
 
     meta: {
       from: 'create-wizard',
@@ -407,35 +306,33 @@ Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
     },
   };
 
-  // ---------------------------------------------------------------------------
-  // SPECIAL RULE: Twins auto-assigned to "Everyone"
-  //
-  // If Zara or Zoya is attending today, ensure they are included in
-  // assignments[everyoneId] alongside existing participants.
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
+  // SPECIAL RULE — Twins auto-assign to Everyone
+  // ----------------------------------------------------------------------------
 
   const everyoneId = findEveryoneStaffId(staff);
   if (everyoneId) {
     const zara = findParticipantByName(participants, 'Zara');
     const zoya = findParticipantByName(participants, 'Zoya');
 
-    const ensureTwin = (p?: Participant) => {
+    const ensure = (p?: Participant) => {
       if (!p) return;
-      const pid = String(p.id) as ID;
+      const pid = p.id as ID;
       if (!attendingSet.has(pid)) return;
 
       if (!snapshot.assignments[everyoneId]) {
         snapshot.assignments[everyoneId] = [];
       }
-
       if (!snapshot.assignments[everyoneId].includes(pid)) {
         snapshot.assignments[everyoneId].push(pid);
       }
     };
 
-    ensureTwin(zara);
-    ensureTwin(zoya);
+    ensure(zara);
+    ensure(zoya);
   }
+
+  // ----------------------------------------------------------------------------
 
   await Promise.resolve(createSchedule(snapshot));
 }
