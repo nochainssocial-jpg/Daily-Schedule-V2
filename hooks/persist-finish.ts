@@ -19,27 +19,23 @@ type PersistParams = {
   // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday?: ID[];
 
-  // assignments: participant ID -> staff ID
+  // assignments: participant ID -> staff ID (wizard view)
   assignments?: Record<ID, ID | null>;
 
   // floating room assignments
-  floatingAssignments?: {
-    frontRoom: ID | null;
-    scotty: ID | null;
-    twins: ID | null;
-  };
+  floatingAssignments?: ScheduleSnapshot['floatingAssignments'];
 
-  // cleaning assignments: staff ID -> { slotId, label }
+  // cleaning assignments: choreId -> staffId
   cleaningAssignments?: ScheduleSnapshot['cleaningAssignments'];
 
   // Special bins variant for "Take the bins out" task
   // 0 = default, 1 = red + yellow, 2 = red + green, 3 = bring in & clean
   cleaningBinsVariant?: ScheduleSnapshot['cleaningBinsVariant'];
 
-  // helper staff
-  helperStaff?: ID | null;
+  // helper staff (may come as single ID, array, or null)
+  helperStaff?: ID | ID[] | null;
 
-  // dropoffs
+  // dropoffs (wizard view; can be legacy participant-centric or new staff-centric)
   dropoffAssignments?: ScheduleSnapshot['dropoffAssignments'];
   dropoffLocations?: ScheduleSnapshot['dropoffLocations'];
 
@@ -57,6 +53,22 @@ type PersistParams = {
   // explicit schedule date (optional; we overwrite with "today" below)
   date?: string;
 };
+
+// Small helper: find "Everyone" staff entry
+function findEveryoneStaffId(staff: Staff[]): ID | null {
+  const everyone = staff.find(
+    (s) => String(s.name).trim().toLowerCase() === 'everyone',
+  );
+  return everyone ? (String(everyone.id) as ID) : null;
+}
+
+// Small helper: find participant by exact name
+function findParticipantByName(
+  participants: Participant[],
+  name: string,
+): Participant | undefined {
+  return participants.find((p) => String(p.name).trim() === name);
+}
 
 export async function persistFinish(params: PersistParams) {
   const {
@@ -105,30 +117,40 @@ export async function persistFinish(params: PersistParams) {
   );
 
   const workingSet = new Set<ID>(
-    (workingStaff && workingStaff.length ? workingStaff : staff.map((s) => s.id)) as ID[],
+    (workingStaff && workingStaff.length
+      ? workingStaff
+      : staff.map((s) => s.id)) as ID[],
   );
 
   const attendingSet = new Set<ID>(attendingParticipants as ID[]);
 
   // ---------------------------------------------------------------------------
-  // TEAM DAILY ASSIGNMENTS (participant -> staff)
+  // TEAM DAILY ASSIGNMENTS
+  //
+  // Wizard collects: participantId -> staffId
+  // Canonical storage: staffId -> participantIds[]
   // ---------------------------------------------------------------------------
 
-  const normalizedAssignments: Record<ID, ID | null> = {};
+  const assignmentsByStaff: Record<ID, ID[]> = {};
 
   Object.entries(assignments || {}).forEach(([pid, sid]) => {
     const participantId = pid as ID;
     const staffId = (sid || null) as ID | null;
 
+    // Only keep assignments for attending participants
     if (!attendingSet.has(participantId)) {
-      normalizedAssignments[participantId] = null;
       return;
     }
 
-    if (staffId && workingSet.has(staffId)) {
-      normalizedAssignments[participantId] = staffId;
-    } else {
-      normalizedAssignments[participantId] = null;
+    // Only keep assignments for staff actually working today
+    if (!staffId || !workingSet.has(staffId)) {
+      return;
+    }
+
+    const key = staffId as ID;
+    if (!assignmentsByStaff[key]) assignmentsByStaff[key] = [];
+    if (!assignmentsByStaff[key].includes(participantId)) {
+      assignmentsByStaff[key].push(participantId);
     }
   });
 
@@ -136,25 +158,37 @@ export async function persistFinish(params: PersistParams) {
   // FLOATING
   // ---------------------------------------------------------------------------
 
-  const normalizedFloating: ScheduleSnapshot['floatingAssignments'] = {
-    frontRoom: null,
-    scotty: null,
-    twins: null,
-  };
+  const normalizedFloating: ScheduleSnapshot['floatingAssignments'] = {};
 
-  Object.entries(floatingAssignments || {}).forEach(([roomKey, value]) => {
-    const key = roomKey as keyof ScheduleSnapshot['floatingAssignments'];
-    const id = (value || null) as ID | null;
+  Object.entries(floatingAssignments || {}).forEach(([slotKey, value]) => {
+    // Floating assignments are already in the canonical "slot -> { twins, scotty, frontRoom }" form.
+    // We only need to ensure the staff IDs inside are valid working staff.
+    const slot = slotKey as keyof ScheduleSnapshot['floatingAssignments'];
+    const entry: any = value || {};
 
-    if (id && staffMap.has(id) && workingSet.has(id)) {
-      normalizedFloating[key] = id;
-    } else {
-      normalizedFloating[key] = null;
-    }
+    const twinsId =
+      entry.twins && workingSet.has(entry.twins as ID)
+        ? (entry.twins as ID)
+        : null;
+    const scottyId =
+      entry.scotty && workingSet.has(entry.scotty as ID)
+        ? (entry.scotty as ID)
+        : null;
+    const frontRoomId =
+      entry.frontRoom && workingSet.has(entry.frontRoom as ID)
+        ? (entry.frontRoom as ID)
+        : null;
+
+    normalizedFloating[slot] = {
+      twins: twinsId,
+      scotty: scottyId,
+      frontRoom: frontRoomId,
+    };
   });
 
   // ---------------------------------------------------------------------------
   // CLEANING – fairness based on recent snapshots
+  // (participantId -> staffId | null)
   // ---------------------------------------------------------------------------
 
   const chores =
@@ -204,9 +238,7 @@ export async function persistFinish(params: PersistParams) {
 
   choresToAssign.forEach((entry) => {
     const alreadyAssigned = Object.values(nextCleaning).some(
-      (assigned) =>
-        !!assigned &&
-        assigned === entry.choreId,
+      (assigned) => !!assigned && assigned === entry.choreId,
     );
     if (!alreadyAssigned) {
       remainingAssignments.push(entry);
@@ -251,34 +283,71 @@ export async function persistFinish(params: PersistParams) {
 
   // ---------------------------------------------------------------------------
   // DROPOFFS
+  //
+  // Canonical: staffId -> participantIds[]
+  // Supports wizard / legacy shapes:
+  //   - staffId -> participantIds[]
+  //   - participantId -> { staffId, locationId }
+  //   - participantId -> staffId
   // ---------------------------------------------------------------------------
 
   const normalizedDropoffs: ScheduleSnapshot['dropoffAssignments'] = {};
 
-  Object.entries(dropoffAssignments || {}).forEach(([pid, assignment]) => {
-    const participantId = pid as ID;
+  Object.entries(dropoffAssignments || {}).forEach(([key, value]) => {
+    const k = String(key);
 
-    if (!assignment) {
-      normalizedDropoffs[participantId] = null;
+    // NEW SHAPE: staffId -> participantIds[]
+    if (Array.isArray(value)) {
+      const staffId = k as ID;
+      if (!workingSet.has(staffId)) return;
+      const pids = (value as any[])
+        .map((v) => String(v) as ID)
+        .filter((pid) => attendingSet.has(pid));
+      if (!pids.length) return;
+      const existing = new Set(normalizedDropoffs[staffId] || []);
+      pids.forEach((pid) => existing.add(pid));
+      normalizedDropoffs[staffId] = Array.from(existing);
       return;
     }
 
-    const staffId = (assignment as any).staffId as ID | null;
-    const locationId =
-      typeof (assignment as any).locationId === 'number'
-        ? (assignment as any).locationId
-        : null;
+    // LEGACY SHAPE: participantId -> { staffId, locationId }
+    if (value && typeof value === 'object' && 'staffId' in (value as any)) {
+      const v: any = value;
+      const participantId = k as ID;
+      if (!attendingSet.has(participantId)) return;
 
-    if (!attendingSet.has(participantId)) {
-      normalizedDropoffs[participantId] = null;
+      const staffId =
+        typeof v.staffId === 'string'
+          ? (v.staffId as ID)
+          : v.staffId
+          ? (String(v.staffId) as ID)
+          : null;
+
+      if (!staffId || !workingSet.has(staffId)) return;
+
+      if (!normalizedDropoffs[staffId]) normalizedDropoffs[staffId] = [];
+      if (!normalizedDropoffs[staffId].includes(participantId)) {
+        normalizedDropoffs[staffId].push(participantId);
+      }
       return;
     }
 
-    if (staffId && workingSet.has(staffId)) {
-      normalizedDropoffs[participantId] = { staffId, locationId };
-    } else {
-      normalizedDropoffs[participantId] = { staffId: null, locationId };
+    // LEGACY SHAPE: participantId -> staffId
+    if (typeof value === 'string' && value) {
+      const participantId = k as ID;
+      if (!attendingSet.has(participantId)) return;
+
+      const staffId = String(value) as ID;
+      if (!workingSet.has(staffId)) return;
+
+      if (!normalizedDropoffs[staffId]) normalizedDropoffs[staffId] = [];
+      if (!normalizedDropoffs[staffId].includes(participantId)) {
+        normalizedDropoffs[staffId].push(participantId);
+      }
+      return;
     }
+
+    // Anything else is ignored.
   });
 
   const normalizedDropoffLocations: ScheduleSnapshot['dropoffLocations'] = {
@@ -297,22 +366,47 @@ export async function persistFinish(params: PersistParams) {
     workingSet.has(id as ID),
   ) as ID[];
 
+  // Merge helperStaff (single or array) with helperPickupStaff into a single array
+  const mergedHelperStaffIds = new Set<ID>();
+
+  if (Array.isArray(helperStaff)) {
+    helperStaff.forEach((id) => {
+      const sid = id as ID;
+      if (workingSet.has(sid)) mergedHelperStaffIds.add(sid);
+    });
+  } else if (helperStaff) {
+    const sid = helperStaff as ID;
+    if (workingSet.has(sid)) mergedHelperStaffIds.add(sid);
+  }
+
+  validHelperPickupStaff.forEach((id) => {
+    const sid = id as ID;
+    if (workingSet.has(sid)) mergedHelperStaffIds.add(sid);
+  });
+
+  const finalHelperStaff: ID[] = Array.from(mergedHelperStaffIds);
+
+  // ---------------------------------------------------------------------------
+  // BASE SNAPSHOT (before special rules like twins)
+  // ---------------------------------------------------------------------------
+
   const snapshot: ScheduleSnapshot = {
     staff,
     participants,
     workingStaff,
     attendingParticipants,
 
-    // ✅ Persist training flags
+    // Persist training flags
     trainingStaffToday: Array.from(new Set(trainingStaffToday as ID[])),
 
-    assignments: normalizedAssignments,
+    // Canonical daily assignments: staffId -> participantIds[]
+    assignments: assignmentsByStaff,
     floatingAssignments: normalizedFloating,
 
     cleaningAssignments: nextCleaning,
     cleaningBinsVariant: cleaningBinsVariant ?? 0,
 
-    helperStaff: helperStaff ?? null,
+    helperStaff: finalHelperStaff,
 
     dropoffAssignments: normalizedDropoffs,
     dropoffLocations: normalizedDropoffLocations,
@@ -323,17 +417,52 @@ export async function persistFinish(params: PersistParams) {
     finalChecklist,
     finalChecklistStaff,
 
-    outingGroup: null,
+    outingGroup: null, // Outings are generally created in Edit Hub
 
     // Use local calendar date for the schedule (today)
-    date: [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-    ].join('-'),
+    date:
+      date ||
+      [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+      ].join('-'),
 
-    meta: { from: 'create-wizard' },
+    meta: {
+      from: 'create-wizard',
+      version: 2,
+    },
   };
+
+  // ---------------------------------------------------------------------------
+  // SPECIAL RULE: Twins auto-assigned to "Everyone"
+  //
+  // If Zara or Zoya is attending today, ensure they are included in
+  // assignments[everyoneId] alongside existing participants.
+  // ---------------------------------------------------------------------------
+
+  const everyoneId = findEveryoneStaffId(staff);
+  if (everyoneId) {
+    const zara = findParticipantByName(participants, 'Zara');
+    const zoya = findParticipantByName(participants, 'Zoya');
+
+    const ensureTwin = (p?: Participant) => {
+      if (!p) return;
+      const pid = String(p.id) as ID;
+      if (!attendingSet.has(pid)) return;
+
+      if (!snapshot.assignments[everyoneId]) {
+        snapshot.assignments[everyoneId] = [];
+      }
+
+      if (!snapshot.assignments[everyoneId].includes(pid)) {
+        snapshot.assignments[everyoneId].push(pid);
+      }
+    };
+
+    ensureTwin(zara);
+    ensureTwin(zoya);
+  }
 
   await Promise.resolve(createSchedule(snapshot));
 }
