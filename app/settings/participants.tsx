@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +18,6 @@ import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
-const PINK = '#FF8FC5';
 
 type ParticipantRow = {
   id: string;
@@ -29,6 +27,14 @@ type ParticipantRow = {
   is_active?: boolean | null;
   support_needs?: string | null;
 
+  // About / profile fields
+  about_intro?: string | null;
+  about_likes?: string | null;
+  about_dislikes?: string | null;
+  about_support?: string | null;
+  about_safety?: string | null;
+  about_pdf_url?: string | null;
+
   // New scoring fields (1–3 or null)
   behaviours?: number | null;
   personal_care?: number | null;
@@ -37,14 +43,6 @@ type ParticipantRow = {
   social?: number | null;
   community?: number | null;
   safety?: number | null;
-
-  // About / profile fields
-  about_intro?: string | null;
-  about_likes?: string | null;
-  about_dislikes?: string | null;
-  about_support?: string | null;
-  about_safety?: string | null;
-  about_pdf_url?: string | null;
 };
 
 type Option = {
@@ -66,6 +64,10 @@ export default function ParticipantsSettingsScreen() {
   const [newColor, setNewColor] = useState<'blue' | 'pink' | ''>('');
   const [savingNew, setSavingNew] = useState(false);
 
+  // Inline edit state for participant name
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+
   const showWebBranding = Platform.OS === 'web';
 
   async function loadParticipants() {
@@ -75,9 +77,7 @@ export default function ParticipantsSettingsScreen() {
       .select('*')
       .order('name', { ascending: true });
 
-    if (data) {
-      setParticipants(data as ParticipantRow[]);
-    }
+    if (data) setParticipants(data as ParticipantRow[]);
     setLoading(false);
   }
 
@@ -126,15 +126,56 @@ export default function ParticipantsSettingsScreen() {
     }
   }
 
-  const threeLevelOptions: Option[] = [
-    { label: '-', short: '-', value: null },
-    { label: '1', short: '1', value: 1 },
-    { label: '2', short: '2', value: 2 },
-    { label: '3', short: '3', value: 3 },
-  ];
 
-  const behaviourOptions: Option[] = [
-    { label: '-', short: '-', value: null },
+  function startEditParticipant(p: ParticipantRow) {
+    setEditingId(p.id);
+    setEditingName(p.name ?? '');
+  }
+
+  async function saveEditParticipant() {
+    if (!editingId) return;
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      return;
+    }
+
+    await supabase
+      .from('participants')
+      .update({ name: trimmed })
+      .eq('id', editingId);
+
+    setParticipants(prev =>
+      prev.map(p => (p.id === editingId ? { ...p, name: trimmed } : p)),
+    );
+    setEditingId(null);
+  }
+
+  function cancelEditParticipant() {
+    setEditingId(null);
+    setEditingName('');
+  }
+
+  function confirmDeleteParticipant(p: ParticipantRow) {
+    Alert.alert(
+      'Remove participant',
+      `Remove ${p.name} from the participants list? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('participants').delete().eq('id', p.id);
+            setParticipants(prev => prev.filter(x => x.id !== p.id));
+          },
+        },
+      ],
+    );
+  }
+
+  const threeLevelOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
     { label: '1 - Low', short: '1 - Low', value: 1 },
     { label: '2 - Medium', short: '2 - Medium', value: 2 },
     { label: '3 - High', short: '3 - High', value: 3 },
@@ -149,14 +190,23 @@ export default function ParticipantsSettingsScreen() {
     return (
       <View style={styles.pillRow}>
         {options.map(opt => {
-          const isSelected = currentValue === opt.value;
-          const isMinus = opt.value === null;
+          const isSelected =
+            (currentValue === null || currentValue === undefined)
+              ? opt.value === null
+              : currentValue === opt.value;
+          const isMinus = opt.short === '-';
 
           const pillStyles = [styles.pill];
-          if (isSelected && !isMinus) {
-            pillStyles.push(styles.pillActive);
-          } else if (isMinus) {
+          if (isMinus) {
             pillStyles.push(styles.pillMinus);
+          } else if (isSelected && typeof opt.value === 'number') {
+            if (opt.value === 1) {
+              pillStyles.push(styles.pillSelectedLow);
+            } else if (opt.value === 2) {
+              pillStyles.push(styles.pillSelectedMedium);
+            } else if (opt.value === 3) {
+              pillStyles.push(styles.pillSelectedHigh);
+            }
           }
 
           const textStyles = [styles.pillText];
@@ -170,13 +220,7 @@ export default function ParticipantsSettingsScreen() {
             <TouchableOpacity
               key={`${field}-${participantId}-${opt.short}`}
               style={pillStyles}
-              onPress={() =>
-                updateParticipant(
-                  participantId,
-                  field,
-                  isMinus && isSelected ? null : opt.value,
-                )
-              }
+              onPress={() => updateParticipant(participantId, field, opt.value)}
               activeOpacity={0.8}
             >
               <Text style={textStyles}>{opt.short}</Text>
@@ -196,171 +240,100 @@ export default function ParticipantsSettingsScreen() {
       p.social,
       p.community,
       p.safety,
-    ].filter(v => typeof v === 'number') as number[];
+    ].filter(
+      (v): v is number => typeof v === 'number' && !Number.isNaN(v),
+    );
 
     if (!values.length) return null;
     return values.reduce((sum, v) => sum + v, 0);
   }
 
-  if (loading) {
-    return (
-      <View style={[styles.screen, { paddingTop: insets.top + 40 }]}>
-        <ActivityIndicator size="large" color="#a855f7" />
-      </View>
-    );
+  function getScoreLevel(total: number): 'low' | 'medium' | 'high' {
+    // Delegate to shared participant risk bands (0–35)
+    return getRiskBand(total);
   }
 
   return (
-    <View
-      style={[
-        styles.screen,
-        {
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom || 16,
-        },
-      ]}
-    >
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
       {showWebBranding && (
         <Image
           source={require('@/assets/images/nochains-bg.png')}
-          resizeMode="contain"
           style={styles.bgLogo}
+          resizeMode="contain"
         />
       )}
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.heading}>
-                Participants – support complexity ratings
-              </Text>
-              <Text style={styles.subHeading}>
-                Use these ratings to match staff fairly and safely when building
-                the daily schedule. Higher totals indicate higher support
-                complexity.
-              </Text>
-            </View>
-            <View style={styles.scoreLegend}>
-              <Text style={styles.scoreLegendTitle}>Overall score bands</Text>
-              <View style={styles.scoreLegendRow}>
-                <View
-                  style={[
-                    styles.scoreLegendBubble,
-                    SCORE_BUBBLE_STYLES['low'].container,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.scoreLegendBubbleText,
-                      SCORE_BUBBLE_STYLES['low'].text,
-                    ]}
-                  >
-                    0–7
-                  </Text>
-                </View>
-                <Text style={styles.scoreLegendLabel}>Lower complexity</Text>
-              </View>
-              <View style={styles.scoreLegendRow}>
-                <View
-                  style={[
-                    styles.scoreLegendBubble,
-                    SCORE_BUBBLE_STYLES['medium'].container,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.scoreLegendBubbleText,
-                      SCORE_BUBBLE_STYLES['medium'].text,
-                    ]}
-                  >
-                    8–14
-                  </Text>
-                </View>
-                <Text style={styles.scoreLegendLabel}>Medium complexity</Text>
-              </View>
-              <View style={styles.scoreLegendRow}>
-                <View
-                  style={[
-                    styles.scoreLegendBubble,
-                    SCORE_BUBBLE_STYLES['high'].container,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.scoreLegendBubbleText,
-                      SCORE_BUBBLE_STYLES['high'].text,
-                    ]}
-                  >
-                    15+
-                  </Text>
-                </View>
-                <Text style={styles.scoreLegendLabel}>High complexity</Text>
-              </View>
-            </View>
-          </View>
+          {/* Heading */}
+          <Text style={styles.heading}>Participants Settings</Text>
+          <Text style={styles.subHeading}>
+            Score each participant across behaviours, personal care, communication,
+            sensory, social, community, and safety. Higher totals indicate more
+            complex participants who may require more experienced staff.
+          </Text>
 
           {/* LEGEND */}
           <View style={styles.legendWrap}>
-            <View style={styles.legendHeaderRow}>
-              <Text style={styles.legendTitle}>How to use these ratings</Text>
+            <View className="legend-header-row" style={styles.legendHeaderRow}>
+              <Text style={styles.legendTitle}>Legend</Text>
               <TouchableOpacity
                 onPress={() => setLegendCollapsed(prev => !prev)}
                 style={styles.legendToggle}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
-                <Text style={styles.legendToggleText}>
-                  {legendCollapsed ? 'Show detail' : 'Hide detail'}
-                </Text>
+                <MaterialCommunityIcons
+                  name={legendCollapsed ? 'chevron-down' : 'chevron-up'}
+                  size={18}
+                  color="#6b5a7d"
+                />
               </TouchableOpacity>
             </View>
-            <Text style={styles.legendHint}>
-              Set each rating using 1–3. A higher number means more support is
-              required in that area.
-            </Text>
 
             {!legendCollapsed && (
               <>
+                <Text style={styles.legendHint}>
+                  Each category is scored from 1–3. Higher totals indicate more
+                  complex support needs.
+                </Text>
+
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Behaviours:</Text>
                   <Text style={styles.legendText}>
-                    Frequency and intensity of behaviours of concern, and level
-                    of proactive / responsive support needed.
+                    Frequency and intensity of behaviours of concern, and level of
+                    support required to keep everyone safe.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Personal care:</Text>
                   <Text style={styles.legendText}>
-                    Assistance required for toileting, showering, dressing,
-                    continence, and hygiene.
+                    Level of support required for toileting, showering, dressing,
+                    hygiene, and medication prompts.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Communication:</Text>
                   <Text style={styles.legendText}>
-                    How much adaptation is needed (visuals, gestures, AAC,
-                    simplified language, repetition).
+                    Complexity of communication needs (non-verbal, devices, prompts,
+                    visual supports, processing time).
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Sensory:</Text>
                   <Text style={styles.legendText}>
-                    Sensory sensitivities, seeking behaviours, and environmental
-                    adjustments needed.
+                    Sensitivity to noise, light, crowds, smells, or touch and how
+                    much support is needed to manage this.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Social:</Text>
                   <Text style={styles.legendText}>
-                    Support needed to engage safely with peers, manage
-                    boundaries, and participate in group activities.
+                    Support needed to engage safely with peers, manage boundaries,
+                    and participate in group activities.
                   </Text>
                 </View>
 
@@ -389,100 +362,102 @@ export default function ParticipantsSettingsScreen() {
               <Text style={styles.addTitle}>Add new participant</Text>
               <TouchableOpacity
                 onPress={() => setAddCollapsed(prev => !prev)}
-                activeOpacity={0.85}
+                style={styles.addToggle}
+                activeOpacity={0.8}
               >
                 <MaterialCommunityIcons
                   name={addCollapsed ? 'chevron-down' : 'chevron-up'}
-                  size={20}
-                  color="#4b3a62"
+                  size={18}
+                  color="#6b5a7d"
                 />
               </TouchableOpacity>
             </View>
-            <Text style={styles.addHint}>
-              Name, colour (blue/pink) and gender are required.
-            </Text>
 
             {!addCollapsed && (
-              <View style={styles.addBody}>
+              <>
                 <View style={styles.addRow}>
+                  {/* Name */}
                   <TextInput
                     style={styles.addInput}
+                    placeholder="Participant name"
                     value={newName}
                     onChangeText={setNewName}
-                    placeholder="Full name"
                     placeholderTextColor="#b8a8d6"
                   />
-                </View>
 
-                <View style={styles.addRow}>
-                  <View style={{ flex: 1, marginRight: 6 }}>
-                    <Text style={styles.addLabel}>Colour (for schedule)</Text>
-                    <View style={styles.selectRow}>
-                      <TouchableOpacity
+                  {/* Gender: Male / Female */}
+                  <View style={styles.addInlineGroup}>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newGender === 'Male' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewGender('Male')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
                         style={[
-                          styles.selectPill,
-                          newColor === 'blue' && styles.selectPillSelected,
+                          styles.addInlineText,
+                          newGender === 'Male' && styles.addInlineTextActive,
                         ]}
-                        onPress={() => setNewColor('blue')}
-                        activeOpacity={0.85}
                       >
-                        <View
-                          style={[
-                            styles.selectColourDot,
-                            { backgroundColor: '#60a5fa' },
-                          ]}
-                        />
-                        <Text style={styles.selectPillText}>Blue (male)</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
+                        M
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newGender === 'Female' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewGender('Female')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
                         style={[
-                          styles.selectPill,
-                          newColor === 'pink' && styles.selectPillSelected,
+                          styles.addInlineText,
+                          newGender === 'Female' && styles.addInlineTextActive,
                         ]}
-                        onPress={() => setNewColor('pink')}
-                        activeOpacity={0.85}
                       >
-                        <View
-                          style={[
-                            styles.selectColourDot,
-                            { backgroundColor: '#f973b7' },
-                          ]}
-                        />
-                        <Text style={styles.selectPillText}>Pink (female)</Text>
-                      </TouchableOpacity>
-                    </View>
+                        F
+                      </Text>
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.addLabel}>Gender</Text>
-                    <View style={styles.selectRow}>
-                      <TouchableOpacity
+                  {/* Colour: blue (boys) / pink (girls) */}
+                  <View style={styles.addInlineGroup}>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newColor === 'blue' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewColor('blue')}
+                      activeOpacity={0.8}
+                    >
+                      <View
                         style={[
-                          styles.selectPill,
-                          newGender === 'Male' && styles.selectPillSelected,
+                          styles.addInlineColorDot,
+                          { backgroundColor: '#60a5fa' },
                         ]}
-                        onPress={() => setNewGender('Male')}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.selectPillText}>Male</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.addInlinePill,
+                        newColor === 'pink' && styles.addInlinePillActive,
+                      ]}
+                      onPress={() => setNewColor('pink')}
+                      activeOpacity={0.8}
+                    >
+                      <View
                         style={[
-                          styles.selectPill,
-                          newGender === 'Female' && styles.selectPillSelected,
+                          styles.addInlineColorDot,
+                          { backgroundColor: '#f472b6' },
                         ]}
-                        onPress={() => setNewGender('Female')}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.selectPillText}>Female</Text>
-                      </TouchableOpacity>
-                    </View>
+                      />
+                    </TouchableOpacity>
                   </View>
-                </View>
 
-                <View style={styles.addButtonRow}>
+                  {/* Add button */}
                   <TouchableOpacity
                     style={[
                       styles.addButton,
@@ -508,340 +483,259 @@ export default function ParticipantsSettingsScreen() {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.addHint}>
-                  You can add the detailed profile and PDF link after saving.
+                  Only add participants who attend the day program.
                 </Text>
-              </View>
+              </>
             )}
           </View>
 
-          {/* PARTICIPANTS LIST */}
-          <View style={styles.listWrap}>
-            <View style={styles.listHeaderRow}>
-              <Text style={styles.listHeaderLabel}>Participant</Text>
-              <Text style={styles.listHeaderLabelRight}>Score</Text>
-            </View>
+          {/* Participants list */}
+          {loading ? (
+            <ActivityIndicator
+              size="large"
+              color="#c084fc"
+              style={{ marginTop: 40 }}
+            />
+          ) : (
+            <View style={styles.listWrap}>
+              <View style={styles.headerRow}>
+                <Text style={[styles.headerCell, { width: 32 }]} />
+                <Text
+                  style={[
+                    styles.headerCell,
+                    {
+                      flex: 1,
+                      marginTop: -8,
+                      marginBottom: 4,
+                    },
+                  ]}
+                >
+                  Participant
+                </Text>
+                <Text
+                  style={[
+                    styles.headerCell,
+                    {
+                      width: 70,
+                      textAlign: 'right',
+                      marginRight: 30,
+                      marginTop: -8,
+                      marginBottom: 4,
+                    },
+                  ]}
+                >
+                  Score
+                </Text>
+              </View>
 
-            {participants.map(p => {
-              const totalScore = getTotalScore(p);
-              const band = getRiskBand(totalScore);
-              const bandStyles = SCORE_BUBBLE_STYLES[band];
+              {participants.map(p => {
+                const inactive = p.is_active === false;
+                const totalScore = getTotalScore(p);
+                const scoreLevel =
+                  totalScore === null ? null : getScoreLevel(totalScore);
 
-              const isExpanded = expandedId === p.id;
+                const rowStyles = [styles.row];
+                if (inactive) rowStyles.push(styles.rowInactive);
 
-              return (
-                <View key={p.id} style={styles.row}>
-                  <View style={styles.rowHeader}>
-                    <TouchableOpacity
-                      onPress={() =>
-                        setExpandedId(prev => (prev === p.id ? null : p.id))
-                      }
-                      style={styles.rowHeaderMain}
-                      activeOpacity={0.85}
-                    >
-                      <View style={styles.participantInfoBlock}>
-                        <View
-                          style={[
-                            styles.colorBox,
-                            {
-                              backgroundColor: p.color || '#f973b7',
-                            },
-                          ]}
+                const scoreBubbleStyles = [styles.scoreBubble];
+                if (scoreLevel === 'low') scoreBubbleStyles.push(styles.scoreBubbleLow);
+                if (scoreLevel === 'medium')
+                  scoreBubbleStyles.push(styles.scoreBubbleMedium);
+                if (scoreLevel === 'high')
+                  scoreBubbleStyles.push(styles.scoreBubbleHigh);
+
+                const isExpanded = expandedId === p.id;
+
+                return (
+                  <View key={p.id} style={rowStyles}>
+                    {/* Row header: delete + participant info + score bubble */}
+                    <View style={styles.rowHeader}>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => confirmDeleteParticipant(p)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons
+                          name="trash-can-outline"
+                          size={20}
+                          color="#ef4444"
                         />
-                        <View style={styles.info}>
-                          <Text style={styles.name}>
-                            {p.name}
-                            {p.is_active === false ? ' (inactive)' : ''}
-                          </Text>
-                          {!!p.support_needs && (
-                            <Text style={styles.supportNeeds} numberOfLines={1}>
-                              {p.support_needs}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
+                      </TouchableOpacity>
 
-                      {totalScore !== null && (
-                        <View
-                          style={[
-                            styles.scoreBubble,
-                            bandStyles.container,
-                          ]}
-                        >
-                          <Text
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => startEditParticipant(p)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons
+                          name="pencil"
+                          size={20}
+                          color="#22c55e"
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.rowHeaderMain}
+                        onPress={() =>
+                          setExpandedId(prev => (prev === p.id ? null : p.id))
+                        }
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.participantInfoBlock}>
+                          <View
                             style={[
-                              styles.scoreBubbleText,
-                              bandStyles.text,
+                              styles.colorBox,
+                              {
+                                // Pink for girls / blue for boys comes from Supabase `color`
+                                backgroundColor: p.color || '#f973b7',
+                              },
                             ]}
-                          >
-                            {totalScore}
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Expanded scoring panel */}
-                  {isExpanded && (
-                    <View style={styles.scorePanel}>
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Behaviours</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'behaviours',
-                            p.behaviours,
-                            behaviourOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Personal care</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'personal_care',
-                            p.personal_care,
-                            threeLevelOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Communication</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'communication',
-                            p.communication,
-                            threeLevelOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Sensory</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'sensory',
-                            p.sensory,
-                            threeLevelOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Social</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'social',
-                            p.social,
-                            threeLevelOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Community</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'community',
-                            p.community,
-                            threeLevelOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.categoryRow}>
-                        <Text style={styles.categoryLabel}>Safety</Text>
-                        <View style={styles.categoryPills}>
-                          {renderPills(
-                            p.id,
-                            'safety',
-                            p.safety,
-                            threeLevelOptions,
-                          )}
-                        </View>
-                      </View>
-
-                      {/* About / profile section */}
-                      <View style={styles.aboutBlock}>
-                        <Text style={styles.aboutHeading}>
-                          About this participant
-                        </Text>
-                        <Text style={styles.aboutSmallHint}>
-                          This information is visible to staff when hovering over
-                          this participant in the schedule. Keep it brief, clear,
-                          and practical.
-                        </Text>
-
-                        <Text style={styles.aboutLabel}>Overview</Text>
-                        <Text style={styles.aboutFieldHint}>
-                          Short summary in 2–4 sentences (diagnosis in plain language,
-                          communication style, general presentation).
-                        </Text>
-                        <TextInput
-                          style={styles.aboutInput}
-                          multiline
-                          textAlignVertical="top"
-                          value={p.about_intro ?? ''}
-                          onChangeText={text =>
-                            updateParticipant(
-                              p.id,
-                              'about_intro',
-                              text || null,
-                            )
-                          }
-                          placeholder="Example: Paul is an autistic adult with intellectual disability who enjoys drives, music, and food. He communicates using simple words and gestures and responds well to calm, clear instructions."
-                          placeholderTextColor="#b8a8d6"
-                        />
-
-                        <Text style={styles.aboutLabel}>Likes</Text>
-                        <Text style={styles.aboutFieldHint}>
-                          One item per line. These will show as bullet points.
-                        </Text>
-                        <TextInput
-                          style={styles.aboutInput}
-                          multiline
-                          textAlignVertical="top"
-                          value={p.about_likes ?? ''}
-                          onChangeText={text =>
-                            updateParticipant(
-                              p.id,
-                              'about_likes',
-                              text || null,
-                            )
-                          }
-                          placeholder={'Music\nDrives\nHot chips'}
-                          placeholderTextColor="#b8a8d6"
-                        />
-
-                        <Text style={styles.aboutLabel}>Dislikes / triggers</Text>
-                        <Text style={styles.aboutFieldHint}>
-                          Things that can distress or dysregulate this participant.
-                        </Text>
-                        <TextInput
-                          style={styles.aboutInput}
-                          multiline
-                          textAlignVertical="top"
-                          value={p.about_dislikes ?? ''}
-                          onChangeText={text =>
-                            updateParticipant(
-                              p.id,
-                              'about_dislikes',
-                              text || null,
-                            )
-                          }
-                          placeholder={'Waiting long periods\nLoud shouting'}
-                          placeholderTextColor="#b8a8d6"
-                        />
-
-                        <Text style={styles.aboutLabel}>Support strategies</Text>
-                        <Text style={styles.aboutFieldHint}>
-                          What works well. One strategy per line.
-                        </Text>
-                        <TextInput
-                          style={styles.aboutInput}
-                          multiline
-                          textAlignVertical="top"
-                          value={p.about_support ?? ''}
-                          onChangeText={text =>
-                            updateParticipant(
-                              p.id,
-                              'about_support',
-                              text || null,
-                            )
-                          }
-                          placeholder={
-                            'Use visual schedule\nOffer choices\nGive extra processing time'
-                          }
-                          placeholderTextColor="#b8a8d6"
-                        />
-
-                        <Text style={styles.aboutLabel}>Safety notes</Text>
-                        <Text style={styles.aboutFieldHint}>
-                          Any key risks or “watch outs” (will appear as badges).
-                        </Text>
-                        <TextInput
-                          style={styles.aboutInput}
-                          multiline
-                          textAlignVertical="top"
-                          value={p.about_safety ?? ''}
-                          onChangeText={text =>
-                            updateParticipant(
-                              p.id,
-                              'about_safety',
-                              text || null,
-                            )
-                          }
-                          placeholder={
-                            'May attempt to leave room when distressed\nNeeds close supervision near roads'
-                          }
-                          placeholderTextColor="#b8a8d6"
-                        />
-
-                        <Text style={styles.aboutLabel}>Profile PDF link</Text>
-                        <Text style={styles.aboutFieldHint}>
-                          Full About Me / BSP PDF link (optional).
-                        </Text>
-                        <View style={styles.pdfRow}>
-                          <TextInput
-                            style={[styles.aboutInput, styles.pdfInput]}
-                            value={p.about_pdf_url ?? ''}
-                            onChangeText={text =>
-                              updateParticipant(
-                                p.id,
-                                'about_pdf_url',
-                                text || null,
-                              )
-                            }
-                            placeholder="https://…/about-me.pdf"
-                            placeholderTextColor="#b8a8d6"
                           />
-                          {!!p.about_pdf_url && (
-                            <TouchableOpacity
-                              style={styles.pdfButton}
-                              onPress={() => {
-                                if (p.about_pdf_url) {
-                                  Linking.openURL(p.about_pdf_url as string);
-                                }
-                              }}
-                              activeOpacity={0.85}
-                            >
-                              <MaterialCommunityIcons
-                                name="file-pdf-box"
-                                size={18}
-                                color="#ef4444"
+                          <View style={styles.info}>
+                            {editingId === p.id ? (
+                              <TextInput
+                                style={styles.editNameInput}
+                                value={editingName}
+                                onChangeText={setEditingName}
+                                autoFocus
+                                onBlur={saveEditParticipant}
+                                onSubmitEditing={saveEditParticipant}
                               />
-                              <Text style={styles.pdfButtonText}>
-                                Open PDF
+                            ) : (
+                              <Text style={styles.name}>
+                                {p.name}
+                                {inactive ? ' (inactive)' : ''}
                               </Text>
-                            </TouchableOpacity>
-                          )}
+                            )}
+                            {!!p.support_needs && (
+                              <Text
+                                style={styles.supportNeeds}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {p.support_needs}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+
+                        {totalScore !== null && (
+                          <View style={scoreBubbleStyles}>
+                            <Text style={styles.scoreBubbleText}>{totalScore}</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Expanded scoring panel */}
+                    {isExpanded && (
+                      <View style={styles.scorePanel}>
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Behaviours</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'behaviours',
+                              p.behaviours,
+                              threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Personal care</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'personal_care',
+                              p.personal_care,
+                              threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Communication</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'communication',
+                              p.communication,
+                              threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Sensory</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'sensory',
+                              p.sensory,
+                              threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Social</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'social',
+                              p.social,
+                              threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Community</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'community',
+                              p.community,
+                              threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Safety</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              p.id,
+                              'safety',
+                              p.safety,
+                              threeLevelOptions,
+                            )}
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
-
-        <Footer />
       </ScrollView>
+
+      <Footer />
     </View>
   );
 }
+
+/* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#faf7fb',
     position: 'relative',
+    overflow: 'hidden',
   },
   bgLogo: {
     position: 'absolute',
@@ -853,9 +747,8 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   scroll: {
-    paddingVertical: 32,
+    paddingBottom: 120,
     alignItems: 'center',
-    paddingBottom: 160,
   },
   inner: {
     width: '100%',
@@ -870,60 +763,18 @@ const styles = StyleSheet.create({
   },
   subHeading: {
     fontSize: 14,
-    color: '#6b5a7d',
-    marginTop: 6,
+    color: '#553a75',
     marginBottom: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  scoreLegend: {
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: '#fefce8',
-    borderWidth: 1,
-    borderColor: '#facc15',
-    maxWidth: 220,
-  },
-  scoreLegendTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#854d0e',
-    marginBottom: 4,
-  },
-  scoreLegendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  scoreLegendBubble: {
-    minWidth: 38,
-    height: 24,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-    paddingHorizontal: 8,
-  },
-  scoreLegendBubbleText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  scoreLegendLabel: {
-    fontSize: 11,
-    color: '#854d0e',
   },
 
+  /* Legend styles */
   legendWrap: {
     backgroundColor: '#ffffff',
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#e7dff2',
-    marginBottom: 18,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOpacity: 0.03,
     shadowRadius: 4,
@@ -967,17 +818,18 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 13,
-    color: '#4b3a62',
+    color: '#6b5a7d',
     flex: 1,
   },
 
+  /* Add new participant */
   addWrap: {
     backgroundColor: '#ffffff',
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#e7dff2',
-    marginBottom: 18,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOpacity: 0.03,
     shadowRadius: 4,
@@ -987,20 +839,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 8,
+  },
+  addToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   addTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#332244',
-  },
-  addHint: {
-    fontSize: 11,
-    color: '#6b5a7d',
-    marginTop: 2,
-  },
-  addBody: {
-    marginTop: 10,
+    marginBottom: 8,
   },
   addRow: {
     flexDirection: 'row',
@@ -1017,51 +867,44 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#e1d5f5',
+    marginRight: 8,
   },
-  addLabel: {
-    fontSize: 12,
-    color: '#6b5a7d',
-    marginBottom: 4,
-  },
-  selectRow: {
+  addInlineGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginRight: 8,
   },
-  selectPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  addInlinePill: {
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e1d5f5',
     backgroundColor: '#f8f4fb',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginRight: 4,
   },
-  selectPillSelected: {
-    backgroundColor: '#e5d4ff',
-    borderColor: '#c4b0f5',
+  addInlinePillActive: {
+    backgroundColor: '#e9d5ff',
+    borderColor: '#c4b5fd',
   },
-  selectColourDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    marginRight: 6,
-  },
-  selectPillText: {
+  addInlineText: {
     fontSize: 12,
-    color: '#332244',
     fontWeight: '600',
+    color: '#4b164c',
   },
-  addButtonRow: {
-    marginTop: 8,
-    alignItems: 'flex-end',
+  addInlineTextActive: {
+    color: '#111827',
+  },
+  addInlineColorDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
   addButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#f472b6',
+    backgroundColor: '#2563eb',
   },
   addButtonDisabled: {
     opacity: 0.5,
@@ -1071,49 +914,67 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
+  addHint: {
+    fontSize: 12,
+    color: '#7a678e',
+  },
 
   listWrap: {
     width: '100%',
-    marginBottom: 60,
   },
-  listHeaderRow: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 6,
-    paddingHorizontal: 6,
+    alignItems: 'flex-start',
+    marginLeft: 40,
+    marginTop: -6,
   },
-  listHeaderLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#553a75',
+  headerCell: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7a678e',
   },
-  listHeaderLabelRight: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#553a75',
-    textAlign: 'right',
-    width: 80,
+  row: {
+    flexDirection: 'column',
+    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 10,
+    alignItems: 'stretch',
+  },
+  rowInactive: {
+    opacity: 0.5,
   },
 
-  row: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#efe3ff',
-    backgroundColor: '#fdfbff',
-    padding: 10,
-    marginBottom: 8,
-  },
   rowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   rowHeaderMain: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flex: 1,
+  },
+
+  // Delete button (red X only)
+  deleteButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginRight: 8,
+    marginLeft: 0,
+  },
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginRight: 8,
+  },
+  deleteButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ef4444',
   },
 
   participantInfoBlock: {
@@ -1130,26 +991,51 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   name: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#332244',
+  },
+  editNameInput: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#332244',
+    paddingVertical: 0,
   },
   supportNeeds: {
     fontSize: 12,
     color: '#6b5a7d',
+    marginTop: 2,
   },
 
   scoreBubble: {
-    minWidth: 40,
+    Width: 80,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    backgroundColor: '#f8f2ff',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 'auto',
+    marginRight: 10,
+  },
+  scoreBubbleLow: {
+    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
+    borderColor: SCORE_BUBBLE_STYLES.low.border,
+  },
+  scoreBubbleMedium: {
+    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
+    borderColor: SCORE_BUBBLE_STYLES.medium.border,
+  },
+  scoreBubbleHigh: {
+    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
+    borderColor: SCORE_BUBBLE_STYLES.high.border,
   },
   scoreBubbleText: {
     fontSize: 13,
     fontWeight: '700',
+    color: '#332244',
   },
 
   scorePanel: {
@@ -1159,73 +1045,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
   },
-  aboutBlock: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f1e9ff',
-  },
-  aboutHeading: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#332244',
-    marginBottom: 4,
-  },
-  aboutSmallHint: {
-    fontSize: 11,
-    color: '#6b5a7d',
-    marginBottom: 10,
-  },
-  aboutLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#553a75',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  aboutFieldHint: {
-    fontSize: 11,
-    color: '#6b5a7d',
-    marginBottom: 4,
-  },
-  aboutInput: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e1d5f5',
-    backgroundColor: '#fbf8ff',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 12,
-    color: '#332244',
-    minHeight: 60,
-    marginBottom: 4,
-  },
-  pdfRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  pdfInput: {
-    flex: 1,
-    marginRight: 8,
-  },
-  pdfButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
-  },
-  pdfButtonText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#b91c1c',
-    marginLeft: 4,
-  },
-
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1233,7 +1052,7 @@ const styles = StyleSheet.create({
     paddingLeft: 0,
   },
   categoryLabel: {
-    width: 120,
+    width: 130,
     fontSize: 13,
     fontWeight: '600',
     color: '#553a75',
@@ -1242,43 +1061,62 @@ const styles = StyleSheet.create({
   categoryPills: {
     flex: 1,
   },
+
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   pill: {
-    minWidth: 60,
-    height: 26,
+    minWidth: 120,
+    height: 30,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#d4d4d8',
-    backgroundColor: '#f4f4f5',
+    borderColor: '#5b5b5b',
+    backgroundColor: '#dadada',
     marginRight: 6,
     marginBottom: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  pillActive: {
-    backgroundColor: '#4f46e5',
-    borderColor: '#4f46e5',
-  },
-  pillMinus: {
-    backgroundColor: '#f9fafb',
-    borderColor: '#e5e7eb',
   },
   pillText: {
-    fontSize: 11,
-    color: '#374151',
+    fontSize: 12,
+    color: '#3e3e3e',
   },
   pillTextActive: {
-    color: '#ffffff',
-    fontWeight: '700',
+    color: '#000000',
+    fontWeight: '600',
+  },
+
+  pillSelectedLow: {
+    backgroundColor: '#D4F8E3',
+    borderColor: '#4CAF50',
+  },
+  pillSelectedMedium: {
+    backgroundColor: '#FFF5D0',
+    borderColor: '#FFC107',
+  },
+  pillSelectedHigh: {
+    backgroundColor: '#FFE0E0',
+    borderColor: '#F44336',
+  },
+
+  pillMinus: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    marginRight: 4,
+    marginLeft: 4,
   },
   pillMinusText: {
-    color: '#6b7280',
+    fontSize: 20,
+    color: '#ef4444',
+    fontWeight: '700',
   },
 });
+
+const PINK = '#FF8FC5';
 
 export const options = {
   headerTitleAlign: 'center' as const,
