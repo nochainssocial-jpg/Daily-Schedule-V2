@@ -14,20 +14,16 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
-import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
-import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
 
 type ParticipantRow = {
   id: string;
   name: string;
+  is_active: boolean | null;
   color?: string | null;
-  gender?: string | null;
-  is_active?: boolean | null;
+  gender?: 'Male' | 'Female' | null;
   support_needs?: string | null;
-
-  // New scoring fields (1–3 or null)
   behaviours?: number | null;
   personal_care?: number | null;
   communication?: number | null;
@@ -56,6 +52,9 @@ export default function ParticipantsSettingsScreen() {
   const [newColor, setNewColor] = useState<'blue' | 'pink' | ''>('');
   const [savingNew, setSavingNew] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+
   const showWebBranding = Platform.OS === 'web';
 
   async function loadParticipants() {
@@ -65,13 +64,37 @@ export default function ParticipantsSettingsScreen() {
       .select('*')
       .order('name', { ascending: true });
 
-    if (data) setParticipants(data as ParticipantRow[]);
+    if (data) {
+      setParticipants(data as ParticipantRow[]);
+    }
     setLoading(false);
   }
 
   useEffect(() => {
     loadParticipants();
   }, []);
+
+  function getTotalScore(p: ParticipantRow): number | null {
+    const values = [
+      p.behaviours,
+      p.personal_care,
+      p.communication,
+      p.sensory,
+      p.social,
+      p.community,
+      p.safety,
+    ].filter(v => typeof v === 'number') as number[];
+
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0);
+  }
+
+  function getScoreLevel(total: number | null): 'low' | 'medium' | 'high' | null {
+    if (total === null) return null;
+    if (total <= 7) return 'low';
+    if (total <= 14) return 'medium';
+    return 'high';
+  }
 
   async function updateParticipant(
     id: string,
@@ -88,29 +111,111 @@ export default function ParticipantsSettingsScreen() {
     const name = newName.trim();
     if (!name || !newGender || !newColor) return;
 
+    const colorHex =
+      newColor === 'blue'
+        ? '#60a5fa'
+        : newColor === 'pink'
+        ? '#f973b7'
+        : null;
+
+    const genderValue: 'Male' | 'Female' | null =
+      newGender === 'Male' || newGender === 'Female' ? newGender : null;
+
     setSavingNew(true);
     const { data, error } = await supabase
       .from('participants')
       .insert({
         name,
         is_active: true,
-        gender: newGender,
-        color: newColor,
+        color: colorHex,
+        gender: genderValue,
       })
       .select()
       .single();
 
-    setSavingNew(false);
+  const threeLevelOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1', short: '1', value: 1 },
+    { label: '2', short: '2', value: 2 },
+    { label: '3', short: '3', value: 3 },
+  ];
 
-    if (!error && data) {
-      setParticipants(prev =>
-        [...prev, data as ParticipantRow].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-      );
-      setNewName('');
-      setNewGender('');
-      setNewColor('');
+  const behaviourOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Low', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High', short: '3 - High', value: 3 },
+  ];
+
+  const safetyOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Low risk', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High risk', short: '3 - High', value: 3 },
+  ];
+
+  function renderPills(
+    id: string,
+    field:
+      | 'behaviours'
+      | 'personal_care'
+      | 'communication'
+      | 'sensory'
+      | 'social'
+      | 'community'
+      | 'safety',
+    current: number | null | undefined,
+    options: Option[],
+  ) {
+    return (
+      <View style={styles.pillRow}>
+        {options.map(opt => {
+          const active = current === opt.value;
+          return (
+            <TouchableOpacity
+              key={opt.short}
+              style={[
+                styles.pill,
+                active && styles.pillActive,
+                opt.value === null && styles.pillUnset,
+              ]}
+              onPress={() => updateParticipant(id, field, opt.value)}
+              activeOpacity={0.85}
+            >
+              <Text
+                style={[
+                  styles.pillText,
+                  active && styles.pillTextActive,
+                  opt.value === null && styles.pillTextUnset,
+                ]}
+              >
+                {opt.short}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
+
+  function getLegendText(field: keyof ParticipantRow): string {
+    switch (field) {
+      case 'behaviours':
+        return 'Behaviours: 1 = Low, 2 = Medium, 3 = High support needs.';
+      case 'personal_care':
+        return 'Personal care: 1 = Light, 2 = Moderate, 3 = Intensive support.';
+      case 'communication':
+        return 'Communication: 1 = Straightforward, 2 = Some adaptation, 3 = High adaptation.';
+      case 'sensory':
+        return 'Sensory: 1 = Low impact, 2 = Moderate, 3 = Very sensitive.';
+      case 'social':
+        return 'Social: 1 = Easy group fit, 2 = Some support, 3 = High support.';
+      case 'community':
+        return 'Community access: 1 = Simple, 2 = Moderate, 3 = Complex support.';
+      case 'safety':
+        return 'Safety: 1 = Low risk, 2 = Medium, 3 = High risk.';
+      default:
+        return '';
     }
   }
 
@@ -132,382 +237,343 @@ export default function ParticipantsSettingsScreen() {
     );
   }
 
-  const threeLevelOptions: Option[] = [
-    { label: 'Not set', short: '-', value: null },
-    { label: '1 - Low', short: '1 - Low', value: 1 },
-    { label: '2 - Medium', short: '2 - Medium', value: 2 },
-    { label: '3 - High', short: '3 - High', value: 3 },
-  ];
+  function startEdit(p: ParticipantRow) {
+    setEditingId(p.id);
+    setEditingName(p.name ?? '');
+    setExpandedId(null);
+  }
 
-  function renderPills(
-    participantId: string,
-    field: keyof ParticipantRow,
-    currentValue: number | null | undefined,
-    options: Option[],
-  ) {
+  async function saveEdit() {
+    if (!editingId) return;
+
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      setEditingId(null);
+      setEditingName('');
+      return;
+    }
+
+    await updateParticipant(editingId, 'name', trimmed);
+    setEditingId(null);
+    setEditingName('');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingName('');
+  }
+
+  if (savingNew) {
+    // just to keep the linter happy if you want; real loading state handled via `loading`
+  }
+
+  if (loading) {
     return (
-      <View style={styles.pillRow}>
-        {options.map(opt => {
-          const isSelected =
-            (currentValue === null || currentValue === undefined)
-              ? opt.value === null
-              : currentValue === opt.value;
-          const isMinus = opt.short === '-';
-
-          const pillStyles = [styles.pill];
-          if (isMinus) {
-            pillStyles.push(styles.pillMinus);
-          } else if (isSelected && typeof opt.value === 'number') {
-            if (opt.value === 1) {
-              pillStyles.push(styles.pillSelectedLow);
-            } else if (opt.value === 2) {
-              pillStyles.push(styles.pillSelectedMedium);
-            } else if (opt.value === 3) {
-              pillStyles.push(styles.pillSelectedHigh);
-            }
-          }
-
-          const textStyles = [styles.pillText];
-          if (isMinus) {
-            textStyles.push(styles.pillMinusText);
-          } else if (isSelected) {
-            textStyles.push(styles.pillTextActive);
-          }
-
-          return (
-            <TouchableOpacity
-              key={`${field}-${participantId}-${opt.short}`}
-              style={pillStyles}
-              onPress={() => updateParticipant(participantId, field, opt.value)}
-              activeOpacity={0.8}
-            >
-              <Text style={textStyles}>{opt.short}</Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={[styles.screen, { paddingTop: insets.top + 40 }]}>
+        <ActivityIndicator size="large" color="#a855f7" />
       </View>
     );
   }
 
-  function getTotalScore(p: ParticipantRow): number | null {
-    const values = [
-      p.behaviours,
-      p.personal_care,
-      p.communication,
-      p.sensory,
-      p.social,
-      p.community,
-      p.safety,
-    ].filter(
-      (v): v is number => typeof v === 'number' && !Number.isNaN(v),
-    );
-
-    if (!values.length) return null;
-    return values.reduce((sum, v) => sum + v, 0);
-  }
-
-  function getScoreLevel(total: number): 'low' | 'medium' | 'high' {
-    // Delegate to shared participant risk bands (0–35)
-    return getRiskBand(total);
-  }
+  const canSaveNew =
+    !!newName.trim() && !!newGender && !!newColor && !savingNew;
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View
+      style={[
+        styles.screen,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom || 16,
+        },
+      ]}
+    >
       {showWebBranding && (
         <Image
-          source={require('@/assets/images/nochains-bg.png')}
-          style={styles.bgLogo}
+          source={require('@/assets/no-chains-bg-logo.png')}
           resizeMode="contain"
+          style={styles.bgLogo}
         />
       )}
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.inner}>
-          {/* Heading */}
-          <Text style={styles.heading}>Participants Settings</Text>
+          <Text style={styles.heading}>
+            Participants – support complexity ratings
+          </Text>
           <Text style={styles.subHeading}>
-            Score each participant across behaviours, personal care, communication,
-            sensory, social, community, and safety. Higher totals indicate more
-            complex participants who may require more experienced staff.
+            Use these ratings to match staff fairly and safely when building the
+            daily schedule.
           </Text>
 
-          {/* LEGEND */}
+          {/* Legend */}
           <View style={styles.legendWrap}>
-            <View className="legend-header-row" style={styles.legendHeaderRow}>
-              <Text style={styles.legendTitle}>Legend</Text>
-              <TouchableOpacity
-                onPress={() => setLegendCollapsed(prev => !prev)}
-                style={styles.legendToggle}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name={legendCollapsed ? 'chevron-down' : 'chevron-up'}
-                  size={18}
-                  color="#6b5a7d"
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.legendHeader}
+              onPress={() => setLegendCollapsed(prev => !prev)}
+              activeOpacity={0.85}
+            >
+              <View>
+                <Text style={styles.legendTitle}>How the ratings work</Text>
+                <Text style={styles.legendHint}>
+                  Tap to {legendCollapsed ? 'show' : 'hide'} rating guidelines
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name={legendCollapsed ? 'chevron-down' : 'chevron-up'}
+                size={22}
+                color="#553a75"
+              />
+            </TouchableOpacity>
 
             {!legendCollapsed && (
-              <>
-                <Text style={styles.legendHint}>
-                  Each category is scored from 1–3. Higher totals indicate more
-                  complex support needs.
-                </Text>
-
+              <View style={styles.legendBody}>
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Behaviours:</Text>
+                  <Text style={styles.legendLabel}>Behaviours</Text>
                   <Text style={styles.legendText}>
-                    Frequency and intensity of behaviours of concern, and level of
-                    support required to keep everyone safe.
+                    1 = Low support • 2 = Medium • 3 = High support.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Personal care:</Text>
+                  <Text style={styles.legendLabel}>Personal care</Text>
                   <Text style={styles.legendText}>
-                    Level of support required for toileting, showering, dressing,
-                    hygiene, and medication prompts.
+                    1 = Light • 2 = Moderate • 3 = Intensive support.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Communication:</Text>
+                  <Text style={styles.legendLabel}>Communication</Text>
                   <Text style={styles.legendText}>
-                    Complexity of communication needs (non-verbal, devices, prompts,
-                    visual supports, processing time).
+                    1 = Straightforward • 2 = Some adaptation • 3 = High
+                    adaptation.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Sensory:</Text>
+                  <Text style={styles.legendLabel}>Sensory</Text>
                   <Text style={styles.legendText}>
-                    Sensitivity to noise, light, crowds, smells, or touch and how
-                    much support is needed to manage this.
+                    1 = Low impact • 2 = Moderate • 3 = Very sensitive.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Social:</Text>
+                  <Text style={styles.legendLabel}>Social</Text>
                   <Text style={styles.legendText}>
-                    Support needed to engage safely with peers, manage boundaries,
-                    and participate in group activities.
+                    1 = Easy group fit • 2 = Some support • 3 = High support.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Community:</Text>
+                  <Text style={styles.legendLabel}>Community</Text>
                   <Text style={styles.legendText}>
-                    Support required to access the community (transport, public
-                    settings, following instructions, road safety).
+                    1 = Simple outings • 2 = Moderate • 3 = Complex support.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Safety:</Text>
+                  <Text style={styles.legendLabel}>Safety</Text>
                   <Text style={styles.legendText}>
-                    Overall safety risks (absconding, stranger danger, self-harm
-                    risks, supervision level required).
+                    1 = Low risk • 2 = Medium risk • 3 = High risk.
                   </Text>
                 </View>
-              </>
+
+                <View style={styles.legendNoteRow}>
+                  <View style={styles.legendScoreKey}>
+                    <View style={[styles.legendScorePill, styles.legendLow]} />
+                    <Text style={styles.legendScoreText}>
+                      0–7 = Lower complexity
+                    </Text>
+                  </View>
+                  <View style={styles.legendScoreKey}>
+                    <View
+                      style={[styles.legendScorePill, styles.legendMedium]}
+                    />
+                    <Text style={styles.legendScoreText}>
+                      8–14 = Medium complexity
+                    </Text>
+                  </View>
+                  <View style={styles.legendScoreKey}>
+                    <View style={[styles.legendScorePill, styles.legendHigh]} />
+                    <Text style={styles.legendScoreText}>
+                      15+ = High complexity
+                    </Text>
+                  </View>
+                </View>
+              </View>
             )}
           </View>
 
-          {/* ADD NEW PARTICIPANT */}
+          {/* Add new participant */}
           <View style={styles.addWrap}>
-            <View style={styles.addHeaderRow}>
-              <Text style={styles.addTitle}>Add new participant</Text>
-              <TouchableOpacity
-                onPress={() => setAddCollapsed(prev => !prev)}
-                style={styles.addToggle}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons
-                  name={addCollapsed ? 'chevron-down' : 'chevron-up'}
-                  size={18}
-                  color="#6b5a7d"
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.addHeaderRow}
+              onPress={() => setAddCollapsed(prev => !prev)}
+              activeOpacity={0.85}
+            >
+              <View>
+                <Text style={styles.addTitle}>Add participant</Text>
+                <Text style={styles.addHint}>
+                  Name, colour (blue/pink) and gender are required.
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name={addCollapsed ? 'chevron-down' : 'chevron-up'}
+                size={22}
+                color="#553a75"
+              />
+            </TouchableOpacity>
 
             {!addCollapsed && (
-              <>
+              <View style={styles.addBody}>
                 <View style={styles.addRow}>
-                  {/* Name */}
                   <TextInput
                     style={styles.addInput}
-                    placeholder="Participant name"
                     value={newName}
                     onChangeText={setNewName}
+                    placeholder="Full name"
                     placeholderTextColor="#b8a8d6"
                   />
+                </View>
 
-                  {/* Gender: Male / Female */}
-                  <View style={styles.addInlineGroup}>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newGender === 'Male' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewGender('Male')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
+                <View style={styles.addRow}>
+                  <View style={{ flex: 1, marginRight: 6 }}>
+                    <Text style={styles.addLabel}>Colour (for schedule)</Text>
+                    <View style={styles.selectRow}>
+                      <TouchableOpacity
                         style={[
-                          styles.addInlineText,
-                          newGender === 'Male' && styles.addInlineTextActive,
+                          styles.selectPill,
+                          newColor === 'blue' && styles.selectPillSelected,
                         ]}
+                        onPress={() => setNewColor('blue')}
+                        activeOpacity={0.85}
                       >
-                        M
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newGender === 'Female' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewGender('Female')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
+                        <View
+                          style={[
+                            styles.selectColourDot,
+                            { backgroundColor: '#60a5fa' },
+                          ]}
+                        />
+                        <Text style={styles.selectPillText}>Blue (male)</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
                         style={[
-                          styles.addInlineText,
-                          newGender === 'Female' && styles.addInlineTextActive,
+                          styles.selectPill,
+                          newColor === 'pink' && styles.selectPillSelected,
                         ]}
+                        onPress={() => setNewColor('pink')}
+                        activeOpacity={0.85}
                       >
-                        F
-                      </Text>
-                    </TouchableOpacity>
+                        <View
+                          style={[
+                            styles.selectColourDot,
+                            { backgroundColor: '#f973b7' },
+                          ]}
+                        />
+                        <Text style={styles.selectPillText}>Pink (female)</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
-                  {/* Colour: blue (boys) / pink (girls) */}
-                  <View style={styles.addInlineGroup}>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newColor === 'blue' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewColor('blue')}
-                      activeOpacity={0.8}
-                    >
-                      <View
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addLabel}>Gender</Text>
+                    <View style={styles.selectRow}>
+                      <TouchableOpacity
                         style={[
-                          styles.addInlineColorDot,
-                          { backgroundColor: '#60a5fa' },
+                          styles.selectPill,
+                          newGender === 'Male' && styles.selectPillSelected,
                         ]}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newColor === 'pink' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewColor('pink')}
-                      activeOpacity={0.8}
-                    >
-                      <View
-                        style={[
-                          styles.addInlineColorDot,
-                          { backgroundColor: '#f472b6' },
-                        ]}
-                      />
-                    </TouchableOpacity>
-                  </View>
+                        onPress={() => setNewGender('Male')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.selectPillText}>Male</Text>
+                      </TouchableOpacity>
 
-                  {/* Add button */}
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newGender === 'Female' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewGender('Female')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.selectPillText}>Female</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.addButtonRow}>
                   <TouchableOpacity
                     style={[
                       styles.addButton,
-                      (
-                        !newName.trim() ||
-                        !newGender ||
-                        !newColor ||
-                        savingNew
-                      ) && styles.addButtonDisabled,
+                      !canSaveNew && styles.addButtonDisabled,
                     ]}
                     onPress={addParticipant}
-                    disabled={
-                      !newName.trim() ||
-                      !newGender ||
-                      !newColor ||
-                      savingNew
-                    }
+                    disabled={!canSaveNew}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.addButtonText}>
-                      {savingNew ? 'Saving…' : 'Add'}
-                    </Text>
+                    {savingNew ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.addButtonText}>Add participant</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.addHint}>
-                  Only add participants who attend the day program.
-                </Text>
-              </>
+              </View>
             )}
           </View>
 
           {/* Participants list */}
-          {loading ? (
-            <ActivityIndicator
-              size="large"
-              color="#c084fc"
-              style={{ marginTop: 40 }}
-            />
-          ) : (
-            <View style={styles.listWrap}>
-              <View style={styles.headerRow}>
-                <Text style={[styles.headerCell, { width: 32 }]} />
-                <Text
-                  style={[
-                    styles.headerCell,
-                    {
-                      flex: 1,
-                      marginTop: -8,
-                      marginBottom: 4,
-                    },
-                  ]}
-                >
-                  Participant
-                </Text>
-                <Text
-                  style={[
-                    styles.headerCell,
-                    {
-                      width: 70,
-                      textAlign: 'right',
-                      marginRight: 30,
-                      marginTop: -8,
-                      marginBottom: 4,
-                    },
-                  ]}
-                >
-                  Score
-                </Text>
-              </View>
+          <View style={styles.listWrap}>
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.headerLabel}>Participant</Text>
+              <Text
+                style={[
+                  styles.headerLabel,
+                  {
+                    width: 70,
+                    textAlign: 'right',
+                    marginRight: 30,
+                    marginTop: -8,
+                    marginBottom: 4,
+                  },
+                ]}
+              >
+                Score
+              </Text>
+            </View>
 
-              {participants.map(p => {
-                const inactive = p.is_active === false;
-                const totalScore = getTotalScore(p);
-                const scoreLevel =
-                  totalScore === null ? null : getScoreLevel(totalScore);
+            {participants.map(p => {
+              const inactive = p.is_active === false;
+              const totalScore = getTotalScore(p);
+              const scoreLevel =
+                totalScore === null ? null : getScoreLevel(totalScore);
 
-                const rowStyles = [styles.row];
-                if (inactive) rowStyles.push(styles.rowInactive);
+              const rowStyles = [styles.row];
+              if (inactive) rowStyles.push(styles.rowInactive);
 
-                const scoreBubbleStyles = [styles.scoreBubble];
-                if (scoreLevel === 'low') scoreBubbleStyles.push(styles.scoreBubbleLow);
-                if (scoreLevel === 'medium')
-                  scoreBubbleStyles.push(styles.scoreBubbleMedium);
-                if (scoreLevel === 'high')
-                  scoreBubbleStyles.push(styles.scoreBubbleHigh);
+              const scoreBubbleStyles = [styles.scoreBubble];
+              if (scoreLevel === 'low')
+                scoreBubbleStyles.push(styles.scoreBubbleLow);
+              if (scoreLevel === 'medium')
+                scoreBubbleStyles.push(styles.scoreBubbleMedium);
+              if (scoreLevel === 'high')
+                scoreBubbleStyles.push(styles.scoreBubbleHigh);
 
-                const isExpanded = expandedId === p.id;
+              const isExpanded = expandedId === p.id;
 
-                return (
-                  <View key={p.id} style={rowStyles}>
-                    {/* Row header: delete + participant info + score bubble */}
-                    <View style={styles.rowHeader}>
+              return (
+                <View key={p.id} style={rowStyles}>
+                  {/* Row header: delete + edit + participant info + score bubble */}
+                  <View style={styles.rowHeader}>
+                    <View style={styles.actionsColumn}>
                       <TouchableOpacity
                         style={styles.deleteButton}
                         onPress={() => confirmDeleteParticipant(p)}
@@ -520,6 +586,51 @@ export default function ParticipantsSettingsScreen() {
                         />
                       </TouchableOpacity>
 
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => startEdit(p)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons
+                          name="pencil"
+                          size={20}
+                          color="#22c55e"
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {editingId === p.id ? (
+                      <View style={styles.editBlock}>
+                        <TextInput
+                          style={styles.editInput}
+                          value={editingName}
+                          onChangeText={setEditingName}
+                          placeholder="Participant name"
+                          placeholderTextColor="#b8a8d6"
+                        />
+                        <View style={styles.editButtonsRow}>
+                          <TouchableOpacity
+                            style={styles.smallButton}
+                            onPress={saveEdit}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.smallButtonText}>Save</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.smallButton,
+                              styles.smallButtonSecondary,
+                            ]}
+                            onPress={cancelEdit}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.smallButtonSecondaryText}>
+                              Cancel
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
                       <TouchableOpacity
                         style={styles.rowHeaderMain}
                         onPress={() =>
@@ -560,110 +671,106 @@ export default function ParticipantsSettingsScreen() {
                           </View>
                         )}
                       </TouchableOpacity>
-                    </View>
-
-                    {/* Expanded scoring panel */}
-                    {isExpanded && (
-                      <View style={styles.scorePanel}>
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Behaviours</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'behaviours',
-                              p.behaviours,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Personal care</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'personal_care',
-                              p.personal_care,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Communication</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'communication',
-                              p.communication,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Sensory</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'sensory',
-                              p.sensory,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Social</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'social',
-                              p.social,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Community</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'community',
-                              p.community,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Safety</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              p.id,
-                              'safety',
-                              p.safety,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-                      </View>
                     )}
                   </View>
-                );
-              })}
-            </View>
-          )}
+
+                  {/* Expanded scoring panel */}
+                  {isExpanded && (
+                    <View style={styles.scorePanel}>
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Behaviours</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'behaviours',
+                            p.behaviours,
+                            behaviourOptions,
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Personal care</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'personal_care',
+                            p.personal_care,
+                            threeLevelOptions,
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Communication</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'communication',
+                            p.communication,
+                            threeLevelOptions,
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Sensory</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'sensory',
+                            p.sensory,
+                            threeLevelOptions,
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Social</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'social',
+                            p.social,
+                            threeLevelOptions,
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Community</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'community',
+                            p.community,
+                            threeLevelOptions,
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>Safety</Text>
+                        <View style={styles.categoryPills}>
+                          {renderPills(
+                            p.id,
+                            'safety',
+                            p.safety,
+                            safetyOptions,
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </View>
       </ScrollView>
-
-      <Footer />
     </View>
   );
 }
-
-/* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
   screen: {
@@ -682,8 +789,9 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   scroll: {
-    paddingBottom: 120,
+    paddingVertical: 32,
     alignItems: 'center',
+    paddingBottom: 160,
   },
   inner: {
     width: '100%',
@@ -698,48 +806,42 @@ const styles = StyleSheet.create({
   },
   subHeading: {
     fontSize: 14,
-    color: '#553a75',
+    color: '#6b5a7d',
+    marginTop: 6,
     marginBottom: 16,
   },
 
-  /* Legend styles */
+  /* Legend */
   legendWrap: {
     backgroundColor: '#ffffff',
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#e7dff2',
+    marginTop: 10,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOpacity: 0.03,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
-  legendHeaderRow: {
+  legendHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
   },
   legendTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#332244',
   },
-  legendToggle: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  legendToggleText: {
-    fontSize: 11,
-    color: '#6b5a7d',
-    fontWeight: '600',
-  },
   legendHint: {
     fontSize: 12,
     color: '#6b5a7d',
     marginBottom: 8,
+  },
+  legendBody: {
+    marginTop: 10,
   },
   legendRow: {
     flexDirection: 'row',
@@ -753,8 +855,38 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 13,
-    color: '#6b5a7d',
+    color: '#4b3a62',
     flex: 1,
+  },
+  legendNoteRow: {
+    flexDirection: 'row',
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  legendScoreKey: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendScorePill: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    marginRight: 6,
+  },
+  legendScoreText: {
+    fontSize: 12,
+    color: '#4b3a62',
+    fontWeight: '600',
+  },
+  legendLow: {
+    backgroundColor: '#bbf7d0',
+  },
+  legendMedium: {
+    backgroundColor: '#facc15',
+  },
+  legendHigh: {
+    backgroundColor: '#fecaca',
   },
 
   /* Add new participant */
@@ -774,18 +906,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  addToggle: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
   },
   addTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#332244',
-    marginBottom: 8,
+  },
+  addHint: {
+    fontSize: 12,
+    color: '#6b5a7d',
+    marginTop: 2,
+  },
+  addBody: {
+    marginTop: 12,
   },
   addRow: {
     flexDirection: 'row',
@@ -802,44 +935,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#e1d5f5',
-    marginRight: 8,
+    marginRight: 6,
   },
-  addInlineGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  addInlinePill: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e1d5f5',
-    backgroundColor: '#f8f4fb',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginRight: 4,
-  },
-  addInlinePillActive: {
-    backgroundColor: '#e9d5ff',
-    borderColor: '#c4b5fd',
-  },
-  addInlineText: {
+  addLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4b164c',
+    color: '#6b5a7d',
+    marginBottom: 4,
   },
-  addInlineTextActive: {
-    color: '#111827',
-  },
-  addInlineColorDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+  addButtonRow: {
+    marginTop: 8,
+    alignItems: 'flex-end',
   },
   addButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#f472b6',
   },
   addButtonDisabled: {
     opacity: 0.5,
@@ -849,39 +960,64 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
-  addHint: {
+  selectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    backgroundColor: '#f8f4fb',
+  },
+  selectPillSelected: {
+    backgroundColor: '#e5d4ff',
+    borderColor: '#c4b0f5',
+  },
+  selectColourDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    marginRight: 6,
+  },
+  selectPillText: {
     fontSize: 12,
-    color: '#7a678e',
+    color: '#332244',
+    fontWeight: '600',
   },
 
   listWrap: {
     width: '100%',
+    marginBottom: 60,
   },
-  headerRow: {
+  listHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginLeft: 40,
-    marginTop: -6,
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 6,
+    paddingHorizontal: 6,
   },
-  headerCell: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#7a678e',
+  headerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#553a75',
   },
   row: {
-    flexDirection: 'column',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e7dff2',
-    marginBottom: 10,
-    alignItems: 'stretch',
+    borderColor: '#efe3ff',
+    backgroundColor: '#fdfbff',
+    padding: 10,
+    marginBottom: 8,
   },
   rowInactive: {
-    opacity: 0.5,
+    opacity: 0.55,
   },
-
   rowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -893,75 +1029,113 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  actionsColumn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+    width: 48,
+    justifyContent: 'flex-start',
+  },
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  editBlock: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  editInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f8f4ff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#332244',
+    marginTop: 4,
+  },
+  editButtonsRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+  },
+  smallButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  smallButtonText: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  smallButtonSecondary: {
+    backgroundColor: '#e5e7eb',
+  },
+  smallButtonSecondaryText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
+  },
 
-  // Delete button (red X only)
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginRight: 8,
-    marginLeft: 0,
+    marginRight: 4,
   },
-  deleteButtonText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ef4444',
-  },
-
   participantInfoBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  colorBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    flex: 1,
     marginRight: 10,
   },
+  colorBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    marginRight: 8,
+  },
   info: {
-    flexShrink: 1,
+    flex: 1,
   },
   name: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#332244',
   },
   supportNeeds: {
     fontSize: 12,
     color: '#6b5a7d',
-    marginTop: 2,
   },
-
   scoreBubble: {
     Width: 80,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e7dff2',
-    backgroundColor: '#f8f2ff',
+    backgroundColor: '#eef2ff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 'auto',
-    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
   },
   scoreBubbleLow: {
-    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
-    borderColor: SCORE_BUBBLE_STYLES.low.border,
+    backgroundColor: '#dcfce7',
+    borderColor: '#22c55e',
   },
   scoreBubbleMedium: {
-    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
-    borderColor: SCORE_BUBBLE_STYLES.medium.border,
+    backgroundColor: '#fef9c3',
+    borderColor: '#eab308',
   },
   scoreBubbleHigh: {
-    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
-    borderColor: SCORE_BUBBLE_STYLES.high.border,
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
   },
   scoreBubbleText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#332244',
   },
-
   scorePanel: {
     marginTop: 12,
     paddingTop: 10,
@@ -985,7 +1159,6 @@ const styles = StyleSheet.create({
   categoryPills: {
     flex: 1,
   },
-
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1002,65 +1175,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pillActive: {
+    backgroundColor: '#008aff',
+    borderColor: '#008aff',
+  },
+  pillUnset: {
+    backgroundColor: '#f4f4f5',
+    borderColor: '#e4e4e7',
+  },
   pillText: {
     fontSize: 12,
     color: '#3e3e3e',
   },
   pillTextActive: {
-    color: '#000000',
-    fontWeight: '600',
-  },
-
-  pillSelectedLow: {
-    backgroundColor: '#D4F8E3',
-    borderColor: '#4CAF50',
-  },
-  pillSelectedMedium: {
-    backgroundColor: '#FFF5D0',
-    borderColor: '#FFC107',
-  },
-  pillSelectedHigh: {
-    backgroundColor: '#FFE0E0',
-    borderColor: '#F44336',
-  },
-
-  pillMinus: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-    marginRight: 4,
-    marginLeft: 4,
-  },
-  pillMinusText: {
-    fontSize: 20,
-    color: '#ef4444',
+    color: '#ffffff',
     fontWeight: '700',
   },
+  pillTextUnset: {
+    color: '#71717a',
+  },
 });
-
-const PINK = '#FF8FC5';
-
-export const options = {
-  headerTitleAlign: 'center' as const,
-  headerTitle: () => (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <MaterialCommunityIcons
-        name="account-child-outline"
-        size={18}
-        color={PINK}
-      />
-      <Text
-        style={{
-          marginLeft: 6,
-          fontSize: 16,
-          fontWeight: '700',
-          color: PINK,
-        }}
-      >
-        Participants Settings
-      </Text>
-    </View>
-  ),
-};
