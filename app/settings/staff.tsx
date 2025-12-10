@@ -14,11 +14,6 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
-import {
-  getScoreLevel,
-  getBandForScoreLevel,
-  SCORE_BUBBLE_STYLES,
-} from '@/constants/ratingsTheme';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
@@ -28,15 +23,13 @@ type StaffRow = {
   name: string;
   phone?: string | null;
   color?: string | null;
-  gender?: 'male' | 'female' | null;
+  gender?: string | null;
   is_active?: boolean | null;
-
-  // Rating fields (1–3 or null)
-  experience_rating?: number | null;
-  behaviour_support_rating?: number | null;
-  personal_care_rating?: number | null;
-  mobility_assistance_rating?: number | null;
-  communication_rating?: number | null;
+  experience_level?: number | null;
+  behaviour_capability?: number | null;
+  personal_care_skill?: number | null;
+  mobility_assistance?: number | null;
+  communication_support?: number | null;
   reliability_rating?: number | null;
   supervisor_notes?: string | null;
 };
@@ -71,28 +64,10 @@ export default function StaffSettingsScreen() {
     setLoading(true);
     const { data } = await supabase
       .from('staff')
-      .select(
-        `
-        id,
-        name,
-        phone,
-        color,
-        gender,
-        is_active,
-        experience_rating,
-        behaviour_support_rating,
-        personal_care_rating,
-        mobility_assistance_rating,
-        communication_rating,
-        reliability_rating,
-        supervisor_notes
-      `,
-      )
+      .select('*')
       .order('name', { ascending: true });
 
-    if (data) {
-      setStaff(data as StaffRow[]);
-    }
+    if (data) setStaff(data as StaffRow[]);
     setLoading(false);
   }
 
@@ -100,11 +75,7 @@ export default function StaffSettingsScreen() {
     loadStaff();
   }, []);
 
-  async function updateStaffField(
-    id: string,
-    field: keyof StaffRow,
-    value: any,
-  ) {
+  async function updateStaff(id: string, field: keyof StaffRow, value: any) {
     await supabase.from('staff').update({ [field]: value }).eq('id', id);
     setStaff(prev =>
       prev.map(s => (s.id === id ? { ...s, [field]: value } : s)),
@@ -132,24 +103,19 @@ export default function StaffSettingsScreen() {
       .insert({
         name,
         phone: phone || null,
+        is_active: true,
         color: colorHex,
         gender: genderValue,
-        is_active: true,
       })
       .select()
       .single();
 
     setSavingNew(false);
 
-    if (error) {
-      Alert.alert('Error', error.message);
-      return;
-    }
-
-    if (data) {
+    if (!error && data) {
       setStaff(prev =>
         [...prev, data as StaffRow].sort((a, b) =>
-          (a.name || '').localeCompare(b.name || ''),
+          a.name.localeCompare(b.name),
         ),
       );
       setNewName('');
@@ -157,46 +123,6 @@ export default function StaffSettingsScreen() {
       setNewColor(null);
       setNewGender(null);
     }
-  }
-
-  function startEdit(member: StaffRow) {
-    setEditingId(member.id);
-    setEditingName(member.name ?? '');
-    setEditingPhone(member.phone ?? '');
-  }
-
-  async function saveEdit() {
-    if (!editingId) return;
-    const trimmedName = editingName.trim();
-    const trimmedPhone = editingPhone.trim();
-
-    if (!trimmedName) {
-      setEditingId(null);
-      setEditingName('');
-      setEditingPhone('');
-      return;
-    }
-
-    await supabase
-      .from('staff')
-      .update({ name: trimmedName, phone: trimmedPhone || null })
-      .eq('id', editingId);
-
-    setStaff(prev =>
-      prev.map(s =>
-        s.id === editingId
-          ? { ...s, name: trimmedName, phone: trimmedPhone || null }
-          : s,
-      ),
-    );
-
-    setEditingId(null);
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setEditingName('');
-    setEditingPhone('');
   }
 
   function confirmDeleteStaff(member: StaffRow) {
@@ -217,11 +143,83 @@ export default function StaffSettingsScreen() {
     );
   }
 
-  const threeLevelOptions: Option[] = [
+  function startEdit(member: StaffRow) {
+    setEditingId(member.id);
+    setEditingName(member.name ?? '');
+    setEditingPhone(member.phone ?? '');
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+
+    const trimmedName = editingName.trim();
+    const trimmedPhone = editingPhone.trim();
+
+    if (!trimmedName) {
+      // Do not allow empty names; just cancel edit if cleared completely
+      setEditingId(null);
+      return;
+    }
+
+    await supabase
+      .from('staff')
+      .update({
+        name: trimmedName,
+        phone: trimmedPhone || null,
+      })
+      .eq('id', editingId);
+
+    setStaff(prev =>
+      prev.map(member =>
+        member.id === editingId
+          ? { ...member, name: trimmedName, phone: trimmedPhone || null }
+          : member,
+      ),
+    );
+
+    setEditingId(null);
+  }
+
+  const experienceOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Beginner', short: '1 - Beginner', value: 1 },
+    { label: '2 - Intermediate', short: '2 - Intermediate', value: 2 },
+    { label: '3 - Senior', short: '3 - Senior', value: 3 },
+  ];
+
+  const behaviourOptions: Option[] = [
     { label: 'Not set', short: '-', value: null },
     { label: '1 - Low', short: '1 - Low', value: 1 },
     { label: '2 - Medium', short: '2 - Medium', value: 2 },
     { label: '3 - High', short: '3 - High', value: 3 },
+  ];
+
+  const reliabilityOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Inconsistent', short: '1 - Inconsistent', value: 1 },
+    { label: '2 - Moderate', short: '2 - Moderate', value: 2 },
+    { label: '3 - Consistent', short: '3 - Consistent', value: 3 },
+  ];
+
+  const personalCareOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Low', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High', short: '3 - High', value: 3 },
+  ];
+
+  const mobilityOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Low', short: '1 - Low', value: 1 },
+    { label: '2 - Medium', short: '2 - Medium', value: 2 },
+    { label: '3 - High', short: '3 - High', value: 3 },
+  ];
+
+  const communicationOptions: Option[] = [
+    { label: 'Not set', short: '-', value: null },
+    { label: '1 - Basic', short: '1 - Basic', value: 1 },
+    { label: '2 - Good', short: '2 - Good', value: 2 },
+    { label: '3 - Advanced', short: '3 - Advanced', value: 3 },
   ];
 
   function renderPills(
@@ -233,14 +231,23 @@ export default function StaffSettingsScreen() {
     return (
       <View style={styles.pillRow}>
         {options.map(opt => {
-          const isSelected = currentValue === opt.value;
-          const isMinus = opt.value === null && opt.short === '–';
+          const isSelected =
+            (currentValue === null || currentValue === undefined)
+              ? opt.value === null
+              : currentValue === opt.value;
+          const isMinus = opt.short === '-';
 
           const pillStyles = [styles.pill];
           if (isMinus) {
             pillStyles.push(styles.pillMinus);
-          } else if (isSelected) {
-            pillStyles.push(styles.pillActive);
+          } else if (isSelected && typeof opt.value === 'number') {
+            if (opt.value === 1) {
+              pillStyles.push(styles.pillSelectedLow);
+            } else if (opt.value === 2) {
+              pillStyles.push(styles.pillSelectedMedium);
+            } else if (opt.value === 3) {
+              pillStyles.push(styles.pillSelectedHigh);
+            }
           }
 
           const textStyles = [styles.pillText];
@@ -254,7 +261,7 @@ export default function StaffSettingsScreen() {
             <TouchableOpacity
               key={`${field}-${staffId}-${opt.short}`}
               style={pillStyles}
-              onPress={() => updateStaffField(staffId, field, opt.value)}
+              onPress={() => updateStaff(staffId, field, opt.value)}
               activeOpacity={0.8}
             >
               <Text style={textStyles}>{opt.short}</Text>
@@ -265,72 +272,53 @@ export default function StaffSettingsScreen() {
     );
   }
 
-  function getTotalScore(s: StaffRow): number | null {
+  function getTotalScore(member: StaffRow): number | null {
     const values = [
-      s.experience_rating,
-      s.behaviour_support_rating,
-      s.personal_care_rating,
-      s.mobility_assistance_rating,
-      s.communication_rating,
-      s.reliability_rating,
-    ].filter(v => v !== null && v !== undefined) as number[];
+      member.experience_level,
+      member.behaviour_capability,
+      member.personal_care_skill,
+      member.mobility_assistance,
+      member.communication_support,
+      member.reliability_rating,
+    ].filter(
+      (v): v is number => typeof v === 'number' && !Number.isNaN(v),
+    );
 
-    if (values.length === 0) return null;
+    if (!values.length) return null;
     return values.reduce((sum, v) => sum + v, 0);
   }
 
+  function getScoreLevel(total: number): 'low' | 'medium' | 'high' {
+    if (total >= 15) return 'high';
+    if (total >= 10) return 'medium';
+    return 'low';
+  }
+
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingTop: Math.max(insets.top, 16),
-          paddingBottom: Math.max(insets.bottom, 16),
-        },
-      ]}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {showWebBranding && (
+        <Image
+          source={require('@/assets/images/nochains-bg.png')}
+          style={styles.bgLogo}
+          resizeMode="contain"
+        />
+      )}
+
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
-          {/* Header */}
-          <View style={styles.headingRow}>
-            <View style={styles.headingLeft}>
-              <Image
-                source={require('@/assets/images/nochains-logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <View>
-                <Text style={styles.heading}>Staff ratings &amp; profiles</Text>
-                <Text style={styles.subHeading}>
-                  Use this screen to manage the staff list and record skills and
-                  experience levels.
-                </Text>
-              </View>
-            </View>
+          {/* Heading */}
+          <Text style={styles.heading}>Staff Settings</Text>
+          <Text style={styles.subHeading}>
+            Set experience, behaviour support, personal care, mobility, communication, and reliability for each staff member.
+          </Text>
 
-            {showWebBranding && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>Admin</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Legend */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderLeft}>
-                <Text style={styles.sectionTitle}>Legend</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Each category is scored from 1–3. Higher totals indicate
-                  stronger capability for complex participants.
-                </Text>
-              </View>
+          {/* LEGEND */}
+          <View style={styles.legendWrap}>
+            <View style={styles.legendHeaderRow}>
+              <Text style={styles.legendTitle}>Legend</Text>
               <TouchableOpacity
                 onPress={() => setLegendCollapsed(prev => !prev)}
-                style={styles.chevronButton}
+                style={styles.legendToggle}
                 activeOpacity={0.8}
               >
                 <MaterialCommunityIcons
@@ -343,80 +331,62 @@ export default function StaffSettingsScreen() {
 
             {!legendCollapsed && (
               <>
+                <Text style={styles.legendHint}>
+                  Each category is scored from 1–3. Higher totals indicate staff who are better suited to more complex participants.
+                </Text>
+
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Experience:</Text>
                   <Text style={styles.legendText}>
-                    Overall community/disability support experience and years in
-                    the sector.
+                    Overall level of experience and confidence supporting participants across different needs.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Behaviour support:</Text>
+                  <Text style={styles.legendLabel}>Behaviour:</Text>
                   <Text style={styles.legendText}>
-                    Confidence and competence in working with behaviours of
-                    concern and following BSPs.
+                    Ability to manage, de-escalate, and prevent behaviours of concern.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Personal care:</Text>
                   <Text style={styles.legendText}>
-                    Skills in hoisting, transfers, showering, toileting, and
-                    mealtime supports.
+                    Competence with hygiene, toileting, showering, dressing, and medication prompts.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Mobility assistance:</Text>
+                  <Text style={styles.legendLabel}>Mobility:</Text>
                   <Text style={styles.legendText}>
-                    Experience with wheelchairs, walkers, and manual handling
-                    techniques.
+                    Mobility assistance — Low, Medium, High
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Communication:</Text>
                   <Text style={styles.legendText}>
-                    Ability to communicate clearly with participants,
-                    families/guardians, and team members.
+                    Skill in supporting verbal, non-verbal, or cognitively impaired participants.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Reliability:</Text>
                   <Text style={styles.legendText}>
-                    Punctuality, attendance, and consistency in following
-                    routines and plans.
-                  </Text>
-                </View>
-
-                <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Total score:</Text>
-                  <Text style={styles.legendText}>
-                    Combined total across all categories. Used in the Daily
-                    Schedule to balance staff skill mix for complex days.
-                  </Text>
-                </View>
-
-                <View style={styles.legendRow}>
-                  <Text style={styles.legendLabel}>Colour coding:</Text>
-                  <Text style={styles.legendText}>
-                    Purple scores are lower, amber are mid-range, and green
-                    scores indicate high capability.
+                    Punctuality, attendance, communication, and consistency in following plans.
                   </Text>
                 </View>
               </>
             )}
           </View>
 
-          {/* Add staff */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Add staff</Text>
+          {/* ADD NEW STAFF */}
+          <View style={styles.addWrap}>
+            <View style={styles.addHeaderRow}>
+              <Text style={styles.addTitle}>Add new staff member</Text>
               <TouchableOpacity
                 onPress={() => setAddCollapsed(prev => !prev)}
-                style={styles.chevronButton}
+                style={styles.addToggle}
                 activeOpacity={0.8}
               >
                 <MaterialCommunityIcons
@@ -429,141 +399,154 @@ export default function StaffSettingsScreen() {
 
             {!addCollapsed && (
               <>
-                <Text style={styles.addHint}>
-                  Add staff members who work at B2. Use the rating fields below
-                  to record skills and experience levels.
-                </Text>
-
                 <View style={styles.addRow}>
                   <TextInput
                     style={styles.addInput}
-                    placeholder="Staff name"
+                    placeholder="Name"
                     value={newName}
                     onChangeText={setNewName}
                     placeholderTextColor="#b8a8d6"
                   />
-                </View>
-
-                <View style={styles.addRow}>
                   <TextInput
                     style={styles.addInput}
-                    placeholder="Phone number (optional)"
+                    placeholder="Phone (optional)"
                     value={newPhone}
                     onChangeText={setNewPhone}
                     keyboardType="phone-pad"
                     placeholderTextColor="#b8a8d6"
                   />
-                </View>
-
-                <View style={styles.addRow}>
-                  <View style={styles.addInlineGroup}>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newGender === 'male' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewGender('male')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.addInlineText,
-                          newGender === 'male' && styles.addInlineTextActive,
-                        ]}
-                      >
-                        M
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newGender === 'female' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewGender('female')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.addInlineText,
-                          newGender === 'female' && styles.addInlineTextActive,
-                        ]}
-                      >
-                        F
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.addInlineGroup}>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newColor === 'blue' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewColor('blue')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.addInlineText,
-                          newColor === 'blue' && styles.addInlineTextActive,
-                        ]}
-                      >
-                        Blue
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.addInlinePill,
-                        newColor === 'pink' && styles.addInlinePillActive,
-                      ]}
-                      onPress={() => setNewColor('pink')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.addInlineText,
-                          newColor === 'pink' && styles.addInlineTextActive,
-                        ]}
-                      >
-                        Pink
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
                   <TouchableOpacity
                     style={[
                       styles.addButton,
                       (!newName.trim() ||
+                        savingNew ||
                         !newColor ||
-                        !newGender ||
-                        savingNew) && styles.addButtonDisabled,
+                        !newGender) && styles.addButtonDisabled,
                     ]}
                     onPress={addStaff}
                     disabled={
-                      !newName.trim() || !newColor || !newGender || savingNew
+                      !newName.trim() || savingNew || !newColor || !newGender
                     }
                     activeOpacity={0.85}
                   >
                     <Text style={styles.addButtonText}>
-                      {savingNew ? 'Saving…' : 'Add staff'}
+                      {savingNew ? 'Saving…' : 'Add'}
                     </Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Colour + Gender selectors */}
+                <View style={styles.addRowSecondary}>
+                  <View style={styles.selectGroup}>
+                    <Text style={styles.selectLabel}>Colour (for chip)</Text>
+                    <View style={styles.selectPills}>
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newColor === 'pink' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewColor('pink')}
+                        activeOpacity={0.85}
+                      >
+                        <View
+                          style={[
+                            styles.selectColourDot,
+                            { backgroundColor: '#f973b7' },
+                          ]}
+                        />
+                        <Text style={styles.selectPillText}>Pink (girls)</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newColor === 'blue' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewColor('blue')}
+                        activeOpacity={0.85}
+                      >
+                        <View
+                          style={[
+                            styles.selectColourDot,
+                            { backgroundColor: '#60a5fa' },
+                          ]}
+                        />
+                        <Text style={styles.selectPillText}>Blue (boys)</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.selectGroup}>
+                    <Text style={styles.selectLabel}>Gender</Text>
+                    <View style={styles.selectPills}>
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newGender === 'female' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewGender('female')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.selectPillText}>Female</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.selectPill,
+                          newGender === 'male' && styles.selectPillSelected,
+                        ]}
+                        onPress={() => setNewGender('male')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.selectPillText}>Male</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.addHint}>
+                  Name is required. Phone helps for quick contact and pickups.
+                </Text>
               </>
             )}
           </View>
 
           {/* Staff list */}
           {loading ? (
-            <ActivityIndicator size="large" color="#c084fc" />
+            <ActivityIndicator
+              size="large"
+              color="#c084fc"
+              style={{ marginTop: 40 }}
+            />
           ) : (
-            <View style={styles.listCard}>
-              <View style={styles.listHeader}>
-                <Text style={[styles.listHeaderText, { flex: 1 }]}>
-                  Staff member
+            <View style={styles.listWrap}>
+              <View style={styles.headerRow}>
+                <Text style={[styles.headerCell, { width: 32 }]} />
+                <Text
+                  style={[
+                    styles.headerCell,
+                    {
+                      flex: 1,
+                      marginTop: -8,
+                      marginBottom: 4,
+                    },
+                  ]}
+                >
+                  Staff
                 </Text>
-                <Text style={[styles.listHeaderText, { width: 80 }]}>
-                  Total
+                <Text
+                  style={[
+                    styles.headerCell,
+                    {
+                      width: 70,
+                      textAlign: 'right',
+                      marginRight: 30,
+                      marginTop: -8,
+                      marginBottom: 4,
+                    },
+                  ]}
+                >
+                  Score
                 </Text>
               </View>
 
@@ -585,7 +568,6 @@ export default function StaffSettingsScreen() {
                   scoreBubbleStyles.push(styles.scoreBubbleHigh);
 
                 const isExpanded = expandedId === s.id;
-                const isEditing = editingId === s.id;
 
                 return (
                   <View key={s.id} style={rowStyles}>
@@ -617,13 +599,8 @@ export default function StaffSettingsScreen() {
 
                       <TouchableOpacity
                         style={styles.rowHeaderMain}
-                        onPress={
-                          isEditing
-                            ? undefined
-                            : () =>
-                                setExpandedId(prev =>
-                                  prev === s.id ? null : s.id,
-                                )
+                        onPress={() =>
+                          setExpandedId(prev => (prev === s.id ? null : s.id))
                         }
                         activeOpacity={0.85}
                       >
@@ -638,46 +615,23 @@ export default function StaffSettingsScreen() {
                             {isEditing ? (
                               <>
                                 <TextInput
-                                  style={styles.nameEditInput}
+                                  style={styles.editNameInput}
                                   value={editingName}
                                   onChangeText={setEditingName}
-                                  placeholder="Name"
-                                  placeholderTextColor="#b8a8d6"
                                   autoFocus
+                                  onBlur={saveEdit}
+                                  placeholder="Full name"
+                                  placeholderTextColor="#b8a8d6"
                                 />
                                 <TextInput
-                                  style={styles.phoneEditInput}
+                                  style={styles.editPhoneInput}
                                   value={editingPhone}
                                   onChangeText={setEditingPhone}
+                                  onBlur={saveEdit}
                                   placeholder="Phone (optional)"
-                                  keyboardType="phone-pad"
                                   placeholderTextColor="#b8a8d6"
+                                  keyboardType="phone-pad"
                                 />
-                                <View style={styles.editButtonsRow}>
-                                  <TouchableOpacity
-                                    style={styles.smallButton}
-                                    onPress={saveEdit}
-                                    activeOpacity={0.85}
-                                  >
-                                    <Text style={styles.smallButtonText}>
-                                      Save
-                                    </Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.smallButton,
-                                      styles.smallButtonSecondary,
-                                    ]}
-                                    onPress={cancelEdit}
-                                    activeOpacity={0.85}
-                                  >
-                                    <Text
-                                      style={styles.smallButtonSecondaryText}
-                                    >
-                                      Cancel
-                                    </Text>
-                                  </TouchableOpacity>
-                                </View>
                               </>
                             ) : (
                               <>
@@ -703,23 +657,21 @@ export default function StaffSettingsScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Expanded ratings + notes */}
+                    {/* Expanded scoring panel */}
                     {isExpanded && (
-                      <View style={styles.expanded}>
-                        {/* Experience */}
+                      <View style={styles.scorePanel}>
                         <View style={styles.categoryRow}>
                           <Text style={styles.categoryLabel}>Experience</Text>
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
-                              'experience_rating',
-                              s.experience_rating,
-                              threeLevelOptions,
+                              'experience_level',
+                              s.experience_level,
+                              experienceOptions,
                             )}
                           </View>
                         </View>
 
-                        {/* Behaviour support */}
                         <View style={styles.categoryRow}>
                           <Text style={styles.categoryLabel}>
                             Behaviour support
@@ -727,42 +679,39 @@ export default function StaffSettingsScreen() {
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
-                              'behaviour_support_rating',
-                              s.behaviour_support_rating,
-                              threeLevelOptions,
+                              'behaviour_capability',
+                              s.behaviour_capability,
+                              behaviourOptions,
                             )}
                           </View>
                         </View>
 
-                        {/* Personal care */}
-                        <View style={styles.categoryRow}>
-                          <Text style={styles.categoryLabel}>Personal care</Text>
-                          <View style={styles.categoryPills}>
-                            {renderPills(
-                              s.id,
-                              'personal_care_rating',
-                              s.personal_care_rating,
-                              threeLevelOptions,
-                            )}
-                          </View>
-                        </View>
-
-                        {/* Mobility assistance */}
                         <View style={styles.categoryRow}>
                           <Text style={styles.categoryLabel}>
-                            Mobility assistance
+                            Personal care
                           </Text>
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
-                              'mobility_assistance_rating',
-                              s.mobility_assistance_rating,
-                              threeLevelOptions,
+                              'personal_care_skill',
+                              s.personal_care_skill,
+                              personalCareOptions,
                             )}
                           </View>
                         </View>
 
-                        {/* Communication */}
+                        <View style={styles.categoryRow}>
+                          <Text style={styles.categoryLabel}>Mobility</Text>
+                          <View style={styles.categoryPills}>
+                            {renderPills(
+                              s.id,
+                              'mobility_assistance',
+                              s.mobility_assistance,
+                              mobilityOptions,
+                            )}
+                          </View>
+                        </View>
+
                         <View style={styles.categoryRow}>
                           <Text style={styles.categoryLabel}>
                             Communication
@@ -770,14 +719,13 @@ export default function StaffSettingsScreen() {
                           <View style={styles.categoryPills}>
                             {renderPills(
                               s.id,
-                              'communication_rating',
-                              s.communication_rating,
-                              threeLevelOptions,
+                              'communication_support',
+                              s.communication_support,
+                              communicationOptions,
                             )}
                           </View>
                         </View>
 
-                        {/* Reliability */}
                         <View style={styles.categoryRow}>
                           <Text style={styles.categoryLabel}>Reliability</Text>
                           <View style={styles.categoryPills}>
@@ -785,27 +733,22 @@ export default function StaffSettingsScreen() {
                               s.id,
                               'reliability_rating',
                               s.reliability_rating,
-                              threeLevelOptions,
+                              reliabilityOptions,
                             )}
                           </View>
                         </View>
 
-                        {/* Notes */}
                         <View style={styles.notesSection}>
-                          <Text style={styles.notesLabel}>Notes</Text>
+                          <Text style={styles.notesLabel}>Supervisor comments</Text>
                           <TextInput
                             style={styles.notesInput}
                             multiline
-                            placeholder="Supervisor notes, key strengths, training needs, etc."
-                            placeholderTextColor="#b8a8d6"
                             value={s.supervisor_notes ?? ''}
                             onChangeText={text =>
-                              updateStaffField(
-                                s.id,
-                                'supervisor_notes',
-                                text || null,
-                              )
+                              updateStaff(s.id, 'supervisor_notes', text)
                             }
+                            placeholder="Progress notes, training needs, reasons ratings changed…"
+                            placeholderTextColor="#a78bb7"
                           />
                         </View>
                       </View>
@@ -815,18 +758,31 @@ export default function StaffSettingsScreen() {
               })}
             </View>
           )}
-
-          <Footer />
         </View>
       </ScrollView>
+
+      <Footer />
     </View>
   );
 }
 
+/* ---------------- STYLES ---------------- */
+
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#f3e8ff',
+    backgroundColor: '#faf7fb',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.08,
+    left: -600,
+    top: 0,
+    pointerEvents: 'none',
   },
   scroll: {
     paddingBottom: 120,
@@ -838,21 +794,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  headingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    justifyContent: 'space-between',
-  },
-  headingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 52,
-    height: 52,
-    marginRight: 12,
-  },
   heading: {
     fontSize: 22,
     fontWeight: '700',
@@ -861,71 +802,93 @@ const styles = StyleSheet.create({
   subHeading: {
     fontSize: 14,
     color: '#553a75',
-    marginTop: 4,
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#f973b7',
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#ffffff',
+    marginBottom: 16,
   },
 
-  sectionCard: {
+  /* Legend styles */
+  legendWrap: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
     padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#e7dff2',
-    marginBottom: 14,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  sectionHeader: {
+  legendTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#332244',
+    marginBottom: 6,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  legendLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#553a75',
+    width: 110,
+  },
+  legendText: {
+    fontSize: 13,
+    color: '#6b5a7d',
+    flex: 1,
+  },
+  legendHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  legendToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  legendToggleText: {
+    fontSize: 11,
+    color: '#6b5a7d',
+    fontWeight: '600',
+  },
+  legendHint: {
+    fontSize: 12,
+    color: '#6b5a7d',
+    marginBottom: 8,
+  },
+
+  /* Add new staff */
+  addWrap: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  addHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  sectionHeaderLeft: {
-    flex: 1,
-    marginRight: 8,
+  addToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  sectionTitle: {
-    fontSize: 16,
+  addTitle: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#332244',
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#6b5a7d',
-    marginTop: 2,
-  },
-  chevronButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-
-  legendRow: {
-    marginBottom: 6,
-  },
-  legendLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#553a75',
-    marginBottom: 2,
-  },
-  legendText: {
-    fontSize: 13,
-    color: '#4b5563',
-  },
-
-  addHint: {
-    fontSize: 13,
-    color: '#4b5563',
-    marginBottom: 8,
   },
   addRow: {
     flexDirection: 'row',
@@ -942,74 +905,97 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#e1d5f5',
-  },
-  addInlineGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  addInlinePill: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#d4c4e8',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
     marginRight: 6,
-    backgroundColor: '#ffffff',
-  },
-  addInlinePillActive: {
-    backgroundColor: '#4f46e5',
-    borderColor: '#4338ca',
-  },
-  addInlineText: {
-    fontSize: 13,
-    color: '#4b5563',
-    fontWeight: '500',
-  },
-  addInlineTextActive: {
-    color: '#ffffff',
   },
   addButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#f472b6',
   },
   addButtonDisabled: {
-    backgroundColor: '#c4b5fd',
+    opacity: 0.5,
   },
   addButtonText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#ffffff',
   },
-
-  listCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e7dff2',
-    marginBottom: 16,
+  addHint: {
+    fontSize: 12,
+    color: '#7a678e',
+    marginTop: 4,
   },
-  listHeader: {
+  addRowSecondary: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    paddingBottom: 6,
-    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
   },
-  listHeaderText: {
-    fontSize: 13,
+  selectGroup: {
+    flex: 1,
+    minWidth: 160,
+  },
+  selectLabel: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#553a75',
+    marginBottom: 4,
+  },
+  selectPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  selectPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    backgroundColor: '#f8f4fb',
+  },
+  selectPillSelected: {
+    backgroundColor: '#e5d4ff',
+    borderColor: '#c4b0f5',
+  },
+  selectColourDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    marginRight: 6,
+  },
+  selectPillText: {
+    fontSize: 12,
+    color: '#332244',
+    fontWeight: '600',
   },
 
+  listWrap: {
+    width: '100%',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginLeft: 40,
+    marginTop: -6,
+  },
+  headerCell: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7a678e',
+  },
   row: {
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3e8ff',
+    flexDirection: 'column',
+    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    marginBottom: 10,
+    alignItems: 'stretch',
   },
   rowInactive: {
     opacity: 0.5,
@@ -1026,6 +1012,72 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+    marginTop: -4,
+  },
+  sectionScore: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#553a75',
+    marginRight: 25,
+  },
+  scoreBubble: {
+    Width: 80,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e7dff2',
+    backgroundColor: '#f8f2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 'auto',
+    marginRight: 10,
+  },
+  scoreBubbleLow: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  scoreBubbleMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  scoreBubbleHigh: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
+  scoreBubbleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#332244',
+  },
+  scorePanel: {
+    marginTop: 12,
+    paddingTop: 10,
+    marginLeft: 60,
+    borderTopWidth: 1,
+    borderTopColor: '#f1e9ff',
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    paddingLeft: 0,
+  },
+  categoryLabel: {
+    width: 130,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#553a75',
+    marginRight: 4,
+  },
+  categoryPills: {
+    flex: 1,
+  },
 
   // NEW: red bin (trash) icon button
   deleteButton: {
@@ -1034,15 +1086,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginLeft: 0,
   },
-  deleteButtonText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ef4444',
-  },
   editButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
     marginRight: 8,
+  },
+  deleteButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ef4444',
   },
 
   staffInfoBlock: {
@@ -1056,57 +1108,41 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   info: {
-    flex: 1,
+    flexShrink: 1,
   },
   name: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: '#332244',
   },
   phone: {
-    fontSize: 13,
-    color: '#4b5563',
+    fontSize: 12,
+    color: '#6b5a7d',
   },
-
-  scoreBubble: {
-    minWidth: 56,
+  editNameInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f8f4ff',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreBubbleText: {
+    paddingVertical: 6,
     fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  scoreBubbleLow: SCORE_BUBBLE_STYLES.low,
-  scoreBubbleMedium: SCORE_BUBBLE_STYLES.medium,
-  scoreBubbleHigh: SCORE_BUBBLE_STYLES.high,
-
-  expanded: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    color: '#332244',
     marginBottom: 4,
   },
-  categoryLabel: {
-    width: 130,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#553a75',
-    marginRight: 4,
+  editPhoneInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f8f4ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    color: '#332244',
   },
-  categoryPills: {
-    flex: 1,
+  fieldBlock: {
+    marginHorizontal: 6,
   },
-
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1124,17 +1160,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pillActive: {
-    backgroundColor: '#4ade80',
-    borderColor: '#16a34a',
+    backgroundColor: '#008aff',
+    borderColor: '#008aff',
   },
   pillText: {
-    fontSize: 13,
-    color: '#111827',
+    fontSize: 12,
+    color: '#3e3e3e',
   },
   pillTextActive: {
-    fontWeight: '700',
+    color: '#000000',
   },
 
+  pillSelectedLow: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  pillSelectedMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  pillSelectedHigh: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
   pillMinus: {
     paddingHorizontal: 0,
     paddingVertical: 0,
@@ -1149,9 +1197,8 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontWeight: '700',
   },
-
   notesSection: {
-    marginTop: 8,
+    marginTop: 10,
   },
   notesLabel: {
     fontSize: 12,
@@ -1171,55 +1218,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#332244',
   },
-  nameEditInput: {
-    fontSize: 14,
-    color: '#332244',
-    backgroundColor: '#f8f4fb',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#e1d5f5',
-    marginBottom: 6,
-  },
-  phoneEditInput: {
-    fontSize: 14,
-    color: '#332244',
-    backgroundColor: '#f8f4fb',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#e1d5f5',
-    marginBottom: 6,
-  },
-  editButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
-  },
-  smallButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#2563eb',
-  },
-  smallButtonText: {
-    fontSize: 12,
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-  smallButtonSecondary: {
-    backgroundColor: '#e5e7eb',
-  },
-  smallButtonSecondaryText: {
-    fontSize: 12,
-    color: '#374151',
-  },
 });
 
-const PINK = '#f973b7';
+const PINK = '#FF8FC5';
 
 export const options = {
   headerTitleAlign: 'center' as const,
