@@ -410,7 +410,7 @@ export default function EditParticipantsScreen() {
                 {/* Behaviour Rating */}
                 <View style={{ marginTop: 16 }}>
                   <Text style={styles.legendSubheading}>Behaviour Rating</Text>
-                  <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
+                  <View style={[styles.legend, styles.legendCentered, styles.complexityLegendRow, { marginTop: 8 }]}>
                     <View style={styles.legendItem}>
                       <View style={[styles.riskBadge, styles.riskBadgeLow]}>
                         <Text style={styles.riskBadgeText}>L</Text>
@@ -458,34 +458,34 @@ export default function EditParticipantsScreen() {
                   </View>
 
                   {/* Line 3: bubbles */}
-                  <View style={[styles.legend, styles.legendCentered, { marginTop: 4 }]}>
+                  <View style={[styles.legend, styles.legendCentered, styles.complexityLegendRow, { marginTop: 6 }]}>
                     <View style={styles.complexityLegendItem}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
-                        <Text style={styles.scoreBubbleText}>1</Text>
+                        <Text style={styles.scoreBubbleText}>VL</Text>
                       </View>
                     </View>
 
                     <View style={styles.complexityLegendItem}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
-                        <Text style={styles.scoreBubbleText}>2</Text>
+                        <Text style={styles.scoreBubbleText}>L</Text>
                       </View>
                     </View>
 
                     <View style={styles.complexityLegendItem}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
-                        <Text style={styles.scoreBubbleText}>3</Text>
+                        <Text style={styles.scoreBubbleText}>M</Text>
                       </View>
                     </View>
 
                     <View style={styles.complexityLegendItem}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
-                        <Text style={styles.scoreBubbleText}>4</Text>
+                        <Text style={styles.scoreBubbleText}>H</Text>
                       </View>
                     </View>
 
                     <View style={styles.complexityLegendItem}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}>
-                        <Text style={styles.scoreBubbleText}>5</Text>
+                        <Text style={styles.scoreBubbleText}>VH</Text>
                       </View>
                     </View>
                   </View>
@@ -750,6 +750,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#4B5563',
     marginBottom: 2,
+  },
+
+  complexityLegendRow: {
+    justifyContent: 'space-between',
+    width: '80%',
+    alignSelf: 'center',
   },
 
   complexityLegendItem: {
