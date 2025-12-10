@@ -97,6 +97,88 @@ function getBehaviourRisk(
   return null;
 }
 
+// ---- Outing phase helpers (short vs long, active vs complete) ----
+
+type OutingGroup = {
+  name?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffIds?: (string | number)[];
+  participantIds?: (string | number)[];
+};
+
+type OutingPhase = 'none' | 'activeShort' | 'completeShort' | 'activeLong';
+
+const SHORT_OUTING_THRESHOLD_MINUTES = 14 * 60; // 14:00
+
+function parseTimeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Expect formats like "10:30" or "9:05"
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhase {
+  if (!outingGroup) return 'none';
+
+  const staffCount = outingGroup.staffIds?.length ?? 0;
+  const participantCount = outingGroup.participantIds?.length ?? 0;
+  if (staffCount === 0 && participantCount === 0) return 'none';
+
+  const startMinutes = parseTimeToMinutes(outingGroup.startTime);
+  const endMinutes = parseTimeToMinutes(outingGroup.endTime);
+
+  // No valid end time = treat as "out for the day"
+  if (endMinutes === null) {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    if (startMinutes !== null && nowMinutes < startMinutes) {
+      return 'none';
+    }
+    return 'activeLong';
+  }
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // If there's a future start time, nothing yet
+  if (startMinutes !== null && nowMinutes < startMinutes) {
+    return 'none';
+  }
+
+  const isShortOuting = endMinutes < SHORT_OUTING_THRESHOLD_MINUTES;
+
+  if (!isShortOuting) {
+    // Long outing (ends at/after 14:00) – treat as "out for day" once started
+    return 'activeLong';
+  }
+
+  // Short outing (< 14:00)
+  if (nowMinutes <= endMinutes) {
+    return 'activeShort';
+  }
+
+  // After end time of a short outing → complete, staff/participants back onsite
+  return 'completeShort';
+}
+
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
@@ -116,7 +198,7 @@ export default function EditAssignmentsScreen() {
     workingStaff,
     attendingParticipants,
     trainingStaffToday = [],
-    outingGroup, // ⬅️ NEW: read outing group for offsite state
+    outingGroup, // read outing group for offsite state
     updateSchedule,
   } = useSchedule() as any;
   const { push } = useNotifications();
@@ -253,7 +335,7 @@ export default function EditAssignmentsScreen() {
   const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-  // 🔹 Offsite participants from outingGroup
+  // Offsite participants from outingGroup (IDs only)
   const offsiteParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
     const og = outingGroup as any;
@@ -264,6 +346,19 @@ export default function EditAssignmentsScreen() {
     }
     return set;
   }, [outingGroup]);
+
+  // Outing phase: only treat as offsite while outing is active (short or long)
+  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
+  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
+  const hasOutingBase =
+    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
+
+  const outingPhase: OutingPhase = hasOutingBase
+    ? getOutingPhase(outingGroup)
+    : 'none';
+
+  const outingIsActive =
+    outingPhase === 'activeShort' || outingPhase === 'activeLong';
 
   // Ensure training staff do not keep participant assignments
   React.useEffect(() => {
@@ -451,7 +546,9 @@ export default function EditAssignmentsScreen() {
                         else if (behaviourRisk === 'medium') riskLetter = 'M';
                         else if (behaviourRisk === 'high') riskLetter = 'H';
 
-                        const isOffsite = offsiteParticipantIds.has(pid);
+                        // Offsite only while outing is active (short or long)
+                        const isOffsite =
+                          outingIsActive && offsiteParticipantIds.has(pid);
 
                         return (
                           <TouchableOpacity
@@ -477,7 +574,7 @@ export default function EditAssignmentsScreen() {
                                 partScore > 0 &&
                                 (partBand === 'high' || partBand === 'veryHigh') &&
                                 styles.chipHigh,
-                              // ⬇️ Offsite participants: white pill, keep border colour
+                              // Offsite participants: white pill, keep border colour
                               isOffsite && styles.chipOffsite,
                             ]}
                           >
@@ -486,7 +583,7 @@ export default function EditAssignmentsScreen() {
                               style={[
                                 styles.chipTxt,
                                 isAssigned && styles.chipTxtSel,
-                                isOffsite && styles.chipTxtOffsite, // ⬅️ force dark text for offsite
+                                isOffsite && styles.chipTxtOffsite,
                               ]}
                               numberOfLines={1}
                             >
@@ -525,7 +622,6 @@ export default function EditAssignmentsScreen() {
                                     styles.scoreBubbleHigh,
                                   partBand === 'veryHigh' &&
                                     styles.scoreBubbleVeryHigh,
-
                                 ]}
                               >
                                 <Text style={styles.scoreBubbleText}>
@@ -699,7 +795,6 @@ const styles = StyleSheet.create({
   scoreBubbleVeryHigh: {
     backgroundColor: '#fee2e2',
     borderColor: '#EF4444',
-
   },
   scoreBubbleText: {
     fontSize: 13,
@@ -778,7 +873,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   chipTxtOffsite: {
-    color: '#101828', // ⬅️ dark text when offsite (overrides white)
+    color: '#101828', // dark text when offsite (overrides white)
   },
   checkMark: {
     fontSize: 14,

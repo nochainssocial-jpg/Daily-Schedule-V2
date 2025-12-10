@@ -100,9 +100,94 @@ const CARDS: CardConfig[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Outing phase helpers
+// ---------------------------------------------------------------------------
+
+type OutingGroup = {
+  name?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffIds?: (string | number)[];
+  participantIds?: (string | number)[];
+};
+
+type OutingPhase = 'none' | 'activeShort' | 'completeShort' | 'activeLong';
+
+const SHORT_OUTING_THRESHOLD_MINUTES = 14 * 60; // 14:00
+
+function parseTimeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Expect formats like "10:30" or "9:05"
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhase {
+  if (!outingGroup) return 'none';
+
+  const staffCount = outingGroup.staffIds?.length ?? 0;
+  const participantCount = outingGroup.participantIds?.length ?? 0;
+  if (staffCount === 0 && participantCount === 0) return 'none';
+
+  const startMinutes = parseTimeToMinutes(outingGroup.startTime);
+  const endMinutes = parseTimeToMinutes(outingGroup.endTime);
+
+  // No valid end time = treat as "out for the day"
+  if (endMinutes === null) {
+    // If there's a future start time, we can treat it as "none" until then
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    if (startMinutes !== null && nowMinutes < startMinutes) {
+      return 'none';
+    }
+    return 'activeLong';
+  }
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // If there's a future start time, nothing yet
+  if (startMinutes !== null && nowMinutes < startMinutes) {
+    return 'none';
+  }
+
+  const isShortOuting = endMinutes < SHORT_OUTING_THRESHOLD_MINUTES;
+
+  if (!isShortOuting) {
+    // Long outing (ends at/after 14:00) – treat as "out for day" once started
+    return 'activeLong';
+  }
+
+  // Short outing (< 14:00)
+  if (nowMinutes <= endMinutes) {
+    return 'activeShort';
+  }
+
+  // After end time of a short outing → complete
+  return 'completeShort';
+}
+
 export default function EditHubScreen() {
   const router = useRouter();
-  const { outingGroup } = useSchedule();
+  const { outingGroup } = useSchedule() as { outingGroup?: OutingGroup | null };
 
   // Auto-hydrate today on first load
   useEffect(() => {
@@ -112,8 +197,14 @@ export default function EditHubScreen() {
   const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
   const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
 
-  const hasOuting =
+  const hasOutingBase =
     !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
+
+  const outingPhase: OutingPhase = hasOutingBase
+    ? getOutingPhase(outingGroup)
+    : 'none';
+
+  const hasOuting = outingPhase !== 'none';
 
   const hasTime =
     (outingGroup?.startTime && outingGroup.startTime.trim() !== '') ||
@@ -122,6 +213,10 @@ export default function EditHubScreen() {
   const timeRange = hasTime
     ? `${outingGroup?.startTime || '?'}–${outingGroup?.endTime || '?'}`
     : '';
+
+  const isCompleteShort = outingPhase === 'completeShort';
+
+  const outingTitle = isCompleteShort ? 'Outing complete' : 'Outing today';
 
   return (
     <View style={styles.screen}>
@@ -151,18 +246,49 @@ export default function EditHubScreen() {
 
           {/* Outing summary card, when an outing exists */}
           {hasOuting && (
-            <View style={styles.outingSummary}>
+            <View
+              style={[
+                styles.outingSummary,
+                isCompleteShort && styles.outingSummaryComplete,
+              ]}
+            >
               <View style={styles.outingSummaryInner}>
-                <View style={styles.outingSummaryIconBubble}>
-                  <Ionicons name="car-outline" size={22} color="#C05621" />
+                <View
+                  style={[
+                    styles.outingSummaryIconBubble,
+                    isCompleteShort && styles.outingSummaryIconBubbleComplete,
+                  ]}
+                >
+                  <Ionicons
+                    name="car-outline"
+                    size={22}
+                    color={isCompleteShort ? '#166534' : '#C05621'}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.outingSummaryTitle}>Outing today</Text>
-                  <Text style={styles.outingSummaryLine}>
+                  <Text
+                    style={[
+                      styles.outingSummaryTitle,
+                      isCompleteShort && styles.outingSummaryTitleComplete,
+                    ]}
+                  >
+                    {outingTitle}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.outingSummaryLine,
+                      isCompleteShort && styles.outingSummaryLineComplete,
+                    ]}
+                  >
                     {outingGroup?.name || 'Unnamed outing'}
                     {timeRange ? ` · ${timeRange}` : ''}
                   </Text>
-                  <Text style={styles.outingSummaryLine}>
+                  <Text
+                    style={[
+                      styles.outingSummaryLine,
+                      isCompleteShort && styles.outingSummaryLineComplete,
+                    ]}
+                  >
                     {outingStaffCount} staff · {outingParticipantCount} participants
                   </Text>
                 </View>
@@ -284,6 +410,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginTop: 12,
   },
+  outingSummaryComplete: {
+    backgroundColor: '#ECFDF3',
+    borderColor: '#BBF7D0',
+  },
   outingSummaryInner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -297,13 +427,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 10,
   },
+  outingSummaryIconBubbleComplete: {
+    backgroundColor: '#BBF7D0',
+  },
   outingSummaryTitle: {
     fontSize: 13,
     fontWeight: '600',
     color: '#9A3412',
   },
+  outingSummaryTitleComplete: {
+    color: '#166534',
+  },
   outingSummaryLine: {
     fontSize: 12,
     color: '#7C2D12',
+  },
+  outingSummaryLineComplete: {
+    color: '#166534',
   },
 });

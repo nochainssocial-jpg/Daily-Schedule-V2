@@ -16,14 +16,16 @@ import { useSchedule } from '@/hooks/schedule-store';
 import { supabase } from '@/lib/supabase';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
-import { getRiskBand, MAX_PARTICIPANT_SCORE, RISK_GRADIENT_COLORS, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
+import {
+  MAX_PARTICIPANT_SCORE,
+  RISK_GRADIENT_COLORS,
+} from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
-
 
 const WRAP = {
   width: '100%',
@@ -89,7 +91,9 @@ function slotLabel(slot: any): string {
   if (!slot) return '';
   const raw =
     slot.displayTime ||
-    (slot.startTime && slot.endTime ? `${slot.startTime} - ${slot.endTime}` : '');
+    (slot.startTime && slot.endTime
+      ? `${slot.startTime} - ${slot.endTime}`
+      : '');
   return String(raw).replace(/\s/g, '').toLowerCase();
 }
 
@@ -125,12 +129,11 @@ function isAntoinette(staff: any): boolean {
   return name.includes('antoinette');
 }
 
-// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
+// 🔹 helper to exclude the "Everyone" pseudo-staff
 function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
 }
-
 
 // ---- Participant ratings + behaviour helpers (for legend pills) ----
 
@@ -147,7 +150,9 @@ type ParticipantRatingRow = {
 
 type ParticipantRating = ParticipantRatingRow | null | undefined;
 
-function getParticipantTotalScore(member: ParticipantRating | any): number | null {
+function getParticipantTotalScore(
+  member: ParticipantRating | any,
+): number | null {
   if (!member) return null;
   const values = [
     member.behaviours,
@@ -195,8 +200,7 @@ function getBehaviourRisk(
 /**
  * Gradient meter driven by TOTAL participant score:
  * - totalScore: 0–35 (7 criteria × 5)
- * - fill = totalScore / 35 (clamped 0–1)
- * - gradient compressed so red only appears toward the end
+ * - fill = totalScore / maxScore (clamped 0–1)
  */
 function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
@@ -464,12 +468,17 @@ function parseTimeToMinutes(time?: string | null): number | null {
   return hour * 60 + minute;
 }
 
-function getSlotWindowMinutes(slot: any): { start: number | null; end: number | null } {
+function getSlotWindowMinutes(slot: any): {
+  start: number | null;
+  end: number | null;
+} {
   if (!slot) return { start: null, end: null };
 
   const start =
     parseTimeToMinutes(slot.startTime) ||
-    (slot.displayTime ? parseTimeToMinutes(slot.displayTime.split('-')[0]) : null);
+    (slot.displayTime
+      ? parseTimeToMinutes(slot.displayTime.split('-')[0])
+      : null);
 
   const end =
     parseTimeToMinutes(slot.endTime) ||
@@ -531,6 +540,7 @@ function isRoomOffsiteForSlot(
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
   if (outingWindow.start == null || outingWindow.end == null) {
+    // No valid time window: treat as offsite for all slots
     return true;
   }
 
@@ -649,7 +659,8 @@ export default function FloatingScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' &&
+      /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
@@ -676,7 +687,8 @@ export default function FloatingScreen() {
     return m;
   }, [staff]);
 
-  const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
+  const [ratingMap, setRatingMap] =
+    useState<Record<string, ParticipantRatingRow>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -720,22 +732,31 @@ export default function FloatingScreen() {
   );
 
   // 🔹 Only real onsite Dream Team staff – exclude "Everyone"
+  //     and only treat staff as fully offsite when the outing has NO time window.
   const onsiteWorking = useMemo(
     () => {
-      const hasTimedOuting =
-        !!outingGroup &&
-        typeof outingGroup.startTime === 'string' &&
-        outingGroup.startTime.trim().length > 0 &&
-        typeof outingGroup.endTime === 'string' &&
-        outingGroup.endTime.trim().length > 0;
+      const outingWindow = outingGroup
+        ? getOutingWindowMinutes(outingGroup)
+        : { start: null, end: null };
 
-      return (staff || []).filter(
-        (s: any) =>
-          !isEveryone(s) &&
-          workingSet.has(String(s.id)) &&
-          // Only treat staff as fully offsite when the outing has no specific time window
-          (!hasTimedOuting || !outingStaffSet.has(String(s.id))),
-      );
+      const hasTimedOuting =
+        outingWindow.start !== null && outingWindow.end !== null;
+
+      const isFullDayOuting = !!outingGroup && !hasTimedOuting;
+
+      return (staff || []).filter((s: any) => {
+        const id = String(s.id);
+        if (isEveryone(s)) return false;
+        if (!workingSet.has(id)) return false;
+
+        // If it's a full-day outing (no start/end), remove those staff completely
+        if (isFullDayOuting && outingStaffSet.has(id)) {
+          return false;
+        }
+
+        // Otherwise (timed outing or no outing), keep them in the pool
+        return true;
+      });
     },
     [staff, workingSet, outingStaffSet, outingGroup],
   );
@@ -863,11 +884,14 @@ export default function FloatingScreen() {
     return active.length ? active : ROOM_KEYS;
   };
 
-
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
+      const next = buildAutoAssignments(
+        onsiteWorking,
+        TIME_SLOTS,
+        activeRoomsForSlot,
+      );
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
@@ -879,7 +903,11 @@ export default function FloatingScreen() {
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;
-    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+    );
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
@@ -1025,9 +1053,21 @@ export default function FloatingScreen() {
               let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
-              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot, outingGroup);
-              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot, outingGroup);
-              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot, outingGroup);
+              const isFrontOffsite = isRoomOffsiteForSlot(
+                'frontRoom',
+                slot,
+                outingGroup,
+              );
+              const isScottyOffsite = isRoomOffsiteForSlot(
+                'scotty',
+                slot,
+                outingGroup,
+              );
+              const isTwinsOffsite = isRoomOffsiteForSlot(
+                'twins',
+                slot,
+                outingGroup,
+              );
               const isFrontNotAttending = roomNotAttending.frontRoom;
               const isScottyNotAttending = roomNotAttending.scotty;
               const isTwinsNotAttending = roomNotAttending.twins;
@@ -1105,7 +1145,9 @@ export default function FloatingScreen() {
                         : fr
                     }
                     gender={
-                      isFrontOffsite || isFrontNotAttending ? undefined : frStaff?.gender
+                      isFrontOffsite || isFrontNotAttending
+                        ? undefined
+                        : frStaff?.gender
                     }
                     onPress={() => {
                       if (isFrontOffsite || isFrontNotAttending) return;
@@ -1134,7 +1176,9 @@ export default function FloatingScreen() {
                         : sc
                     }
                     gender={
-                      isScottyOffsite || isScottyNotAttending ? undefined : scStaff?.gender
+                      isScottyOffsite || isScottyNotAttending
+                        ? undefined
+                        : scStaff?.gender
                     }
                     onPress={() => {
                       if (isScottyOffsite || isScottyNotAttending) return;
@@ -1174,7 +1218,9 @@ export default function FloatingScreen() {
                         : ''
                     }
                     gender={
-                      isTwinsOffsite || isTwinsNotAttending ? undefined : twStaff?.gender
+                      isTwinsOffsite || isTwinsNotAttending
+                        ? undefined
+                        : twStaff?.gender
                     }
                     fsoTag={fso && !isTwinsOffsite && !isTwinsNotAttending}
                     onPress={() => {
@@ -1233,7 +1279,7 @@ export default function FloatingScreen() {
                 <Ionicons
                   name="print-outline"
                   size={42}
-                  color="#OOA86A"
+                  color="#00A86A"
                   style={{ marginBottom: 6 }}
                 />
                 <Text
@@ -1250,198 +1296,197 @@ export default function FloatingScreen() {
             </View>
           )}
 
-        {/* Legend */}
-        <View style={{ marginTop: 24 }}>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: '700',
-              color: '#000000',
-              marginBottom: 8,
-            }}
-          >
-            Legend
-          </Text>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: '#e5e7eb',
-              borderRadius: 8,
-              overflow: 'hidden',
-            }}
-          >
-            {/* Front Room row */}
-            <View
+          {/* Legend */}
+          <View style={{ marginTop: 24 }}>
+            <Text
               style={{
-                flexDirection: 'row',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e5e7eb',
+                fontSize: 18,
+                fontWeight: '700',
+                color: '#000000',
+                marginBottom: 8,
               }}
             >
+              Legend
+            </Text>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Front Room row */}
               <View
                 style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
+                  flexDirection: 'row',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
                 }}
               >
-                <Text
+                <View
                   style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
                   }}
                 >
-                  Front Room
-                </Text>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Front Room
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[
+                    { name: 'Paul', female: false },
+                    { name: 'Jessica', female: true },
+                    { name: 'Naveed', female: false },
+                    { name: 'Tiffany', female: true },
+                    { name: 'Sumera', female: true },
+                    { name: 'Jacob', female: false },
+                  ].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
               </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  { name: 'Paul', female: false },
-                  { name: 'Jessica', female: true },
-                  { name: 'Naveed', female: false },
-                  { name: 'Tiffany', female: true },
-                  { name: 'Sumera', female: true },
-                  { name: 'Jacob', female: false },
-                ].map((p) => {
-                  const nameKey = `name:${String(p.name).toLowerCase()}`;
-                  const rating = ratingMap[nameKey];
-                  return (
-                    <LegendParticipantPill
-                      key={p.name}
-                      person={p}
-                      rating={rating}
-                    />
-                  );
-                })}
-              </View>
-            </View>
 
-                        {/* Scotty row */}
-            <View
-              style={{
-                flexDirection: 'row',
-                borderBottomWidth: 1,
-                borderBottomColor: '#e5e7eb',
-              }}
-            >
+              {/* Scotty row */}
               <View
                 style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
+                  flexDirection: 'row',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
                 }}
               >
-                <Text
+                <View
                   style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
                   }}
                 >
-                  Scotty
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
-                }}
-              >
-                {[
-                  { name: 'Scott', female: false },
-                ].map((p) => {
-                  const nameKey = `name:${String(p.name).toLowerCase()}`;
-                  const rating = ratingMap[nameKey];
-                  return (
-                    <LegendParticipantPill
-                      key={p.name}
-                      person={p}
-                      rating={rating}
-                    />
-                  );
-                })}
-              </View>
-            </View>{/* Twins / FSO row */}
-            <View
-              style={{
-                flexDirection: 'row',
-              }}
-            >
-              <View
-                style={{
-                  width: '32%',
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRightWidth: 1,
-                  borderRightColor: '#e5e7eb',
-                  justifyContent: 'center',
-                  backgroundColor: '#f9fafb',
-                }}
-              >
-                <Text
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Scotty
+                  </Text>
+                </View>
+                <View
                   style={{
-                    fontSize: 16,
-                    fontWeight: '700',
-                    color: '#000000',
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
                   }}
                 >
-                  Twins / FSO
-                </Text>
+                  {[{ name: 'Scott', female: false }].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
               </View>
+
+              {/* Twins / FSO row */}
               <View
                 style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
                   flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 6,
-                  alignItems: 'center',
                 }}
               >
-                {[
-                  { name: 'Zara', female: true },
-                  { name: 'Zoya', female: true },
-                ].map((p) => {
-                  const nameKey = `name:${String(p.name).toLowerCase()}`;
-                  const rating = ratingMap[nameKey];
-                  return (
-                    <LegendParticipantPill
-                      key={p.name}
-                      person={p}
-                      rating={rating}
-                    />
-                  );
-                })}
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Twins / FSO
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[
+                    { name: 'Zara', female: true },
+                    { name: 'Zoya', female: true },
+                  ].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
               </View>
             </View>
           </View>
-        </View>
-
         </View>
       </ScrollView>
 
@@ -1592,7 +1637,7 @@ type CellProps = {
 function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
   const lower = label.toLowerCase();
   const isEmpty = lower.startsWith('tap to assign');
-  const isOffsite = lower === 'outing (offsite)';
+  // const isOffsite = lower === 'outing (offsite)'; // not needed separately
 
   const genderColor =
     String(gender || '').toLowerCase() === 'female'

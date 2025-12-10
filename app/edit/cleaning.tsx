@@ -23,11 +23,57 @@ import SaveExit from '@/components/SaveExit';
 
 const PINK = '#F54FA5';
 
+// ⏱ Helpers to detect full-day vs timed outing
+function parseTimeToMinutes(time?: string | null): number | null {
+  if (!time) return null;
+  let t = String(time).trim().toLowerCase();
+
+  // accept "9:00am-10:00am" by splitting
+  if (t.includes('-')) {
+    t = t.split('-')[0].trim();
+  }
+
+  const m = t.match(/^(\d{1,2}):(\d{2})(am|pm)?$/);
+  if (!m) return null;
+
+  let hour = parseInt(m[1], 10);
+  const minute = parseInt(m[2], 10);
+  const suffix = m[3];
+
+  if (suffix === 'am') {
+    if (hour === 12) hour = 0;
+  } else if (suffix === 'pm') {
+    if (hour !== 12) hour += 12;
+  } else {
+    // bare 9:00 or 14:00 – assume afternoon if early hour
+    if (hour <= 6) hour += 12;
+  }
+
+  return hour * 60 + minute;
+}
+
+function getOutingWindowMinutes(outingGroup: any): {
+  start: number | null;
+  end: number | null;
+} {
+  if (!outingGroup) return { start: null, end: null };
+  const start = parseTimeToMinutes(outingGroup.startTime);
+  const end = parseTimeToMinutes(outingGroup.endTime);
+  if (start == null || end == null) {
+    return { start: null, end: null };
+  }
+  if (end <= start) {
+    return { start: null, end: null };
+  }
+  return { start, end };
+}
+
 export default function CleaningEditScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' &&
+      /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
@@ -63,7 +109,7 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  // 🔁 Working staff for cleaning = Dream Team minus outing staff
+  // 🔁 Working staff for cleaning = Dream Team, optionally minus outing staff
   const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
@@ -75,6 +121,21 @@ export default function CleaningEditScreen() {
     );
 
     if (!outingGroup) {
+      // No outing at all – everyone working is available for cleaning
+      return base.sort((a, b) =>
+        String(a.name).localeCompare(String(b.name), 'en-AU'),
+      );
+    }
+
+    const outingWindow = getOutingWindowMinutes(outingGroup);
+    const hasTimedOuting =
+      outingWindow.start !== null && outingWindow.end !== null;
+
+    // Option B:
+    // - If outing has a valid time window → treat as partial-day;
+    //   keep all staff eligible for cleaning.
+    // - If no valid times → full-day outing; exclude those staff.
+    if (hasTimedOuting) {
       return base.sort((a, b) =>
         String(a.name).localeCompare(String(b.name), 'en-AU'),
       );
@@ -187,7 +248,7 @@ export default function CleaningEditScreen() {
     return base;
   };
 
-  // ⬇️ NEW: rich label with coloured dots for the bins chore
+  // ⬇️ Rich label with coloured dots for the bins chore
   const renderBinsLabel = (base: string) => {
     if (binsVariant === 1) {
       // Red Domestic + Yellow Recycling
@@ -296,8 +357,9 @@ export default function CleaningEditScreen() {
               const assignedStaffId = (cleaningAssignments as any)[choreId];
 
               const st =
-                (staff || []).find((s: Staff) => String(s.id) === String(assignedStaffId)) ||
-                null;
+                (staff || []).find(
+                  (s: Staff) => String(s.id) === String(assignedStaffId),
+                ) || null;
 
               const label = st ? st.name : 'Not assigned';
               const isAssigned = !!st;
@@ -379,7 +441,9 @@ export default function CleaningEditScreen() {
                 <View style={styles.chipGrid}>
                   {workingStaffList.map((st) => {
                     const selected =
-                      (cleaningAssignments as any)[String(activeChoreId ?? '')] === st.id;
+                      (cleaningAssignments as any)[
+                        String(activeChoreId ?? '')
+                      ] === st.id;
 
                     return (
                       <TouchableOpacity
@@ -521,7 +585,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
 
-  // ⬇️ NEW: coloured bin dots
+  // coloured bin dots
   binDot: {
     fontSize: 14,
   },

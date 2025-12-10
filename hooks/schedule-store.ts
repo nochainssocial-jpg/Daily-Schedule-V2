@@ -85,6 +85,8 @@ export type ScheduleBannerType = 'created' | 'loaded' | 'prefilled';
 export type ScheduleBanner = {
   type: ScheduleBannerType;
   scheduleDate: string; // YYYY-MM-DD for the schedule being edit
+  // when prefilling from an older schedule, we store the original date too
+  sourceDate?: string;
 };
 
 export type ScheduleState = ScheduleSnapshot & {
@@ -301,7 +303,6 @@ export function useWorkingStaff() {
     [staff, workingStaff],
   );
 }
-
 
 export function useAttendingParticipants() {
   const { participants, attendingParticipants } = useSchedule();

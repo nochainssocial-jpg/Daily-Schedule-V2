@@ -128,7 +128,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   useEffect(() => {
     Animated.timing(progress, {
       toValue: fraction,
-      duration: 650,
+      duration: 350,
       useNativeDriver: false, // animating width
     }).start();
   }, [fraction, progress]);
@@ -159,6 +159,88 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
       )}
     </View>
   );
+}
+
+// ---- Outing phase helpers (short vs long, complete vs active) ----
+
+type OutingGroup = {
+  name?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffIds?: (string | number)[];
+  participantIds?: (string | number)[];
+};
+
+type OutingPhase = 'none' | 'activeShort' | 'completeShort' | 'activeLong';
+
+const SHORT_OUTING_THRESHOLD_MINUTES = 14 * 60; // 14:00
+
+function parseTimeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Expect formats like "10:30" or "9:05"
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhase {
+  if (!outingGroup) return 'none';
+
+  const staffCount = outingGroup.staffIds?.length ?? 0;
+  const participantCount = outingGroup.participantIds?.length ?? 0;
+  if (staffCount === 0 && participantCount === 0) return 'none';
+
+  const startMinutes = parseTimeToMinutes(outingGroup.startTime);
+  const endMinutes = parseTimeToMinutes(outingGroup.endTime);
+
+  // No valid end time = treat as "out for the day"
+  if (endMinutes === null) {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    if (startMinutes !== null && nowMinutes < startMinutes) {
+      return 'none';
+    }
+    return 'activeLong';
+  }
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // If there's a future start time, nothing yet
+  if (startMinutes !== null && nowMinutes < startMinutes) {
+    return 'none';
+  }
+
+  const isShortOuting = endMinutes < SHORT_OUTING_THRESHOLD_MINUTES;
+
+  if (!isShortOuting) {
+    // Long outing (ends at/after 14:00) – treat as "out for day" once started
+    return 'activeLong';
+  }
+
+  // Short outing (< 14:00)
+  if (nowMinutes <= endMinutes) {
+    return 'activeShort';
+  }
+
+  // After end time of a short outing → complete, staff/participants back onsite
+  return 'completeShort';
 }
 
 export default function EditParticipantsScreen() {
@@ -235,6 +317,19 @@ export default function EditParticipantsScreen() {
     [outingGroup],
   );
 
+  // Determine outing phase so that short outings revert back to onsite after end time
+  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
+  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
+  const hasOutingBase =
+    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
+
+  const outingPhase: OutingPhase = hasOutingBase
+    ? getOutingPhase(outingGroup)
+    : 'none';
+
+  const outingIsActive =
+    outingPhase === 'activeShort' || outingPhase === 'activeLong';
+
   const toggleParticipant = (id: ID) => {
     if (readOnly) {
       push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
@@ -285,7 +380,9 @@ export default function EditParticipantsScreen() {
           ) : (
             <View style={styles.attendingGrid}>
               {attendingList.map((p) => {
-                const isOutOnOuting = outingParticipantSet.has(p.id as ID);
+                // Only show offsite outline during active phases.
+                const isOutOnOuting =
+                  outingIsActive && outingParticipantSet.has(p.id as ID);
                 const mode = isOutOnOuting ? 'offsite' : 'onsite';
 
                 const nameKey = `name:${String(p.name || '').toLowerCase()}`;
@@ -390,107 +487,117 @@ export default function EditParticipantsScreen() {
           )}
 
           {/* Legend: onsite/outing, then behaviour risk + overall score bands */}
-              <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
-                Legend
-              </Text>
-              
-              <View style={styles.legendCard}>
-                {/* On-site / outing */}
-                <View style={[styles.legend, styles.legendCentered]}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendSwatch, styles.legendOnsite]} />
-                    <Text style={styles.legendLabel}>On-site</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
+            Legend
+          </Text>
+
+          <View style={styles.legendCard}>
+            {/* On-site / outing */}
+            <View style={[styles.legend, styles.legendCentered]}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendOnsite]} />
+                <Text style={styles.legendLabel}>On-site</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendOffsite]} />
+                <Text style={styles.legendLabel}>On outing</Text>
+              </View>
+            </View>
+
+            {/* Behaviour Rating */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.legendSubheading}>Behaviour Rating</Text>
+              <View
+                style={[
+                  styles.legend,
+                  styles.legendCentered,
+                  { marginTop: 8 },
+                ]}
+              >
+                <View style={styles.legendItem}>
+                  <View style={[styles.riskBadge, styles.riskBadgeLow]}>
+                    <Text style={styles.riskBadgeText}>L</Text>
                   </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendSwatch, styles.legendOffsite]} />
-                    <Text style={styles.legendLabel}>On outing</Text>
+                  <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
+                </View>
+
+                <View style={styles.legendItem}>
+                  <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
+                    <Text style={styles.riskBadgeText}>M</Text>
+                  </View>
+                  <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
+                </View>
+
+                <View style={styles.legendItem}>
+                  <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
+                    <Text style={styles.riskBadgeText}>H</Text>
+                  </View>
+                  <Text style={styles.legendLabel}>High Risk Behaviour</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Complexity Rating */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.legendSubheading}>Complexity Rating</Text>
+
+              {/* Line 2: score ranges */}
+              <View style={[styles.complexityLegendRow, { marginTop: 8 }]}>
+                <View style={styles.complexityColumn}>
+                  <Text style={styles.legendRange}>0–5 (VL)</Text>
+                </View>
+                <View style={styles.complexityColumn}>
+                  <Text style={styles.legendRange}>6–10 (L)</Text>
+                </View>
+                <View style={styles.complexityColumn}>
+                  <Text style={styles.legendRange}>11–15 (M)</Text>
+                </View>
+                <View style={styles.complexityColumn}>
+                  <Text style={styles.legendRange}>16–20 (H)</Text>
+                </View>
+                <View style={styles.complexityColumn}>
+                  <Text style={styles.legendRange}>21+ (VH)</Text>
+                </View>
+              </View>
+
+              {/* Line 3: bubbles */}
+              <View style={[styles.complexityLegendRow, { marginTop: 8 }]}>
+                <View style={styles.complexityColumn}>
+                  <View
+                    style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}
+                  >
+                    <Text style={styles.scoreBubbleText}>VL</Text>
                   </View>
                 </View>
 
-                {/* Behaviour Rating */}
-                <View style={{ marginTop: 16 }}>
-                  <Text style={styles.legendSubheading}>Behaviour Rating</Text>
-                  <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
-                    <View style={styles.legendItem}>
-                      <View style={[styles.riskBadge, styles.riskBadgeLow]}>
-                        <Text style={styles.riskBadgeText}>L</Text>
-                      </View>
-                      <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
-                    </View>
-
-                    <View style={styles.legendItem}>
-                      <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
-                        <Text style={styles.riskBadgeText}>M</Text>
-                      </View>
-                      <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
-                    </View>
-
-                    <View style={styles.legendItem}>
-                      <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
-                        <Text style={styles.riskBadgeText}>H</Text>
-                      </View>
-                      <Text style={styles.legendLabel}>High Risk Behaviour</Text>
-                    </View>
+                <View style={styles.complexityColumn}>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
+                    <Text style={styles.scoreBubbleText}>L</Text>
                   </View>
                 </View>
 
-                {/* Complexity Rating */}
-                <View style={{ marginTop: 16 }}>
-                  <Text style={styles.legendSubheading}>Complexity Rating</Text>
-
-                  {/* Line 2: score ranges */}
-                  <View style={[styles.complexityLegendRow, { marginTop: 8 }]}>
-                    <View style={styles.complexityColumn}>
-                      <Text style={styles.legendRange}>0–5 (VL)</Text>
-                    </View>
-                    <View style={styles.complexityColumn}>
-                      <Text style={styles.legendRange}>6–10 (L)</Text>
-                    </View>
-                    <View style={styles.complexityColumn}>
-                      <Text style={styles.legendRange}>11–15 (M)</Text>
-                    </View>
-                    <View style={styles.complexityColumn}>
-                      <Text style={styles.legendRange}>16–20 (H)</Text>
-                    </View>
-                    <View style={styles.complexityColumn}>
-                      <Text style={styles.legendRange}>21+ (VH)</Text>
-                    </View>
-                  </View>
-
-                  {/* Line 3: bubbles */}
-                  <View style={[styles.complexityLegendRow, { marginTop: 8 }]}>
-                    <View style={styles.complexityColumn}>
-                      <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
-                        <Text style={styles.scoreBubbleText}>VL</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.complexityColumn}>
-                      <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
-                        <Text style={styles.scoreBubbleText}>L</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.complexityColumn}>
-                      <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
-                        <Text style={styles.scoreBubbleText}>M</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.complexityColumn}>
-                      <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
-                        <Text style={styles.scoreBubbleText}>H</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.complexityColumn}>
-                      <View style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}>
-                        <Text style={styles.scoreBubbleText}>VH</Text>
-                      </View>
-                    </View>
+                <View style={styles.complexityColumn}>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
+                    <Text style={styles.scoreBubbleText}>M</Text>
                   </View>
                 </View>
-        </View>
+
+                <View style={styles.complexityColumn}>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
+                    <Text style={styles.scoreBubbleText}>H</Text>
+                  </View>
+                </View>
+
+                <View style={styles.complexityColumn}>
+                  <View
+                    style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}
+                  >
+                    <Text style={styles.scoreBubbleText}>VH</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -613,7 +720,7 @@ const styles = StyleSheet.create({
   },
   behaviourTrack: {
     width: 105,
-    height: 6,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
   },
@@ -622,7 +729,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#E5E7EB',
   },
 
   // Score bubble on right of header
@@ -717,7 +824,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
     flexWrap: 'wrap',
-    paddingVertical: 4,   // 🔥 makes all rows same height and spacing
+    paddingVertical: 4,
   },
   legendItem: {
     flexDirection: 'row',
