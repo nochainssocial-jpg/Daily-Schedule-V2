@@ -331,7 +331,7 @@ export default function StaffSettingsScreen() {
     >
       {showWebBranding && (
         <Image
-          source={require('@/assets/no-chains-bg-logo.png')}
+          source={require('@/assets/images/nochains-bg.png')}
           resizeMode="contain"
           style={styles.bgLogo}
         />
