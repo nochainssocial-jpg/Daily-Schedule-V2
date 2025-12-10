@@ -237,7 +237,8 @@ export default function EditDreamTeamScreen() {
     const score = getStaffScore(ratingSource);
     const band = getScoreBand(score);
     // Only show ratings for staff who are actually working at B2 today
-    const showScore = inDreamTeam && score > 0;
+    // and only for admins (Dalida, Bruno, Jessica)
+    const showScore = isAdmin && inDreamTeam && score > 0;
 
     const mode = (
       isTraining
@@ -263,8 +264,8 @@ export default function EditDreamTeamScreen() {
     ) : null;
 
     let rightAddon: React.ReactNode = null;
-    // Only show training / senior icons for the Dream Team chips (not Staff Pool)
-    if (inDreamTeam && isTraining) {
+    // Only show training / senior icons for admins on Dream Team chips (not Staff Pool)
+    if (isAdmin && inDreamTeam && isTraining) {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-supervisor"
@@ -272,7 +273,7 @@ export default function EditDreamTeamScreen() {
           color="#1C5F87"
         />
       );
-    } else if (inDreamTeam && band === 'senior') {
+    } else if (isAdmin && inDreamTeam && band === 'senior') {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-star"
@@ -351,39 +352,44 @@ export default function EditDreamTeamScreen() {
               </View>
             </View>
 
-            <View style={[styles.legend, { marginTop: 12 }]}>
-              <View style={styles.legendItem}>
-                <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
-                <Text style={styles.legendLabel}>Beginner / Junior</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
-                <Text style={styles.legendLabel}>Intermediate</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
-                <Text style={styles.legendLabel}>Senior / Experienced</Text>
-              </View>
-            </View>
+            {isAdmin && (
+              <>
+                <View style={[styles.legend, { marginTop: 12 }]}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
+                    <Text style={styles.legendLabel}>Beginner / Junior</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
+                    <Text style={styles.legendLabel}>Intermediate</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
+                    <Text style={styles.legendLabel}>Senior / Experienced</Text>
+                  </View>
+                </View>
 
-            <View style={[styles.legend, { marginTop: 12 }]}>
-              <View style={styles.legendItem}>
-                <MaterialCommunityIcons
-                  name="account-supervisor"
-                  size={24}
-                  color="#1C5F87"
-                />
-                <Text style={styles.legendLabel}>Training</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <MaterialCommunityIcons
-                  name="account-star"
-                  size={24}
-                  color="#FBBF24"
-                />
-                <Text style={styles.legendLabel}>Senior</Text>
-              </View>
-            </View>
+                <View style={[styles.legend, { marginTop: 12 }]}>
+                  <View style={styles.legendItem}>
+                    <MaterialCommunityIcons
+                      name="account-supervisor"
+                      size={24}
+                      color="#1C5F87"
+                    />
+                    <Text style={styles.legendLabel}>Training</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <MaterialCommunityIcons
+                      name="account-star"
+                      size={24}
+                      color="#FBBF24"
+                    />
+                    <Text style={styles.legendLabel}>Senior</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
           </View>
         </View>
       </ScrollView>

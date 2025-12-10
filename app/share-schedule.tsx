@@ -31,7 +31,7 @@ export default function ShareScheduleScreen() {
     loadSnapshot,
   } = useSchedule() as any;
 
-  const { mode, setB2ReadOnly, setAdminMd, setAdminBruno } = useAccessControl();
+  const { mode, setB2ReadOnly, setAdminMd, setAdminBruno, setAdminJessica } = useAccessControl();
   const { push } = useNotifications();
 
   const [adminPin, setAdminPin] = useState('');
@@ -160,7 +160,7 @@ const handleAdminAccess = () => {
 
   // Jessica (AA)
   if (adminPin === JESSICA_ADMIN_PIN) {
-    setAdminBruno();
+    setAdminJessica();
     push('Admin Mode Enabled - Full Access', 'general');
     goHome();
     return;

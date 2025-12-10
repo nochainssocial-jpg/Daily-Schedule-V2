@@ -449,7 +449,7 @@ export default function EditAssignmentsScreen() {
 
                 const score = getStaffScore(ratingSource);
                 const band = getScoreBand(score);
-                const showScore = score > 0;
+                const showScore = isAdmin && score > 0;
 
                 const isTraining = trainingSet.has(staffId);
                 const canAssign = !isTraining;
@@ -497,19 +497,21 @@ export default function EditAssignmentsScreen() {
                         </View>
                       )}
                       <Text style={styles.staffName}>{st.name}</Text>
-                      {isTraining ? (
-                        <MaterialCommunityIcons
-                          name="account-supervisor"
-                          size={24}
-                          color="#1C5F87"
-                        />
-                      ) : band === 'senior' ? (
-                        <MaterialCommunityIcons
-                          name="account-star"
-                          size={24}
-                          color="#FBBF24"
-                        />
-                      ) : null}
+                      {isAdmin && (
+                        isTraining ? (
+                          <MaterialCommunityIcons
+                            name="account-supervisor"
+                            size={24}
+                            color="#1C5F87"
+                          />
+                        ) : band === 'senior' ? (
+                          <MaterialCommunityIcons
+                            name="account-star"
+                            size={24}
+                            color="#FBBF24"
+                          />
+                        ) : null
+                      )}
                     </View>
 
                     {isTraining ? (
