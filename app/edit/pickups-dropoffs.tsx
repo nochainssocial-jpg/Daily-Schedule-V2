@@ -209,7 +209,10 @@ export default function PickupsDropoffsScreen() {
 
   const [showAllPickupCandidates, setShowAllPickupCandidates] =
     useState(false);
-  const [hideEmptyStaff, setHideEmptyStaff] = useState(false);
+
+  // 🔹 Default to hiding staff with NO dropoffs
+  const [hideEmptyStaff, setHideEmptyStaff] = useState(true);
+
   const [collapsedStaff, setCollapsedStaff] = useState<Record<ID, boolean>>(
     {},
   );
