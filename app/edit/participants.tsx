@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
   },
   behaviourTrack: {
     width: 105,
-    height: 8,
+    height: 6,
     borderRadius: 999,
     overflow: 'hidden',
   },
@@ -622,7 +622,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
 
   // Score bubble on right of header
