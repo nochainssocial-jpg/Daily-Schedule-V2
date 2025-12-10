@@ -2,12 +2,12 @@
 
 export type RiskBand = 'low' | 'medium' | 'high';
 
-export const MAX_PARTICIPANT_SCORE = 35; // 7 criteria × 5
+export const MAX_PARTICIPANT_SCORE = 21; // 7 criteria × 3
 
 export const BAND_THRESHOLDS = {
-  low: 11,      // 0–11
-  medium: 23,   // 12–23
-  high: 35,     // 24–35
+  low: 10,      // 0–10
+  medium: 16,   // 11–16
+  high: 21,     // 17–21
 } as const;
 
 export function getRiskBand(total: number | null | undefined): RiskBand {
