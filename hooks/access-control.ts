@@ -1,7 +1,7 @@
 // hooks/access-control.ts
 import { create } from 'zustand';
 
-export type AccessMode = 'b2-readonly' | 'admin-md' | 'admin-bruno';
+export type AccessMode = 'b2-readonly' | 'admin-md' | 'admin-jessica' | 'admin-bruno';
 
 type AccessState = {
   mode: AccessMode;
@@ -16,11 +16,12 @@ export const useAccessControl = create<AccessState>((set) => ({
   setB2ReadOnly: () => set({ mode: 'b2-readonly' }),
   setAdminMd: () => set({ mode: 'admin-md' }),
   setAdminBruno: () => set({ mode: 'admin-bruno' }),
+  setAdminJessica: () => set({ mode: 'admin-jessica' }),
 }));
 
 export const useIsAdmin = () =>
   useAccessControl(
-    (state) => state.mode === 'admin-md' || state.mode === 'admin-bruno',
+    (state) => state.mode === 'admin-md' || state.mode === 'admin-bruno', || state.mode === 'admin-jessica',
   );
 
 export const useIsReadOnly = () => !useIsAdmin();
