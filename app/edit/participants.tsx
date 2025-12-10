@@ -410,7 +410,7 @@ export default function EditParticipantsScreen() {
                 {/* Behaviour Rating */}
                 <View style={{ marginTop: 16 }}>
                   <Text style={styles.legendSubheading}>Behaviour Rating</Text>
-                  <View style={[styles.legend, styles.legendCentered, styles.complexityLegendRow, { marginTop: 8 }]}>
+                  <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
                     <View style={styles.legendItem}>
                       <View style={[styles.riskBadge, styles.riskBadgeLow]}>
                         <Text style={styles.riskBadgeText}>L</Text>
@@ -439,58 +439,58 @@ export default function EditParticipantsScreen() {
                   <Text style={styles.legendSubheading}>Complexity Rating</Text>
 
                   {/* Line 2: score ranges */}
-                  <View style={[styles.legend, styles.complexityLegendRow, { marginTop: 8 }]}>
-                    <View style={styles.complexityLegendItem}>
+                  <View style={[styles.complexityLegendRow, { marginTop: 8 }]}>
+                    <View style={styles.complexityColumn}>
                       <Text style={styles.legendRange}>0–5 (VL)</Text>
                     </View>
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <Text style={styles.legendRange}>6–10 (L)</Text>
                     </View>
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <Text style={styles.legendRange}>11–15 (M)</Text>
                     </View>
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <Text style={styles.legendRange}>16–20 (H)</Text>
                     </View>
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <Text style={styles.legendRange}>21+ (VH)</Text>
                     </View>
                   </View>
 
                   {/* Line 3: bubbles */}
-                  <View style={[styles.legend, styles.complexityLegendRow, { marginTop: 6 }]}>
-                    <View style={styles.complexityLegendItem}>
+                  <View style={[styles.complexityLegendRow, { marginTop: 8 }]}>
+                    <View style={styles.complexityColumn}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
                         <Text style={styles.scoreBubbleText}>VL</Text>
                       </View>
                     </View>
 
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
                         <Text style={styles.scoreBubbleText}>L</Text>
                       </View>
                     </View>
 
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
                         <Text style={styles.scoreBubbleText}>M</Text>
                       </View>
                     </View>
 
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
                         <Text style={styles.scoreBubbleText}>H</Text>
                       </View>
                     </View>
 
-                    <View style={styles.complexityLegendItem}>
+                    <View style={styles.complexityColumn}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}>
                         <Text style={styles.scoreBubbleText}>VH</Text>
                       </View>
                     </View>
                   </View>
                 </View>
-              </View>
+        </View>
         </View>
       </ScrollView>
     </View>
@@ -753,7 +753,13 @@ const styles = StyleSheet.create({
   },
 
   complexityLegendRow: {
+    flexDirection: 'row',
     justifyContent: 'flex-start',
+  },
+
+  complexityColumn: {
+    width: 70,
+    alignItems: 'center',
   },
 
   complexityLegendItem: {
