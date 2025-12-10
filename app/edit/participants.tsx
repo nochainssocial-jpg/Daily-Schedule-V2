@@ -439,7 +439,7 @@ export default function EditParticipantsScreen() {
                   <Text style={styles.legendSubheading}>Complexity Rating</Text>
 
                   {/* Line 2: score ranges */}
-                  <View style={[styles.legend, styles.legendCentered, { marginTop: 8 }]}>
+                  <View style={[styles.legend, styles.complexityLegendRow, { marginTop: 8 }]}>
                     <View style={styles.complexityLegendItem}>
                       <Text style={styles.legendRange}>0–5 (VL)</Text>
                     </View>
@@ -458,7 +458,7 @@ export default function EditParticipantsScreen() {
                   </View>
 
                   {/* Line 3: bubbles */}
-                  <View style={[styles.legend, styles.legendCentered, styles.complexityLegendRow, { marginTop: 6 }]}>
+                  <View style={[styles.legend, styles.complexityLegendRow, { marginTop: 6 }]}>
                     <View style={styles.complexityLegendItem}>
                       <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
                         <Text style={styles.scoreBubbleText}>VL</Text>
@@ -753,9 +753,7 @@ const styles = StyleSheet.create({
   },
 
   complexityLegendRow: {
-    justifyContent: 'space-between',
-    width: '80%',
-    alignSelf: 'center',
+    justifyContent: 'flex-start',
   },
 
   complexityLegendItem: {
