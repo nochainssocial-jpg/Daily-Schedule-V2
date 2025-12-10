@@ -237,7 +237,6 @@ export default function EditDreamTeamScreen() {
     const score = getStaffScore(ratingSource);
     const band = getScoreBand(score);
     // Only show ratings for staff who are actually working at B2 today
-    // and only for admins (Dalida, Bruno, Jessica)
     const showScore = isAdmin && inDreamTeam && score > 0;
 
     const mode = (
@@ -264,7 +263,7 @@ export default function EditDreamTeamScreen() {
     ) : null;
 
     let rightAddon: React.ReactNode = null;
-    // Only show training / senior icons for admins on Dream Team chips (not Staff Pool)
+    // Only show training / senior icons for the Dream Team chips (not Staff Pool)
     if (isAdmin && inDreamTeam && isTraining) {
       rightAddon = (
         <MaterialCommunityIcons
@@ -356,7 +355,12 @@ export default function EditDreamTeamScreen() {
               <>
                 <View style={[styles.legend, { marginTop: 12 }]}>
                   <View style={styles.legendItem}>
-                    <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
+                    <View
+                      style={[
+                        styles.scoreCircle,
+                        styles.scoreCircleJunior,
+                      ]}
+                    />
                     <Text style={styles.legendLabel}>Beginner / Junior</Text>
                   </View>
                   <View style={styles.legendItem}>
@@ -364,7 +368,12 @@ export default function EditDreamTeamScreen() {
                     <Text style={styles.legendLabel}>Intermediate</Text>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
+                    <View
+                      style={[
+                        styles.scoreCircle,
+                        styles.scoreCircleSenior,
+                      ]}
+                    />
                     <Text style={styles.legendLabel}>Senior / Experienced</Text>
                   </View>
                 </View>
@@ -389,7 +398,6 @@ export default function EditDreamTeamScreen() {
                 </View>
               </>
             )}
-          </View>
           </View>
         </View>
       </ScrollView>

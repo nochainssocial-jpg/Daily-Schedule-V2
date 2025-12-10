@@ -497,8 +497,8 @@ export default function EditAssignmentsScreen() {
                         </View>
                       )}
                       <Text style={styles.staffName}>{st.name}</Text>
-                      {isAdmin && (
-                        isTraining ? (
+                      {isAdmin &&
+                        (isTraining ? (
                           <MaterialCommunityIcons
                             name="account-supervisor"
                             size={24}
@@ -510,8 +510,7 @@ export default function EditAssignmentsScreen() {
                             size={24}
                             color="#FBBF24"
                           />
-                        ) : null
-                      )}
+                        ) : null)}
                     </View>
 
                     {isTraining ? (
