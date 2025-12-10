@@ -1,296 +1,387 @@
 // app/edit/dream-team.tsx
-import React, { useMemo } from 'react';
+// Edit screen for working staff (Dream Team) with staff pool.
+// Integrates with outings + training + live ratings from Supabase.
+
+import React, { useMemo, useEffect, useState } from 'react';
 import {
-  ScrollView,
-  Text,
-  TouchableOpacity,
   View,
-  Platform,
+  Text,
   StyleSheet,
+  ScrollView,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 
+import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
-import type { Staff } from '@/constants/data';
+import { STAFF as STATIC_STAFF } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
-import SaveExit from '@/components/SaveExit';
+import Chip from '@/components/Chip';
+import { supabase } from '@/lib/supabase';
 
-const PINK = '#F54FA5';
-const CREAM = '#FEF3C7';
+type ID = string;
 
-export default function DreamTeamScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
+const STAFF_SCORE_KEYS: Array<keyof any> = [
+  'experience_level',
+  'behaviour_capability',
+  'personal_care_skill',
+  'mobility_assistance',
+  'communication_support',
+  'reliability_rating',
+];
 
-  const {
-    staff = [],
-    workingStaff = [],
-    trainingStaffToday = [],
-    outingGroup = null,
-    updateSchedule,
-  } = useSchedule() as any;
+function getStaffScore(row: any): number {
+  if (!row) return 0;
+  return STAFF_SCORE_KEYS.reduce((sum, key) => {
+    const raw = (row as any)?.[key];
+    const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
+}
 
+function getScoreBand(score: number): 'none' | 'junior' | 'mid' | 'senior' {
+  if (!score || score <= 0) return 'none';
+  if (score >= 15) return 'senior';
+  if (score >= 9) return 'mid';
+  return 'junior';
+}
+
+const sortByName = (list: any[]) =>
+  list
+    .slice()
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+
+export default function EditDreamTeamScreen() {
+  const { width } = useWindowDimensions();
   const { push } = useNotifications();
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
 
-  const blockReadOnly = () => {
-    push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-  };
+  const {
+    staff: scheduleStaff,
+    workingStaff = [],
+    trainingStaffToday = [],
+    outingGroup,
+    updateSchedule,
+  } = useSchedule() as any;
+
+  // Base staff list from snapshot or static fallback
+  const baseStaffSource =
+    (Array.isArray(scheduleStaff) && scheduleStaff.length
+      ? scheduleStaff
+      : STATIC_STAFF) || [];
+
+  // Live ratings from Supabase – keyed by staff id / legacy_id / name
+  const [ratingLookup, setRatingLookup] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRatings() {
+      try {
+        const { data, error } = await supabase
+          .from('staff')
+          .select(
+            'id,legacy_id,name,experience_level,behaviour_capability,personal_care_skill,mobility_assistance,communication_support,reliability_rating',
+          );
+
+        if (error || !data || cancelled) return;
+
+        const map: Record<string, any> = {};
+        (data as any[]).forEach((row) => {
+          if (!row) return;
+
+          const uuidKey = row.id ? String(row.id) : null;
+          const legacyKey = row.legacy_id ? String(row.legacy_id) : null;
+          const nameKey =
+            row.name && typeof row.name === 'string'
+              ? `name:${row.name.toLowerCase()}`
+              : null;
+
+          if (uuidKey) map[uuidKey] = row;
+          if (legacyKey) map[legacyKey] = row;
+          if (nameKey) map[nameKey] = row;
+        });
+
+        if (!cancelled) {
+          setRatingLookup(map);
+        }
+      } catch (e) {
+        console.warn('[dream-team] failed to load staff ratings', e);
+      }
+    }
+
+    loadRatings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const staffSource = baseStaffSource;
+
+  const staffById = useMemo(() => {
+    const map: Record<string, any> = {};
+    staffSource.forEach((s: any) => {
+      if (!s) return;
+      const key = String(s.id);
+      if (!key) return;
+      map[key] = s;
+    });
+    return map;
+  }, [staffSource]);
 
   const workingSet = useMemo(
-    () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
+    () => new Set<string>((workingStaff as ID[]).map((id) => String(id))),
     [workingStaff],
   );
+
   const trainingSet = useMemo(
-    () => new Set<string>((trainingStaffToday || []).map((id: any) => String(id))),
+    () =>
+      new Set<string>((trainingStaffToday as ID[]).map((id) => String(id))),
     [trainingStaffToday],
   );
 
-  // ---- OUTING LOGIC PATCH (Chelsea issue) ------------------------------------
-  // We only treat outing staff as "off-site" if the outing has NO time window
-  const outingStaffSet = useMemo(
+  const allStaff = useMemo(() => sortByName(staffSource), [staffSource]);
+
+  const dreamTeam = useMemo(
     () =>
-      new Set<string>(
-        ((outingGroup?.staffIds ?? []) as (string | number)[]).map((id) =>
-          String(id),
-        ),
+      sortByName(
+        Array.from(workingSet)
+          .map((id) => staffById[id])
+          .filter(Boolean),
       ),
-    [outingGroup],
+    [workingSet, staffById],
   );
 
-  const hasTimedOuting =
-    !!outingGroup &&
-    typeof outingGroup.startTime === 'string' &&
-    outingGroup.startTime.trim().length > 0 &&
-    typeof outingGroup.endTime === 'string' &&
-    outingGroup.endTime.trim().length > 0;
-
-  // 🔹 Staff actually working at B2 today
-  const workingList: Staff[] = useMemo(
+  const staffPool = useMemo(
     () =>
-      (staff || [])
-        .filter((s: Staff) => workingSet.has(String(s.id)))
-        .slice()
-        .sort((a, b) =>
-          String(a.name || '').localeCompare(String(b.name || ''), 'en-AU'),
-        ),
-    [staff, workingSet],
+      sortByName(allStaff.filter((s: any) => !workingSet.has(String(s.id)))),
+    [allStaff, workingSet],
   );
 
-  // 🔹 Staff we visually treat as "on outing / off-site" (ALL-DAY only)
-  const allDayOutingStaffIds = useMemo(() => {
-    if (!outingGroup || hasTimedOuting) {
-      // Timed outing → they are still considered onsite in Dream Team
-      return new Set<string>();
-    }
-    return outingStaffSet;
-  }, [outingGroup, outingStaffSet, hasTimedOuting]);
+  // 🔹 Determine if today's outing is timed (has explicit start & end) vs all-day.
+  const hasTimedOuting = useMemo(() => {
+    if (!outingGroup) return false;
+    const start =
+      typeof outingGroup.startTime === 'string'
+        ? outingGroup.startTime.trim()
+        : '';
+    const end =
+      typeof outingGroup.endTime === 'string'
+        ? outingGroup.endTime.trim()
+        : '';
+    return !!start && !!end;
+  }, [outingGroup]);
 
-  // 🔹 Staff pool = everyone not marked as working
-  const staffPool: Staff[] = useMemo(
-    () =>
-      (staff || [])
-        .filter((s: Staff) => !workingSet.has(String(s.id)))
-        .slice()
-        .sort((a, b) =>
-          String(a.name || '').localeCompare(String(b.name || ''), 'en-AU'),
-        ),
-    [staff, workingSet],
-  );
+  const outingStaffSet = useMemo(() => {
+    const ids = ((outingGroup?.staffIds ?? []) as (string | number)[]).map(
+      (raw) => String(raw),
+    );
+    return new Set<string>(ids);
+  }, [outingGroup]);
 
-  const toggleWorking = (id: string) => {
+  const toggleStaff = (id: ID) => {
     if (readOnly) {
-      blockReadOnly();
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
+
     const key = String(id);
-    const exists = workingSet.has(key);
+    const next = new Set<string>(Array.from(workingSet));
 
-    const nextWorking = exists
-      ? workingStaff.filter((sId: any) => String(sId) !== key)
-      : [...workingStaff, key];
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
 
-    updateSchedule?.({ workingStaff: nextWorking });
+    updateSchedule?.({ workingStaff: Array.from(next) });
+    push?.('Dream Team updated', 'dream-team');
   };
 
-  const toggleTraining = (id: string) => {
+  const toggleTraining = (id: ID) => {
     if (readOnly) {
-      blockReadOnly();
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
       return;
     }
+
     const key = String(id);
-    const isTraining = trainingSet.has(key);
+    const next = new Set<string>(Array.from(trainingSet));
 
-    const nextTraining = isTraining
-      ? trainingStaffToday.filter((sId: any) => String(sId) !== key)
-      : [...trainingStaffToday, key];
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
 
-    // Ensure training staff are also part of working staff
-    const nextWorking = workingSet.has(key)
-      ? workingStaff
-      : [...workingStaff, key];
-
-    updateSchedule?.({
-      trainingStaffToday: nextTraining,
-      workingStaff: nextWorking,
-    });
+    updateSchedule?.({ trainingStaffToday: Array.from(next) });
+    push?.('Training status updated', 'dream-team');
   };
 
-  const pillForStaff = (s: Staff, mode: 'working' | 'pool') => {
+  const contentWidth = Math.min(width - 32, 880);
+
+  const renderStaffChip = (s: any, inDreamTeam: boolean) => {
     const id = String(s.id);
-    const isWorking = mode === 'working';
+
+    // 🔸 Only treat as “off-site” when the outing is an all-day outing.
+    const isOutOnOuting = !hasTimedOuting && outingStaffSet.has(id);
     const isTraining = trainingSet.has(id);
 
-    const isAllDayOuting = allDayOutingStaffIds.has(id); // <-- ONLY all-day!
-    const gender = String((s as any).gender || '').toLowerCase();
-    const isFemale = gender === 'female';
-    const isMale = gender === 'male';
+    const nameKey = `name:${String(s.name || '').toLowerCase()}`;
+    const ratingSource = ratingLookup[id] ?? ratingLookup[nameKey] ?? s;
 
-    return (
-      <TouchableOpacity
-        key={id}
-        activeOpacity={0.9}
-        onPress={() => toggleWorking(id)}
-        onLongPress={() => toggleTraining(id)}
-        delayLongPress={350}
+    const score = getStaffScore(ratingSource);
+    const band = getScoreBand(score);
+    // Only show ratings for staff who are actually working at B2 today
+    const showScore = inDreamTeam && score > 0;
+
+    const mode = (
+      isTraining
+        ? 'training'
+        : isOutOnOuting
+        ? 'offsite'
+        : inDreamTeam
+        ? 'onsite'
+        : 'default'
+    ) as any;
+
+    const leftAddon = showScore ? (
+      <View
         style={[
-          styles.staffPill,
-          mode === 'working' ? styles.staffPillWorking : styles.staffPillPool,
-          isTraining && styles.staffPillTraining,
-          isAllDayOuting && styles.staffPillOuting,
+          styles.scoreCircle,
+          band === 'senior' && styles.scoreCircleSenior,
+          band === 'mid' && styles.scoreCircleMid,
+          band === 'junior' && styles.scoreCircleJunior,
         ]}
       >
-        {/* Score bubble could be added here later if needed */}
+        <Text style={styles.scoreText}>{score}</Text>
+      </View>
+    ) : null;
 
-        {/* Name + outing / training meta */}
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {/* Gender dot */}
-          <View
-            style={[
-              styles.genderDot,
-              isFemale && { backgroundColor: '#fb7185' },
-              isMale && { backgroundColor: '#60a5fa' },
-            ]}
-          />
-          <Text style={styles.staffName} numberOfLines={1}>
-            {s.name}
-          </Text>
-          {isTraining && (
-            <Ionicons
-              name="school-outline"
-              size={14}
-              color="#1e293b"
-              style={{ marginLeft: 4 }}
-            />
-          )}
-        </View>
+    let rightAddon: React.ReactNode = null;
+    // Only show training / senior icons for the Dream Team chips (not Staff Pool)
+    if (inDreamTeam && isTraining) {
+      rightAddon = (
+        <MaterialCommunityIcons
+          name="account-supervisor"
+          size={22}
+          color="#1C5F87"
+        />
+      );
+    } else if (inDreamTeam && band === 'senior') {
+      rightAddon = (
+        <MaterialCommunityIcons
+          name="account-star"
+          size={22}
+          color="#FBBF24"
+        />
+      );
+    }
 
-        {/* Right-hand badges */}
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {isAllDayOuting && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Outing / off-site</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
+    return (
+      <Chip
+        key={s.id}
+        label={s.name}
+        mode={mode}
+        leftAddon={leftAddon}
+        rightAddon={rightAddon}
+        onPress={() => toggleStaff(s.id as ID)}
+        onLongPress={() => toggleTraining(s.id as ID)}
+      />
     );
   };
 
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="dream-team" />
+      <SaveExit touchKey="dreamTeam" />
 
-      {Platform.OS === 'web' && !isMobileWeb && (
-        <Ionicons
-          name="people-circle-outline"
-          size={220}
-          color="#FDE68A"
-          style={styles.heroIcon}
-        />
+      {Platform.OS === 'web' && width >= 900 && (
+        <View pointerEvents="none" style={styles.heroIcon}>
+          <Ionicons name="people-circle-outline" size={260} color="#ffd5b4" />
+        </View>
       )}
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        <View style={styles.wrap}>
-          <Text style={styles.heading}>The Dream Team</Text>
-          <Text style={styles.subheading}>
-            Tap staff to mark who is working at B2 today. Long-press a pill to
-            mark staff as in training for today. Staff are sorted alphabetically.
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={[styles.inner, { width: contentWidth }]}>
+          <Text style={styles.title}>The Dream Team</Text>
+          <Text style={styles.subtitle}>
+            Tap staff to mark who is working at B2 today. Working at B2 are
+            shown at the top; everyone else appears in the Staff Pool below.
+            Names are always sorted alphabetically.
           </Text>
 
-          {/* WORKING AT B2 (Dream Team) */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Working at B2 (Dream Team)</Text>
-            <View style={styles.pillRow}>
-              {workingList.length ? (
-                workingList.map((s) => pillForStaff(s, 'working'))
-              ) : (
-                <Text style={styles.emptyText}>
-                  No staff selected yet. Tap a staff member in the pool below to
-                  add them to the Dream Team.
-                </Text>
-              )}
+          <Text style={styles.sectionTitle}>Working at B2 (Dream Team)</Text>
+          {dreamTeam.length === 0 ? (
+            <Text style={styles.empty}>No staff have been selected yet.</Text>
+          ) : (
+            <View style={styles.chipGrid}>
+              {dreamTeam.map((s: any) => renderStaffChip(s, true))}
             </View>
-          </View>
+          )}
 
-          {/* STAFF POOL */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Staff Pool</Text>
-            <View style={styles.pillRow}>
-              {staffPool.length ? (
-                staffPool.map((s) => pillForStaff(s, 'pool'))
-              ) : (
-                <Text style={styles.emptyText}>
-                  Everyone is currently marked as working at B2.
-                </Text>
-              )}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
+            Staff Pool
+          </Text>
+          {staffPool.length === 0 ? (
+            <Text style={styles.empty}>Everyone is working at B2 today.</Text>
+          ) : (
+            <View style={styles.chipGrid}>
+              {staffPool.map((s: any) => renderStaffChip(s, false))}
             </View>
-          </View>
+          )}
 
-          {/* LEGEND */}
-          <View style={[styles.section, { marginTop: 24 }]}>
-            <Text style={styles.sectionTitle}>Legend</Text>
-            <View style={styles.legendCard}>
-              {/* Row 1 */}
-              <View style={styles.legendRow}>
-                <LegendDot color="#F54FA5" />
+          <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
+            Legend
+          </Text>
+
+          <View style={styles.legendCard}>
+            <View style={[styles.legend, styles.legendCentered]}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendOnsite]} />
                 <Text style={styles.legendLabel}>On-site at B2</Text>
               </View>
-              <View style={styles.legendRow}>
-                <View style={[styles.legendSwatch, { borderColor: '#F97316' }]} />
-                <Text style={styles.legendLabel}>On outing / off-site (all-day)</Text>
-              </View>
 
-              {/* Row 2 */}
-              <View style={[styles.legendRow, { marginTop: 8 }]}>
-                <LegendDot color="#bfdbfe" />
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendOffsite]} />
+                <Text style={styles.legendLabel}>On outing / off-site</Text>
+              </View>
+            </View>
+
+            <View style={[styles.legend, { marginTop: 12 }]}>
+              <View style={styles.legendItem}>
+                <View style={[styles.scoreCircle, styles.scoreCircleJunior]} />
                 <Text style={styles.legendLabel}>Beginner / Junior</Text>
               </View>
-              <View style={styles.legendRow}>
-                <LegendDot color="#a5b4fc" />
+              <View style={styles.legendItem}>
+                <View style={[styles.scoreCircle, styles.scoreCircleMid]} />
                 <Text style={styles.legendLabel}>Intermediate</Text>
               </View>
-              <View style={styles.legendRow}>
-                <LegendDot color="#facc15" />
+              <View style={styles.legendItem}>
+                <View style={[styles.scoreCircle, styles.scoreCircleSenior]} />
                 <Text style={styles.legendLabel}>Senior / Experienced</Text>
               </View>
+            </View>
 
-              {/* Row 3 */}
-              <View style={[styles.legendRow, { marginTop: 8 }]}>
-                <Ionicons
-                  name="school-outline"
-                  size={16}
-                  color="#0f172a"
-                  style={{ marginRight: 6 }}
+            <View style={[styles.legend, { marginTop: 12 }]}>
+              <View style={styles.legendItem}>
+                <MaterialCommunityIcons
+                  name="account-supervisor"
+                  size={24}
+                  color="#1C5F87"
                 />
-                <Text style={styles.legendLabel}>Training (long-press staff pill)</Text>
+                <Text style={styles.legendLabel}>Training</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <MaterialCommunityIcons
+                  name="account-star"
+                  size={24}
+                  color="#FBBF24"
+                />
+                <Text style={styles.legendLabel}>Senior</Text>
               </View>
             </View>
           </View>
@@ -300,148 +391,118 @@ export default function DreamTeamScreen() {
   );
 }
 
-function LegendDot({ color }: { color: string }) {
-  return (
-    <View
-      style={{
-        width: 10,
-        height: 10,
-        borderRadius: 999,
-        backgroundColor: color,
-        marginRight: 6,
-      }}
-    />
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Styles
-// -----------------------------------------------------------------------------
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: CREAM,
+    backgroundColor: '#fcf2d8',
   },
   heroIcon: {
     position: 'absolute',
     top: '25%',
     left: '10%',
-    opacity: 0.9,
+    opacity: 1,
     zIndex: 0,
   },
-  wrap: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 880,
-    alignSelf: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 20,
+  scroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+    paddingBottom: 32,
   },
-  heading: {
+  inner: {
+    alignSelf: 'center',
+  },
+  title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#433F4C',
+    color: '#4b164c',
+    marginBottom: 8,
   },
-  subheading: {
-    marginTop: 4,
+  subtitle: {
     fontSize: 14,
-    color: '#7A7485',
-  },
-  section: {
-    marginTop: 18,
+    color: '#5f3b73',
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#4b164c',
     marginBottom: 8,
   },
-  pillRow: {
+  empty: {
+    fontSize: 14,
+    color: '#7b4f8f',
+    fontStyle: 'italic',
+  },
+  chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  staffPill: {
-    flexDirection: 'row',
+  scoreCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    maxWidth: '100%',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    backgroundColor: '#E5E7EB',
   },
-  staffPillWorking: {
-    backgroundColor: PINK,
-    borderColor: PINK,
+  scoreCircleJunior: {
+    backgroundColor: '#BFDBFE',
   },
-  staffPillPool: {
-    backgroundColor: '#F1F5F9',
+  scoreCircleMid: {
+    backgroundColor: '#FDE68A',
   },
-  staffPillTraining: {
-    borderColor: '#4F46E5',
+  scoreCircleSenior: {
+    backgroundColor: '#C4B5FD',
   },
-  staffPillOuting: {
-    backgroundColor: '#FEF9C3',
-    borderColor: '#F97316',
-  },
-  genderDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: '#CBD5E1',
-    marginRight: 6,
-  },
-  staffName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    maxWidth: 140,
-  },
-  badge: {
-    borderRadius: 999,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    backgroundColor: '#FFEDD5',
-    borderWidth: 1,
-    borderColor: '#FDBA74',
-    marginLeft: 8,
-  },
-  badgeText: {
-    color: '#9A3412',
+  scoreText: {
     fontSize: 11,
-    fontWeight: '600',
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#6B7280',
+    fontWeight: '700',
+    color: '#111827',
   },
   legendCard: {
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
     backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  legendRow: {
+  legend: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    gap: 16,
+    flexWrap: 'wrap',
+    paddingVertical: 4, // keeps legend rows even
   },
-  legendLabel: {
-    fontSize: 13,
-    color: '#111827',
+  legendCentered: {
+    justifyContent: 'flex-start',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   legendSwatch: {
-    width: 18,
-    height: 10,
+    width: 20,
+    height: 20,
     borderRadius: 999,
-    borderWidth: 2,
-    marginRight: 6,
+    borderWidth: 1,
+  },
+  legendOnsite: {
+    backgroundColor: '#F54FA5',
+    borderColor: '#F54FA5',
+  },
+  legendOffsite: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#F54FA5',
+  },
+  legendLabel: {
+    fontSize: 12,
+    color: '#0F172A',
   },
 });
