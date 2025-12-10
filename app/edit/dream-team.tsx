@@ -220,7 +220,8 @@ export default function EditDreamTeamScreen() {
 
     const score = getStaffScore(ratingSource);
     const band = getScoreBand(score);
-    const showScore = score > 0;
+    // Only show ratings for staff who are actually working at B2 today
+    const showScore = inDreamTeam && score > 0;
 
     const mode = (
       isTraining
@@ -246,7 +247,8 @@ export default function EditDreamTeamScreen() {
     ) : null;
 
     let rightAddon: React.ReactNode = null;
-    if (isTraining) {
+    // Only show training / senior icons for the Dream Team chips (not Staff Pool)
+    if (inDreamTeam && isTraining) {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-supervisor"
@@ -254,7 +256,7 @@ export default function EditDreamTeamScreen() {
           color="#1C5F87"
         />
       );
-    } else if (band === 'senior') {
+    } else if (inDreamTeam && band === 'senior') {
       rightAddon = (
         <MaterialCommunityIcons
           name="account-star"
