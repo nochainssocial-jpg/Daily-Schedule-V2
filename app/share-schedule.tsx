@@ -41,6 +41,7 @@ export default function ShareScheduleScreen() {
 
   const MD_ADMIN_PIN = '7474'; // Dalida (MD)
   const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
+  const JESSICA_ADMIN_PIN = '0812'; // Jess (AA)
 
   const showWebBranding = Platform.OS === 'web';
 
@@ -154,6 +155,16 @@ export default function ShareScheduleScreen() {
       goHome();
       return;
     }
+
+    setPinError('Incorrect PIN');
+  };
+
+    if (adminPin === JESSICA_ADMIN_PIN) {
+    setAdminBruno();
+    push('Admin Mode Enabled - Full Access', 'general');
+    goHome();
+    return;
+  }
 
     setPinError('Incorrect PIN');
   };
