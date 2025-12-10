@@ -1,13 +1,14 @@
 // hooks/access-control.ts
 import { create } from 'zustand';
 
-export type AccessMode = 'b2-readonly' | 'admin-md' | 'admin-jessica' | 'admin-bruno';
+export type AccessMode = 'b2-readonly' | 'admin-md' | 'admin-bruno'| 'admin-jessica';
 
 type AccessState = {
   mode: AccessMode;
   setB2ReadOnly: () => void;
   setAdminMd: () => void;
   setAdminBruno: () => void;
+  setAdminJessica: () => void;
 };
 
 export const useAccessControl = create<AccessState>((set) => ({
