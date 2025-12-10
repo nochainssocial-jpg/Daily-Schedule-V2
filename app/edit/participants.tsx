@@ -390,88 +390,92 @@ export default function EditParticipantsScreen() {
           )}
 
           {/* Legend: onsite/outing, then behaviour risk + overall score bands */}
-              <Text style={[styles.sectionTitle, { marginTop: 48 }]}>
-                Legend
-              </Text>
-              
-              <View style={styles.legendCard}>
-                <View style={[styles.legend, styles.legendCentered]}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendSwatch, styles.legendOnsite]} />
-                    <Text style={styles.legendLabel}>On-site</Text>
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}>
+                <View style={styles.siteBadgeOnsite} />
+                <Text style={styles.legendLabel}>On-site</Text>
+              </View>
+            
+              <View style={styles.legendItem}>
+                <View style={styles.siteBadgeOffsite} />
+                <Text style={styles.legendLabel}>On outing</Text>
+              </View>
+            </View>
+            
+            {/* Behaviour Rating ---------------------------------------------------- */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.legendSubheading}>Behaviour Rating</Text>
+            
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.riskBadge, styles.riskBadgeLow]}>
+                    <Text style={styles.riskBadgeText}>L</Text>
                   </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendSwatch, styles.legendOffsite]} />
-                    <Text style={styles.legendLabel}>On outing</Text>
+                  <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
+                </View>
+            
+                <View style={styles.legendItem}>
+                  <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
+                    <Text style={styles.riskBadgeText}>M</Text>
+                  </View>
+                  <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
+                </View>
+            
+                <View style={styles.legendItem}>
+                  <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
+                    <Text style={styles.riskBadgeText}>H</Text>
+                  </View>
+                  <Text style={styles.legendLabel}>High Risk Behaviour</Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* Complexity Rating --------------------------------------------------- */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={styles.legendSubheading}>Complexity Rating</Text>
+            
+              <View style={styles.legendRow}>
+                {/* Very Low */}
+                <View style={styles.complexityLegendItem}>
+                  <Text style={styles.legendRange}>0–5 (VL)</Text>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
+                    <Text style={styles.scoreBubbleText}>1</Text>
                   </View>
                 </View>
-              
-                <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.riskBadge, styles.riskBadgeLow]}>
-                      <Text style={styles.riskBadgeText}>L</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>Low Risk Behaviour</Text>
-                  </View>
-              
-                  <View style={styles.legendItem}>
-                    <View style={[styles.riskBadge, styles.riskBadgeMedium]}>
-                      <Text style={styles.riskBadgeText}>M</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>Medium Risk Behaviour</Text>
-                  </View>
-              
-                  <View style={styles.legendItem}>
-                    <View style={[styles.riskBadge, styles.riskBadgeHigh]}>
-                      <Text style={styles.riskBadgeText}>H</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>High Risk Behaviour</Text>
+            
+                {/* Low */}
+                <View style={styles.complexityLegendItem}>
+                  <Text style={styles.legendRange}>6–10 (L)</Text>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
+                    <Text style={styles.scoreBubbleText}>2</Text>
                   </View>
                 </View>
-              
-                <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
-                  <View style={styles.legendItem}>
-                    <Text style={styles.legendLabel}>0–5 (VL)</Text>
-                    <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
-                      <Text style={styles.scoreBubbleText}>VL</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>Very Low Complexity</Text>
+            
+                {/* Medium */}
+                <View style={styles.complexityLegendItem}>
+                  <Text style={styles.legendRange}>11–15 (M)</Text>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
+                    <Text style={styles.scoreBubbleText}>3</Text>
                   </View>
-
-                  <View style={styles.legendItem}>
-                    <Text style={styles.legendLabel}>6–10 (L)</Text>
-                    <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
-                      <Text style={styles.scoreBubbleText}>L</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>Low Complexity</Text>
+                </View>
+            
+                {/* High */}
+                <View style={styles.complexityLegendItem}>
+                  <Text style={styles.legendRange}>16–20 (H)</Text>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
+                    <Text style={styles.scoreBubbleText}>4</Text>
                   </View>
-
-                  <View style={styles.legendItem}>
-                    <Text style={styles.legendLabel}>11–15 (M)</Text>
-                    <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
-                      <Text style={styles.scoreBubbleText}>M</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>Moderate Complexity</Text>
-                  </View>
-
-                  <View style={styles.legendItem}>
-                    <Text style={styles.legendLabel}>16–20 (H)</Text>
-                    <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
-                      <Text style={styles.scoreBubbleText}>H</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>High Complexity</Text>
-                  </View>
-
-                  <View style={styles.legendItem}>
-                    <Text style={styles.legendLabel}>21+ (VH)</Text>
-                    <View style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}>
-                      <Text style={styles.scoreBubbleText}>VH</Text>
-                    </View>
-                    <Text style={styles.legendLabel}>Very High Complexity</Text>
+                </View>
+            
+                {/* Very High */}
+                <View style={styles.complexityLegendItem}>
+                  <Text style={styles.legendRange}>21+ (VH)</Text>
+                  <View style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}>
+                    <Text style={styles.scoreBubbleText}>5</Text>
                   </View>
                 </View>
               </View>
-        </View>
+            </View>
       </ScrollView>
     </View>
   );
@@ -723,4 +727,22 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginTop: -6,
   },
+      legendSubheading: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#111827',
+  marginBottom: 4,
+},
+
+legendRange: {
+  fontSize: 11,
+  color: '#4B5563',
+  marginBottom: 2,
+},
+
+complexityLegendItem: {
+  alignItems: 'center',
+  marginRight: 16,
+},
+
 });
