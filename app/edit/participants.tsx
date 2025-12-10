@@ -128,7 +128,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   useEffect(() => {
     Animated.timing(progress, {
       toValue: fraction,
-      duration: 350,
+      duration: 650,
       useNativeDriver: false, // animating width
     }).start();
   }, [fraction, progress]);
