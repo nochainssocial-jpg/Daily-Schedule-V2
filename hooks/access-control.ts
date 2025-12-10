@@ -1,7 +1,7 @@
 // hooks/access-control.ts
 import { create } from 'zustand';
 
-export type AccessMode = 'b2-readonly' | 'admin-md' | 'admin-bruno'| 'admin-jessica';
+export type AccessMode = 'b2-readonly' | 'admin-md' | 'admin-bruno' | 'admin-jessica';
 
 type AccessState = {
   mode: AccessMode;
