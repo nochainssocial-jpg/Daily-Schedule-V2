@@ -87,9 +87,17 @@ function getParticipantTotalScore(member: ParticipantRating | any): number | nul
   return values.reduce((sum: number, v: number) => sum + v, 0);
 }
 
-function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  // Delegate to shared participant risk bands (0–35)
-  return getRiskBand(total);
+function getParticipantScoreLevel(total: number):
+  | 'veryLow'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'veryHigh' {
+  if (total <= 5) return 'veryLow';
+  if (total <= 10) return 'low';
+  if (total <= 15) return 'medium';
+  if (total <= 20) return 'high';
+  return 'veryHigh';
 }
 
 // Behaviour risk from behaviours 1–3
@@ -290,10 +298,16 @@ export default function EditParticipantsScreen() {
                   : null;
 
                 const scoreStyles = [styles.scoreBubble];
-                if (level === 'low') scoreStyles.push(styles.scoreBubbleLow);
+                if (level === 'veryLow')
+                  scoreStyles.push(styles.scoreBubbleVeryLow);
+                if (level === 'low')
+                  scoreStyles.push(styles.scoreBubbleLow);
                 if (level === 'medium')
                   scoreStyles.push(styles.scoreBubbleMedium);
-                if (level === 'high') scoreStyles.push(styles.scoreBubbleHigh);
+                if (level === 'high')
+                  scoreStyles.push(styles.scoreBubbleHigh);
+                if (level === 'veryHigh')
+                  scoreStyles.push(styles.scoreBubbleVeryHigh);
 
                 let riskLetter = '';
                 let riskStyle = styles.riskBadgeNeutral;
@@ -417,24 +431,43 @@ export default function EditParticipantsScreen() {
               
                 <View style={[styles.legend, styles.legendCentered, { marginTop: 12 }]}>
                   <View style={styles.legendItem}>
+                    <Text style={styles.legendLabel}>0–5 (VL)</Text>
+                    <View style={[styles.scoreBubble, styles.scoreBubbleVeryLow]}>
+                      <Text style={styles.scoreBubbleText}>VL</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Very Low Complexity</Text>
+                  </View>
+
+                  <View style={styles.legendItem}>
+                    <Text style={styles.legendLabel}>6–10 (L)</Text>
                     <View style={[styles.scoreBubble, styles.scoreBubbleLow]}>
                       <Text style={styles.scoreBubbleText}>L</Text>
                     </View>
                     <Text style={styles.legendLabel}>Low Complexity</Text>
                   </View>
-              
+
                   <View style={styles.legendItem}>
+                    <Text style={styles.legendLabel}>11–15 (M)</Text>
                     <View style={[styles.scoreBubble, styles.scoreBubbleMedium]}>
                       <Text style={styles.scoreBubbleText}>M</Text>
                     </View>
                     <Text style={styles.legendLabel}>Moderate Complexity</Text>
                   </View>
-              
+
                   <View style={styles.legendItem}>
+                    <Text style={styles.legendLabel}>16–20 (H)</Text>
                     <View style={[styles.scoreBubble, styles.scoreBubbleHigh]}>
                       <Text style={styles.scoreBubbleText}>H</Text>
                     </View>
-                    <Text style={styles.legendLabel}>Highly Complex</Text>
+                    <Text style={styles.legendLabel}>High Complexity</Text>
+                  </View>
+
+                  <View style={styles.legendItem}>
+                    <Text style={styles.legendLabel}>21+ (VH)</Text>
+                    <View style={[styles.scoreBubble, styles.scoreBubbleVeryHigh]}>
+                      <Text style={styles.scoreBubbleText}>VH</Text>
+                    </View>
+                    <Text style={styles.legendLabel}>Very High Complexity</Text>
                   </View>
                 </View>
               </View>
@@ -587,17 +620,30 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginBottom: 6,
   },
+  // Very low (0–5)
+  scoreBubbleVeryLow: {
+    backgroundColor: '#ecfdf3',
+    borderColor: '#22C55E',
+  },
+  // Low (6–10)
   scoreBubbleLow: {
-    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
-    borderColor: SCORE_BUBBLE_STYLES.low.border,
+    backgroundColor: '#fefce8',
+    borderColor: '#EAB308',
   },
+  // Medium (11–15)
   scoreBubbleMedium: {
-    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
-    borderColor: SCORE_BUBBLE_STYLES.medium.border,
+    backgroundColor: '#fff7ed',
+    borderColor: '#F97316',
   },
+  // High (16–20)
   scoreBubbleHigh: {
-    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
-    borderColor: SCORE_BUBBLE_STYLES.high.border,
+    backgroundColor: '#fee2e2',
+    borderColor: '#FB7185',
+  },
+  // Very high (21+)
+  scoreBubbleVeryHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#EF4444',
   },
   scoreBubbleText: {
     fontSize: 13,

@@ -166,9 +166,19 @@ function getParticipantTotalScore(member: ParticipantRating | any): number | nul
   return values.reduce((sum: number, v: number) => sum + v, 0);
 }
 
-function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  // Delegate to shared participant risk bands (0–35)
-  return getRiskBand(total);
+type ParticipantScoreLevel =
+  | 'veryLow'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'veryHigh';
+
+function getParticipantScoreLevel(total: number): ParticipantScoreLevel {
+  if (total <= 5) return 'veryLow';
+  if (total <= 10) return 'low';
+  if (total <= 15) return 'medium';
+  if (total <= 20) return 'high';
+  return 'veryHigh';
 }
 
 // Behaviour risk from behaviours 1–3
@@ -280,15 +290,21 @@ function LegendParticipantPill({
 
   let scoreBg = '#f8f2ff';
   let scoreBorder = '#e7dff2';
-  if (level === 'low') {
-    scoreBg = SCORE_BUBBLE_STYLES.low.bg;
-    scoreBorder = SCORE_BUBBLE_STYLES.low.border;
+  if (level === 'veryLow') {
+    scoreBg = '#ecfdf3';
+    scoreBorder = '#22C55E';
+  } else if (level === 'low') {
+    scoreBg = '#fefce8';
+    scoreBorder = '#EAB308';
   } else if (level === 'medium') {
-    scoreBg = SCORE_BUBBLE_STYLES.medium.bg;
-    scoreBorder = SCORE_BUBBLE_STYLES.medium.border;
+    scoreBg = '#fff7ed';
+    scoreBorder = '#F97316';
   } else if (level === 'high') {
-    scoreBg = SCORE_BUBBLE_STYLES.high.bg;
-    scoreBorder = SCORE_BUBBLE_STYLES.high.border;
+    scoreBg = '#fee2e2';
+    scoreBorder = '#FB7185';
+  } else if (level === 'veryHigh') {
+    scoreBg = '#fee2e2';
+    scoreBorder = '#EF4444';
   }
 
   return (

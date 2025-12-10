@@ -75,10 +75,15 @@ function getParticipantScore(row: any): number {
   }, 0);
 }
 
-function getParticipantBand(score: number): 'low' | 'medium' | 'high' {
-  if (!score || score <= 0) return 'low';
-  // Delegate to shared participant risk bands (0–35)
-  return getRiskBand(score);
+type ParticipantBand = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
+
+function getParticipantBand(score: number): ParticipantBand {
+  if (!score || score <= 0) return 'veryLow';
+  if (score <= 5) return 'veryLow';
+  if (score <= 10) return 'low';
+  if (score <= 15) return 'medium';
+  if (score <= 20) return 'high';
+  return 'veryHigh';
 }
 
 // Behaviour risk from behaviours 1–3
@@ -462,7 +467,7 @@ export default function EditAssignmentsScreen() {
                               !canAssign && styles.chipDisabled,
                               !isAssigned &&
                                 partScore > 0 &&
-                                partBand === 'low' &&
+                                (partBand === 'veryLow' || partBand === 'low') &&
                                 styles.chipLow,
                               !isAssigned &&
                                 partScore > 0 &&
@@ -470,7 +475,7 @@ export default function EditAssignmentsScreen() {
                                 styles.chipMedium,
                               !isAssigned &&
                                 partScore > 0 &&
-                                partBand === 'high' &&
+                                (partBand === 'high' || partBand === 'veryHigh') &&
                                 styles.chipHigh,
                               // ⬇️ Offsite participants: white pill, keep border colour
                               isOffsite && styles.chipOffsite,
@@ -510,10 +515,17 @@ export default function EditAssignmentsScreen() {
                               <View
                                 style={[
                                   styles.scoreBubble,
-                                  partBand === 'low' && styles.scoreBubbleLow,
+                                  partBand === 'veryLow' &&
+                                    styles.scoreBubbleVeryLow,
+                                  partBand === 'low' &&
+                                    styles.scoreBubbleLow,
                                   partBand === 'medium' &&
                                     styles.scoreBubbleMedium,
-                                  partBand === 'high' && styles.scoreBubbleHigh,
+                                  partBand === 'high' &&
+                                    styles.scoreBubbleHigh,
+                                  partBand === 'veryHigh' &&
+                                    styles.scoreBubbleVeryHigh,
+
                                 ]}
                               >
                                 <Text style={styles.scoreBubbleText}>
@@ -663,17 +675,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Very low (0–5)
+  scoreBubbleVeryLow: {
+    backgroundColor: '#ecfdf3',
+    borderColor: '#22C55E',
+  },
+  // Low (6–10)
   scoreBubbleLow: {
-    backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
-    borderColor: SCORE_BUBBLE_STYLES.low.border,
+    backgroundColor: '#fefce8',
+    borderColor: '#EAB308',
   },
+  // Medium (11–15)
   scoreBubbleMedium: {
-    backgroundColor: SCORE_BUBBLE_STYLES.medium.bg,
-    borderColor: SCORE_BUBBLE_STYLES.medium.border,
+    backgroundColor: '#fff7ed',
+    borderColor: '#F97316',
   },
+  // High (16–20)
   scoreBubbleHigh: {
-    backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
-    borderColor: SCORE_BUBBLE_STYLES.high.border,
+    backgroundColor: '#fee2e2',
+    borderColor: '#FB7185',
+  },
+  // Very high (21+)
+  scoreBubbleVeryHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#EF4444',
+
   },
   scoreBubbleText: {
     fontSize: 13,
