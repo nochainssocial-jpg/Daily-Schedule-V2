@@ -17,8 +17,10 @@ import { supabase } from '@/lib/supabase';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
 import {
+  getRiskBand,
   MAX_PARTICIPANT_SCORE,
   RISK_GRADIENT_COLORS,
+  SCORE_BUBBLE_STYLES,
 } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
@@ -91,9 +93,7 @@ function slotLabel(slot: any): string {
   if (!slot) return '';
   const raw =
     slot.displayTime ||
-    (slot.startTime && slot.endTime
-      ? `${slot.startTime} - ${slot.endTime}`
-      : '');
+    (slot.startTime && slot.endTime ? `${slot.startTime} - ${slot.endTime}` : '');
   return String(raw).replace(/\s/g, '').toLowerCase();
 }
 
@@ -129,7 +129,7 @@ function isAntoinette(staff: any): boolean {
   return name.includes('antoinette');
 }
 
-// 🔹 helper to exclude the "Everyone" pseudo-staff
+// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
 function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
@@ -150,9 +150,7 @@ type ParticipantRatingRow = {
 
 type ParticipantRating = ParticipantRatingRow | null | undefined;
 
-function getParticipantTotalScore(
-  member: ParticipantRating | any,
-): number | null {
+function getParticipantTotalScore(member: ParticipantRating | any): number | null {
   if (!member) return null;
   const values = [
     member.behaviours,
@@ -171,12 +169,7 @@ function getParticipantTotalScore(
   return values.reduce((sum: number, v: number) => sum + v, 0);
 }
 
-type ParticipantScoreLevel =
-  | 'veryLow'
-  | 'low'
-  | 'medium'
-  | 'high'
-  | 'veryHigh';
+type ParticipantScoreLevel = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
 
 function getParticipantScoreLevel(total: number): ParticipantScoreLevel {
   if (total <= 5) return 'veryLow';
@@ -200,7 +193,8 @@ function getBehaviourRisk(
 /**
  * Gradient meter driven by TOTAL participant score:
  * - totalScore: 0–35 (7 criteria × 5)
- * - fill = totalScore / maxScore (clamped 0–1)
+ * - fill = totalScore / 35 (clamped 0–1)
+ * - gradient compressed so red only appears toward the end
  */
 function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
@@ -468,17 +462,12 @@ function parseTimeToMinutes(time?: string | null): number | null {
   return hour * 60 + minute;
 }
 
-function getSlotWindowMinutes(slot: any): {
-  start: number | null;
-  end: number | null;
-} {
+function getSlotWindowMinutes(slot: any): { start: number | null; end: number | null } {
   if (!slot) return { start: null, end: null };
 
   const start =
     parseTimeToMinutes(slot.startTime) ||
-    (slot.displayTime
-      ? parseTimeToMinutes(slot.displayTime.split('-')[0])
-      : null);
+    (slot.displayTime ? parseTimeToMinutes(slot.displayTime.split('-')[0]) : null);
 
   const end =
     parseTimeToMinutes(slot.endTime) ||
@@ -540,7 +529,6 @@ function isRoomOffsiteForSlot(
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
   if (outingWindow.start == null || outingWindow.end == null) {
-    // No valid time window: treat as offsite for all slots
     return true;
   }
 
@@ -642,7 +630,7 @@ function buildAutoAssignments(
       thisSlotStaff.add(chosen.id);
 
       totalUsage[chosen.id] = (totalUsage[chosen.id] ?? 0) + 1;
-      roomUsage[chosen.id][col] = (roomUsage[chosen.id][col] ?? 0) + 1;
+      roomUsage[chosen.id][col] = (roomUsage[chosen.id]?.[col] ?? 0) + 1;
       if (col === 'twins') {
         twinsUsage[chosen.id] = (twinsUsage[chosen.id] ?? 0) + 1;
       }
@@ -659,8 +647,7 @@ export default function FloatingScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' &&
-      /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
@@ -687,8 +674,7 @@ export default function FloatingScreen() {
     return m;
   }, [staff]);
 
-  const [ratingMap, setRatingMap] =
-    useState<Record<string, ParticipantRatingRow>>({});
+  const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -732,30 +718,30 @@ export default function FloatingScreen() {
   );
 
   // 🔹 Only real onsite Dream Team staff – exclude "Everyone"
-  //     and only treat staff as fully offsite when the outing has NO time window.
   const onsiteWorking = useMemo(
     () => {
-      const outingWindow = outingGroup
-        ? getOutingWindowMinutes(outingGroup)
-        : { start: null, end: null };
-
       const hasTimedOuting =
-        outingWindow.start !== null && outingWindow.end !== null;
-
-      const isFullDayOuting = !!outingGroup && !hasTimedOuting;
+        !!outingGroup &&
+        typeof outingGroup.startTime === 'string' &&
+        outingGroup.startTime.trim().length > 0 &&
+        typeof outingGroup.endTime === 'string' &&
+        outingGroup.endTime.trim().length > 0;
 
       return (staff || []).filter((s: any) => {
         const id = String(s.id);
+
+        // Never include the "Everyone" pseudo-staff
         if (isEveryone(s)) return false;
+
+        // Must be in the working staff list
         if (!workingSet.has(id)) return false;
 
-        // If it's a full-day outing (no start/end), remove those staff completely
-        if (isFullDayOuting && outingStaffSet.has(id)) {
-          return false;
-        }
+        // Staff are fully offsite only when outing has NO specific time window
+        const isAllDayOutingStaff =
+          !!outingGroup && !hasTimedOuting && outingStaffSet.has(id);
 
-        // Otherwise (timed outing or no outing), keep them in the pool
-        return true;
+        // For timed outings, outing staff stay onsite overall
+        return !isAllDayOutingStaff;
       });
     },
     [staff, workingSet, outingStaffSet, outingGroup],
@@ -887,11 +873,7 @@ export default function FloatingScreen() {
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(
-        onsiteWorking,
-        TIME_SLOTS,
-        activeRoomsForSlot,
-      );
+      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
@@ -903,11 +885,7 @@ export default function FloatingScreen() {
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;
-    const next = buildAutoAssignments(
-      onsiteWorking,
-      TIME_SLOTS,
-      activeRoomsForSlot,
-    );
+    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
@@ -1053,21 +1031,9 @@ export default function FloatingScreen() {
               let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
-              const isFrontOffsite = isRoomOffsiteForSlot(
-                'frontRoom',
-                slot,
-                outingGroup,
-              );
-              const isScottyOffsite = isRoomOffsiteForSlot(
-                'scotty',
-                slot,
-                outingGroup,
-              );
-              const isTwinsOffsite = isRoomOffsiteForSlot(
-                'twins',
-                slot,
-                outingGroup,
-              );
+              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot, outingGroup);
+              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot, outingGroup);
+              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot, outingGroup);
               const isFrontNotAttending = roomNotAttending.frontRoom;
               const isScottyNotAttending = roomNotAttending.scotty;
               const isTwinsNotAttending = roomNotAttending.twins;
@@ -1145,9 +1111,7 @@ export default function FloatingScreen() {
                         : fr
                     }
                     gender={
-                      isFrontOffsite || isFrontNotAttending
-                        ? undefined
-                        : frStaff?.gender
+                      isFrontOffsite || isFrontNotAttending ? undefined : frStaff?.gender
                     }
                     onPress={() => {
                       if (isFrontOffsite || isFrontNotAttending) return;
@@ -1176,9 +1140,7 @@ export default function FloatingScreen() {
                         : sc
                     }
                     gender={
-                      isScottyOffsite || isScottyNotAttending
-                        ? undefined
-                        : scStaff?.gender
+                      isScottyOffsite || isScottyNotAttending ? undefined : scStaff?.gender
                     }
                     onPress={() => {
                       if (isScottyOffsite || isScottyNotAttending) return;
@@ -1218,9 +1180,7 @@ export default function FloatingScreen() {
                         : ''
                     }
                     gender={
-                      isTwinsOffsite || isTwinsNotAttending
-                        ? undefined
-                        : twStaff?.gender
+                      isTwinsOffsite || isTwinsNotAttending ? undefined : twStaff?.gender
                     }
                     fsoTag={fso && !isTwinsOffsite && !isTwinsNotAttending}
                     onPress={() => {
@@ -1637,7 +1597,7 @@ type CellProps = {
 function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
   const lower = label.toLowerCase();
   const isEmpty = lower.startsWith('tap to assign');
-  // const isOffsite = lower === 'outing (offsite)'; // not needed separately
+  const isOffsite = lower === 'outing (offsite)';
 
   const genderColor =
     String(gender || '').toLowerCase() === 'female'
