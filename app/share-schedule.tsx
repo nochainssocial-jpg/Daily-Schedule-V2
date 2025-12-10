@@ -130,44 +130,45 @@ export default function ShareScheduleScreen() {
     });
   }, [code]);
 
-  const handleAdminAccess = () => {
-    if (!adminPin.trim()) {
-      setPinError('Please enter a PIN');
-      return;
-    }
+const handleAdminAccess = () => {
+  if (!adminPin.trim()) {
+    setPinError('Please enter a PIN');
+    return;
+  }
 
-    const goHome = () => {
-      setPinError('');
-      setAdminPin('');
-      router.replace(ROUTES.HOME);
-    };
-
-    if (adminPin === MD_ADMIN_PIN) {
-      setAdminMd();
-      push('Admin Mode Enabled - Full Access', 'general');
-      goHome();
-      return;
-    }
-
-    if (adminPin === BRUNO_ADMIN_PIN) {
-      setAdminBruno();
-      push('Admin Mode Enabled - Full Access', 'general');
-      goHome();
-      return;
-    }
-
-    setPinError('Incorrect PIN');
+  const goHome = () => {
+    setPinError('');
+    setAdminPin('');
+    router.replace(ROUTES.HOME);
   };
 
-    if (adminPin === JESSICA_ADMIN_PIN) {
+  // Dalida (MD)
+  if (adminPin === MD_ADMIN_PIN) {
+    setAdminMd();
+    push('Admin Mode Enabled - Full Access', 'general');
+    goHome();
+    return;
+  }
+
+  // Bruno (AA)
+  if (adminPin === BRUNO_ADMIN_PIN) {
     setAdminBruno();
     push('Admin Mode Enabled - Full Access', 'general');
     goHome();
     return;
   }
 
-    setPinError('Incorrect PIN');
-  };
+  // Jessica (AA)
+  if (adminPin === JESSICA_ADMIN_PIN) {
+    setAdminBruno();
+    push('Admin Mode Enabled - Full Access', 'general');
+    goHome();
+    return;
+  }
+
+  // Incorrect PIN
+  setPinError('Incorrect PIN');
+};
 
   const handleB2Access = () => {
     setB2ReadOnly();
