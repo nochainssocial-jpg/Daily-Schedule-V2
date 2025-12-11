@@ -78,6 +78,15 @@ function getParticipantScore(row: any): number {
 
 type ParticipantBand = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
 
+type ParticipantProfileHover = {
+  id: ID;
+  name: string;
+  band: ParticipantBand;
+  score: number;
+  row: any;
+};
+
+
 function getParticipantBand(score: number): ParticipantBand {
   if (!score || score <= 0) return 'veryLow';
   if (score <= 5) return 'veryLow';
@@ -180,22 +189,15 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
   return 'completeShort';
 }
 
-type ParticipantProfileHover = {
-  id: ID;
-  name: string;
-  band: ParticipantBand;
-  score: number;
-  row: any;
-};
-
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
+
+// Treat "mobile web" as actual mobile browsers only (iPhone / Android).
+// Hover-based profile modals are enabled on desktop / laptop web.
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' &&
-      /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
+    typeof navigator !== 'undefined' &&
+    /iPhone|Android/i.test(navigator.userAgent);
 
   const enableHover = Platform.OS === 'web' && !isMobileWeb;
 
@@ -426,6 +428,7 @@ export default function EditAssignmentsScreen() {
     push('Team daily assignments updated', 'assignments');
   };
 
+  
   const renderProfileModal = () => {
     if (!hoveredProfile || !enableHover) return null;
 
@@ -510,14 +513,16 @@ export default function EditAssignmentsScreen() {
               size={18}
               color="#BE123C"
             />
-            <Text style={styles.profilePdfButtonText}>View full profile PDF</Text>
+            <Text style={styles.profilePdfButtonText}>
+              View full profile PDF
+            </Text>
           </TouchableOpacity>
         )}
       </View>
     );
   };
 
-  return (
+return (
     <View style={styles.screen}>
       <SaveExit touchKey="assignments" />
       {Platform.OS === 'web' && !isMobileWeb && (
@@ -663,13 +668,13 @@ export default function EditAssignmentsScreen() {
                             name: partName,
                             band: partBand,
                             score: partScore,
-                            row: ratingRow, // may be undefined; modal will just show less detail
+                            row: ratingRow,
                           });
                         };
 
                         const handleMouseLeave = () => {
                           if (!enableHover) return;
-                          setHoveredProfile((prev) =>
+                          setHoveredProfile(prev =>
                             prev && prev.id === pid ? null : prev,
                           );
                         };
@@ -682,6 +687,8 @@ export default function EditAssignmentsScreen() {
                             }
                             disabled={!canAssign}
                             activeOpacity={0.85}
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
                             style={[
                               styles.chip,
                               isAssigned && styles.chipSel,
@@ -696,18 +703,11 @@ export default function EditAssignmentsScreen() {
                                 styles.chipMedium,
                               !isAssigned &&
                                 partScore > 0 &&
-                                (partBand === 'high' ||
-                                  partBand === 'veryHigh') &&
+                                (partBand === 'high' || partBand === 'veryHigh') &&
                                 styles.chipHigh,
                               // Offsite participants: white pill, keep border colour
                               isOffsite && styles.chipOffsite,
                             ]}
-                            {...(enableHover
-                              ? {
-                                  onMouseEnter: handleMouseEnter,
-                                  onMouseLeave: handleMouseLeave,
-                                }
-                              : {})}
                           >
                             {/* Name */}
                             <Text
