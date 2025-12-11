@@ -475,7 +475,7 @@ export default function EditAssignmentsScreen() {
     const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
     let modalWidth = Math.min(420, Math.max(320, leftGap - 32));
     if (!Number.isFinite(modalWidth) || modalWidth <= 0) {
-      modalWidth = 360;
+      modalWidth = 400;
     }
     const centreX = leftGap / 2;
     const left = Math.max(16, centreX - modalWidth / 2);
@@ -1182,11 +1182,11 @@ const styles = StyleSheet.create({
   },
   // Participant rating bubbles (match Participants screen)
   scoreBubble: {
-    minWidth: 24,
-    height: 24,
+    minWidth: 26,
+    height: 26,
     paddingHorizontal: 4,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#e7dff2',
     backgroundColor: '#f8f2ff',
     alignItems: 'center',
@@ -1224,8 +1224,8 @@ const styles = StyleSheet.create({
   },
 
   riskBadge: {
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
     borderRadius: 999,
     borderWidth: 2,
     borderColor: '#FFFFFF',
