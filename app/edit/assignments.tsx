@@ -451,30 +451,30 @@ export default function EditAssignmentsScreen() {
     let riskDescription = '';
     if (behaviourRisk === 'high') {
       riskDescription =
-        'Behaviour Risks (self-injurious behaviour, physical aggression towards others, impulsive behaviour with limited awareness of risk to self).';
+        'Self-injurious behaviour, physical aggression towards others, impulsive behaviour with limited awareness of risk to self.';
     } else if (behaviourRisk === 'medium') {
       riskDescription =
-        'Behaviour Risks (intermittent or situation-based behaviours of concern that may require more experienced staff in some activities).';
+        'Intermittent or situation-based behaviours of concern that may require more experienced staff in some activities.';
     } else if (behaviourRisk === 'low') {
       riskDescription =
-        'Behaviour Risks (low level behaviours of concern that can usually be managed with general support, structure, and redirection).';
+        'Low level behaviours of concern that can usually be managed with general support, structure, and redirection.';
     }
 
     const domains: Array<{ key: keyof any; label: string; icon: any }> = [
-      { key: 'personal_care', label: 'Personal care', icon: 'shower' },
+      { key: 'personal_care', label: 'Hygiene', icon: 'shower' },
       {
         key: 'communication',
-        label: 'Communication',
-        icon: 'message-text-outline',
+        label: 'Comms',
+        icon: 'message-outline',
       },
-      { key: 'sensory', label: 'Sensory', icon: 'eye-circle' },
+      { key: 'sensory', label: 'Sensory', icon: 'headphones' },
       { key: 'social', label: 'Social', icon: 'account-group' },
       {
         key: 'community',
         label: 'Community',
         icon: 'city-variant-outline',
       },
-      { key: 'safety', label: 'Safety', icon: 'shield-check' },
+      { key: 'safety', label: 'Safety', icon: 'shield-outline' },
     ];
 
     const modalStyles: any[] = [styles.profileModal];
