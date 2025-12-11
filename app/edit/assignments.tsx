@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -76,6 +77,15 @@ function getParticipantScore(row: any): number {
 }
 
 type ParticipantBand = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
+
+type ParticipantProfileHover = {
+  id: ID;
+  name: string;
+  band: ParticipantBand;
+  score: number;
+  row: any | null;
+};
+
 
 function getParticipantBand(score: number): ParticipantBand {
   if (!score || score <= 0) return 'veryLow';
@@ -181,12 +191,15 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
 
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
+
+  // Treat "mobile web" as actual mobile browsers (iPhone / Android) only.
+  // Hover-based profile modals remain enabled on desktop / laptop web.
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' &&
-      /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
+    typeof navigator !== 'undefined' &&
+    /iPhone|Android/i.test(navigator.userAgent);
+
+  const enableHover = Platform.OS === 'web' && !isMobileWeb;
 
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
@@ -233,6 +246,9 @@ export default function EditAssignmentsScreen() {
 
   const [participantLookup, setParticipantLookup] =
     React.useState<Record<string, any>>({});
+
+  const [hoveredProfile, setHoveredProfile] =
+    React.useState<ParticipantProfileHover | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -286,7 +302,7 @@ export default function EditAssignmentsScreen() {
         const { data, error } = await supabase
           .from('participants')
           .select(
-            'id,name,behaviours,personal_care,communication,sensory,social,community,safety',
+            'id,name,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
           );
 
         if (error || !data || cancelled) return;
@@ -412,6 +428,224 @@ export default function EditAssignmentsScreen() {
     push('Team daily assignments updated', 'assignments');
   };
 
+
+  const renderProfileModal = () => {
+    if (!hoveredProfile || !enableHover) return null;
+
+    const { band, score, name, row } = hoveredProfile;
+    const intro = row?.about_intro || '';
+    const likes = row?.about_likes || '';
+    const dislikes = row?.about_dislikes || '';
+    const support = row?.about_support || '';
+    const safety = row?.about_safety || '';
+    const pdfUrl = row?.about_pdf_url || '';
+    const behaviours = row?.behaviours ?? null;
+
+    const behaviourRisk = getBehaviourRisk(
+      typeof behaviours === 'number' ? behaviours : Number(behaviours ?? 0),
+    );
+
+    let riskLabel = '';
+    if (behaviourRisk === 'low') riskLabel = 'Low';
+    if (behaviourRisk === 'medium') riskLabel = 'Medium';
+    if (behaviourRisk === 'high') riskLabel = 'High';
+
+    let riskDescription = '';
+    if (behaviourRisk === 'high') {
+      riskDescription =
+        'Behaviour Risks (self-injurious behaviour, physical aggression towards others, impulsive behaviour with limited awareness of risk to self).';
+    } else if (behaviourRisk === 'medium') {
+      riskDescription =
+        'Behaviour Risks (intermittent or situation-based behaviours of concern that may require more experienced staff in some activities).';
+    } else if (behaviourRisk === 'low') {
+      riskDescription =
+        'Behaviour Risks (low level behaviours of concern that can usually be managed with general support, structure, and redirection).';
+    }
+
+    const domains: Array<{ key: keyof any; label: string }> = [
+      { key: 'personal_care', label: 'Personal care' },
+      { key: 'communication', label: 'Communication' },
+      { key: 'sensory', label: 'Sensory' },
+      { key: 'social', label: 'Social' },
+      { key: 'community', label: 'Community' },
+      { key: 'safety', label: 'Safety' },
+    ];
+
+    const modalStyles: any[] = [styles.profileModal];
+
+    // Position the card in the left-hand gap: centre between screen edge and content.
+    const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
+    const modalWidth = 360;
+    const centreX = leftGap / 2;
+    const left = Math.max(16, centreX - modalWidth / 2);
+
+    modalStyles.push({
+      left,
+      top: 140,
+      width: modalWidth,
+    });
+
+    if (band === 'veryLow') modalStyles.push(styles.profileModalVeryLow);
+    if (band === 'low') modalStyles.push(styles.profileModalLow);
+    if (band === 'medium') modalStyles.push(styles.profileModalMedium);
+    if (band === 'high') modalStyles.push(styles.profileModalHigh);
+    if (band === 'veryHigh') modalStyles.push(styles.profileModalVeryHigh);
+
+    const getDomainValue = (key: keyof any): number | null => {
+      if (!row) return null;
+      const raw = (row as any)[key];
+      const n = typeof raw === 'number' ? raw : Number(raw ?? 0);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+
+    const renderDomainBubble = (value: number | null) => {
+      if (!value) {
+        return (
+          <View style={[styles.domainBubble, styles.domainBubbleEmpty]}>
+            <Text style={styles.domainBubbleText}>-</Text>
+          </View>
+        );
+      }
+
+      let label = 'L';
+      if (value === 2) label = 'M';
+      if (value === 3) label = 'H';
+
+      const bubbleStyles: any[] = [styles.domainBubble];
+      if (value === 1) bubbleStyles.push(styles.domainBubbleLow);
+      if (value === 2) bubbleStyles.push(styles.domainBubbleMedium);
+      if (value === 3) bubbleStyles.push(styles.domainBubbleHigh);
+
+      return (
+        <View style={bubbleStyles}>
+          <Text style={styles.domainBubbleText}>{label}</Text>
+        </View>
+      );
+    };
+
+    return (
+      <View style={modalStyles} pointerEvents="box-none">
+        <View style={styles.profileHeaderRow}>
+          <Text style={styles.profileName}>{name}</Text>
+          {score > 0 && (
+            <View
+              style={[
+                styles.scoreBubble,
+                band === 'veryLow' && styles.scoreBubbleVeryLow,
+                band === 'low' && styles.scoreBubbleLow,
+                band === 'medium' && styles.scoreBubbleMedium,
+                band === 'high' && styles.scoreBubbleHigh,
+                band === 'veryHigh' && styles.scoreBubbleVeryHigh,
+              ]}
+            >
+              <Text style={styles.scoreBubbleText}>{score}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Behaviour risk row */}
+        <View style={styles.profileMetaRow}>
+          <Text style={styles.profileMetaLabel}>Behaviour risk</Text>
+          {behaviourRisk ? (
+            <View
+              style={[
+                styles.riskBadge,
+                behaviourRisk === 'low' && styles.riskBadgeLow,
+                behaviourRisk === 'medium' && styles.riskBadgeMedium,
+                behaviourRisk === 'high' && styles.riskBadgeHigh,
+              ]}
+            >
+              <Text style={styles.riskBadgeText}>
+                {riskLabel.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.profileMetaValue}>Not rated</Text>
+          )}
+        </View>
+        {!!riskDescription && (
+          <Text style={styles.profileMetaNote}>{riskDescription}</Text>
+        )}
+
+        {/* Complexity rating row */}
+        <View style={[styles.profileMetaRow, { marginTop: 6 }]}>
+          <Text style={styles.profileMetaLabel}>Complexity rating</Text>
+        </View>
+        <View style={styles.profileDomainRow}>
+          {domains.map((d) => {
+            const value = getDomainValue(d.key);
+            return (
+              <View key={String(d.key)} style={styles.profileDomainItem}>
+                <Text style={styles.profileDomainLabel}>{d.label}</Text>
+                {renderDomainBubble(value)}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Scrollable description section */}
+        <View style={styles.profileScrollShell}>
+          <ScrollView
+            style={styles.profileScroll}
+            contentContainerStyle={styles.profileScrollContent}
+          >
+            {!!intro && (
+              <View style={styles.profileSection}>
+                <Text style={styles.profileLabel}>Overview</Text>
+                <Text style={styles.profileText}>{intro}</Text>
+              </View>
+            )}
+
+            {!!likes && (
+              <View style={styles.profileSection}>
+                <Text style={styles.profileLabel}>Likes</Text>
+                <Text style={styles.profileText}>{likes}</Text>
+              </View>
+            )}
+
+            {!!dislikes && (
+              <View style={styles.profileSection}>
+                <Text style={styles.profileLabel}>Dislikes / triggers</Text>
+                <Text style={styles.profileText}>{dislikes}</Text>
+              </View>
+            )}
+
+            {!!support && (
+              <View style={styles.profileSection}>
+                <Text style={styles.profileLabel}>Support strategies</Text>
+                <Text style={styles.profileText}>{support}</Text>
+              </View>
+            )}
+
+            {!!safety && (
+              <View style={styles.profileSection}>
+                <Text style={styles.profileLabel}>Safety notes</Text>
+                <Text style={styles.profileText}>{safety}</Text>
+              </View>
+            )}
+
+            {!!pdfUrl && (
+              <TouchableOpacity
+                style={styles.profilePdfButton}
+                onPress={() => Linking.openURL(pdfUrl)}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons
+                  name="file-pdf-box"
+                  size={18}
+                  color="#BE123C"
+                />
+                <Text style={styles.profilePdfButtonText}>
+                  View full profile PDF
+                </Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+      {renderProfileModal()}
+        </View>
+      </View>
+    );
+  };
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="assignments" />
