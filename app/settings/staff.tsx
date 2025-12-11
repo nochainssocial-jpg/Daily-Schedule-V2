@@ -54,6 +54,10 @@ export default function StaffSettingsScreen() {
   const [newGender, setNewGender] = useState<'male' | 'female' | null>(null);
   const [savingNew, setSavingNew] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [editingPhone, setEditingPhone] = useState('');
+
   const showWebBranding = Platform.OS === 'web';
 
   async function loadStaff() {
@@ -137,6 +141,43 @@ export default function StaffSettingsScreen() {
         },
       ],
     );
+  }
+
+  function startEdit(member: StaffRow) {
+    setEditingId(member.id);
+    setEditingName(member.name ?? '');
+    setEditingPhone(member.phone ?? '');
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+
+    const trimmedName = editingName.trim();
+    const trimmedPhone = editingPhone.trim();
+
+    if (!trimmedName) {
+      // Do not allow empty names; just cancel edit if cleared completely
+      setEditingId(null);
+      return;
+    }
+
+    await supabase
+      .from('staff')
+      .update({
+        name: trimmedName,
+        phone: trimmedPhone || null,
+      })
+      .eq('id', editingId);
+
+    setStaff(prev =>
+      prev.map(member =>
+        member.id === editingId
+          ? { ...member, name: trimmedName, phone: trimmedPhone || null }
+          : member,
+      ),
+    );
+
+    setEditingId(null);
   }
 
   const experienceOptions: Option[] = [
@@ -527,6 +568,7 @@ export default function StaffSettingsScreen() {
                   scoreBubbleStyles.push(styles.scoreBubbleHigh);
 
                 const isExpanded = expandedId === s.id;
+                const isEditing = editingId === s.id;   // ⬅️ add this line
 
                 return (
                   <View key={s.id} style={rowStyles}>
@@ -545,6 +587,18 @@ export default function StaffSettingsScreen() {
                       </TouchableOpacity>
 
                       <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => startEdit(s)}
+                        activeOpacity={0.8}
+                      >
+                        <MaterialCommunityIcons
+                          name="pencil"
+                          size={20}
+                          color="#22c55e"
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
                         style={styles.rowHeaderMain}
                         onPress={() =>
                           setExpandedId(prev => (prev === s.id ? null : s.id))
@@ -559,12 +613,37 @@ export default function StaffSettingsScreen() {
                             ]}
                           />
                           <View style={styles.info}>
-                            <Text style={styles.name}>
-                              {s.name}
-                              {inactive ? ' (inactive)' : ''}
-                            </Text>
-                            {!!s.phone && (
-                              <Text style={styles.phone}>{s.phone}</Text>
+                            {isEditing ? (
+                              <>
+                                <TextInput
+                                  style={styles.editNameInput}
+                                  value={editingName}
+                                  onChangeText={setEditingName}
+                                  autoFocus
+                                  onBlur={saveEdit}
+                                  placeholder="Full name"
+                                  placeholderTextColor="#b8a8d6"
+                                />
+                                <TextInput
+                                  style={styles.editPhoneInput}
+                                  value={editingPhone}
+                                  onChangeText={setEditingPhone}
+                                  onBlur={saveEdit}
+                                  placeholder="Phone (optional)"
+                                  placeholderTextColor="#b8a8d6"
+                                  keyboardType="phone-pad"
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <Text style={styles.name}>
+                                  {s.name}
+                                  {inactive ? ' (inactive)' : ''}
+                                </Text>
+                                {!!s.phone && (
+                                  <Text style={styles.phone}>{s.phone}</Text>
+                                )}
+                              </>
                             )}
                           </View>
                         </View>
@@ -1008,6 +1087,11 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginLeft: 0,
   },
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginRight: 8,
+  },
   deleteButtonText: {
     fontSize: 20,
     fontWeight: '700',
@@ -1035,6 +1119,27 @@ const styles = StyleSheet.create({
   phone: {
     fontSize: 12,
     color: '#6b5a7d',
+  },
+  editNameInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f8f4ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    color: '#332244',
+    marginBottom: 4,
+  },
+  editPhoneInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d7c7f0',
+    backgroundColor: '#f8f4ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 12,
+    color: '#332244',
   },
   fieldBlock: {
     marginHorizontal: 6,
