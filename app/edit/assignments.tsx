@@ -992,7 +992,7 @@ const styles = StyleSheet.create({
   profileDomainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',   // ⬅️ was 'flex-start'
     marginTop: 4,
     marginBottom: 4,
   },
@@ -1000,6 +1000,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     marginHorizontal: 2,
+    minHeight: 64,            // ⬅️ guarantees enough vertical room
+    justifyContent: 'space-between', // ⬅️ label at top, bubble at bottom
+    paddingHorizontal: 2,
   },
   profileDomainLabel: {
     fontSize: 11,
