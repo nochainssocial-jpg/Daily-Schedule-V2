@@ -932,7 +932,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 2,
     borderColor: '#e5d6ff',
-    padding: 12,
+    padding: 16,
     backgroundColor: '#fef2f2',
     shadowColor: '#000',
     shadowOpacity: 0.12,
