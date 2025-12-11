@@ -930,7 +930,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 50,
     borderRadius: 18,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#e5d6ff',
     padding: 12,
     backgroundColor: '#fef2f2',
