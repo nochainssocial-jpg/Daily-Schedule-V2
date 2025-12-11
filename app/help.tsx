@@ -245,7 +245,7 @@ export default function HelpScreen() {
               {/* Floating */}
               <View style={styles.editCard}>
                 <View style={[styles.iconBubble, { backgroundColor: '#FDF2FF' }]}>
-                  <Ionicons name="account-convert-outline" size={20} color="#4B5563" />
+                  <Ionicons name="account-clock" size={20} color="#4B5563" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.editCardTitle}>
