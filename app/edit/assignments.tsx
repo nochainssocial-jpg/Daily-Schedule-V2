@@ -460,13 +460,21 @@ export default function EditAssignmentsScreen() {
         'Behaviour Risks (low level behaviours of concern that can usually be managed with general support, structure, and redirection).';
     }
 
-    const domains: Array<{ key: keyof any; label: string }> = [
-      { key: 'personal_care', label: 'Personal care' },
-      { key: 'communication', label: 'Communication' },
-      { key: 'sensory', label: 'Sensory' },
-      { key: 'social', label: 'Social' },
-      { key: 'community', label: 'Community' },
-      { key: 'safety', label: 'Safety' },
+    const domains: Array<{ key: keyof any; label: string; icon: any }> = [
+      { key: 'personal_care', label: 'Personal care', icon: 'shower' },
+      {
+        key: 'communication',
+        label: 'Communication',
+        icon: 'message-text-outline',
+      },
+      { key: 'sensory', label: 'Sensory', icon: 'eye-circle' },
+      { key: 'social', label: 'Social', icon: 'account-group' },
+      {
+        key: 'community',
+        label: 'Community',
+        icon: 'city-variant-outline',
+      },
+      { key: 'safety', label: 'Safety', icon: 'shield-check' },
     ];
 
     const modalStyles: any[] = [styles.profileModal];
@@ -525,21 +533,21 @@ export default function EditAssignmentsScreen() {
         <View style={styles.profileHeaderRow}>
           <View style={styles.profileHeaderLeft}>
             <Text style={styles.profileName}>{name}</Text>
-          {score > 0 && (
-            <View
-              style={[
-                styles.scoreBubble,
-                band === 'veryLow' && styles.scoreBubbleVeryLow,
-                band === 'low' && styles.scoreBubbleLow,
-                band === 'medium' && styles.scoreBubbleMedium,
-                band === 'high' && styles.scoreBubbleHigh,
-                band === 'veryHigh' && styles.scoreBubbleVeryHigh,
-                styles.profileScoreBubble, // ⬅️ white background just for the modal header
-              ]}
-            >
-              <Text style={styles.scoreBubbleText}>{score}</Text>
-            </View>
-          )}
+            {score > 0 && (
+              <View
+                style={[
+                  styles.scoreBubble,
+                  band === 'veryLow' && styles.scoreBubbleVeryLow,
+                  band === 'low' && styles.scoreBubbleLow,
+                  band === 'medium' && styles.scoreBubbleMedium,
+                  band === 'high' && styles.scoreBubbleHigh,
+                  band === 'veryHigh' && styles.scoreBubbleVeryHigh,
+                  styles.profileScoreBubble,
+                ]}
+              >
+                <Text style={styles.scoreBubbleText}>{score}</Text>
+              </View>
+            )}
           </View>
           <TouchableOpacity
             onPress={() => setHoveredProfile(null)}
@@ -583,6 +591,12 @@ export default function EditAssignmentsScreen() {
             const value = getDomainValue(d.key);
             return (
               <View key={String(d.key)} style={styles.profileDomainItem}>
+                <MaterialCommunityIcons
+                  name={d.icon}
+                  size={22}
+                  color="#0F172A"
+                  style={styles.profileDomainIcon}
+                />
                 <Text style={styles.profileDomainLabel}>{d.label}</Text>
                 {renderDomainBubble(value)}
               </View>
@@ -993,7 +1007,7 @@ const styles = StyleSheet.create({
   profileDomainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'stretch',   // ⬅️ was 'flex-start'
+    alignItems: 'stretch',
     marginTop: 4,
     marginBottom: 4,
   },
@@ -1001,9 +1015,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     marginHorizontal: 2,
-    minHeight: 64,            // ⬅️ guarantees enough vertical room
-    justifyContent: 'space-between', // ⬅️ label at top, bubble at bottom
+    minHeight: 64,
+    justifyContent: 'space-between',
     paddingHorizontal: 2,
+  },
+  profileDomainIcon: {
+    marginBottom: 2,
   },
   profileDomainLabel: {
     fontSize: 11,
@@ -1304,6 +1321,6 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   profileScoreBubble: {
-  backgroundColor: '#FFFFFF',
-},
+    backgroundColor: '#FFFFFF',
+  },
 });
