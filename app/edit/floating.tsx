@@ -222,7 +222,7 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
     <View
       style={{
         width: 120,
-        height: 10,
+        height: 5,
         borderRadius: 999,
         overflow: 'hidden',
         backgroundColor: '#E5E7EB',
@@ -913,7 +913,7 @@ export default function FloatingScreen() {
       <SaveExit touchKey="floating" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="refresh-circle-outline"
+          name="account-convert-outline"
           size={220}
           color="#F6C1FF"
           style={{
