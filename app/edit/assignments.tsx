@@ -446,7 +446,7 @@ export default function EditAssignmentsScreen() {
     if (band === 'medium') modalStyles.push(styles.profileModalMedium);
     if (band === 'high') modalStyles.push(styles.profileModalHigh);
     if (band === 'veryHigh') modalStyles.push(styles.profileModalVeryHigh);
-
+console.log("HOVER ENABLED:", enableHover);
     return (
       <View style={modalStyles}>
         <View style={styles.profileHeaderRow}>
