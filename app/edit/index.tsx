@@ -67,7 +67,7 @@ const CARDS: CardConfig[] = [
     title: 'Floating Assignments (Front Room, Scotty, Twins)',
     description:
       'Plan floating support across the key shared spaces throughout the day.',
-    icon: 'refresh-circle-outline',
+    icon: 'account-convert-outline',
     iconBg: '#FDF2FF',
     route: '/edit/floating',
   },
