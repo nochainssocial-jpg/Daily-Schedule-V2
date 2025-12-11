@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
   Animated,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -912,7 +912,7 @@ export default function FloatingScreen() {
     <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
       <SaveExit touchKey="floating" />
       {Platform.OS === 'web' && !isMobileWeb && (
-        <Ionicons
+        <MaterialCommunityIcons
           name="account-clock"
           size={220}
           color="#F6C1FF"

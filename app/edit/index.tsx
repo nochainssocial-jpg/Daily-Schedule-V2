@@ -10,7 +10,7 @@ import {
   Image,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
@@ -67,7 +67,7 @@ const CARDS: CardConfig[] = [
     title: 'Floating Assignments (Front Room, Scotty, Twins)',
     description:
       'Plan floating support across the key shared spaces throughout the day.',
-    icon: 'account-clock',
+    icon: 'refresh-circle-outline',
     iconBg: '#FDF2FF',
     route: '/edit/floating',
   },
@@ -313,7 +313,11 @@ export default function EditHubScreen() {
                     { backgroundColor: card.iconBg },
                   ]}
                 >
-                  <Ionicons name={card.icon} size={20} color="#4B5563" />
+                  {card.key === 'floating' ? (
+                    <MaterialCommunityIcons name="account-clock" size={20} color="#4B5563" />
+                  ) : (
+                    <Ionicons name={card.icon} size={20} color="#4B5563" />
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cardTitle}>{card.title}</Text>

@@ -8,7 +8,7 @@ import {
   Image,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
@@ -245,7 +245,7 @@ export default function HelpScreen() {
               {/* Floating */}
               <View style={styles.editCard}>
                 <View style={[styles.iconBubble, { backgroundColor: '#FDF2FF' }]}>
-                  <Ionicons name="account-clock" size={20} color="#4B5563" />
+                  <MaterialCommunityIcons name="account-clock" size={20} color="#4B5563" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.editCardTitle}>
