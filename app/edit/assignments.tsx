@@ -477,22 +477,27 @@ export default function EditAssignmentsScreen() {
       { key: 'safety', label: 'Safety', icon: 'shield-outline' },
     ];
 
-    const modalStyles: any[] = [styles.profileModal];
+const modalStyles: any[] = [styles.profileModal];
 
-    // Position the card in the left-hand gap: centre between screen edge and content.
-    const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
-    let modalWidth = Math.min(420, Math.max(320, leftGap - 32));
-    if (!Number.isFinite(modalWidth) || modalWidth <= 0) {
-      modalWidth = 400;
-    }
-    const centreX = leftGap / 2;
-    const left = Math.max(16, centreX - modalWidth / 2);
+// Compute left and right gaps
+const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
+const rightGap = leftGap;
 
-    modalStyles.push({
-      left,
-      top: 140,
-      width: modalWidth,
-    });
+// Modal width based on available right-side gap
+let modalWidth = Math.min(420, Math.max(320, rightGap - 32));
+if (!Number.isFinite(modalWidth) || modalWidth <= 0) {
+  modalWidth = 400;
+}
+
+// Position modal inside right-hand margin
+const centreXRight = rightGap / 2;
+const right = Math.max(16, centreXRight - modalWidth / 2);
+
+modalStyles.push({
+  right,
+  top: 140,
+  width: modalWidth,
+});
 
     if (band === 'veryLow') modalStyles.push(styles.profileModalVeryLow);
     if (band === 'low') modalStyles.push(styles.profileModalLow);
