@@ -641,7 +641,6 @@ export default function EditAssignmentsScreen() {
               </TouchableOpacity>
             )}
           </ScrollView>
-      {renderProfileModal()}
         </View>
       </View>
     );
@@ -907,6 +906,7 @@ export default function EditAssignmentsScreen() {
           )}
         </View>
       </ScrollView>
+      {renderProfileModal()}
     </View>
   );
 }
