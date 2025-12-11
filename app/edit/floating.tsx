@@ -913,7 +913,7 @@ export default function FloatingScreen() {
       <SaveExit touchKey="floating" />
       {Platform.OS === 'web' && !isMobileWeb && (
         <Ionicons
-          name="account-convert-outline"
+          name="account-clock"
           size={220}
           color="#F6C1FF"
           style={{
