@@ -232,7 +232,7 @@ export default function StaffSettingsScreen() {
       <View style={styles.pillRow}>
         {options.map(opt => {
           const isSelected =
-            (currentValue === null || currentValue === undefined)
+            currentValue === null || currentValue === undefined
               ? opt.value === null
               : currentValue === opt.value;
           const isMinus = opt.short === '-';
@@ -309,7 +309,8 @@ export default function StaffSettingsScreen() {
           {/* Heading */}
           <Text style={styles.heading}>Staff Settings</Text>
           <Text style={styles.subHeading}>
-            Set experience, behaviour support, personal care, mobility, communication, and reliability for each staff member.
+            Set experience, behaviour support, personal care, mobility,
+            communication, and reliability for each staff member.
           </Text>
 
           {/* LEGEND */}
@@ -332,27 +333,31 @@ export default function StaffSettingsScreen() {
             {!legendCollapsed && (
               <>
                 <Text style={styles.legendHint}>
-                  Each category is scored from 1–3. Higher totals indicate staff who are better suited to more complex participants.
+                  Each category is scored from 1–3. Higher totals indicate staff
+                  who are better suited to more complex participants.
                 </Text>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Experience:</Text>
                   <Text style={styles.legendText}>
-                    Overall level of experience and confidence supporting participants across different needs.
+                    Overall level of experience and confidence supporting
+                    participants across different needs.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Behaviour:</Text>
                   <Text style={styles.legendText}>
-                    Ability to manage, de-escalate, and prevent behaviours of concern.
+                    Ability to manage, de-escalate, and prevent behaviours of
+                    concern.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Personal care:</Text>
                   <Text style={styles.legendText}>
-                    Competence with hygiene, toileting, showering, dressing, and medication prompts.
+                    Competence with hygiene, toileting, showering, dressing, and
+                    medication prompts.
                   </Text>
                 </View>
 
@@ -366,14 +371,16 @@ export default function StaffSettingsScreen() {
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Communication:</Text>
                   <Text style={styles.legendText}>
-                    Skill in supporting verbal, non-verbal, or cognitively impaired participants.
+                    Skill in supporting verbal, non-verbal, or cognitively
+                    impaired participants.
                   </Text>
                 </View>
 
                 <View style={styles.legendRow}>
                   <Text style={styles.legendLabel}>Reliability:</Text>
                   <Text style={styles.legendText}>
-                    Punctuality, attendance, communication, and consistency in following plans.
+                    Punctuality, attendance, communication, and consistency in
+                    following plans.
                   </Text>
                 </View>
               </>
@@ -568,7 +575,7 @@ export default function StaffSettingsScreen() {
                   scoreBubbleStyles.push(styles.scoreBubbleHigh);
 
                 const isExpanded = expandedId === s.id;
-                const isEditing = editingId === s.id;   // ⬅️ add this line
+                const isEditing = editingId === s.id;
 
                 return (
                   <View key={s.id} style={rowStyles}>
@@ -620,18 +627,19 @@ export default function StaffSettingsScreen() {
                                   value={editingName}
                                   onChangeText={setEditingName}
                                   autoFocus
-                                  onBlur={saveEdit}
                                   placeholder="Full name"
                                   placeholderTextColor="#b8a8d6"
+                                  onSubmitEditing={saveEdit}
                                 />
                                 <TextInput
                                   style={styles.editPhoneInput}
                                   value={editingPhone}
                                   onChangeText={setEditingPhone}
-                                  onBlur={saveEdit}
                                   placeholder="Phone (optional)"
                                   placeholderTextColor="#b8a8d6"
                                   keyboardType="phone-pad"
+                                  onBlur={saveEdit}
+                                  onSubmitEditing={saveEdit}
                                 />
                               </>
                             ) : (
@@ -740,7 +748,9 @@ export default function StaffSettingsScreen() {
                         </View>
 
                         <View style={styles.notesSection}>
-                          <Text style={styles.notesLabel}>Supervisor comments</Text>
+                          <Text style={styles.notesLabel}>
+                            Supervisor comments
+                          </Text>
                           <TextInput
                             style={styles.notesInput}
                             multiline
@@ -1080,7 +1090,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // NEW: red bin (trash) icon button
   deleteButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,
@@ -1091,11 +1100,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 2,
     marginRight: 8,
-  },
-  deleteButtonText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ef4444',
   },
 
   staffInfoBlock: {
