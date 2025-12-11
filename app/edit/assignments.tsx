@@ -86,7 +86,6 @@ type ParticipantProfileHover = {
   row: any | null;
 };
 
-
 function getParticipantBand(score: number): ParticipantBand {
   if (!score || score <= 0) return 'veryLow';
   if (score <= 5) return 'veryLow';
@@ -428,7 +427,6 @@ export default function EditAssignmentsScreen() {
     push('Team daily assignments updated', 'assignments');
   };
 
-
   const renderProfileModal = () => {
     if (!hoveredProfile || !enableHover) return null;
 
@@ -475,7 +473,10 @@ export default function EditAssignmentsScreen() {
 
     // Position the card in the left-hand gap: centre between screen edge and content.
     const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
-    const modalWidth = 360;
+    let modalWidth = Math.min(420, Math.max(320, leftGap - 32));
+    if (!Number.isFinite(modalWidth) || modalWidth <= 0) {
+      modalWidth = 360;
+    }
     const centreX = leftGap / 2;
     const left = Math.max(16, centreX - modalWidth / 2);
 
@@ -507,10 +508,6 @@ export default function EditAssignmentsScreen() {
         );
       }
 
-      let label = 'L';
-      if (value === 2) label = 'M';
-      if (value === 3) label = 'H';
-
       const bubbleStyles: any[] = [styles.domainBubble];
       if (value === 1) bubbleStyles.push(styles.domainBubbleLow);
       if (value === 2) bubbleStyles.push(styles.domainBubbleMedium);
@@ -518,7 +515,7 @@ export default function EditAssignmentsScreen() {
 
       return (
         <View style={bubbleStyles}>
-          <Text style={styles.domainBubbleText}>{label}</Text>
+          <Text style={styles.domainBubbleText}>{value}</Text>
         </View>
       );
     };
@@ -526,21 +523,30 @@ export default function EditAssignmentsScreen() {
     return (
       <View style={modalStyles} pointerEvents="box-none">
         <View style={styles.profileHeaderRow}>
-          <Text style={styles.profileName}>{name}</Text>
-          {score > 0 && (
-            <View
-              style={[
-                styles.scoreBubble,
-                band === 'veryLow' && styles.scoreBubbleVeryLow,
-                band === 'low' && styles.scoreBubbleLow,
-                band === 'medium' && styles.scoreBubbleMedium,
-                band === 'high' && styles.scoreBubbleHigh,
-                band === 'veryHigh' && styles.scoreBubbleVeryHigh,
-              ]}
-            >
-              <Text style={styles.scoreBubbleText}>{score}</Text>
-            </View>
-          )}
+          <View style={styles.profileHeaderLeft}>
+            <Text style={styles.profileName}>{name}</Text>
+            {score > 0 && (
+              <View
+                style={[
+                  styles.scoreBubble,
+                  band === 'veryLow' && styles.scoreBubbleVeryLow,
+                  band === 'low' && styles.scoreBubbleLow,
+                  band === 'medium' && styles.scoreBubbleMedium,
+                  band === 'high' && styles.scoreBubbleHigh,
+                  band === 'veryHigh' && styles.scoreBubbleVeryHigh,
+                ]}
+              >
+                <Text style={styles.scoreBubbleText}>{score}</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity
+            onPress={() => setHoveredProfile(null)}
+            style={styles.profileCloseButton}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close" size={16} color="#4b5563" />
+          </TouchableOpacity>
         </View>
 
         {/* Behaviour risk row */}
@@ -645,6 +651,7 @@ export default function EditAssignmentsScreen() {
       </View>
     );
   };
+
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="assignments" />
@@ -795,13 +802,6 @@ export default function EditAssignmentsScreen() {
                           });
                         };
 
-                        const handleMouseLeave = () => {
-                          if (!enableHover) return;
-                          setHoveredProfile((prev) =>
-                            prev && prev.id === (pid as ID) ? null : prev,
-                          );
-                        };
-
                         return (
                           <TouchableOpacity
                             key={pid}
@@ -811,7 +811,6 @@ export default function EditAssignmentsScreen() {
                             disabled={!canAssign}
                             activeOpacity={0.85}
                             onMouseEnter={handleMouseEnter}
-                            onMouseLeave={handleMouseLeave}
                             style={[
                               styles.chip,
                               isAssigned && styles.chipSel,
@@ -951,6 +950,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  profileHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 8,
+  },
+  profileCloseButton: {
+    marginLeft: 8,
+    padding: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.04)',
+  },
   profileName: {
     fontSize: 15,
     fontWeight: '700',
@@ -980,44 +991,43 @@ const styles = StyleSheet.create({
   },
   profileDomainRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginTop: 4,
     marginBottom: 4,
   },
   profileDomainItem: {
-    marginRight: 8,
-    marginTop: 2,
-    marginBottom: 2,
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 2,
   },
   profileDomainLabel: {
     fontSize: 11,
     color: '#374151',
     marginBottom: 2,
+    textAlign: 'center',
   },
   domainBubble: {
-    minWidth: 24,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-    borderWidth: 1,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
     borderColor: '#e5e7eb',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#ffffff',
   },
   domainBubbleEmpty: {
     backgroundColor: '#f9fafb',
   },
   domainBubbleLow: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
+    borderColor: '#22C55E',
   },
   domainBubbleMedium: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a',
+    borderColor: '#EAB308',
   },
   domainBubbleHigh: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fecaca',
+    borderColor: '#EF4444',
   },
   domainBubbleText: {
     fontSize: 11,
