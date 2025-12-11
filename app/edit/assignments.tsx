@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Platform,
   useWindowDimensions,
-  Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -77,15 +76,6 @@ function getParticipantScore(row: any): number {
 }
 
 type ParticipantBand = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
-
-type ParticipantProfileHover = {
-  id: ID;
-  name: string;
-  band: ParticipantBand;
-  score: number;
-  row: any;
-};
-
 
 function getParticipantBand(score: number): ParticipantBand {
   if (!score || score <= 0) return 'veryLow';
@@ -191,15 +181,12 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
 
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
-
-// Treat "mobile web" as actual mobile browsers only (iPhone / Android).
-// Hover-based profile modals are enabled on desktop / laptop web.
   const isMobileWeb =
     Platform.OS === 'web' &&
-    typeof navigator !== 'undefined' &&
-    /iPhone|Android/i.test(navigator.userAgent);
-
-  const enableHover = Platform.OS === 'web' && !isMobileWeb;
+    ((typeof navigator !== 'undefined' &&
+      /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
 
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
@@ -246,9 +233,6 @@ export default function EditAssignmentsScreen() {
 
   const [participantLookup, setParticipantLookup] =
     React.useState<Record<string, any>>({});
-
-  const [hoveredProfile, setHoveredProfile] =
-    React.useState<ParticipantProfileHover | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -302,7 +286,7 @@ export default function EditAssignmentsScreen() {
         const { data, error } = await supabase
           .from('participants')
           .select(
-            'id,name,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
+            'id,name,behaviours,personal_care,communication,sensory,social,community,safety',
           );
 
         if (error || !data || cancelled) return;
@@ -428,101 +412,7 @@ export default function EditAssignmentsScreen() {
     push('Team daily assignments updated', 'assignments');
   };
 
-  
-  const renderProfileModal = () => {
-    if (!hoveredProfile || !enableHover) return null;
-
-    const { band, score, name, row } = hoveredProfile;
-    const intro = row?.about_intro || '';
-    const likes = row?.about_likes || '';
-    const dislikes = row?.about_dislikes || '';
-    const support = row?.about_support || '';
-    const safety = row?.about_safety || '';
-    const pdfUrl = row?.about_pdf_url || '';
-
-    const modalStyles: any[] = [styles.profileModal];
-    if (band === 'veryLow') modalStyles.push(styles.profileModalVeryLow);
-    if (band === 'low') modalStyles.push(styles.profileModalLow);
-    if (band === 'medium') modalStyles.push(styles.profileModalMedium);
-    if (band === 'high') modalStyles.push(styles.profileModalHigh);
-    if (band === 'veryHigh') modalStyles.push(styles.profileModalVeryHigh);
-console.log("HOVER ENABLED:", enableHover);
-    return (
-      <View style={modalStyles}>
-        <View style={styles.profileHeaderRow}>
-          <Text style={styles.profileName}>{name}</Text>
-          {score > 0 && (
-            <View
-              style={[
-                styles.scoreBubble,
-                band === 'veryLow' && styles.scoreBubbleVeryLow,
-                band === 'low' && styles.scoreBubbleLow,
-                band === 'medium' && styles.scoreBubbleMedium,
-                band === 'high' && styles.scoreBubbleHigh,
-                band === 'veryHigh' && styles.scoreBubbleVeryHigh,
-              ]}
-            >
-              <Text style={styles.scoreBubbleText}>{score}</Text>
-            </View>
-          )}
-        </View>
-
-        {!!intro && (
-          <View style={styles.profileSection}>
-            <Text style={styles.profileLabel}>Overview</Text>
-            <Text style={styles.profileText}>{intro}</Text>
-          </View>
-        )}
-
-        {!!likes && (
-          <View style={styles.profileSection}>
-            <Text style={styles.profileLabel}>Likes</Text>
-            <Text style={styles.profileText}>{likes}</Text>
-          </View>
-        )}
-
-        {!!dislikes && (
-          <View style={styles.profileSection}>
-            <Text style={styles.profileLabel}>Dislikes / triggers</Text>
-            <Text style={styles.profileText}>{dislikes}</Text>
-          </View>
-        )}
-
-        {!!support && (
-          <View style={styles.profileSection}>
-            <Text style={styles.profileLabel}>Support strategies</Text>
-            <Text style={styles.profileText}>{support}</Text>
-          </View>
-        )}
-
-        {!!safety && (
-          <View style={styles.profileSection}>
-            <Text style={styles.profileLabel}>Safety notes</Text>
-            <Text style={styles.profileText}>{safety}</Text>
-          </View>
-        )}
-
-        {!!pdfUrl && (
-          <TouchableOpacity
-            style={styles.profilePdfButton}
-            onPress={() => Linking.openURL(pdfUrl)}
-            activeOpacity={0.85}
-          >
-            <MaterialCommunityIcons
-              name="file-pdf-box"
-              size={18}
-              color="#BE123C"
-            />
-            <Text style={styles.profilePdfButtonText}>
-              View full profile PDF
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  };
-
-return (
+  return (
     <View style={styles.screen}>
       <SaveExit touchKey="assignments" />
       {Platform.OS === 'web' && !isMobileWeb && (
@@ -664,18 +554,18 @@ return (
                         const handleMouseEnter = () => {
                           if (!enableHover) return;
                           setHoveredProfile({
-                            id: pid,
+                            id: pid as ID,
                             name: partName,
                             band: partBand,
                             score: partScore,
-                            row: ratingRow,
+                            row: ratingRow ?? null,
                           });
                         };
 
                         const handleMouseLeave = () => {
                           if (!enableHover) return;
-                          setHoveredProfile(prev =>
-                            prev && prev.id === pid ? null : prev,
+                          setHoveredProfile((prev) =>
+                            prev && prev.id === (pid as ID) ? null : prev,
                           );
                         };
 
@@ -783,13 +673,163 @@ return (
           )}
         </View>
       </ScrollView>
-
-      {renderProfileModal()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  profileModal: {
+    position: 'absolute',
+    zIndex: 50,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e5d6ff',
+    padding: 12,
+    backgroundColor: '#fef2f2',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  profileModalVeryLow: {
+    backgroundColor: '#f9fafb',
+    borderColor: '#e5e7eb',
+  },
+  profileModalLow: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#a7f3d0',
+  },
+  profileModalMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  profileModalHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  profileModalVeryHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fb7185',
+  },
+  profileHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  profileName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    flexShrink: 1,
+    marginRight: 8,
+  },
+  profileMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  profileMetaLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginRight: 6,
+  },
+  profileMetaValue: {
+    fontSize: 12,
+    color: '#4b5563',
+  },
+  profileMetaNote: {
+    fontSize: 11,
+    color: '#4b5563',
+    marginTop: 2,
+  },
+  profileDomainRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  profileDomainItem: {
+    marginRight: 8,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  profileDomainLabel: {
+    fontSize: 11,
+    color: '#374151',
+    marginBottom: 2,
+  },
+  domainBubble: {
+    minWidth: 24,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  domainBubbleEmpty: {
+    backgroundColor: '#f9fafb',
+  },
+  domainBubbleLow: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#bbf7d0',
+  },
+  domainBubbleMedium: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a',
+  },
+  domainBubbleHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fecaca',
+  },
+  domainBubbleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  profileScrollShell: {
+    marginTop: 6,
+    maxHeight: 320,
+  },
+  profileScroll: {
+    borderRadius: 12,
+  },
+  profileScrollContent: {
+    paddingBottom: 8,
+  },
+  profileSection: {
+    marginBottom: 6,
+  },
+  profileLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 2,
+  },
+  profileText: {
+    fontSize: 11,
+    color: '#111827',
+  },
+  profilePdfButton: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#fecaca',
+  },
+  profilePdfButtonText: {
+    marginLeft: 6,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7f1d1d',
+  },
+
   screen: {
     flex: 1,
     backgroundColor: '#E5DEFF',
@@ -1014,88 +1054,5 @@ const styles = StyleSheet.create({
   },
   checkMarkOffsite: {
     color: '#111827',
-  },
-
-  // Hover profile modal (desktop web only)
-  profileModal: {
-    position: 'absolute',
-    right: 32,
-    top: 120,
-    width: 340,
-    maxHeight: 520,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    zIndex: 20,
-  },
-  profileModalVeryLow: {
-    backgroundColor: '#ecfdf3',
-    borderColor: '#22C55E',
-  },
-  profileModalLow: {
-    backgroundColor: '#fefce8',
-    borderColor: '#EAB308',
-  },
-  profileModalMedium: {
-    backgroundColor: '#fff7ed',
-    borderColor: '#F97316',
-  },
-  profileModalHigh: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#FB7185',
-  },
-  profileModalVeryHigh: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#EF4444',
-  },
-  profileHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  profileName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    flexShrink: 1,
-    paddingRight: 8,
-  },
-  profileSection: {
-    marginTop: 6,
-  },
-  profileLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4b5563',
-    marginBottom: 2,
-  },
-  profileText: {
-    fontSize: 12,
-    color: '#374151',
-  },
-  profilePdfButton: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#fee2e2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    gap: 6,
-  },
-  profilePdfButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#b91c1c',
   },
 });
