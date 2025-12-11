@@ -932,7 +932,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 2,
     borderColor: '#e5d6ff',
-    padding: 20,
+    padding: 16,
     backgroundColor: '#fef2f2',
     shadowColor: '#000',
     shadowOpacity: 0.12,
@@ -1067,6 +1067,7 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     marginBottom: 6,
+    paddingHorizontal: 4,
   },
   profileLabel: {
     fontSize: 12,
