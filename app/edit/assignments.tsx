@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -179,6 +180,14 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
   return 'completeShort';
 }
 
+type ParticipantProfileHover = {
+  id: ID;
+  name: string;
+  band: ParticipantBand;
+  score: number;
+  row: any;
+};
+
 export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
@@ -187,6 +196,8 @@ export default function EditAssignmentsScreen() {
       /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
+
+  const enableHover = Platform.OS === 'web' && !isMobileWeb;
 
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
@@ -233,6 +244,9 @@ export default function EditAssignmentsScreen() {
 
   const [participantLookup, setParticipantLookup] =
     React.useState<Record<string, any>>({});
+
+  const [hoveredProfile, setHoveredProfile] =
+    React.useState<ParticipantProfileHover | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -286,7 +300,7 @@ export default function EditAssignmentsScreen() {
         const { data, error } = await supabase
           .from('participants')
           .select(
-            'id,name,behaviours,personal_care,communication,sensory,social,community,safety',
+            'id,name,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
           );
 
         if (error || !data || cancelled) return;
@@ -410,6 +424,97 @@ export default function EditAssignmentsScreen() {
 
     updateSchedule({ assignments: next });
     push('Team daily assignments updated', 'assignments');
+  };
+
+  const renderProfileModal = () => {
+    if (!hoveredProfile || !enableHover) return null;
+
+    const { band, score, name, row } = hoveredProfile;
+    const intro = row?.about_intro || '';
+    const likes = row?.about_likes || '';
+    const dislikes = row?.about_dislikes || '';
+    const support = row?.about_support || '';
+    const safety = row?.about_safety || '';
+    const pdfUrl = row?.about_pdf_url || '';
+
+    const modalStyles: any[] = [styles.profileModal];
+    if (band === 'veryLow') modalStyles.push(styles.profileModalVeryLow);
+    if (band === 'low') modalStyles.push(styles.profileModalLow);
+    if (band === 'medium') modalStyles.push(styles.profileModalMedium);
+    if (band === 'high') modalStyles.push(styles.profileModalHigh);
+    if (band === 'veryHigh') modalStyles.push(styles.profileModalVeryHigh);
+
+    return (
+      <View style={modalStyles}>
+        <View style={styles.profileHeaderRow}>
+          <Text style={styles.profileName}>{name}</Text>
+          {score > 0 && (
+            <View
+              style={[
+                styles.scoreBubble,
+                band === 'veryLow' && styles.scoreBubbleVeryLow,
+                band === 'low' && styles.scoreBubbleLow,
+                band === 'medium' && styles.scoreBubbleMedium,
+                band === 'high' && styles.scoreBubbleHigh,
+                band === 'veryHigh' && styles.scoreBubbleVeryHigh,
+              ]}
+            >
+              <Text style={styles.scoreBubbleText}>{score}</Text>
+            </View>
+          )}
+        </View>
+
+        {!!intro && (
+          <View style={styles.profileSection}>
+            <Text style={styles.profileLabel}>Overview</Text>
+            <Text style={styles.profileText}>{intro}</Text>
+          </View>
+        )}
+
+        {!!likes && (
+          <View style={styles.profileSection}>
+            <Text style={styles.profileLabel}>Likes</Text>
+            <Text style={styles.profileText}>{likes}</Text>
+          </View>
+        )}
+
+        {!!dislikes && (
+          <View style={styles.profileSection}>
+            <Text style={styles.profileLabel}>Dislikes / triggers</Text>
+            <Text style={styles.profileText}>{dislikes}</Text>
+          </View>
+        )}
+
+        {!!support && (
+          <View style={styles.profileSection}>
+            <Text style={styles.profileLabel}>Support strategies</Text>
+            <Text style={styles.profileText}>{support}</Text>
+          </View>
+        )}
+
+        {!!safety && (
+          <View style={styles.profileSection}>
+            <Text style={styles.profileLabel}>Safety notes</Text>
+            <Text style={styles.profileText}>{safety}</Text>
+          </View>
+        )}
+
+        {!!pdfUrl && (
+          <TouchableOpacity
+            style={styles.profilePdfButton}
+            onPress={() => Linking.openURL(pdfUrl)}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons
+              name="file-pdf-box"
+              size={18}
+              color="#BE123C"
+            />
+            <Text style={styles.profilePdfButtonText}>View full profile PDF</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
   };
 
   return (
@@ -551,6 +656,25 @@ export default function EditAssignmentsScreen() {
                         const isOffsite =
                           outingIsActive && offsiteParticipantIds.has(pid);
 
+                        const handleMouseEnter = () => {
+                          if (!enableHover) return;
+                          if (!ratingRow) return;
+                          setHoveredProfile({
+                            id: pid,
+                            name: partName,
+                            band: partBand,
+                            score: partScore,
+                            row: ratingRow,
+                          });
+                        };
+
+                        const handleMouseLeave = () => {
+                          if (!enableHover) return;
+                          setHoveredProfile((prev) =>
+                            prev && prev.id === pid ? null : prev,
+                          );
+                        };
+
                         return (
                           <TouchableOpacity
                             key={pid}
@@ -573,11 +697,18 @@ export default function EditAssignmentsScreen() {
                                 styles.chipMedium,
                               !isAssigned &&
                                 partScore > 0 &&
-                                (partBand === 'high' || partBand === 'veryHigh') &&
+                                (partBand === 'high' ||
+                                  partBand === 'veryHigh') &&
                                 styles.chipHigh,
                               // Offsite participants: white pill, keep border colour
                               isOffsite && styles.chipOffsite,
                             ]}
+                            {...(enableHover
+                              ? {
+                                  onMouseEnter: handleMouseEnter,
+                                  onMouseLeave: handleMouseLeave,
+                                }
+                              : {})}
                           >
                             {/* Name */}
                             <Text
@@ -653,6 +784,8 @@ export default function EditAssignmentsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {renderProfileModal()}
     </View>
   );
 }
@@ -882,5 +1015,88 @@ const styles = StyleSheet.create({
   },
   checkMarkOffsite: {
     color: '#111827',
+  },
+
+  // Hover profile modal (desktop web only)
+  profileModal: {
+    position: 'absolute',
+    right: 32,
+    top: 120,
+    width: 340,
+    maxHeight: 520,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    zIndex: 20,
+  },
+  profileModalVeryLow: {
+    backgroundColor: '#ecfdf3',
+    borderColor: '#22C55E',
+  },
+  profileModalLow: {
+    backgroundColor: '#fefce8',
+    borderColor: '#EAB308',
+  },
+  profileModalMedium: {
+    backgroundColor: '#fff7ed',
+    borderColor: '#F97316',
+  },
+  profileModalHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#FB7185',
+  },
+  profileModalVeryHigh: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#EF4444',
+  },
+  profileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  profileName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    flexShrink: 1,
+    paddingRight: 8,
+  },
+  profileSection: {
+    marginTop: 6,
+  },
+  profileLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4b5563',
+    marginBottom: 2,
+  },
+  profileText: {
+    fontSize: 12,
+    color: '#374151',
+  },
+  profilePdfButton: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    gap: 6,
+  },
+  profilePdfButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#b91c1c',
   },
 });
