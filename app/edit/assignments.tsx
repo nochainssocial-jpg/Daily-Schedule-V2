@@ -658,13 +658,12 @@ export default function EditAssignmentsScreen() {
 
                         const handleMouseEnter = () => {
                           if (!enableHover) return;
-                          if (!ratingRow) return;
                           setHoveredProfile({
                             id: pid,
                             name: partName,
                             band: partBand,
                             score: partScore,
-                            row: ratingRow,
+                            row: ratingRow, // may be undefined; modal will just show less detail
                           });
                         };
 
