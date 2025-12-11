@@ -525,20 +525,21 @@ export default function EditAssignmentsScreen() {
         <View style={styles.profileHeaderRow}>
           <View style={styles.profileHeaderLeft}>
             <Text style={styles.profileName}>{name}</Text>
-            {score > 0 && (
-              <View
-                style={[
-                  styles.scoreBubble,
-                  band === 'veryLow' && styles.scoreBubbleVeryLow,
-                  band === 'low' && styles.scoreBubbleLow,
-                  band === 'medium' && styles.scoreBubbleMedium,
-                  band === 'high' && styles.scoreBubbleHigh,
-                  band === 'veryHigh' && styles.scoreBubbleVeryHigh,
-                ]}
-              >
-                <Text style={styles.scoreBubbleText}>{score}</Text>
-              </View>
-            )}
+          {score > 0 && (
+            <View
+              style={[
+                styles.scoreBubble,
+                band === 'veryLow' && styles.scoreBubbleVeryLow,
+                band === 'low' && styles.scoreBubbleLow,
+                band === 'medium' && styles.scoreBubbleMedium,
+                band === 'high' && styles.scoreBubbleHigh,
+                band === 'veryHigh' && styles.scoreBubbleVeryHigh,
+                styles.profileScoreBubble, // ⬅️ white background just for the modal header
+              ]}
+            >
+              <Text style={styles.scoreBubbleText}>{score}</Text>
+            </View>
+          )}
           </View>
           <TouchableOpacity
             onPress={() => setHoveredProfile(null)}
@@ -1302,4 +1303,7 @@ const styles = StyleSheet.create({
   checkMarkOffsite: {
     color: '#111827',
   },
+  profileScoreBubble: {
+  backgroundColor: '#FFFFFF',
+},
 });
