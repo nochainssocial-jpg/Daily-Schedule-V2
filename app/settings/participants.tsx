@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,14 +28,6 @@ type ParticipantRow = {
   is_active?: boolean | null;
   support_needs?: string | null;
 
-  // About / profile fields
-  about_intro?: string | null;
-  about_likes?: string | null;
-  about_dislikes?: string | null;
-  about_support?: string | null;
-  about_safety?: string | null;
-  about_pdf_url?: string | null;
-
   // New scoring fields (1–3 or null)
   behaviours?: number | null;
   personal_care?: number | null;
@@ -43,6 +36,14 @@ type ParticipantRow = {
   social?: number | null;
   community?: number | null;
   safety?: number | null;
+
+  // About / profile fields
+  about_intro?: string | null;
+  about_likes?: string | null;
+  about_dislikes?: string | null;
+  about_support?: string | null;
+  about_safety?: string | null;
+  about_pdf_url?: string | null;
 };
 
 type Option = {
@@ -63,10 +64,6 @@ export default function ParticipantsSettingsScreen() {
   const [newGender, setNewGender] = useState<'Male' | 'Female' | ''>('');
   const [newColor, setNewColor] = useState<'blue' | 'pink' | ''>('');
   const [savingNew, setSavingNew] = useState(false);
-
-  // Inline edit state for participant name
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
 
   const showWebBranding = Platform.OS === 'web';
 
@@ -124,36 +121,6 @@ export default function ParticipantsSettingsScreen() {
       setNewGender('');
       setNewColor('');
     }
-  }
-
-
-  function startEditParticipant(p: ParticipantRow) {
-    setEditingId(p.id);
-    setEditingName(p.name ?? '');
-  }
-
-  async function saveEditParticipant() {
-    if (!editingId) return;
-    const trimmed = editingName.trim();
-    if (!trimmed) {
-      setEditingId(null);
-      return;
-    }
-
-    await supabase
-      .from('participants')
-      .update({ name: trimmed })
-      .eq('id', editingId);
-
-    setParticipants(prev =>
-      prev.map(p => (p.id === editingId ? { ...p, name: trimmed } : p)),
-    );
-    setEditingId(null);
-  }
-
-  function cancelEditParticipant() {
-    setEditingId(null);
-    setEditingName('');
   }
 
   function confirmDeleteParticipant(p: ParticipantRow) {
@@ -563,18 +530,6 @@ export default function ParticipantsSettingsScreen() {
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => startEditParticipant(p)}
-                        activeOpacity={0.8}
-                      >
-                        <MaterialCommunityIcons
-                          name="pencil"
-                          size={20}
-                          color="#22c55e"
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
                         style={styles.rowHeaderMain}
                         onPress={() =>
                           setExpandedId(prev => (prev === p.id ? null : p.id))
@@ -592,21 +547,10 @@ export default function ParticipantsSettingsScreen() {
                             ]}
                           />
                           <View style={styles.info}>
-                            {editingId === p.id ? (
-                              <TextInput
-                                style={styles.editNameInput}
-                                value={editingName}
-                                onChangeText={setEditingName}
-                                autoFocus
-                                onBlur={saveEditParticipant}
-                                onSubmitEditing={saveEditParticipant}
-                              />
-                            ) : (
-                              <Text style={styles.name}>
-                                {p.name}
-                                {inactive ? ' (inactive)' : ''}
-                              </Text>
-                            )}
+                            <Text style={styles.name}>
+                              {p.name}
+                              {inactive ? ' (inactive)' : ''}
+                            </Text>
                             {!!p.support_needs && (
                               <Text
                                 style={styles.supportNeeds}
@@ -710,6 +654,139 @@ export default function ParticipantsSettingsScreen() {
                               'safety',
                               p.safety,
                               threeLevelOptions,
+                            )}
+                          </View>
+                        </View>
+
+                        {/* About / profile section */}
+                        <View style={styles.aboutBlock}>
+                          <Text style={styles.aboutHeading}>
+                            About this participant
+                          </Text>
+                          <Text style={styles.aboutSmallHint}>
+                            This information is visible to staff when hovering over
+                            this participant in the schedule. Keep it brief, clear,
+                            and practical.
+                          </Text>
+
+                          <Text style={styles.aboutLabel}>Overview</Text>
+                          <Text style={styles.aboutFieldHint}>
+                            Short summary in 2–4 sentences (diagnosis in plain language,
+                            communication style, general presentation).
+                          </Text>
+                          <TextInput
+                            style={styles.aboutInput}
+                            multiline
+                            textAlignVertical="top"
+                            value={p.about_intro ?? ''}
+                            onChangeText={text =>
+                              updateParticipant(p.id, 'about_intro', text || null)
+                            }
+                            placeholder="Example: Paul is an autistic adult with intellectual disability who enjoys drives, music, and food. He communicates using simple words and gestures and responds well to calm, clear instructions."
+                            placeholderTextColor="#b8a8d6"
+                          />
+
+                          <Text style={styles.aboutLabel}>Likes</Text>
+                          <Text style={styles.aboutFieldHint}>
+                            One item per line. These will show as bullet points.
+                          </Text>
+                          <TextInput
+                            style={styles.aboutInput}
+                            multiline
+                            textAlignVertical="top"
+                            value={p.about_likes ?? ''}
+                            onChangeText={text =>
+                              updateParticipant(p.id, 'about_likes', text || null)
+                            }
+                            placeholder={'Music\nDrives\nHot chips'}
+                            placeholderTextColor="#b8a8d6"
+                          />
+
+                          <Text style={styles.aboutLabel}>Dislikes / triggers</Text>
+                          <Text style={styles.aboutFieldHint}>
+                            Things that can distress or dysregulate this participant.
+                          </Text>
+                          <TextInput
+                            style={styles.aboutInput}
+                            multiline
+                            textAlignVertical="top"
+                            value={p.about_dislikes ?? ''}
+                            onChangeText={text =>
+                              updateParticipant(p.id, 'about_dislikes', text || null)
+                            }
+                            placeholder={'Waiting long periods\nLoud shouting'}
+                            placeholderTextColor="#b8a8d6"
+                          />
+
+                          <Text style={styles.aboutLabel}>Support strategies</Text>
+                          <Text style={styles.aboutFieldHint}>
+                            What works well. One strategy per line.
+                          </Text>
+                          <TextInput
+                            style={styles.aboutInput}
+                            multiline
+                            textAlignVertical="top"
+                            value={p.about_support ?? ''}
+                            onChangeText={text =>
+                              updateParticipant(p.id, 'about_support', text || null)
+                            }
+                            placeholder={
+                              'Use visual schedule\nOffer choices\nGive extra processing time'
+                            }
+                            placeholderTextColor="#b8a8d6"
+                          />
+
+                          <Text style={styles.aboutLabel}>Safety notes</Text>
+                          <Text style={styles.aboutFieldHint}>
+                            Any key risks or “watch outs” (will appear as badges).
+                          </Text>
+                          <TextInput
+                            style={styles.aboutInput}
+                            multiline
+                            textAlignVertical="top"
+                            value={p.about_safety ?? ''}
+                            onChangeText={text =>
+                              updateParticipant(p.id, 'about_safety', text || null)
+                            }
+                            placeholder={
+                              'May attempt to leave room when distressed\nNeeds close supervision near roads'
+                            }
+                            placeholderTextColor="#b8a8d6"
+                          />
+
+                          <Text style={styles.aboutLabel}>Profile PDF link</Text>
+                          <Text style={styles.aboutFieldHint}>
+                            Full About Me / BSP PDF link (optional).
+                          </Text>
+                          <View style={styles.pdfRow}>
+                            <TextInput
+                              style={[styles.aboutInput, styles.pdfInput]}
+                              value={p.about_pdf_url ?? ''}
+                              onChangeText={text =>
+                                updateParticipant(p.id, 'about_pdf_url', text || null)
+                              }
+                              placeholder="https://…/about-me.pdf"
+                              placeholderTextColor="#b8a8d6"
+                            />
+                            {!!p.about_pdf_url && (
+                              <TouchableOpacity
+                                style={styles.pdfButton}
+                                onPress={() => {
+                                  if (p.about_pdf_url) {
+                                    Linking.openURL(p.about_pdf_url as string);
+                                  }
+                                }}
+                                activeOpacity={0.85}
+                              >
+                                <MaterialCommunityIcons
+                                  name="file-pdf-box"
+                                  size={18}
+                                  color="#ef4444"
+                                />
+                                <Text style={styles.pdfButtonText}>
+                                  Open PDF
+                                </Text>
+                              </TouchableOpacity>
                             )}
                           </View>
                         </View>
@@ -966,11 +1043,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginLeft: 0,
   },
-  editButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    marginRight: 8,
-  },
   deleteButtonText: {
     fontSize: 20,
     fontWeight: '700',
@@ -994,12 +1066,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#332244',
-  },
-  editNameInput: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#332244',
-    paddingVertical: 0,
   },
   supportNeeds: {
     fontSize: 12,
@@ -1044,6 +1110,72 @@ const styles = StyleSheet.create({
     marginLeft: 60,
     borderTopWidth: 1,
     borderTopColor: '#f1e9ff',
+  },
+  aboutBlock: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1e9ff',
+  },
+  aboutHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#332244',
+    marginBottom: 4,
+  },
+  aboutSmallHint: {
+    fontSize: 11,
+    color: '#6b5a7d',
+    marginBottom: 10,
+  },
+  aboutLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#553a75',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  aboutFieldHint: {
+    fontSize: 11,
+    color: '#6b5a7d',
+    marginBottom: 4,
+  },
+  aboutInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e1d5f5',
+    backgroundColor: '#fbf8ff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: '#332244',
+    minHeight: 60,
+    marginBottom: 4,
+  },
+  pdfRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  pdfInput: {
+    flex: 1,
+    marginRight: 8,
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+  },
+  pdfButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#b91c1c',
+    marginLeft: 4,
   },
   categoryRow: {
     flexDirection: 'row',
