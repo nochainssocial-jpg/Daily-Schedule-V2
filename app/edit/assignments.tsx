@@ -192,13 +192,11 @@ export default function EditAssignmentsScreen() {
   const { width, height } = useWindowDimensions();
 
   // Treat "mobile web" as actual mobile browsers (iPhone / Android) only.
-  // Hover-based profile modals remain enabled on desktop / laptop web.
+  // Used for hero icon behaviour.
   const isMobileWeb =
     Platform.OS === 'web' &&
     typeof navigator !== 'undefined' &&
     /iPhone|Android/i.test(navigator.userAgent);
-
-  const enableHover = Platform.OS === 'web' && !isMobileWeb;
 
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
@@ -428,7 +426,7 @@ export default function EditAssignmentsScreen() {
   };
 
   const renderProfileModal = () => {
-    if (!hoveredProfile || !enableHover) return null;
+    if (!hoveredProfile) return null;
 
     const { band, score, name, row } = hoveredProfile;
     const intro = row?.about_intro || '';
@@ -477,27 +475,27 @@ export default function EditAssignmentsScreen() {
       { key: 'safety', label: 'Safety', icon: 'shield-outline' },
     ];
 
-const modalStyles: any[] = [styles.profileModal];
+    const modalStyles: any[] = [styles.profileModal];
 
-// Compute left and right gaps
-const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
-const rightGap = leftGap;
+    // Compute left and right gaps
+    const leftGap = Math.max(0, (width - MAX_WIDTH) / 2);
+    const rightGap = leftGap;
 
-// Modal width based on available right-side gap
-let modalWidth = Math.min(420, Math.max(320, rightGap - 32));
-if (!Number.isFinite(modalWidth) || modalWidth <= 0) {
-  modalWidth = 400;
-}
+    // Modal width based on available right-side gap
+    let modalWidth = Math.min(420, Math.max(320, rightGap - 32));
+    if (!Number.isFinite(modalWidth) || modalWidth <= 0) {
+      modalWidth = 400;
+    }
 
-// Position modal inside right-hand margin
-const centreXRight = rightGap / 2;
-const right = Math.max(16, centreXRight - modalWidth / 2);
+    // Position modal inside right-hand margin
+    const centreXRight = rightGap / 2;
+    const right = Math.max(16, centreXRight - modalWidth / 2);
 
-modalStyles.push({
-  right,
-  top: 140,
-  width: modalWidth,
-});
+    modalStyles.push({
+      right,
+      top: 140,
+      width: modalWidth,
+    });
 
     if (band === 'veryLow') modalStyles.push(styles.profileModalVeryLow);
     if (band === 'low') modalStyles.push(styles.profileModalLow);
@@ -811,26 +809,24 @@ modalStyles.push({
                         const isOffsite =
                           outingIsActive && offsiteParticipantIds.has(pid);
 
-                        const handleMouseEnter = () => {
-                          if (!enableHover) return;
-                          setHoveredProfile({
-                            id: pid as ID,
-                            name: partName,
-                            band: partBand,
-                            score: partScore,
-                            row: ratingRow ?? null,
-                          });
-                        };
-
                         return (
                           <TouchableOpacity
                             key={pid}
                             onPress={
                               canAssign ? () => handleToggle(staffId, pid) : undefined
                             }
+                            onLongPress={() =>
+                              setHoveredProfile({
+                                id: pid as ID,
+                                name: partName,
+                                band: partBand,
+                                score: partScore,
+                                row: ratingRow ?? null,
+                              })
+                            }
+                            delayLongPress={350}
                             disabled={!canAssign}
                             activeOpacity={0.85}
-                            onMouseEnter={handleMouseEnter}
                             style={[
                               styles.chip,
                               isAssigned && styles.chipSel,
