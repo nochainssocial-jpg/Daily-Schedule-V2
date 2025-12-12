@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   subheading: {
     fontSize: 14,
-    color: '#36144F',
+    color: '#000',
     marginBottom: 16,
   },
   section: {
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   },
   sectionSub: {
     fontSize: 12,
-    color: '#111827',
+    color: '#36144F',
     marginTop: 4,
     marginBottom: 8,
   },
