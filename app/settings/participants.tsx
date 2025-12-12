@@ -664,8 +664,8 @@ export default function ParticipantsSettingsScreen() {
                             About this participant
                           </Text>
                           <Text style={styles.aboutSmallHint}>
-                            This information is visible to staff when hovering over
-                            this participant in the schedule. Keep it brief, clear,
+                            This information is visible to staff when doing a long press over
+                            this participant tile in the schedule. Keep it brief, clear,
                             and practical.
                           </Text>
 
