@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#000', // black labels
+    color: '#36144F', // black labels
     marginBottom: 4,
   },
   input: {
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000', // black section titles
+    color: '#36144F', // black section titles
     marginBottom: 4,
   },
   sectionSub: {
