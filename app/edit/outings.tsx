@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#4b164cff', // match Dream Team purple
+    color: '36144F', // match Dream Team purple
   },
   subheading: {
     fontSize: 14,
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: #4b164cff,
+    backgroundColor: '36144F'
     gap: 6,
   },
   deleteText: {
