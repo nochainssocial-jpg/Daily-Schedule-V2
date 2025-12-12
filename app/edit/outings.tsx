@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: PINK,
+    backgroundColor: #4B164C,
     gap: 6,
   },
   deleteText: {
