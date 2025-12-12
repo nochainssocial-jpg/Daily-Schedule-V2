@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   subheading: {
     fontSize: 14,
-    color: '#111827',
+    color: '#36144F',
     marginBottom: 16,
   },
   section: {
