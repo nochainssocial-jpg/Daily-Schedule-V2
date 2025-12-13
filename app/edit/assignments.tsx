@@ -299,7 +299,7 @@ export default function EditAssignmentsScreen() {
         const { data, error } = await supabase
           .from('participants')
           .select(
-            'id,name,display_name,about_conditions,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
+            'id,name,display_name,about_conditions,about_known_behaviours,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
           );
 
         if (error || !data || cancelled) return;
@@ -431,6 +431,7 @@ export default function EditAssignmentsScreen() {
     const { band, score, name, row } = hoveredProfile;
     const displayName = String((row?.display_name || name || '')).trim();
     const conditions = row?.about_conditions || '';
+    const knownBehaviours = row?.about_known_behaviours || '';
     const intro = row?.about_intro || '';
     const likes = row?.about_likes || '';
     const dislikes = row?.about_dislikes || '';
@@ -586,6 +587,13 @@ export default function EditAssignmentsScreen() {
         {!!riskDescription && (
           <Text style={styles.profileMetaNote}>{riskDescription}</Text>
         )}
+
+{!!knownBehaviours && (
+  <View style={styles.profileSection}>
+    <Text style={styles.profileLabel}>Known behaviours</Text>
+    <Text style={styles.profileText}>{knownBehaviours}</Text>
+  </View>
+)}
 
         {/* Complexity rating row */}
         <View style={[styles.profileMetaRow, { marginTop: 6 }]}>
