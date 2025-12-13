@@ -7,7 +7,7 @@ import {
   Edit as Edit3Icon,
   Share2 as Share2Icon,
   Settings as SettingsIcon,
-  HelpingHand as HelpingHandIcon,
+  Handshake as HandshakeIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
 
@@ -100,7 +100,7 @@ export default function RootLayout() {
           options={{
             headerTitle: () => (
               <HeaderTitle
-                icon={<HelpingHandIcon size={24} color={WHITE} />}
+                icon={<HandshakeIcon size={24} color={WHITE} />}
                 label="Help"
               />
             ),
