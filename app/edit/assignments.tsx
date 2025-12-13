@@ -299,7 +299,7 @@ export default function EditAssignmentsScreen() {
         const { data, error } = await supabase
           .from('participants')
           .select(
-            'id,name,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
+            'id,name,display_name,about_conditions,behaviours,personal_care,communication,sensory,social,community,safety,about_intro,about_likes,about_dislikes,about_support,about_safety,about_pdf_url',
           );
 
         if (error || !data || cancelled) return;
@@ -429,6 +429,8 @@ export default function EditAssignmentsScreen() {
     if (!hoveredProfile) return null;
 
     const { band, score, name, row } = hoveredProfile;
+    const displayName = String((row?.display_name || name || '')).trim();
+    const conditions = row?.about_conditions || '';
     const intro = row?.about_intro || '';
     const likes = row?.about_likes || '';
     const dislikes = row?.about_dislikes || '';
@@ -535,7 +537,7 @@ export default function EditAssignmentsScreen() {
       <View style={modalStyles} pointerEvents="box-none">
         <View style={styles.profileHeaderRow}>
           <View style={styles.profileHeaderLeft}>
-            <Text style={styles.profileName}>{name}</Text>
+            <Text style={styles.profileName}>{displayName}</Text>
             {score > 0 && (
               <View
                 style={[
@@ -613,6 +615,13 @@ export default function EditAssignmentsScreen() {
             style={styles.profileScroll}
             contentContainerStyle={styles.profileScrollContent}
           >
+            {!!conditions && (
+              <View style={styles.profileSection}>
+                <Text style={styles.profileLabel}>Disability / Conditions</Text>
+                <Text style={styles.profileText}>{conditions}</Text>
+              </View>
+            )}
+
             {!!intro && (
               <View style={styles.profileSection}>
                 <Text style={styles.profileLabel}>Overview</Text>
