@@ -589,7 +589,7 @@ export default function EditAssignmentsScreen() {
         )}
 
 {!!knownBehaviours && (
-  <View style={[styles.profileSection, { marginTop: 16 }]}>
+  <View style={[styles.profileSection, { marginTop: 8 }]}>
     <Text style={styles.profileLabel}>Known behaviours</Text>
     <Text style={styles.profileText}>{knownBehaviours}</Text>
   </View>
