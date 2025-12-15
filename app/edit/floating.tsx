@@ -438,27 +438,38 @@ function parseTimeToMinutes(time?: string | null): number | null {
   if (!time) return null;
   let t = String(time).trim().toLowerCase();
 
-  if (t.includes('-')) {
-    t = t.split('-')[0].trim();
-  }
+  // If passed something like "11:00-12:00", take the first part.
+  if (t.includes('-')) t = t.split('-')[0].trim();
 
-  const m = t.match(/^(\d{1,2}):(\d{2})(am|pm)?$/);
+  // Normalize common separators/spaces, e.g. "11.30 pm" -> "11:30pm"
+  t = t.replace(/\s+/g, '');
+  t = t.replace(/\./g, ':');
+
+  // Accept:
+  //  - "11" / "1pm" / "11am"
+  //  - "11:00" / "11:00pm"
+  //  - "11:30" / "11:30pm"
+  let m = t.match(/^(‏?\d{1,2})(?::(\d{2}))?(am|pm)?$/);
   if (!m) return null;
 
-  let hour = parseInt(m[1], 10);
-  const minute = parseInt(m[2], 10);
+  let hour = parseInt(m[1].replace(/^\u200f/, ''), 10);
+  let minute = m[2] ? parseInt(m[2], 10) : 0;
   const suffix = m[3];
 
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  if (minute < 0 || minute > 59) return null;
+
+  // If suffix missing, assume afternoon for early hours (matches existing intent).
   if (suffix === 'am') {
     if (hour === 12) hour = 0;
   } else if (suffix === 'pm') {
     if (hour !== 12) hour += 12;
   } else {
-    if (hour <= 6) {
-      hour += 12;
-    }
+    // no suffix
+    if (hour <= 6) hour += 12;
   }
 
+  if (hour < 0 || hour > 23) return null;
   return hour * 60 + minute;
 }
 
@@ -1084,9 +1095,19 @@ export default function FloatingScreen() {
               const slotId = String(slot.id ?? idx);
               const row = getRow(slotId);
 
-              const frStaff = row.frontRoom ? staffById[row.frontRoom] : undefined;
-              const scStaff = row.scotty ? staffById[row.scotty] : undefined;
-              const twStaff = row.twins ? staffById[row.twins] : undefined;
+              const frId = row.frontRoom ? String(row.frontRoom) : null;
+              const scId = row.scotty ? String(row.scotty) : null;
+              const twId = row.twins ? String(row.twins) : null;
+
+              // If a staff member is on an outing during this slot, treat them as unavailable here
+              // (so they don't render as assigned and won't match the staff filter for this slot).
+              const frOff = frId ? isStaffOffsiteForSlot(slot, frId, outingGroup) : false;
+              const scOff = scId ? isStaffOffsiteForSlot(slot, scId, outingGroup) : false;
+              const twOff = twId ? isStaffOffsiteForSlot(slot, twId, outingGroup) : false;
+
+              const frStaff = frId && !frOff ? staffById[frId] : undefined;
+              const scStaff = scId && !scOff ? staffById[scId] : undefined;
+              const twStaff = twId && !twOff ? staffById[twId] : undefined;
 
               let fr = '';
               let sc = '';
