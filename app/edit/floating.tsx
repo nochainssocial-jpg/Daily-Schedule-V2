@@ -505,6 +505,30 @@ function timesOverlap(
   return s1 < e2 && s2 < e1;
 }
 
+
+// For a given slot + staff, is that staff member offsite (on outing) at that time?
+function isStaffOffsiteForSlot(slot: any, staffId: ID, outingGroup: any): boolean {
+  if (!outingGroup || !staffId) return false;
+
+  const staffIds = new Set(
+    ((outingGroup.staffIds ?? []) as (string | number)[]).map((id) => String(id)),
+  );
+  if (!staffIds.has(String(staffId))) return false;
+
+  const outingWindow = getOutingWindowMinutes(outingGroup);
+
+  // If no valid time window, treat as all-day offsite.
+  if (outingWindow.start == null || outingWindow.end == null) return true;
+
+  const slotWindow = getSlotWindowMinutes(slot);
+  return timesOverlap(
+    slotWindow.start,
+    slotWindow.end,
+    outingWindow.start,
+    outingWindow.end,
+  );
+}
+
 // For a given slot + room, is that room's participant group on outing at that time?
 function isRoomOffsiteForSlot(
   col: ColKey,
@@ -544,6 +568,7 @@ function buildAutoAssignments(
   working: any[],
   timeSlots: any[],
   getActiveRoomsForSlot?: (slot: any) => ColKey[],
+  isStaffAvailableForSlot?: (slot: any, staffId: ID) => boolean,
 ): Record<string, { [K in ColKey]?: ID }> {
   if (!Array.isArray(working) || working.length === 0) return {};
 
@@ -577,6 +602,11 @@ function buildAutoAssignments(
 
     roomOrder.forEach((col) => {
       let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
+
+      // Exclude staff who are offsite (on outing) during this slot
+      if (isStaffAvailableForSlot) {
+        candidates = candidates.filter((s) => isStaffAvailableForSlot(slot, String(s.id)));
+      }
 
       if (!candidates.length) return;
 
@@ -873,7 +903,12 @@ export default function FloatingScreen() {
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
+      const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
+    );
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
@@ -885,7 +920,12 @@ export default function FloatingScreen() {
       return;
     }
     if (!onsiteWorking.length || !updateSchedule) return;
-    const next = buildAutoAssignments(onsiteWorking, TIME_SLOTS, activeRoomsForSlot);
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
+    );
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
   };
@@ -970,14 +1010,36 @@ export default function FloatingScreen() {
                 selected={!filterStaffId}
                 onPress={() => setFilterStaffId(null)}
               />
-              {(sortedWorking || []).map((s: any) => (
-                <Chip
-                  key={s.id}
-                  label={s.name}
-                  selected={filterStaffId === s.id}
-                  onPress={() => setFilterStaffId(s.id)}
-                />
-              ))}
+              {(sortedWorking || []).map((s: any) => {
+                const isOutingStaff = outingStaffSet.has(String(s.id));
+                const outingTag = isOutingStaff ? (
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: '#E5E7EB',
+                      backgroundColor: '#F8FAFC',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>
+                      Outing
+                    </Text>
+                  </View>
+                ) : null;
+
+                return (
+                  <Chip
+                    key={s.id}
+                    label={s.name}
+                    selected={filterStaffId === s.id}
+                    onPress={() => setFilterStaffId(s.id)}
+                    rightAddon={outingTag}
+                    style={isOutingStaff ? ({ opacity: 0.35 } as any) : undefined}
+                  />
+                );
+              })}
             </View>
             {filterStaffId && (
               <Text
@@ -1488,9 +1550,13 @@ export default function FloatingScreen() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {(onsiteWorking || [])
                 .filter(
-                  (s: any) =>
-                    !pick?.fso ||
-                    String(s.gender || '').toLowerCase() === 'female',
+                  (s: any) => {
+                    if (pick?.fso && String(s.gender || '').toLowerCase() !== 'female') return false;
+                    const slot = (TIME_SLOTS || []).find((ts) => String(ts.id) === String(pick?.slotId));
+                    // Exclude outing staff during the outing window for this slot
+                    if (slot && isStaffOffsiteForSlot(slot, String(s.id), outingGroup)) return false;
+                    return true;
+                  },
                 )
                 .map((s: any) => (
                   <Chip key={s.id} label={s.name} onPress={() => choose(s.id)} />
