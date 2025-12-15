@@ -228,7 +228,7 @@ export default function EditDreamTeamScreen() {
     const id = String(s.id);
 
     // 🔸 Only treat as “off-site” when the outing is an all-day outing.
-    const isOutOnOuting = !hasTimedOuting && outingStaffSet.has(id);
+   const isOutOnOuting = outingStaffSet.has(id);
     const isTraining = trainingSet.has(id);
 
     const nameKey = `name:${String(s.name || '').toLowerCase()}`;
