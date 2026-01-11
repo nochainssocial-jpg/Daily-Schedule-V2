@@ -60,39 +60,6 @@ function safeObject(val: any): Record<string, any> {
   return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
 }
 
-
-function isPlainRecord(v: any): v is Record<string, any> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
-
-function normaliseAssignmentsMap(candidate: any): Record<string, string[]> {
-  // staffId -> participantIds[]
-  if (isPlainRecord(candidate)) {
-    const out: Record<string, string[]> = {};
-    for (const [sid, pids] of Object.entries(candidate)) {
-      out[String(sid)] = Array.isArray(pids)
-        ? (pids as any[]).filter(Boolean).map(String)
-        : [];
-    }
-    return out;
-  }
-
-  // array shape [{ staffId, participantIds }]
-  if (Array.isArray(candidate)) {
-    const out: Record<string, string[]> = {};
-    for (const row of candidate) {
-      const sid = row?.staffId;
-      if (!sid) continue;
-      const pids = Array.isArray(row?.participantIds) ? row.participantIds : [];
-      out[String(sid)] = (pids as any[]).filter(Boolean).map(String);
-    }
-    return out;
-  }
-
-  return {};
-}
-
-
 // ------------------ Normalise Snapshot -------------------------
 
 function normaliseSnapshot(raw: any): Snapshot {
@@ -103,7 +70,7 @@ function normaliseSnapshot(raw: any): Snapshot {
       date: snap.date ?? null,
       staff: safeArray<SnapshotStaff>(snap.staff),
       participants: safeArray<SnapshotParticipant>(snap.participants),
-      assignments: normaliseAssignmentsMap(snap.assignments),
+      assignments: safeObject(snap.assignments),
     };
   } catch {
     return {

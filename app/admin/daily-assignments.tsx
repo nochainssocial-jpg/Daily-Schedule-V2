@@ -82,37 +82,6 @@ function getLabelFromDateString(dateStr: string): WeekDayLabel | null {
   return WEEK_DAYS[idx];
 }
 
-
-function isPlainRecord(v: any): v is Record<string, any> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
-
-function normaliseAssignmentsMap(candidate: any): Record<string, string[]> {
-  if (isPlainRecord(candidate)) {
-    const out: Record<string, string[]> = {};
-    for (const [sid, pids] of Object.entries(candidate)) {
-      out[String(sid)] = Array.isArray(pids)
-        ? (pids as any[]).filter(Boolean).map(String)
-        : [];
-    }
-    return out;
-  }
-
-  if (Array.isArray(candidate)) {
-    const out: Record<string, string[]> = {};
-    for (const row of candidate) {
-      const sid = row?.staffId;
-      if (!sid) continue;
-      const pids = Array.isArray(row?.participantIds) ? row.participantIds : [];
-      out[String(sid)] = (pids as any[]).filter(Boolean).map(String);
-    }
-    return out;
-  }
-
-  return {};
-}
-
-
 function normaliseSnapshot(raw: any): Snapshot | null {
   if (!raw) return null;
   try {
@@ -121,7 +90,7 @@ function normaliseSnapshot(raw: any): Snapshot | null {
       date: snap.date,
       staff: snap.staff ?? [],
       participants: snap.participants ?? [],
-      assignments: normaliseAssignmentsMap(snap.assignments),
+      assignments: snap.assignments ?? {},
     };
   } catch {
     return null;
