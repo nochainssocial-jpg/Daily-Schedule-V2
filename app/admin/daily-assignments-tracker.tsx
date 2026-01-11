@@ -60,6 +60,104 @@ function safeObject(val: any): Record<string, any> {
   return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
 }
 
+// ------------------ Backwards-compatible assignment normaliser -------------------------
+
+function resolveStaffIdFromKey(
+  key: string,
+  staff: SnapshotStaff[],
+): string | null {
+  if (!key) return null;
+
+  const staffById: Record<string, SnapshotStaff> = {};
+  const staffByName: Record<string, SnapshotStaff> = {};
+  staff.forEach((s) => {
+    if (s?.id) staffById[String(s.id)] = s;
+    if (s?.name) staffByName[String(s.name).trim().toLowerCase()] = s;
+  });
+
+  // 1) exact staffId match
+  if (staffById[key]) return staffById[key].id;
+
+  // 2) staff name used as key
+  const byName = staffByName[key.trim().toLowerCase()];
+  if (byName) return byName.id;
+
+  // 3) numeric keys (legacy): treat as index into snapshot.staff
+  //    Try both 0-based and 1-based.
+  if (/^\d+$/.test(key)) {
+    const n = parseInt(key, 10);
+    const zero = staff[n];
+    if (zero?.id) return zero.id;
+    const one = staff[n - 1];
+    if (one?.id) return one.id;
+  }
+
+  return null;
+}
+
+function normaliseAssignmentsAnyShape(
+  raw: any,
+  staff: SnapshotStaff[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+
+  // Object-map shape: { [staffKey]: participantIds[] }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [staffKey, v] of Object.entries(raw)) {
+      const staffId = resolveStaffIdFromKey(String(staffKey), staff);
+      if (!staffId) continue;
+
+      let pids: string[] = [];
+      if (Array.isArray(v)) pids = v.filter(Boolean).map(String);
+      else if (typeof v === 'string' && v) pids = [String(v)];
+      else if (v && typeof v === 'object' && Array.isArray((v as any).participantIds)) {
+        pids = (v as any).participantIds.filter(Boolean).map(String);
+      }
+
+      if (!out[staffId]) out[staffId] = [];
+      out[staffId].push(...pids);
+    }
+    return out;
+  }
+
+  // Array shape: [{ staffId|staff|name, participantIds }] or [ [staffKey, participantIds] ]
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item) continue;
+
+      // tuple: [staffKey, participantIds]
+      if (Array.isArray(item) && item.length >= 2) {
+        const staffKey = String(item[0] ?? '');
+        const staffId = resolveStaffIdFromKey(staffKey, staff);
+        if (!staffId) continue;
+
+        const v = item[1];
+        const pids = Array.isArray(v) ? v.filter(Boolean).map(String) : [];
+        if (!out[staffId]) out[staffId] = [];
+        out[staffId].push(...pids);
+        continue;
+      }
+
+      const staffKey =
+        (item as any).staffId ??
+        (item as any).staff ??
+        (item as any).staff_id ??
+        (item as any).name ??
+        (item as any).staffName;
+
+      const staffId = resolveStaffIdFromKey(String(staffKey ?? ''), staff);
+      if (!staffId) continue;
+
+      const v = (item as any).participantIds ?? (item as any).participants ?? (item as any).participant_ids;
+      const pids = Array.isArray(v) ? v.filter(Boolean).map(String) : [];
+      if (!out[staffId]) out[staffId] = [];
+      out[staffId].push(...pids);
+    }
+  }
+
+  return out;
+}
+
 function resolveStaffIdFromKey(
   key: string,
   staffById: Record<string, string>,
@@ -211,7 +309,7 @@ export default function DailyAssignmentsTrackerScreen() {
             if (p?.id && p?.name) participantsById[p.id] = p.name;
           });
 
-          const assignments = safeObject(snapshot.assignments);
+                    const assignments = normaliseAssignmentsAnyShape(snapshot.assignments, snapshot.staff);
 
           Object.entries(assignments).forEach(([rawStaffKey, participantIds]) => {
             if (!Array.isArray(participantIds)) return;
