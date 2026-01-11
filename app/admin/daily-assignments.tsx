@@ -97,30 +97,6 @@ function normaliseSnapshot(raw: any): Snapshot | null {
   }
 }
 
-function resolveStaffIdFromKey(
-  key: string,
-  staffById: Record<string, string>,
-  staffList: SnapshotStaff[],
-): string | null {
-  // Normal case: key is already a real staff id
-  if (staffById[key]) return key;
-
-  // Some legacy/canonical mismatch cases store assignments keyed by a numeric
-  // position rather than staffId. Try to map 0-based and 1-based indices.
-  const n = Number.parseInt(String(key), 10);
-  if (Number.isFinite(n)) {
-    const idx0 = n; // 0-based
-    const idx1 = n - 1; // 1-based
-
-    const cand0 = staffList[idx0]?.id;
-    if (cand0 && staffById[cand0]) return cand0;
-
-    const cand1 = staffList[idx1]?.id;
-    if (cand1 && staffById[cand1]) return cand1;
-  }
-
-  return null;
-}
 // ------------------ Backwards-compatible assignment normaliser -------------------------
 
 function resolveStaffIdFromKey(
