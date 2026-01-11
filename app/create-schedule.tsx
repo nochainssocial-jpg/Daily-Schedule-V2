@@ -19,41 +19,6 @@ const isEveryone = (name?: string) => nm(name) === 'everyone';
 const isAntoinette = (name?: string) => nm(name) === 'antoinette';
 
 // how many steps in the wizard
-
-
-const isPlainRecord = (v: any): v is Record<string, any> =>
-  !!v && typeof v === 'object' && !Array.isArray(v);
-
-const normaliseAssignmentsMap = (
-  candidate: any,
-  fallback: Record<string, string[]>,
-): Record<string, string[]> => {
-  // Case 1: already a staffId -> participantIds[] map
-  if (isPlainRecord(candidate)) {
-    const out: Record<string, string[]> = {};
-    for (const [sid, pids] of Object.entries(candidate)) {
-      out[String(sid)] = Array.isArray(pids)
-        ? (pids as any[]).filter(Boolean).map(String)
-        : [];
-    }
-    return out;
-  }
-
-  // Case 2: array shape [{ staffId, participantIds }]
-  if (Array.isArray(candidate)) {
-    const out: Record<string, string[]> = {};
-    for (const row of candidate) {
-      const sid = row?.staffId;
-      if (!sid) continue;
-      const pids = Array.isArray(row?.participantIds) ? row.participantIds : [];
-      out[String(sid)] = (pids as any[]).filter(Boolean).map(String);
-    }
-    return out;
-  }
-
-  return fallback;
-};
-
 const TOTAL_STEPS = 6;
 
 export default function CreateScheduleScreen() {
@@ -927,7 +892,7 @@ export default function CreateScheduleScreen() {
         workingStaff: state.workingStaff ?? realWorkers,
         attendingParticipants: state.attendingParticipants ?? attendingParticipants,
 
-        assignments: normaliseAssignmentsMap(state.assignments, assignmentsMap),
+        assignments: state.assignments ?? assignmentsMap,
         floatingAssignments: state.floatingAssignments ?? {},
         cleaningAssignments: state.cleaningAssignments ?? {},
 
