@@ -60,6 +60,31 @@ function safeObject(val: any): Record<string, any> {
   return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
 }
 
+function resolveStaffIdFromKey(
+  key: string,
+  staffById: Record<string, string>,
+  staffList: SnapshotStaff[],
+): string | null {
+  // Normal case: key is already a real staff id
+  if (staffById[key]) return key;
+
+  // Some legacy/canonical mismatch cases store assignments keyed by a numeric
+  // position rather than staffId. Try to map 0-based and 1-based indices.
+  const n = Number.parseInt(String(key), 10);
+  if (Number.isFinite(n)) {
+    const idx0 = n; // 0-based
+    const idx1 = n - 1; // 1-based
+
+    const cand0 = staffList[idx0]?.id;
+    if (cand0 && staffById[cand0]) return cand0;
+
+    const cand1 = staffList[idx1]?.id;
+    if (cand1 && staffById[cand1]) return cand1;
+  }
+
+  return null;
+}
+
 // ------------------ Normalise Snapshot -------------------------
 
 function normaliseSnapshot(raw: any): Snapshot {
@@ -188,13 +213,21 @@ export default function DailyAssignmentsTrackerScreen() {
 
           const assignments = safeObject(snapshot.assignments);
 
-          Object.entries(assignments).forEach(([staffId, participantIds]) => {
+          Object.entries(assignments).forEach(([rawStaffKey, participantIds]) => {
             if (!Array.isArray(participantIds)) return;
+
+            // Only include rows we can resolve to a real staff member.
+            const staffId = resolveStaffIdFromKey(
+              rawStaffKey,
+              staffById,
+              snapshot.staff,
+            );
+            if (!staffId) return;
 
             if (!summary[staffId]) {
               summary[staffId] = {
                 staffId,
-                name: staffById[staffId] ?? staffId,
+                name: staffById[staffId] ?? rawStaffKey,
                 byDay: makeDays(),
               };
             }
