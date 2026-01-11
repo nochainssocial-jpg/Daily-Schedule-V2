@@ -140,14 +140,45 @@ function __ds_normaliseAssignments(
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
 
-  // New shape: object map { staffKey: participantIds[] }
+  // Object map shapes:
+  //  A) staff -> participantIds[]  (preferred)
+  //  B) participantId -> staffId   (legacy persisted in schedules_rows.json)
   if (__ds_isPlainObject(raw)) {
+
+  // Detect whether values are arrays (staff->participants) or scalars (participant->staff)
+  let sawArray = false;
+  let sawScalar = false;
+  for (const v of Object.values(raw)) {
+    if (Array.isArray(v)) { sawArray = true; break; }
+    if (v != null) sawScalar = true;
+  }
+
+  // A) staffKey -> participantIds[]
+  if (sawArray) {
     for (const [key, pids] of Object.entries(raw)) {
       const sid = __ds_resolveStaffIdFromKey(String(key), staffById, staffList);
       if (!sid) continue;
       const arr = __ds_toStringArray(pids);
       if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
     }
+    return out;
+  }
+
+  // B) participantId -> staffId (scalar map)
+  if (sawScalar) {
+    for (const [participantIdRaw, staffKeyRaw] of Object.entries(raw)) {
+      const participantId = String(participantIdRaw ?? '').trim();
+      if (!participantId) continue;
+
+      const sid = __ds_resolveStaffIdFromKey(String(staffKeyRaw ?? ''), staffById, staffList);
+      if (!sid) continue;
+
+      out[sid] = out[sid] ?? [];
+      out[sid].push(participantId);
+    }
+    return out;
+  }
+
     return out;
   }
 
@@ -182,8 +213,18 @@ function __ds_normaliseAssignments(
           item.participantIdsAssigned ??
           item.value;
 
-        const arr = __ds_toStringArray(pids);
-        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+        // Object may be staff->participants OR participant->staff
+        if (Array.isArray(pids)) {
+          const arr = __ds_toStringArray(pids);
+          if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+        } else {
+          const participantId = String(item.participantId ?? item.participant_id ?? item.participant ?? item.pid ?? '').trim();
+          const sid2 = __ds_resolveStaffIdFromKey(String(item.staffId ?? item.staff_id ?? item.staff ?? item.sid ?? pids ?? ''), staffById, staffList);
+          if (participantId && sid2) {
+            out[sid2] = out[sid2] ?? [];
+            out[sid2].push(participantId);
+          }
+        }
       }
     }
   }
