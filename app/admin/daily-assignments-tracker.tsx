@@ -60,98 +60,85 @@ function safeObject(val: any): Record<string, any> {
   return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
 }
 
-// ------------------ Backwards-compatible assignment normaliser -------------------------
+
+// ------------------ Backwards-compatible assignments -------------------------
 
 function resolveStaffIdFromKey(
   key: string,
-  staff: SnapshotStaff[],
+  staffList: SnapshotStaff[],
 ): string | null {
-  if (!key) return null;
+  const k = (key ?? '').trim();
+  if (!k) return null;
 
-  const staffById: Record<string, SnapshotStaff> = {};
-  const staffByName: Record<string, SnapshotStaff> = {};
-  staff.forEach((s) => {
-    if (s?.id) staffById[String(s.id)] = s;
-    if (s?.name) staffByName[String(s.name).trim().toLowerCase()] = s;
-  });
+  // Exact id match
+  for (const s of staffList) {
+    if (s?.id && String(s.id) === k) return String(s.id);
+  }
 
-  // 1) exact staffId match
-  if (staffById[key]) return staffById[key].id;
+  // Exact name match (legacy)
+  const lower = k.toLowerCase();
+  for (const s of staffList) {
+    if (s?.name && String(s.name).toLowerCase() === lower && s?.id) {
+      return String(s.id);
+    }
+  }
 
-  // 2) staff name used as key
-  const byName = staffByName[key.trim().toLowerCase()];
-  if (byName) return byName.id;
-
-  // 3) numeric keys (legacy): treat as index into snapshot.staff
-  //    Try both 0-based and 1-based.
-  if (/^\d+$/.test(key)) {
-    const n = parseInt(key, 10);
-    const zero = staff[n];
-    if (zero?.id) return zero.id;
-    const one = staff[n - 1];
-    if (one?.id) return one.id;
+  // Numeric key: treat as index into staffList (supports 0-based and 1-based)
+  if (/^\d+$/.test(k)) {
+    const n = parseInt(k, 10);
+    const cand0 = staffList[n];
+    if (cand0?.id) return String(cand0.id);
+    const cand1 = staffList[n - 1];
+    if (cand1?.id) return String(cand1.id);
   }
 
   return null;
 }
 
-function normaliseAssignmentsAnyShape(
+function normaliseAssignments(
   raw: any,
-  staff: SnapshotStaff[],
+  staffList: SnapshotStaff[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
 
-  // Object-map shape: { [staffKey]: participantIds[] }
+  // Object map form: { staffKey: participantIds[] }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    for (const [staffKey, v] of Object.entries(raw)) {
-      const staffId = resolveStaffIdFromKey(String(staffKey), staff);
+    for (const [staffKey, participantIds] of Object.entries(raw)) {
+      const staffId = resolveStaffIdFromKey(String(staffKey), staffList);
       if (!staffId) continue;
-
-      let pids: string[] = [];
-      if (Array.isArray(v)) pids = v.filter(Boolean).map(String);
-      else if (typeof v === 'string' && v) pids = [String(v)];
-      else if (v && typeof v === 'object' && Array.isArray((v as any).participantIds)) {
-        pids = (v as any).participantIds.filter(Boolean).map(String);
-      }
-
       if (!out[staffId]) out[staffId] = [];
-      out[staffId].push(...pids);
+      if (Array.isArray(participantIds)) {
+        out[staffId].push(...participantIds.filter(Boolean).map((x) => String(x)));
+      }
     }
     return out;
   }
 
-  // Array shape: [{ staffId|staff|name, participantIds }] or [ [staffKey, participantIds] ]
+  // Array forms
   if (Array.isArray(raw)) {
-    for (const item of raw) {
-      if (!item) continue;
+    for (const row of raw) {
+      if (!row) continue;
 
-      // tuple: [staffKey, participantIds]
-      if (Array.isArray(item) && item.length >= 2) {
-        const staffKey = String(item[0] ?? '');
-        const staffId = resolveStaffIdFromKey(staffKey, staff);
+      // tuple [staffKey, participantIds]
+      if (Array.isArray(row) && row.length >= 2) {
+        const staffKey = String(row[0] ?? '');
+        const staffId = resolveStaffIdFromKey(staffKey, staffList);
         if (!staffId) continue;
-
-        const v = item[1];
-        const pids = Array.isArray(v) ? v.filter(Boolean).map(String) : [];
-        if (!out[staffId]) out[staffId] = [];
-        out[staffId].push(...pids);
+        const pids = Array.isArray(row[1]) ? row[1] : [];
+        out[staffId] = (out[staffId] ?? []).concat(pids.filter(Boolean).map((x) => String(x)));
         continue;
       }
 
+      // object {staffId|staffKey|staffName, participantIds}
       const staffKey =
-        (item as any).staffId ??
-        (item as any).staff ??
-        (item as any).staff_id ??
-        (item as any).name ??
-        (item as any).staffName;
-
-      const staffId = resolveStaffIdFromKey(String(staffKey ?? ''), staff);
+        String((row as any).staffId ?? '') ||
+        String((row as any).staffKey ?? '') ||
+        String((row as any).staffName ?? '');
+      const staffId = resolveStaffIdFromKey(staffKey, staffList);
       if (!staffId) continue;
 
-      const v = (item as any).participantIds ?? (item as any).participants ?? (item as any).participant_ids;
-      const pids = Array.isArray(v) ? v.filter(Boolean).map(String) : [];
-      if (!out[staffId]) out[staffId] = [];
-      out[staffId].push(...pids);
+      const pids = Array.isArray((row as any).participantIds) ? (row as any).participantIds : [];
+      out[staffId] = (out[staffId] ?? []).concat(pids.filter(Boolean).map((x) => String(x)));
     }
   }
 
@@ -285,13 +272,17 @@ export default function DailyAssignmentsTrackerScreen() {
             if (p?.id && p?.name) participantsById[p.id] = p.name;
           });
 
-                    const assignments = normaliseAssignmentsAnyShape(snapshot.assignments, snapshot.staff);
+          const assignments = normaliseAssignments(snapshot.assignments, snapshot.staff);
 
           Object.entries(assignments).forEach(([rawStaffKey, participantIds]) => {
             if (!Array.isArray(participantIds)) return;
 
             // Only include rows we can resolve to a real staff member.
-            const staffId = resolveStaffIdFromKey(rawStaffKey, snapshot.staff);
+            const staffId = resolveStaffIdFromKey(
+              rawStaffKey,
+              staffById,
+              snapshot.staff,
+            );
             if (!staffId) return;
 
             if (!summary[staffId]) {
