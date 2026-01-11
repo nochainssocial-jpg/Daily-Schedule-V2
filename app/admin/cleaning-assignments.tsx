@@ -167,8 +167,7 @@ export default function CleaningAssignmentsReportScreen() {
           }
         }
 
-        
-const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
+        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Mon: [],
           Tue: [],
           Wed: [],
@@ -176,8 +175,6 @@ const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Fri: [],
         });
 
-        // Group by normalised staff *name* so the same person doesn't
-        // appear multiple times if their ID changed between days.
         const staffSummary: Record<string, CleaningRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
@@ -201,17 +198,15 @@ const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
             const choreLabel =
               CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
 
-            const key = staffName.trim().toLowerCase();
-
-            if (!staffSummary[key]) {
-              staffSummary[key] = {
+            if (!staffSummary[staffId]) {
+              staffSummary[staffId] = {
                 staffId,
                 name: staffName,
                 byDay: makeEmptyDays(),
               };
             }
 
-            staffSummary[key].byDay[label].push(choreLabel);
+            staffSummary[staffId].byDay[label].push(choreLabel);
           });
         }
 

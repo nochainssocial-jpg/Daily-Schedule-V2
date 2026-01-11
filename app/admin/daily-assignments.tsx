@@ -82,6 +82,37 @@ function getLabelFromDateString(dateStr: string): WeekDayLabel | null {
   return WEEK_DAYS[idx];
 }
 
+
+function isPlainRecord(v: any): v is Record<string, any> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function normaliseAssignmentsMap(candidate: any): Record<string, string[]> {
+  if (isPlainRecord(candidate)) {
+    const out: Record<string, string[]> = {};
+    for (const [sid, pids] of Object.entries(candidate)) {
+      out[String(sid)] = Array.isArray(pids)
+        ? (pids as any[]).filter(Boolean).map(String)
+        : [];
+    }
+    return out;
+  }
+
+  if (Array.isArray(candidate)) {
+    const out: Record<string, string[]> = {};
+    for (const row of candidate) {
+      const sid = row?.staffId;
+      if (!sid) continue;
+      const pids = Array.isArray(row?.participantIds) ? row.participantIds : [];
+      out[String(sid)] = (pids as any[]).filter(Boolean).map(String);
+    }
+    return out;
+  }
+
+  return {};
+}
+
+
 function normaliseSnapshot(raw: any): Snapshot | null {
   if (!raw) return null;
   try {
@@ -90,7 +121,7 @@ function normaliseSnapshot(raw: any): Snapshot | null {
       date: snap.date,
       staff: snap.staff ?? [],
       participants: snap.participants ?? [],
-      assignments: snap.assignments ?? {},
+      assignments: normaliseAssignmentsMap(snap.assignments),
     };
   } catch {
     return null;
@@ -165,7 +196,6 @@ export default function DailyAssignmentsReportScreen() {
           }
         }
 
-        
         const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
           Mon: [],
           Tue: [],
@@ -174,8 +204,6 @@ export default function DailyAssignmentsReportScreen() {
           Fri: [],
         });
 
-        // Group by normalised staff *name* so the same person doesn't
-        // appear multiple times if their ID changed between days.
         const summaryByStaff: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
@@ -198,20 +226,15 @@ export default function DailyAssignmentsReportScreen() {
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
             if (!staffId || !Array.isArray(participantIds)) return;
 
-            const staffName = staffById[staffId] ?? staffId;
-            const key = staffName
-              ? staffName.trim().toLowerCase()
-              : String(staffId);
-
-            if (!summaryByStaff[key]) {
-              summaryByStaff[key] = {
+            if (!summaryByStaff[staffId]) {
+              summaryByStaff[staffId] = {
                 staffId,
-                name: staffName,
+                name: staffById[staffId] ?? staffId,
                 byDay: makeEmptyDays(),
               };
             }
 
-            const row = summaryByStaff[key];
+            const row = summaryByStaff[staffId];
 
             participantIds.forEach((pid) => {
               const participantName = participantsById[pid];

@@ -167,8 +167,6 @@ export default function DailyCleaningTrackerScreen() {
             Fri: [],
           } as Record<WeekDayLabel, string[]>);
 
-        // Group by *staff name* (case-insensitive) so the same person
-        // doesn't appear twice if their ID changed between days.
         const summary: Record<string, CleaningRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(byDay)) {
@@ -191,19 +189,18 @@ export default function DailyCleaningTrackerScreen() {
               const staffName = staffById[staffId];
               if (!staffName) return;
 
-              const key = staffName.trim().toLowerCase();
-              const choreLabel =
-                CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
+                const choreLabel =
+                  CHORE_LABEL_BY_ID[choreId] ?? `Chore ${choreId}`;
 
-              if (!summary[key]) {
-                summary[key] = {
+              if (!summary[staffId]) {
+                summary[staffId] = {
                   staffId,
                   name: staffName,
                   byDay: makeEmpty(),
                 };
               }
 
-              summary[key].byDay[label].push(choreLabel);
+              summary[staffId].byDay[label].push(choreLabel);
             },
           );
         }

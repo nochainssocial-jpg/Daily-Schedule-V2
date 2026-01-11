@@ -60,58 +60,38 @@ function safeObject(val: any): Record<string, any> {
   return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
 }
 
-// Normalise assignments from mixed legacy/new shapes into staffId -> participantIds[]
-function normaliseAssignments(raw: any): SnapshotAssignments {
-  const result: SnapshotAssignments = {};
-  const obj = safeObject(raw);
 
-  Object.entries(obj).forEach(([key, value]) => {
-    const k = String(key);
-
-    // NEW SHAPE: staffId -> participantIds[]
-    if (Array.isArray(value)) {
-      const staffId = k;
-      const pids = (value as any[])
-        .map((v) => String(v))
-        .filter(Boolean);
-      if (!pids.length) return;
-
-      const existing = new Set(result[staffId] || []);
-      pids.forEach((pid) => existing.add(pid));
-      result[staffId] = Array.from(existing);
-      return;
-    }
-
-    // OPTIONAL FUTURE SHAPE: staffId -> { participants: string[] }
-    if (value && typeof value === 'object' && Array.isArray((value as any).participants)) {
-      const staffId = k;
-      const pids = ((value as any).participants as any[])
-        .map((v) => String(v))
-        .filter(Boolean);
-      if (!pids.length) return;
-
-      const existing = new Set(result[staffId] || []);
-      pids.forEach((pid) => existing.add(pid));
-      result[staffId] = Array.from(existing);
-      return;
-    }
-
-    // LEGACY SHAPE: participantId -> staffId
-    if (typeof value === 'string' && value) {
-      const participantId = k;
-      const staffId = String(value);
-      if (!result[staffId]) result[staffId] = [];
-      if (!result[staffId].includes(participantId)) {
-        result[staffId].push(participantId);
-      }
-      return;
-    }
-
-    // Anything else ignored.
-  });
-
-  return result;
+function isPlainRecord(v: any): v is Record<string, any> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
 }
+
+function normaliseAssignmentsMap(candidate: any): Record<string, string[]> {
+  // staffId -> participantIds[]
+  if (isPlainRecord(candidate)) {
+    const out: Record<string, string[]> = {};
+    for (const [sid, pids] of Object.entries(candidate)) {
+      out[String(sid)] = Array.isArray(pids)
+        ? (pids as any[]).filter(Boolean).map(String)
+        : [];
+    }
+    return out;
+  }
+
+  // array shape [{ staffId, participantIds }]
+  if (Array.isArray(candidate)) {
+    const out: Record<string, string[]> = {};
+    for (const row of candidate) {
+      const sid = row?.staffId;
+      if (!sid) continue;
+      const pids = Array.isArray(row?.participantIds) ? row.participantIds : [];
+      out[String(sid)] = (pids as any[]).filter(Boolean).map(String);
+    }
+    return out;
+  }
+
+  return {};
+}
+
 
 // ------------------ Normalise Snapshot -------------------------
 
@@ -123,8 +103,7 @@ function normaliseSnapshot(raw: any): Snapshot {
       date: snap.date ?? null,
       staff: safeArray<SnapshotStaff>(snap.staff),
       participants: safeArray<SnapshotParticipant>(snap.participants),
-      // ✅ Always convert to staffId -> participantIds[]
-      assignments: normaliseAssignments(snap.assignments),
+      assignments: normaliseAssignmentsMap(snap.assignments),
     };
   } catch {
     return {
@@ -224,8 +203,6 @@ export default function DailyAssignmentsTrackerScreen() {
             Fri: [],
           } as Record<WeekDayLabel, string[]>);
 
-        // NOTE: we now key by normalised staff *name* so the same person
-        // doesn't appear multiple times if their ID format changed between days.
         const summary: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
@@ -242,27 +219,22 @@ export default function DailyAssignmentsTrackerScreen() {
             if (p?.id && p?.name) participantsById[p.id] = p.name;
           });
 
-          const assignments = snapshot.assignments;
+          const assignments = safeObject(snapshot.assignments);
 
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
             if (!Array.isArray(participantIds)) return;
 
-            const staffName = staffById[staffId] ?? staffId;
-            const key = staffName
-              ? staffName.trim().toLowerCase()
-              : String(staffId);
-
-            if (!summary[key]) {
-              summary[key] = {
+            if (!summary[staffId]) {
+              summary[staffId] = {
                 staffId,
-                name: staffName,
+                name: staffById[staffId] ?? staffId,
                 byDay: makeDays(),
               };
             }
 
             participantIds.forEach((pid) => {
               const name = participantsById[pid];
-              if (name) summary[key].byDay[label].push(name);
+              if (name) summary[staffId].byDay[label].push(name);
             });
           });
         }
