@@ -95,91 +95,100 @@ function normaliseSnapshot(raw: any): Snapshot | null {
   } catch {
     return null;
   }
-
-
-// ------------------ Backwards-compatible assignments -------------------------
-
-function resolveStaffIdFromKey(
-  key: string,
-  staffList: SnapshotStaff[],
-): string | null {
-  const k = (key ?? '').trim();
-  if (!k) return null;
-
-  // Exact id match
-  for (const s of staffList) {
-    if (s?.id && String(s.id) === k) return String(s.id);
-  }
-
-  // Exact name match (legacy)
-  const lower = k.toLowerCase();
-  for (const s of staffList) {
-    if (s?.name && String(s.name).toLowerCase() === lower && s?.id) {
-      return String(s.id);
-    }
-  }
-
-  // Numeric key: treat as index into staffList (supports 0-based and 1-based)
-  if (/^\d+$/.test(k)) {
-    const n = parseInt(k, 10);
-    const cand0 = staffList[n];
-    if (cand0?.id) return String(cand0.id);
-    const cand1 = staffList[n - 1];
-    if (cand1?.id) return String(cand1.id);
-  }
-
-  return null;
 }
 
-function normaliseAssignments(
+// ------------------ Assignments shape helpers -------------------------
+
+function __ds_isPlainObject(v: any): v is Record<string, any> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function __ds_toStringArray(v: any): string[] {
+  return Array.isArray(v) ? v.filter(Boolean).map((x) => String(x)) : [];
+}
+
+function __ds_resolveStaffIdFromKey(
+  key: string,
+  staffById: Record<string, string>,
+  staffList: SnapshotStaff[],
+): string | null {
+  const k = String(key ?? '').trim();
+  if (!k) return null;
+
+  // 1) exact staffId
+  if (staffById[k]) return k;
+
+  // 2) numeric index keys (legacy) -> try 0-based then 1-based
+  if (/^\d+$/.test(k)) {
+    const n = parseInt(k, 10);
+    const zeroIdx = n;
+    if (staffList[zeroIdx]?.id) return staffList[zeroIdx].id;
+    const oneIdx = n - 1;
+    if (oneIdx >= 0 && staffList[oneIdx]?.id) return staffList[oneIdx].id;
+  }
+
+  // 3) staff name as key (legacy)
+  const lower = k.toLowerCase();
+  const found = staffList.find((s) => (s?.name ?? '').toLowerCase() === lower);
+  return found?.id ?? null;
+}
+
+function __ds_normaliseAssignments(
   raw: any,
+  staffById: Record<string, string>,
   staffList: SnapshotStaff[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
 
-  // Object map form: { staffKey: participantIds[] }
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    for (const [staffKey, participantIds] of Object.entries(raw)) {
-      const staffId = resolveStaffIdFromKey(String(staffKey), staffList);
-      if (!staffId) continue;
-      if (!out[staffId]) out[staffId] = [];
-      if (Array.isArray(participantIds)) {
-        out[staffId].push(...participantIds.filter(Boolean).map((x) => String(x)));
-      }
+  // New shape: object map { staffKey: participantIds[] }
+  if (__ds_isPlainObject(raw)) {
+    for (const [key, pids] of Object.entries(raw)) {
+      const sid = __ds_resolveStaffIdFromKey(String(key), staffById, staffList);
+      if (!sid) continue;
+      const arr = __ds_toStringArray(pids);
+      if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
     }
     return out;
   }
 
-  // Array forms
+  // Array shapes:
+  //  - [{ staffId, participantIds }]
+  //  - [[staffKey, participantIds]]
   if (Array.isArray(raw)) {
-    for (const row of raw) {
-      if (!row) continue;
+    for (const item of raw) {
+      if (!item) continue;
 
-      // tuple [staffKey, participantIds]
-      if (Array.isArray(row) && row.length >= 2) {
-        const staffKey = String(row[0] ?? '');
-        const staffId = resolveStaffIdFromKey(staffKey, staffList);
-        if (!staffId) continue;
-        const pids = Array.isArray(row[1]) ? row[1] : [];
-        out[staffId] = (out[staffId] ?? []).concat(pids.filter(Boolean).map((x) => String(x)));
+      // tuple form
+      if (Array.isArray(item) && item.length >= 2) {
+        const key = String(item[0]);
+        const sid = __ds_resolveStaffIdFromKey(key, staffById, staffList);
+        if (!sid) continue;
+        const arr = __ds_toStringArray(item[1]);
+        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
         continue;
       }
 
-      // object {staffId|staffKey|staffName, participantIds}
-      const staffKey =
-        String((row as any).staffId ?? '') ||
-        String((row as any).staffKey ?? '') ||
-        String((row as any).staffName ?? '');
-      const staffId = resolveStaffIdFromKey(staffKey, staffList);
-      if (!staffId) continue;
+      // object form
+      if (__ds_isPlainObject(item)) {
+        const key =
+          item.staffId ?? item.staff_id ?? item.staffKey ?? item.staff_key ?? item.staff ?? item.name;
+        const sid = __ds_resolveStaffIdFromKey(String(key ?? ''), staffById, staffList);
+        if (!sid) continue;
 
-      const pids = Array.isArray((row as any).participantIds) ? (row as any).participantIds : [];
-      out[staffId] = (out[staffId] ?? []).concat(pids.filter(Boolean).map((x) => String(x)));
+        const pids =
+          item.participantIds ??
+          item.participant_ids ??
+          item.participants ??
+          item.participantIdsAssigned ??
+          item.value;
+
+        const arr = __ds_toStringArray(pids);
+        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+      }
     }
   }
 
   return out;
-}
 }
 
 
@@ -229,6 +238,7 @@ export default function DailyAssignmentsReportScreen() {
         > = {};
 
         for (const row of rowsRaw) {
+          try {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
 
@@ -237,7 +247,9 @@ export default function DailyAssignmentsReportScreen() {
           const dayKey =
             typeof snap.date === 'string' && snap.date
               ? snap.date.slice(0, 10)
-              : row.created_at.slice(0, 10); // YYYY-MM-DD
+              : (typeof row.created_at === 'string' ? row.created_at.slice(0, 10) : ''); // YYYY-MM-DD
+
+          if (!dayKey) continue;
 
           const seq = row.seq_id ?? 0;
           const existing = latestByDay[dayKey];
@@ -248,6 +260,9 @@ export default function DailyAssignmentsReportScreen() {
               created_at: row.created_at,
               seq,
             };
+          }
+          } catch (e) {
+            console.warn('Weekly report: skipping bad schedule row', e);
           }
         }
 
@@ -275,24 +290,16 @@ export default function DailyAssignmentsReportScreen() {
             if (p?.id && p?.name) participantsById[p.id] = p.name;
           });
 
-          const assignments = normaliseAssignments(snapshot.assignments, snapshot.staff ?? []);
+          const assignments = __ds_normaliseAssignments(snapshot.assignments, staffById, snapshot.staff ?? []);
 
           // assignments: staffId -> participantIds[]
-          // (but protect against legacy keys like numeric indices)
-          Object.entries(assignments).forEach(([rawStaffKey, participantIds]) => {
-            if (!rawStaffKey || !Array.isArray(participantIds)) return;
-
-            const staffId = resolveStaffIdFromKey(
-              rawStaffKey,
-              staffById,
-              snapshot.staff ?? [],
-            );
-            if (!staffId) return;
+          Object.entries(assignments).forEach(([staffId, participantIds]) => {
+            if (!staffId || !Array.isArray(participantIds)) return;
 
             if (!summaryByStaff[staffId]) {
               summaryByStaff[staffId] = {
                 staffId,
-                name: staffById[staffId] ?? rawStaffKey,
+                name: staffById[staffId] ?? staffId,
                 byDay: makeEmptyDays(),
               };
             }
