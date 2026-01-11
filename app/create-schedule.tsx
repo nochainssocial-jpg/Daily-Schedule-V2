@@ -885,14 +885,51 @@ export default function CreateScheduleScreen() {
     try {
       const state = baseSchedule.getState();
 
-      snapshot = {
+      const __ds_isPlainRecord = (v: any): v is Record<string, any> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+const __ds_normaliseAssignmentsMap = (
+  candidate: any,
+  fallback: Record<string, string[]>,
+): Record<string, string[]> => {
+  // Case 1: already object-map form
+  if (__ds_isPlainRecord(candidate)) {
+    const out: Record<string, string[]> = {};
+    for (const [sid, pids] of Object.entries(candidate)) {
+      out[String(sid)] = Array.isArray(pids)
+        ? (pids as any[]).filter(Boolean).map(String)
+        : [];
+    }
+    return out;
+  }
+
+  // Case 2: array form [{ staffId, participantIds }]
+  if (Array.isArray(candidate)) {
+    const out: Record<string, string[]> = {};
+    for (const row of candidate) {
+      const sid = row?.staffId ?? row?.staff_id;
+      if (!sid) continue;
+      const pids = Array.isArray(row?.participantIds)
+        ? row.participantIds
+        : Array.isArray(row?.participant_ids)
+          ? row.participant_ids
+          : [];
+      out[String(sid)] = pids.filter(Boolean).map(String);
+    }
+    return out;
+  }
+
+  return fallback;
+};
+
+snapshot = {
         staff: state.staff ?? (staffSource ?? []),
         participants: state.participants ?? (partsSource ?? []),
 
         workingStaff: state.workingStaff ?? realWorkers,
         attendingParticipants: state.attendingParticipants ?? attendingParticipants,
 
-        assignments: state.assignments ?? assignmentsMap,
+        assignments: __ds_normaliseAssignmentsMap(state.assignments, assignmentsMap),
         floatingAssignments: state.floatingAssignments ?? {},
         cleaningAssignments: state.cleaningAssignments ?? {},
 
