@@ -4,13 +4,16 @@ import { create } from 'zustand';
 export type NotificationCategory =
   | 'create'
   | 'staff'
+  | 'dream-team'
   | 'participants'
+  | 'outings'
   | 'assignments'
   | 'floating'
   | 'cleaning'
   | 'pickups'
   | 'checklist'
   | 'general';
+
 
 export type AppNotification = {
   id: string;
