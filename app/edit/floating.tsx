@@ -557,8 +557,11 @@ function isRoomOffsiteForSlot(
     ),
   );
 
-  const anyOnOuting = groupIds.some((id) => outingIds.has(String(id)));
-  if (!anyOnOuting) return false;
+  const onOutingCount = groupIds.filter((id) => outingIds.has(String(id))).length;
+  // IMPORTANT: only treat the entire room as offsite if *all* participants in the group are on the outing.
+  // If only some participants are offsite, the room remains active so staff can still be allocated to the remainder.
+  if (onOutingCount === 0) return false;
+  if (onOutingCount < groupIds.length) return false;
 
   const slotWindow = getSlotWindowMinutes(slot);
   const outingWindow = getOutingWindowMinutes(outingGroup);
