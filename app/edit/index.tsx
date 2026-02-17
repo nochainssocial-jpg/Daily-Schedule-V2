@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
+import OutingWindowBanner from '@/components/OutingWindowBanner';
 import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 960;
