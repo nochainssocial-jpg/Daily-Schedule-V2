@@ -14,7 +14,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
-import OutingWindowBanner from '@/components/OutingWindowBanner';
 import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 960;
@@ -201,23 +200,33 @@ export default function EditHubScreen() {
   const hasOutingBase =
     !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
 
-  const outingPhase: OutingPhase = hasOutingBase
-    ? getOutingPhase(outingGroup)
-    : 'none';
+  const isOutingActiveNow = (() => {
+    if (!hasOutingBase) return false;
 
-  const hasOuting = outingPhase !== 'none';
+    const start = parseTimeToMinutes(outingGroup?.startTime);
+    let end = parseTimeToMinutes(outingGroup?.endTime);
 
-  const hasTime =
-    (outingGroup?.startTime && outingGroup.startTime.trim() !== '') ||
-    (outingGroup?.endTime && outingGroup.endTime.trim() !== '');
+    const now = new Date();
+    const nowM = now.getHours() * 60 + now.getMinutes();
 
-  const timeRange = hasTime
-    ? `${outingGroup?.startTime || '?'}–${outingGroup?.endTime || '?'}`
-    : '';
+    // No valid start = don't show
+    if (start === null) return false;
 
-  const isCompleteShort = outingPhase === 'completeShort';
+    // No valid end time = treat as "active from start onwards"
+    if (end === null) return nowM >= start;
 
-  const outingTitle = isCompleteShort ? 'Outing complete' : 'Outing today';
+    // Heuristic: if end appears earlier than start and end is in morning (<12:00),
+    // staff almost always mean PM end time (e.g. 12:00–2:00 -> 12pm–2pm).
+    if (end <= start && end < 12 * 60 && start >= 12 * 60) {
+      end += 12 * 60;
+    }
+
+    if (end <= start) return false;
+
+    return nowM >= start && nowM < end;
+  })();
+
+  const outingTitle = 'Outing in progress';
 
   return (
     <View style={styles.screen}>
@@ -245,35 +254,30 @@ export default function EditHubScreen() {
           {/* Schedule banner (created / loaded) */}
           <ScheduleBanner />
 
-          {/* Outing banner (ONLY during outing window) */}
-          <OutingWindowBanner />
 
           {/* Outing summary card, when an outing exists */}
-          {hasOuting && (
+          {isOutingActiveNow && (
             <View
               style={[
                 styles.outingSummary,
-                isCompleteShort && styles.outingSummaryComplete,
               ]}
             >
               <View style={styles.outingSummaryInner}>
                 <View
                   style={[
                     styles.outingSummaryIconBubble,
-                    isCompleteShort && styles.outingSummaryIconBubbleComplete,
                   ]}
                 >
                   <Ionicons
                     name="car-outline"
                     size={22}
-                    color={isCompleteShort ? '#166534' : '#C05621'}
+                    color={'#C05621'}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={[
                       styles.outingSummaryTitle,
-                      isCompleteShort && styles.outingSummaryTitleComplete,
                     ]}
                   >
                     {outingTitle}
@@ -281,7 +285,6 @@ export default function EditHubScreen() {
                   <Text
                     style={[
                       styles.outingSummaryLine,
-                      isCompleteShort && styles.outingSummaryLineComplete,
                     ]}
                   >
                     {outingGroup?.name || 'Unnamed outing'}
@@ -290,7 +293,6 @@ export default function EditHubScreen() {
                   <Text
                     style={[
                       styles.outingSummaryLine,
-                      isCompleteShort && styles.outingSummaryLineComplete,
                     ]}
                   >
                     {outingStaffCount} staff · {outingParticipantCount} participants
