@@ -189,10 +189,11 @@ export default function EditHubScreen() {
   const router = useRouter();
   const { outingGroup } = useSchedule() as { outingGroup?: OutingGroup | null };
 
-  // Auto-hydrate today on first load
-  useEffect(() => {
-    initScheduleForToday('B2');
-  }, []);
+useEffect(() => {
+  void initScheduleForToday('B2').catch((e) => {
+    console.error('initScheduleForToday failed (edit hub):', e);
+  });
+}, []);
 
   const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
   const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
