@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
@@ -21,6 +21,15 @@ import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 type ID = string;
 
 const PINK = '#F54FA5';
+
+const TIME_24H_RE = /^(?:[01]?\d|2[0-3]):[0-5]\d$/;
+
+function isValid24hTime(value: string): boolean {
+  const v = (value || '').trim();
+  if (!v) return true;
+  return TIME_24H_RE.test(v);
+}
+
 
 type StaffLike = {
   experience_level?: number | null;
@@ -125,6 +134,24 @@ export default function OutingsScreen() {
     notes: '',
   };
 
+// -------------------------------------------------------------------------
+  // Time inputs (24-hour)
+  // - Staff must enter times like 14:00 (not 2:00) to avoid AM/PM ambiguity.
+  // - We keep local drafts so invalid typing doesn't break the schedule state.
+  // -------------------------------------------------------------------------
+  const [startDraft, setStartDraft] = useState<string>(current.startTime || '');
+  const [endDraft, setEndDraft] = useState<string>(current.endTime || '');
+
+  useEffect(() => {
+    setStartDraft(current.startTime || '');
+    setEndDraft(current.endTime || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current.startTime, current.endTime]);
+
+  const startInvalid = !isValid24hTime(startDraft);
+  const endInvalid = !isValid24hTime(endDraft);
+
+
   const staffOnOuting = new Set<string>((current.staffIds ?? []) as string[]);
   const partsOnOuting = new Set<string>(
     (current.participantIds ?? []) as string[],
@@ -164,7 +191,15 @@ export default function OutingsScreen() {
   };
 
   const handleTimeChange = (key: 'startTime' | 'endTime', value: string) => {
-    applyChange({ [key]: value });
+    const next = value;
+
+    if (key === 'startTime') setStartDraft(next);
+    if (key === 'endTime') setEndDraft(next);
+
+    // Enforce 24h time format (HH:MM). Do not write invalid values into schedule state.
+    if (!isValid24hTime(next)) return;
+
+    applyChange({ [key]: next });
   };
 
   const handleNotesChange = (value: string) => {
@@ -222,26 +257,36 @@ export default function OutingsScreen() {
               value={current.name}
               onChangeText={handleNameChange}
               placeholder="e.g. Shopping with Shatha"
-              style={styles.input}
+              keyboardType="numeric"
+                  maxLength={5}
+                  style={styles.input}
             />
             <View style={[styles.row, { marginTop: 8 }]}>
               <View style={{ flex: 1, marginRight: 6 }}>
                 <Text style={styles.sectionTitle}>Start Time</Text>
                 <TextInput
-                  value={current.startTime}
+                  value={startDraft}
                   onChangeText={(v) => handleTimeChange('startTime', v)}
-                  placeholder="11:00"
+                  placeholder="11:00 (24h)"
+                  keyboardType="numeric"
+                  maxLength={5}
                   style={styles.input}
                 />
+                {startInvalid && (
+                  <Text style={styles.timeError}>Use 24-hour time (e.g. 14:00)</Text>
+                )}
               </View>
               <View style={{ flex: 1, marginLeft: 6 }}>
                 <Text style={styles.sectionTitle}>End Time</Text>
                 <TextInput
-                  value={current.endTime}
+                  value={endDraft}
                   onChangeText={(v) => handleTimeChange('endTime', v)}
-                  placeholder="15:00"
+                  placeholder="14:00 (24h)"
                   style={styles.input}
                 />
+                {endInvalid && (
+                  <Text style={styles.timeError}>Use 24-hour time (e.g. 14:00)</Text>
+                )}
               </View>
             </View>
           </View>
