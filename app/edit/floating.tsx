@@ -625,7 +625,7 @@ function buildAutoAssignments(
   return result;
 }
 
-export default function FloatingScreen() {
+function FloatingScreenInner() {
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
@@ -1830,5 +1830,53 @@ function Tag({ children }: { children: React.ReactNode }) {
         {children as any}
       </Text>
     </View>
+  );
+}
+
+// --- Error boundary wrapper (prevents silent white-screen on web) ---
+class FloatingErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, info: any) {
+    // eslint-disable-next-line no-console
+    console.error('Floating screen crashed:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, padding: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Floating screen error</Text>
+          <Text style={{ fontSize: 14, opacity: 0.8, marginBottom: 12 }}>
+            Something went wrong while rendering Floating. Open the browser console for the detailed error.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.replace('/edit')}
+            style={{
+              alignSelf: 'flex-start',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: '#111827',
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: '700' }}>Back to Edit Hub</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children as any;
+  }
+}
+
+export default function FloatingScreen() {
+  return (
+    <FloatingErrorBoundary>
+      <FloatingScreenInner />
+    </FloatingErrorBoundary>
   );
 }
