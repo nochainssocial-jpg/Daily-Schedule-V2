@@ -13,7 +13,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
 import {
-  STAFF as STATIC_STAFF,
+  ,
   PARTICIPANTS as STATIC_PARTS,
 } from '@/constants/data';
 import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
@@ -214,7 +214,7 @@ export default function EditAssignmentsScreen() {
   const { push } = useNotifications();
 
   const staffSource =
-    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) ||
+    (scheduleStaff && scheduleStaff.length ? scheduleStaff : []) ||
     [];
   const partsSource =
     (scheduleParts && scheduleParts.length ? scheduleParts : STATIC_PARTS) ||

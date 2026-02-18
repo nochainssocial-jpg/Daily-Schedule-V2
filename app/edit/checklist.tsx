@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
-import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
+import { DEFAULT_CHECKLIST } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
@@ -45,7 +45,7 @@ export default function EditChecklistScreen() {
   // Prefer schedule staff, fallback to static
   const staff = (scheduleStaff && scheduleStaff.length
     ? scheduleStaff
-    : STATIC_STAFF) as typeof STATIC_STAFF;
+    : []) as typeof [];
 
   // Dream Team (if present) or all staff
   const staffPool = useMemo(
@@ -134,7 +134,7 @@ export default function EditChecklistScreen() {
               Checklist items
             </Text>
 
-            {DEFAULT_CHECKLIST.map((item) => {
+            {((checklistFromStore.length ? checklistFromStore : DEFAULT_CHECKLIST) as any[]).map((item) => {
               const key = String(item.id);
               const checked = !!finalChecklist?.[key];
               const label = (item as any).name || (item as any).label || '';

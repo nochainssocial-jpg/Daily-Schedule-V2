@@ -19,7 +19,6 @@ import { supabase } from '@/lib/supabase';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
-import { PARTICIPANTS as STATIC_PARTICIPANTS } from '@/constants/data';
 import {
   getRiskBand,
   MAX_PARTICIPANT_SCORE,
@@ -35,7 +34,7 @@ const MAX_WIDTH = 880;
 
 const makePartMap = () => {
   const map: Record<string, any> = {};
-  STATIC_PARTICIPANTS.forEach((p) => {
+  [].forEach((p) => {
     map[p.id] = p;
   });
   return map;
@@ -290,7 +289,7 @@ export default function EditParticipantsScreen() {
   // Prefer Supabase participants snapshot when available so we get live ratings.
   const participantsSource = (participants && participants.length
     ? participants
-    : STATIC_PARTICIPANTS) as any[];
+    : []) as any[];
 
   const allParts = useMemo(
     () => sortByName(participantsSource.slice()),

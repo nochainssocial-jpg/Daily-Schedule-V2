@@ -79,6 +79,7 @@ export default function CleaningEditScreen() {
 
   const {
     staff,
+    chores: choresFromStore = [],
     workingStaff,
     cleaningAssignments = {},
     outingGroup = null,
@@ -97,10 +98,10 @@ export default function CleaningEditScreen() {
   // 🔁 Stable, alphabetical chores list
   const chores: Chore[] = useMemo(
     () =>
-      [...(DEFAULT_CHORES || [])].sort((a, b) =>
+      [...(((Array.isArray(choresFromStore) && choresFromStore.length) ? choresFromStore : (DEFAULT_CHORES || [])) as any[])].sort((a, b) =>
         String(a.name).localeCompare(String(b.name), 'en-AU'),
       ),
-    [],
+    [choresFromStore],
   );
 
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
