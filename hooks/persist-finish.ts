@@ -45,6 +45,7 @@ type PersistParams = {
   finalChecklistStaff?: ID;
 
   recentSnapshots?: ScheduleSnapshot[];
+  chores?: { id: ID; name: string; slotId?: ID }[];
 
   date?: string;
 };
@@ -155,9 +156,7 @@ export async function persistFinish(params: PersistParams) {
   // CLEANING — fairness engine (unchanged from your patched logic)
   // ----------------------------------------------------------------------------
 
-  const chores =
-    ((Data as any).DEFAULT_CHORES as { id: ID; name: string; slotId?: ID }[]) ||
-    [];
+  const chores = (params.chores && params.chores.length ? params.chores : (((Data as any).DEFAULT_CHORES as { id: ID; name: string; slotId?: ID }[]) || []));
 
   const nextCleaning: ScheduleSnapshot['cleaningAssignments'] = {
     ...(cleaningAssignments || {}),

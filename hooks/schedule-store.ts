@@ -1,9 +1,10 @@
 // hooks/schedule-store.ts
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import type { Staff, Participant } from '@/constants/data';
+import type { Staff, Participant, Chore, ChecklistItem } from '@/constants/data';
 import { TIME_SLOTS } from '@/constants/data';
 import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
+import { supabase } from '@/lib/supabase';
 
 export type ID = string;
 
@@ -90,6 +91,13 @@ export type ScheduleBanner = {
 };
 
 export type ScheduleState = ScheduleSnapshot & {
+  // Master data (Supabase)
+  chores: Chore[];
+  checklistItems: ChecklistItem[];
+  masterDataLoaded: boolean;
+  masterDataLoading: boolean;
+  loadMasterData: () => Promise<void>;
+
   scheduleStep: number;
   selectedDate?: string;
 
@@ -192,6 +200,10 @@ function normalizeDropoffAssignments(
 
 export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
+  chores: [],
+  checklistItems: [],
+  masterDataLoaded: false,
+  masterDataLoading: false,
 
   scheduleStep: 0,
   selectedDate: undefined,
@@ -201,6 +213,53 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   currentInitDate: undefined,
 
   recentCleaningSnapshots: [],
+
+  loadMasterData: async () => {
+    const state = get();
+    if (state.masterDataLoading || state.masterDataLoaded) return;
+
+    set({ masterDataLoading: true });
+
+    try {
+      const [staffRes, partRes, choresRes, checklistRes] = await Promise.all([
+        supabase.from('staff').select('*').order('name', { ascending: true }),
+        supabase.from('participants').select('*').order('name', { ascending: true }),
+        supabase.from('cleaning_chores').select('*').order('id', { ascending: true }),
+        supabase.from('final_checklist_items').select('*').order('id', { ascending: true }),
+      ]);
+
+      const staff = (staffRes.data || []) as any[];
+      const participants = (partRes.data || []) as any[];
+      const chores = (choresRes.data || []) as any[];
+      const checklistItems = (checklistRes.data || []) as any[];
+
+      // Map DB rows into app types (keep unknown fields for now; screens use what they need)
+      set((s) => ({
+        ...s,
+        staff: staff.map((r) => ({
+          id: String(r.id),
+          name: r.name,
+          phone: r.phone ?? undefined,
+          color: r.color ?? undefined,
+          gender: r.gender ?? undefined,
+          isTeamLeader: r.is_team_leader ?? r.isTeamLeader ?? false,
+        })),
+        participants: participants.map((r) => ({
+          id: String(r.id),
+          name: r.name,
+          // keep extra columns accessible via (participant as any)
+          ...(r as any),
+        })),
+        chores: chores.map((r) => ({ id: String(r.id), name: r.name })),
+        checklistItems: checklistItems.map((r) => ({ id: String(r.id), name: r.name })),
+        masterDataLoaded: true,
+        masterDataLoading: false,
+      }));
+    } catch (e) {
+      console.error('[masterData] load failed', e);
+      set({ masterDataLoading: false });
+    }
+  },
 
   createSchedule: (snapshot: ScheduleSnapshot) =>
     new Promise<void>((resolve) => {
@@ -340,6 +399,11 @@ export async function initialiseScheduleForTodayIfNeeded(
 ) {
   const state = useSchedule.getState();
 
+  // Ensure master data is loaded (staff, participants, chores, checklist)
+  try {
+    await state.loadMasterData();
+  } catch {}
+
   // If we've already initialised for this date, do nothing
   if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
     return;
@@ -353,6 +417,10 @@ export async function initialiseScheduleForTodayIfNeeded(
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
+  chores: [],
+  checklistItems: [],
+  masterDataLoaded: false,
+  masterDataLoading: false,
         date: todayKey,
         banner: {
           type: 'created',
@@ -371,6 +439,10 @@ export async function initialiseScheduleForTodayIfNeeded(
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
+  chores: [],
+  checklistItems: [],
+  masterDataLoaded: false,
+  masterDataLoading: false,
         date: todayKey,
         banner: {
           type: 'created',
@@ -389,6 +461,10 @@ export async function initialiseScheduleForTodayIfNeeded(
 
     const normalizedSnapshot: ScheduleSnapshot = {
       ...makeInitialSnapshot(),
+  chores: [],
+  checklistItems: [],
+  masterDataLoaded: false,
+  masterDataLoading: false,
       ...(snapshot as ScheduleSnapshot),
       dropoffAssignments: normalizedDropoffs,
     };
@@ -415,6 +491,10 @@ export async function initialiseScheduleForTodayIfNeeded(
     useSchedule.setState((s) => ({
       ...s,
       ...makeInitialSnapshot(),
+  chores: [],
+  checklistItems: [],
+  masterDataLoaded: false,
+  masterDataLoading: false,
       date: todayKey,
       banner: {
         type: 'created',
