@@ -878,6 +878,58 @@ const roomNotAttending = useMemo(
 );
 
 
+
+type RoomDirective = { active: boolean; forcedId?: string | null };
+
+const roomCountsForSlot = (col: ColKey, slot: any): { attending: number; offsite: number; onsite: number } => {
+  const groupIds = getGroupIds(col);
+  if (!groupIds.length) return { attending: 0, offsite: 0, onsite: 0 };
+
+  const attendingGroup = groupIds.filter((id) => participantsAttendingSet.has(String(id)));
+  if (!attendingGroup.length) return { attending: 0, offsite: 0, onsite: 0 };
+
+  if (!outingGroup) return { attending: attendingGroup.length, offsite: 0, onsite: attendingGroup.length };
+
+  const outingIds = new Set<string>(((outingGroup.participantIds ?? []) as any[]).map((id) => String(id)));
+
+  const slotWindow = getSlotWindowMinutes(slot);
+  const outingWindow = getOutingWindowMinutes(outingGroup);
+
+  const windowOverlaps =
+    outingWindow.start == null || outingWindow.end == null
+      ? true
+      : timesOverlap(slotWindow.start, slotWindow.end, outingWindow.start, outingWindow.end);
+
+  if (!windowOverlaps) {
+    return { attending: attendingGroup.length, offsite: 0, onsite: attendingGroup.length };
+  }
+
+  const offsiteCount = attendingGroup.filter((id) => outingIds.has(String(id))).length;
+  const onsiteCount = attendingGroup.length - offsiteCount;
+
+  return { attending: attendingGroup.length, offsite: offsiteCount, onsite: onsiteCount };
+};
+
+const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
+  // Not attending: no supervision required
+  if (roomNotAttending[col]) return { active: false, forcedId: null };
+
+  // Offsite: no supervision required (and don't consume staff during auto-assign)
+  if (isRoomOffsiteForSlot(col, slot)) return { active: false, forcedId: '__OFFSITE__' };
+
+  // Front Room operational rule:
+  // - Needs supervision if onsite participants >= 3
+  // - If onsite < 3, Front Room merges into main group (no dedicated floater required)
+  if (col === 'frontRoom') {
+    const counts = roomCountsForSlot('frontRoom', slot);
+    if (counts.attending === 0) return { active: false, forcedId: null };
+    return { active: counts.onsite >= 3, forcedId: null };
+  }
+
+  // Scotty + Twins require supervision whenever at least one participant is onsite & attending.
+  const counts = roomCountsForSlot(col, slot);
+  return { active: counts.onsite > 0, forcedId: null };
+};
   const activeRoomsForSlot = (slot: any): ColKey[] => {
     // Rooms requiring staff coverage for this slot, ordered by priority.
     // Twins are always highest needs.
