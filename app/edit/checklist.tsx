@@ -43,9 +43,7 @@ export default function EditChecklistScreen() {
   const readOnly = !isAdmin;
 
   // Prefer schedule staff, fallback to static
-  const staff = (scheduleStaff && scheduleStaff.length
-    ? scheduleStaff
-    : []) as typeof [];
+  const staff: Staff[] = scheduleStaff?.length ? scheduleStaff : [];
 
   // Dream Team (if present) or all staff
   const staffPool = useMemo(
