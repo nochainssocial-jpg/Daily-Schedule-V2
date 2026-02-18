@@ -95,7 +95,7 @@ export default function OutingWindowBanner() {
   if (!status.show) return null;
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.root}>
       <View style={styles.banner}>
         <View style={styles.iconPill}>
           <Ionicons name="car-outline" size={16} color="#fff" />
@@ -115,10 +115,14 @@ export default function OutingWindowBanner() {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 6,
+  root: {
+    position: 'absolute',
+    top: 92,
+    left: 24,
+    right: 24,
+    zIndex: 150,
+    alignItems: 'center',
+    pointerEvents: 'none',
   },
   banner: {
     flexDirection: 'row',
@@ -134,6 +138,8 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
+    width: '100%',
+    maxWidth: 720,
   },
   iconPill: {
     width: 30,
@@ -142,7 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: PINK,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   title: {
     fontSize: 13,
@@ -152,7 +158,13 @@ const styles = StyleSheet.create({
   sub: {
     marginTop: 2,
     fontSize: 12,
+    color: '#6b5b72',
     fontWeight: '600',
-    color: 'rgba(43,34,48,0.65)',
+  },
+  meta: {
+    marginTop: 6,
+    fontSize: 11,
+    color: '#6b5b72',
+    fontWeight: '600',
   },
 });
