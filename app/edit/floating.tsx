@@ -649,6 +649,13 @@ function FloatingScreenInner() {
     timeSlots: scheduleTimeSlots = [],
   } = useSchedule() as any;
 
+  const getNow = () => new Date();
+
+  const nowMinutesOfDay = () => {
+    const d = getNow();
+    return d.getHours() * 60 + d.getMinutes();
+  };
+
   const TIME_SLOTS = useMemo(
     () =>
       (Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length
