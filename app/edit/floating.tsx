@@ -36,16 +36,8 @@ const WRAP = {
   paddingHorizontal: 12,
 };
 
-const { timeSlots: masterTimeSlots } = useSchedule() as any;
-
-const TIME_SLOTS: Array<{
-  id: string;
-  startTime?: string;
-  endTime?: string;
-  displayTime?: string;
-}> = Array.isArray(masterTimeSlots) && masterTimeSlots.length
-  ? masterTimeSlots
-  : (Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : []);
+// NOTE: Do NOT call hooks at module scope.
+// Time slots are resolved inside the component from schedule state (Supabase) with a safe fallback.
 
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
 // Assignment priority (Twins highest needs)
@@ -718,7 +710,23 @@ export default function FloatingScreen() {
     touch,
     selectedDate,
     attendingParticipants = [],
+    timeSlots: scheduleTimeSlots = [],
   } = useSchedule() as any;
+
+  const TIME_SLOTS = useMemo(
+    () =>
+      (Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length
+        ? scheduleTimeSlots
+        : Array.isArray((Data as any).TIME_SLOTS)
+          ? (Data as any).TIME_SLOTS
+          : []) as Array<{
+        id: string;
+        startTime?: string;
+        endTime?: string;
+        displayTime?: string;
+      }>,
+    [scheduleTimeSlots],
+  );
 
   const staffById = useMemo(() => {
     const m: Record<string, any> = {};
