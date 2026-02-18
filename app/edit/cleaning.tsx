@@ -69,7 +69,7 @@ function getOutingWindowMinutes(outingGroup: any): {
 }
 
 export default function CleaningEditScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
+  const { staff: masterStaff, participants: masterParticipants, chores: rawChores, checklistItems, timeSlots } = useSchedule() as any;
 
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
@@ -99,11 +99,12 @@ export default function CleaningEditScreen() {
   // 🔁 Stable, alphabetical chores list
   const chores: Chore[] = useMemo(
     () =>
-      [...(chores || [])].sort((a, b) =>
+      [...(rawChores || [])].sort((a, b) =>
         String(a.name).localeCompare(String(b.name), 'en-AU'),
       ),
-    [],
+    [rawChores],
   );
+
 
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
   const activeChore = useMemo(
