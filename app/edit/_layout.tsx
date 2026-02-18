@@ -6,7 +6,6 @@ import { Edit3 } from 'lucide-react-native';
 
 // 🔔 ADD THIS
 import NotificationToaster from '@/components/NotificationToaster';
-import OutingWindowBanner from '@/components/OutingWindowBanner';
 
 const PINK = '#F54FA5';
 const DARK_GREY = '#444444';
@@ -33,7 +32,6 @@ export default function EditLayout() {
     <>
       {/* 🔔 NOTIFICATIONS ALSO APPEAR IN EDIT HUB */}
       <NotificationToaster />
-      <OutingWindowBanner />
 
       <Stack
         screenOptions={{

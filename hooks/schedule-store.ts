@@ -1,7 +1,7 @@
 // hooks/schedule-store.ts
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import type { Staff, Participant, Chore, ChecklistItem } from '@/constants/data';
+import type { Staff, Participant, Chore, ChecklistItem, TimeSlot } from '@/constants/data';
 import { TIME_SLOTS } from '@/constants/data';
 import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
 import { supabase } from '@/lib/supabase';
@@ -94,6 +94,7 @@ export type ScheduleState = ScheduleSnapshot & {
   // Master data (Supabase)
   chores: Chore[];
   checklistItems: ChecklistItem[];
+  timeSlots: TimeSlot[];
   masterDataLoaded: boolean;
   masterDataLoading: boolean;
   loadMasterData: () => Promise<void>;
@@ -202,6 +203,7 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   ...makeInitialSnapshot(),
   chores: [],
   checklistItems: [],
+  timeSlots: TIME_SLOTS,
   masterDataLoaded: false,
   masterDataLoading: false,
 
@@ -221,17 +223,19 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
     set({ masterDataLoading: true });
 
     try {
-      const [staffRes, partRes, choresRes, checklistRes] = await Promise.all([
+      const [staffRes, partRes, choresRes, checklistRes, timeSlotsRes] = await Promise.all([
         supabase.from('staff').select('*').order('name', { ascending: true }),
         supabase.from('participants').select('*').order('name', { ascending: true }),
         supabase.from('cleaning_chores').select('*').order('id', { ascending: true }),
         supabase.from('final_checklist_items').select('*').order('id', { ascending: true }),
+        supabase.from('time_slots').select('*').order('id', { ascending: true }),
       ]);
 
       const staff = (staffRes.data || []) as any[];
       const participants = (partRes.data || []) as any[];
       const chores = (choresRes.data || []) as any[];
       const checklistItems = (checklistRes.data || []) as any[];
+      const timeSlots = (timeSlotsRes.data || []) as any[];
 
       // Map DB rows into app types (keep unknown fields for now; screens use what they need)
       set((s) => ({
@@ -252,6 +256,12 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         })),
         chores: chores.map((r) => ({ id: String(r.id), name: r.name })),
         checklistItems: checklistItems.map((r) => ({ id: String(r.id), name: r.name })),
+        timeSlots: (timeSlots.length ? timeSlots.map((r) => ({
+          id: String(r.id),
+          startTime: r.start_time ?? r.startTime ?? r.start ?? r.starttime ?? '',
+          endTime: r.end_time ?? r.endTime ?? r.end ?? r.endtime ?? '',
+          displayTime: r.display_time ?? r.displayTime ?? r.display ?? r.label ?? '',
+        })) : TIME_SLOTS),
         masterDataLoaded: true,
         masterDataLoading: false,
       }));
@@ -419,6 +429,7 @@ export async function initialiseScheduleForTodayIfNeeded(
         ...makeInitialSnapshot(),
   chores: [],
   checklistItems: [],
+  timeSlots: TIME_SLOTS,
   masterDataLoaded: false,
   masterDataLoading: false,
         date: todayKey,
@@ -441,6 +452,7 @@ export async function initialiseScheduleForTodayIfNeeded(
         ...makeInitialSnapshot(),
   chores: [],
   checklistItems: [],
+  timeSlots: TIME_SLOTS,
   masterDataLoaded: false,
   masterDataLoading: false,
         date: todayKey,
@@ -463,6 +475,7 @@ export async function initialiseScheduleForTodayIfNeeded(
       ...makeInitialSnapshot(),
   chores: [],
   checklistItems: [],
+  timeSlots: TIME_SLOTS,
   masterDataLoaded: false,
   masterDataLoading: false,
       ...(snapshot as ScheduleSnapshot),
@@ -493,6 +506,7 @@ export async function initialiseScheduleForTodayIfNeeded(
       ...makeInitialSnapshot(),
   chores: [],
   checklistItems: [],
+  timeSlots: TIME_SLOTS,
   masterDataLoaded: false,
   masterDataLoading: false,
       date: todayKey,

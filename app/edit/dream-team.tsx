@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import SaveExit from '@/components/SaveExit';
 import { useSchedule } from '@/hooks/schedule-store';
+import { masterStaff as STATIC_STAFF } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import Chip from '@/components/Chip';
@@ -54,6 +55,8 @@ const sortByName = (list: any[]) =>
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
 export default function EditDreamTeamScreen() {
+  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
+
   const { width } = useWindowDimensions();
   const { push } = useNotifications();
   const isAdmin = useIsAdmin();
@@ -71,7 +74,7 @@ export default function EditDreamTeamScreen() {
   const baseStaffSource =
     (Array.isArray(scheduleStaff) && scheduleStaff.length
       ? scheduleStaff
-      : []) || [];
+      : STATIC_STAFF) || [];
 
   // Live ratings from Supabase – keyed by staff id / legacy_id / name
   const [ratingLookup, setRatingLookup] = useState<Record<string, any>>({});

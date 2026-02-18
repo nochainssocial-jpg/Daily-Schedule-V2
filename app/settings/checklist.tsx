@@ -105,29 +105,21 @@ export default function ChecklistSettingsScreen() {
   }
 
   function confirmDeleteItem(item: ChecklistRow) {
-    const doDelete = async () => {
-      const { error } = await supabase.from('final_checklist_items').delete().eq('id', item.id);
-      if (error) {
-        Alert.alert('Delete failed', error.message || 'Unable to delete this checklist item.');
-        return;
-      }
-      setItems(prev => prev.filter(i => i.id !== item.id));
-    };
-
-    const title = 'Remove checklist item';
-    const message = `Remove "${item.name}" from the final checklist? This action cannot be undone.`;
-
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
-      const ok = typeof confirm === 'function' ? confirm(message) : true;
-      if (ok) void doDelete();
-      return;
-    }
-
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
-    ]);
+    Alert.alert(
+      'Remove checklist item',
+      `Remove "${item.name}" from the final checklist? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('final_checklist_items').delete().eq('id', item.id);
+            setItems(prev => prev.filter(i => i.id !== item.id));
+          },
+        },
+      ],
+    );
   }
 
   return (

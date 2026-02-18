@@ -2,7 +2,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSchedule, type ID } from '@/hooks/schedule-store';
-import { DEFAULT_CHORES, type Chore } from '@/constants/data';
+import { chores, type Chore } from '@/constants/data';
 
 const MAX_WIDTH = 880;
 
@@ -15,6 +15,8 @@ const formatAusDate = (iso?: string) => {
 };
 
 export default function SchedulePrintable() {
+  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
+
   const {
     staff,
     participants,
@@ -65,7 +67,7 @@ export default function SchedulePrintable() {
 
   const checklistStaff = findStaff(finalChecklistStaff || null);
 
-  const chores: Chore[] = DEFAULT_CHORES || [];
+  const chores: Chore[] = chores || [];
 
   return (
     <View style={styles.page}>

@@ -36,17 +36,49 @@ const WRAP = {
   paddingHorizontal: 12,
 };
 
+const { timeSlots: masterTimeSlots } = useSchedule() as any;
+
 const TIME_SLOTS: Array<{
   id: string;
   startTime?: string;
   endTime?: string;
   displayTime?: string;
-}> = Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : [];
+}> = Array.isArray(masterTimeSlots) && masterTimeSlots.length
+  ? masterTimeSlots
+  : (Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : []);
 
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
 
 // Participant groups for each floating room
+const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
+  ? ((Data as any).PARTICIPANTS as any[])
+  : [];
 
+function findParticipantIdByName(name: string): string | null {
+  const lower = name.trim().toLowerCase();
+  const found = PARTICIPANTS.find((p) =>
+    String(p?.name || '').trim().toLowerCase() === lower,
+  );
+  return found ? String(found.id) : null;
+}
+
+const FRONT_ROOM_GROUP: string[] = [];
+['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'].forEach((n) => {
+  const id = findParticipantIdByName(n);
+  if (id) FRONT_ROOM_GROUP.push(id);
+});
+
+const SCOTTY_GROUP: string[] = [];
+['Scott'].forEach((n) => {
+  const id = findParticipantIdByName(n);
+  if (id) SCOTTY_GROUP.push(id);
+});
+
+const TWINS_GROUP: string[] = [];
+['Zara', 'Zoya'].forEach((n) => {
+  const id = findParticipantIdByName(n);
+  if (id) TWINS_GROUP.push(id);
+});
 
 function getParticipantGroupForRoom(col: ColKey): string[] {
   switch (col) {
@@ -670,7 +702,6 @@ export default function FloatingScreen() {
 
   const {
     staff = [],
-    participants = [],
     workingStaff = [],
     floatingAssignments = {},
     outingGroup = null,
@@ -771,42 +802,6 @@ export default function FloatingScreen() {
         ),
     [onsiteWorking],
   );
-
-// -------------------------------------------------------------------------
-  // Participant groups (Front Room / Scotty / Twins)
-  // IMPORTANT: derive IDs from the *current schedule participants* (Supabase),
-  // not from static constants, otherwise attendance checks will misfire.
-  // -------------------------------------------------------------------------
-  const participantIdByName = useMemo(() => {
-    const map = new Map<string, string>();
-    (participants || []).forEach((p: any) => {
-      const key = String(p?.name || '').trim().toLowerCase();
-      if (!key) return;
-      map.set(key, String(p.id));
-    });
-    return map;
-  }, [participants]);
-
-  const FRONT_ROOM_GROUP = useMemo(() => {
-    const names = ['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'];
-    return names
-      .map((n) => participantIdByName.get(n.trim().toLowerCase()))
-      .filter(Boolean) as string[];
-  }, [participantIdByName]);
-
-  const SCOTTY_GROUP = useMemo(() => {
-    const names = ['Scott'];
-    return names
-      .map((n) => participantIdByName.get(n.trim().toLowerCase()))
-      .filter(Boolean) as string[];
-  }, [participantIdByName]);
-
-  const TWINS_GROUP = useMemo(() => {
-    const names = ['Antoinette', 'Rosa'];
-    return names
-      .map((n) => participantIdByName.get(n.trim().toLowerCase()))
-      .filter(Boolean) as string[];
-  }, [participantIdByName]);
 
   // 🔹 Attendance-based room availability (Not attending)
   const participantsAttendingSet = useMemo(

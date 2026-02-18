@@ -126,29 +126,21 @@ export default function StaffSettingsScreen() {
   }
 
   function confirmDeleteStaff(member: StaffRow) {
-    const doDelete = async () => {
-      const { error } = await supabase.from('staff').delete().eq('id', member.id);
-      if (error) {
-        Alert.alert('Delete failed', error.message || 'Unable to delete this staff member.');
-        return;
-      }
-      setStaff(prev => prev.filter(s => s.id !== member.id));
-    };
-
-    const title = 'Remove staff member';
-    const message = `Remove ${member.name} from the staff list? This action cannot be undone.`;
-
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
-      const ok = typeof confirm === 'function' ? confirm(message) : true;
-      if (ok) void doDelete();
-      return;
-    }
-
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
-    ]);
+    Alert.alert(
+      'Remove staff member',
+      `Remove ${member.name} from the staff list? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('staff').delete().eq('id', member.id);
+            setStaff(prev => prev.filter(s => s.id !== member.id));
+          },
+        },
+      ],
+    );
   }
 
   function startEdit(member: StaffRow) {

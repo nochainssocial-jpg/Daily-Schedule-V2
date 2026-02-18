@@ -12,6 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
+import {
+  masterStaff as STATIC_STAFF,
+  masterParticipants as STATIC_PARTS,
+} from '@/constants/data';
 import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
@@ -185,6 +189,8 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
 }
 
 export default function EditAssignmentsScreen() {
+  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
+
   const { width, height } = useWindowDimensions();
 
   // Treat "mobile web" as actual mobile browsers (iPhone / Android) only.
@@ -210,7 +216,7 @@ export default function EditAssignmentsScreen() {
   const { push } = useNotifications();
 
   const staffSource =
-    (scheduleStaff && scheduleStaff.length ? scheduleStaff : []) ||
+    (scheduleStaff && scheduleStaff.length ? scheduleStaff : STATIC_STAFF) ||
     [];
   const partsSource =
     (scheduleParts && scheduleParts.length ? scheduleParts : STATIC_PARTS) ||

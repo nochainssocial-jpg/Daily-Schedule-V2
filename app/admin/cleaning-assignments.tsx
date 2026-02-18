@@ -1,3 +1,4 @@
+import { useSchedule } from '@/hooks/schedule-store';
 // app/admin/cleaning-assignments.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -10,8 +11,6 @@ import {
 } from 'react-native';
 import { useIsAdmin } from '@/hooks/access-control';
 import { supabase } from '@/lib/supabase';
-import { DEFAULT_CHORES } from '@/constants/data';
-
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
@@ -38,7 +37,7 @@ type ScheduleRow = {
   seq_id: number | null;
 };
 
-const CHORE_LABEL_BY_ID: Record<string, string> = DEFAULT_CHORES.reduce(
+const CHORE_LABEL_BY_ID: Record<string, string> = chores.reduce(
   (acc, chore) => {
     acc[chore.id] = chore.name;
     return acc;
@@ -103,6 +102,8 @@ function normaliseSnapshot(raw: any): Snapshot | null {
 }
 
 export default function CleaningAssignmentsReportScreen() {
+  const { chores } = useSchedule() as any;
+
   const isAdmin = useIsAdmin();
 
   // 0 = current week; on a Saturday this is the week that just finished

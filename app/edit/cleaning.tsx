@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
 import {
-  DEFAULT_CHORES,
+  chores,
   type Staff,
   type Chore,
 } from '@/constants/data';
@@ -69,6 +69,8 @@ function getOutingWindowMinutes(outingGroup: any): {
 }
 
 export default function CleaningEditScreen() {
+  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
+
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
@@ -79,7 +81,6 @@ export default function CleaningEditScreen() {
 
   const {
     staff,
-    chores: choresFromStore = [],
     workingStaff,
     cleaningAssignments = {},
     outingGroup = null,
@@ -98,10 +99,10 @@ export default function CleaningEditScreen() {
   // 🔁 Stable, alphabetical chores list
   const chores: Chore[] = useMemo(
     () =>
-      [...(((Array.isArray(choresFromStore) && choresFromStore.length) ? choresFromStore : (DEFAULT_CHORES || [])) as any[])].sort((a, b) =>
+      [...(chores || [])].sort((a, b) =>
         String(a.name).localeCompare(String(b.name), 'en-AU'),
       ),
-    [choresFromStore],
+    [],
   );
 
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);

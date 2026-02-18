@@ -105,29 +105,21 @@ export default function ChoresSettingsScreen() {
   }
 
   function confirmDeleteChore(chore: ChoreRow) {
-    const doDelete = async () => {
-      const { error } = await supabase.from('cleaning_chores').delete().eq('id', chore.id);
-      if (error) {
-        Alert.alert('Delete failed', error.message || 'Unable to delete this cleaning task.');
-        return;
-      }
-      setChores(prev => prev.filter(c => c.id !== chore.id));
-    };
-
-    const title = 'Remove cleaning task';
-    const message = `Remove "${chore.name}" from the cleaning list? This action cannot be undone.`;
-
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
-      const ok = typeof confirm === 'function' ? confirm(message) : true;
-      if (ok) void doDelete();
-      return;
-    }
-
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
-    ]);
+    Alert.alert(
+      'Remove cleaning task',
+      `Remove "${chore.name}" from the cleaning list? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('cleaning_chores').delete().eq('id', chore.id);
+            setChores(prev => prev.filter(c => c.id !== chore.id));
+          },
+        },
+      ],
+    );
   }
 
   return (

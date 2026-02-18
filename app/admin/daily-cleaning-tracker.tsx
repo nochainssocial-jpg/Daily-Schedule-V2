@@ -1,3 +1,4 @@
+import { useSchedule } from '@/hooks/schedule-store';
 // app/admin/daily-cleaning-tracker.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -10,8 +11,6 @@ import {
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useIsAdmin } from '@/hooks/access-control';
-import { DEFAULT_CHORES } from '@/constants/data';
-
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
@@ -33,7 +32,7 @@ type CleaningRow = {
 };
 
 // Map choreId -> chore label (same as cleaning-assignments.tsx)
-const CHORE_LABEL_BY_ID: Record<string, string> = DEFAULT_CHORES.reduce(
+const CHORE_LABEL_BY_ID: Record<string, string> = chores.reduce(
   (acc, chore) => {
     acc[chore.id] = chore.name;
     return acc;
@@ -82,6 +81,8 @@ function normaliseSnapshot(raw: any): Snapshot {
 // --------------------------- COMPONENT ---------------------------
 
 export default function DailyCleaningTrackerScreen() {
+  const { chores } = useSchedule() as any;
+
   const isAdmin = useIsAdmin();
   const [rows, setRows] = useState<CleaningRow[]>([]);
   const [loading, setLoading] = useState(false);

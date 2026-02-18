@@ -7,7 +7,8 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 import { persistFinish } from '@/hooks/persist-finish';
 import useSchedule from '@/hooks/schedule-adapter';
 import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/schedule-store';
-import { STAFF, PARTICIPANTS } from '@/constants/data';
+// Master data now loaded from Supabase via schedule-store
+
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type ID = string;
@@ -22,6 +23,13 @@ const isAntoinette = (name?: string) => nm(name) === 'antoinette';
 const TOTAL_STEPS = 6;
 
 export default function CreateScheduleScreen() {
+  const { staff: masterStaff, participants: masterParticipants, loadMasterData, masterDataLoaded } = baseSchedule();
+
+
+
+  useEffect(() => {
+    loadMasterData();
+  }, [loadMasterData]);
   // ---- safe hook access ----------------------------------------------------
   let hook: any = {};
   try {
@@ -57,9 +65,9 @@ export default function CreateScheduleScreen() {
   };
 
   // ---- sources & defaults --------------------------------------------------
-  const staffSource = (Array.isArray(staff) && staff.length ? staff : STAFF) || [];
+  const staffSource = (Array.isArray(staff) && staff.length ? staff : masterStaff) || [];
   const partsSource =
-    (Array.isArray(participants) && participants.length ? participants : PARTICIPANTS) || [];
+    (Array.isArray(participants) && participants.length ? participants : masterParticipants) || [];
   const everyone = staffSource.find(s => isEveryone(s.name));
   const everyoneId = everyone?.id;
 
@@ -864,9 +872,9 @@ export default function CreateScheduleScreen() {
         workingStaff: realWorkers,
         attendingParticipants,
         assignments: assignmentsMap,
-        floatingDraft: undefined,
-        cleaningDraft: undefined,
-        finalChecklistDraft: undefined,
+        floatingDraft: {},
+        cleaningDraft: {},
+        finalChecklistDraft: {},
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
@@ -923,11 +931,11 @@ const __ds_normaliseAssignmentsMap = (
 };
 
 snapshot = {
-        staff: (state.staff && (state.staff as any[]).length ? state.staff : (staffSource ?? [])),
-        participants: (state.participants && (state.participants as any[]).length ? state.participants : (partsSource ?? [])),
+        staff: state.staff ?? (staffSource ?? []),
+        participants: state.participants ?? (partsSource ?? []),
 
-        workingStaff: (state.workingStaff && (state.workingStaff as any[]).length ? state.workingStaff : realWorkers),
-        attendingParticipants: (state.attendingParticipants && (state.attendingParticipants as any[]).length ? state.attendingParticipants : attendingParticipants),
+        workingStaff: state.workingStaff ?? realWorkers,
+        attendingParticipants: state.attendingParticipants ?? attendingParticipants,
 
         assignments: __ds_normaliseAssignmentsMap(state.assignments, assignmentsMap),
         floatingAssignments: state.floatingAssignments ?? {},

@@ -7,12 +7,12 @@ import * as Data from '@/constants/data';
 
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
 
-const TIME_SLOTS: Array<{
+const timeSlots: Array<{
   id: string;
   startTime?: string;
   endTime?: string;
   displayTime?: string;
-}> = Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : [];
+}> = Array.isArray((Data as any).timeSlots) ? (Data as any).timeSlots : [];
 
 function slotLabel(slot: any): string {
   if (!slot) return '';
@@ -34,6 +34,8 @@ function isFSOTwinsSlot(slot?: any): boolean {
 }
 
 export default function PrintFloatingScreen() {
+  const { timeSlots } = useSchedule() as any;
+
   const params = useLocalSearchParams<{ staff?: string; date?: string }>();
   const filterStaffId =
     params.staff && params.staff !== 'ALL' ? String(params.staff) : null;
@@ -162,7 +164,7 @@ export default function PrintFloatingScreen() {
             <HeaderCell label="Twins" />
           </View>
 
-          {(TIME_SLOTS || []).map((slot: any, idx: number) => {
+          {(timeSlots || []).map((slot: any, idx: number) => {
             const slotId = String(slot.id ?? idx);
             const row = getRow(slotId);
 
