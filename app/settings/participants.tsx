@@ -22,6 +22,7 @@ const MAX_WIDTH = 880;
 
 type ParticipantRow = {
   id: string;
+  legacy_id?: number | null;
   name: string;
   color?: string | null;
   gender?: string | null;
@@ -97,7 +98,14 @@ export default function ParticipantsSettingsScreen() {
     const name = newName.trim();
     if (!name || !newGender || !newColor) return;
 
-    setSavingNew(true);
+    
+const maxLegacy = participants.reduce((m, p) => {
+  const v = typeof (p as any).legacy_id === 'number' ? (p as any).legacy_id : null;
+  return v !== null && !Number.isNaN(v) ? Math.max(m, v) : m;
+}, 0);
+const nextLegacy = maxLegacy + 1;
+
+setSavingNew(true);
     const { data, error } = await supabase
       .from('participants')
       .insert({
@@ -105,6 +113,7 @@ export default function ParticipantsSettingsScreen() {
         is_active: true,
         gender: newGender,
         color: newColor,
+        legacy_id: nextLegacy,
       })
       .select()
       .single();
@@ -124,29 +133,21 @@ export default function ParticipantsSettingsScreen() {
   }
 
   function confirmDeleteParticipant(p: ParticipantRow) {
-    const doDelete = async () => {
-      const { error } = await supabase.from('participants').delete().eq('id', p.id);
-      if (error) {
-        Alert.alert('Delete failed', error.message || 'Unable to delete this participant.');
-        return;
-      }
-      setParticipants(prev => prev.filter(x => x.id !== p.id));
-    };
-
-    const title = 'Remove participant';
-    const message = `Remove ${p.name} from the participants list? This action cannot be undone.`;
-
-    if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
-      const ok = typeof confirm === 'function' ? confirm(message) : true;
-      if (ok) void doDelete();
-      return;
-    }
-
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
-    ]);
+    Alert.alert(
+      'Remove participant',
+      `Remove ${p.name} from the participants list? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.from('participants').delete().eq('id', p.id);
+            setParticipants(prev => prev.filter(x => x.id !== p.id));
+          },
+        },
+      ],
+    );
   }
 
   const threeLevelOptions: Option[] = [
