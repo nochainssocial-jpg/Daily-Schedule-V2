@@ -963,6 +963,13 @@ const hasFrontRoom = useMemo(() => {
   return Object.values(existing).some((row: any) => !!row?.frontRoom);
 }, [floatingAssignments]);
 
+const getRow = (slotId: string): { frontRoom?: any; scotty?: any; twins?: any } => {
+  const fa: any = floatingAssignments || {};
+  const row = fa[slotId];
+  return (row && typeof row === 'object') ? row : {};
+};
+
+
 useEffect(() => {
   // 🔥 Auto-build using *onsite* working staff only
   if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
