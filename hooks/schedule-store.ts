@@ -238,33 +238,90 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       const timeSlots = (timeSlotsRes.data || []) as any[];
 
       // Map DB rows into app types (keep unknown fields for now; screens use what they need)
-      set((s) => ({
-        ...s,
-        staff: staff.map((r) => ({
+            set((s) => {
+        const mappedStaff = staff.map((r) => ({
           id: String(r.id),
           name: r.name,
           phone: r.phone ?? undefined,
           color: r.color ?? undefined,
           gender: r.gender ?? undefined,
           isTeamLeader: r.is_team_leader ?? r.isTeamLeader ?? false,
-        })),
-        participants: participants.map((r) => ({
-          id: String(r.id),
-          name: r.name,
-          // keep extra columns accessible via (participant as any)
-          ...(r as any),
-        })),
-        chores: chores.map((r) => ({ id: String(r.id), name: r.name })),
-        checklistItems: checklistItems.map((r) => ({ id: String(r.id), name: r.name })),
-        timeSlots: (timeSlots.length ? timeSlots.map((r) => ({
-          id: String(r.id),
-          startTime: r.start_time ?? r.startTime ?? r.start ?? r.starttime ?? '',
-          endTime: r.end_time ?? r.endTime ?? r.end ?? r.endtime ?? '',
-          displayTime: r.display_time ?? r.displayTime ?? r.display ?? r.label ?? '',
-        })) : TIME_SLOTS),
-        masterDataLoaded: true,
-        masterDataLoading: false,
-      }));
+        }));
+
+        const mappedParticipants = participants.map((r) => {
+          const legacyRaw =
+            (r as any).legacy_id ?? (r as any).legacyId ?? (r as any).legacy ?? null;
+          const legacy =
+            legacyRaw === null || legacyRaw === undefined || legacyRaw === ''
+              ? null
+              : Number(legacyRaw);
+          const scheduleId =
+            legacy !== null && !Number.isNaN(legacy) ? String(legacy) : String(r.id);
+
+          return {
+            ...(r as any),
+            id: scheduleId, // used in schedules/attending/outing etc.
+            dbId: String(r.id), // Supabase UUID PK
+            legacyId: legacy !== null && !Number.isNaN(legacy) ? legacy : undefined,
+            name: r.name,
+          };
+        });
+
+        // Normalise any existing schedule snapshot IDs that may still be UUIDs
+        // (e.g. schedules created before legacy_id rollout)
+        const pIdMap = new Map<string, string>();
+        mappedParticipants.forEach((p: any) => {
+          if (p?.dbId) pIdMap.set(String(p.dbId), String(p.id));
+        });
+        const mapPid = (pid: any): string => {
+          const key = String(pid ?? '');
+          return pIdMap.get(key) ?? key;
+        };
+        const remapRecordKeys = <T,>(
+          rec: Record<string, T> | null | undefined,
+        ): Record<string, T> => {
+          const out: Record<string, T> = {};
+          Object.entries(rec || {}).forEach(([k, v]) => {
+            out[mapPid(k)] = v as T;
+          });
+          return out;
+        };
+
+        const normalizedOuting =
+          s.outingGroup
+            ? {
+                ...s.outingGroup,
+                participantIds: (s.outingGroup.participantIds || []).map(mapPid),
+              }
+            : null;
+
+        return {
+          ...s,
+          staff: mappedStaff,
+          participants: mappedParticipants,
+
+          // normalize schedule fields that key by participant id
+          attendingParticipants: (s.attendingParticipants || []).map(mapPid),
+          assignments: remapRecordKeys<ID | null>(s.assignments),
+          dropoffAssignments: remapRecordKeys<any>(s.dropoffAssignments as any),
+          dropoffLocations: remapRecordKeys<any>(s.dropoffLocations as any),
+          outingGroup: normalizedOuting,
+
+          chores: chores.map((r) => ({ id: String(r.id), name: r.name })),
+          checklistItems: checklistItems.map((r) => ({
+            id: String(r.id),
+            name: r.name,
+          })),
+          timeSlots: (timeSlots.length ? timeSlots.map((r) => ({
+            id: String(r.id),
+            startTime: r.start_time ?? r.startTime ?? r.start ?? r.starttime ?? '',
+            endTime: r.end_time ?? r.endTime ?? r.end ?? r.endtime ?? '',
+            displayTime: r.display_time ?? r.displayTime ?? r.display ?? r.label ?? '',
+          })) : TIME_SLOTS),
+          masterDataLoaded: true,
+          masterDataLoading: false,
+        };
+      });;
     } catch (e) {
       console.error('[masterData] load failed', e);
       set({ masterDataLoading: false });
