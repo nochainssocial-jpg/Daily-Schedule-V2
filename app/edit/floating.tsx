@@ -951,20 +951,25 @@ const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
   };
 
 
-  useEffect(() => {
-    // 🔥 Auto-build using *onsite* working staff only
-    if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-      const next = buildAutoAssignments(
-        onsiteWorking,
-        TIME_SLOTS,
-        activeRoomsForSlot,
-        (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
-        forcedAssignmentForSlotRoom,
-      );
-      updateSchedule({ floatingAssignments: next });
-      push('Floating assignments updated', 'floating');
-    }
-  }, [hasFrontRoom, onsiteWorking, updateSchedule]);
+const hasFrontRoom = useMemo(() => {
+  const existing = floatingAssignments || {};
+  return Object.values(existing).some((row: any) => !!row?.frontRoom);
+}, [floatingAssignments]);
+
+useEffect(() => {
+  // 🔥 Auto-build using *onsite* working staff only
+  if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
+      forcedAssignmentForSlotRoom,
+    );
+    updateSchedule({ floatingAssignments: next });
+    push('Floating assignments updated', 'floating');
+  }
+}, [hasFrontRoom, onsiteWorking, updateSchedule, TIME_SLOTS, activeRoomsForSlot, outingGroup, forcedAssignmentForSlotRoom, push]);
 
   const handleShuffle = () => {
     if (readOnly) {
