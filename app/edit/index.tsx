@@ -1,5 +1,5 @@
 // app/edit/index.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import {
   ScrollView,
@@ -112,8 +112,10 @@ type OutingGroup = {
   participantIds?: (string | number)[];
 };
 
-type OutingPhase = 'none' | 'activeShort' | 'completeShort' | 'activeLong';
+type OutingPhase = 'none' | 'upcoming' | 'active' | 'complete';
 
+// Used only to decide whether an outing is considered "all day" when no end time is provided.
+// We still show the banner as upcoming/active/complete based on real time when we have a valid end time.
 const SHORT_OUTING_THRESHOLD_MINUTES = 14 * 60; // 14:00
 
 function parseTimeToMinutes(value?: string | null): number | null {
@@ -150,50 +152,44 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
   const startMinutes = parseTimeToMinutes(outingGroup.startTime);
   const endMinutes = parseTimeToMinutes(outingGroup.endTime);
 
-  // No valid end time = treat as "out for the day"
-  if (endMinutes === null) {
-    // If there's a future start time, we can treat it as "none" until then
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    if (startMinutes !== null && nowMinutes < startMinutes) {
-      return 'none';
-    }
-    return 'activeLong';
-  }
-
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // If there's a future start time, nothing yet
+  // Future start time → upcoming
   if (startMinutes !== null && nowMinutes < startMinutes) {
-    return 'none';
+    return 'upcoming';
   }
 
-  const isShortOuting = endMinutes < SHORT_OUTING_THRESHOLD_MINUTES;
-
-  if (!isShortOuting) {
-    // Long outing (ends at/after 14:00) – treat as "out for day" once started
-    return 'activeLong';
+  // No valid end time:
+  // - before start → upcoming (handled above)
+  // - after start → active (treated as out for the day)
+  if (endMinutes === null) {
+    return 'active';
   }
 
-  // Short outing (< 14:00)
-  if (nowMinutes <= endMinutes) {
-    return 'activeShort';
+  // With a valid end time: upcoming/active/complete based on window
+  if (startMinutes !== null) {
+    if (nowMinutes >= startMinutes && nowMinutes <= endMinutes) return 'active';
+    if (nowMinutes > endMinutes) return 'complete';
   }
 
-  // After end time of a short outing → complete
-  return 'completeShort';
+  // If start time is missing/invalid, fall back to using end time.
+  // - before end → active
+  // - after end → complete
+  if (nowMinutes <= endMinutes) return 'active';
+  return 'complete';
 }
 
 export default function EditHubScreen() {
   const router = useRouter();
   const { outingGroup } = useSchedule() as { outingGroup?: OutingGroup | null };
 
-useEffect(() => {
-  void initScheduleForToday('B2').catch((e) => {
-    console.error('initScheduleForToday failed (edit hub):', e);
-  });
-}, []);
+  // Auto-hydrate today on first load
+  useEffect(() => {
+    void initScheduleForToday('B2').catch((e) => {
+      console.error('initScheduleForToday failed (edit hub):', e);
+    });
+  }, []);
 
   const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
   const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
@@ -201,9 +197,9 @@ useEffect(() => {
   const hasOutingBase =
     !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
 
-  const outingPhase: OutingPhase = hasOutingBase
-    ? getOutingPhase(outingGroup)
-    : 'none';
+  const outingPhase: OutingPhase = useMemo(() => {
+    return hasOutingBase ? getOutingPhase(outingGroup) : 'none';
+  }, [hasOutingBase, outingGroup]);
 
   const hasOuting = outingPhase !== 'none';
 
@@ -215,9 +211,21 @@ useEffect(() => {
     ? `${outingGroup?.startTime || '?'}–${outingGroup?.endTime || '?'}`
     : '';
 
-  const isCompleteShort = outingPhase === 'completeShort';
+  const isUpcoming = outingPhase === 'upcoming';
+  const isActive = outingPhase === 'active';
+  const isComplete = outingPhase === 'complete';
 
-  const outingTitle = isCompleteShort ? 'Outing complete' : 'Outing today';
+  const outingTitle = isUpcoming
+    ? 'Upcoming outing'
+    : isComplete
+      ? 'Outing complete'
+      : 'Outing in progress';
+
+  const outingSubtitle = isUpcoming
+    ? 'Planned'
+    : isComplete
+      ? 'Completed'
+      : 'Live now';
 
   return (
     <View style={styles.screen}>
@@ -250,27 +258,28 @@ useEffect(() => {
             <View
               style={[
                 styles.outingSummary,
-                isCompleteShort && styles.outingSummaryComplete,
+                isUpcoming && styles.outingSummaryUpcoming,
+                isComplete && styles.outingSummaryComplete,
               ]}
             >
               <View style={styles.outingSummaryInner}>
                 <View
                   style={[
                     styles.outingSummaryIconBubble,
-                    isCompleteShort && styles.outingSummaryIconBubbleComplete,
+                    isComplete && styles.outingSummaryIconBubbleComplete,
                   ]}
                 >
                   <Ionicons
                     name="car-outline"
                     size={22}
-                    color={isCompleteShort ? '#166534' : '#C05621'}
+                    color={isComplete ? '#166534' : isUpcoming ? '#1D4ED8' : '#C05621'}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={[
                       styles.outingSummaryTitle,
-                      isCompleteShort && styles.outingSummaryTitleComplete,
+                      isComplete && styles.outingSummaryTitleComplete,
                     ]}
                   >
                     {outingTitle}
@@ -278,16 +287,17 @@ useEffect(() => {
                   <Text
                     style={[
                       styles.outingSummaryLine,
-                      isCompleteShort && styles.outingSummaryLineComplete,
+                      isComplete && styles.outingSummaryLineComplete,
                     ]}
                   >
                     {outingGroup?.name || 'Unnamed outing'}
                     {timeRange ? ` · ${timeRange}` : ''}
+                    {` · ${outingSubtitle}`}
                   </Text>
                   <Text
                     style={[
                       styles.outingSummaryLine,
-                      isCompleteShort && styles.outingSummaryLineComplete,
+                      isComplete && styles.outingSummaryLineComplete,
                     ]}
                   >
                     {outingStaffCount} staff · {outingParticipantCount} participants
@@ -414,6 +424,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginTop: 12,
+  },
+  outingSummaryUpcoming: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
   },
   outingSummaryComplete: {
     backgroundColor: '#ECFDF3',
