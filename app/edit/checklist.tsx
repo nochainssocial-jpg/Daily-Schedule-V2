@@ -1,7 +1,7 @@
 // CHECKLIST.TSX — FULLY PATCHED VERSION
 // --------------------------------------------------
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
@@ -12,16 +12,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
-import { DEFAULT_CHECKLIST } from '@/constants/data';
+import { DEFAULT_CHECKLIST, STAFF as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
+import { supabase } from '@/lib/supabase';
 import SaveExit from '@/components/SaveExit';
 
 type ID = string;
 
 const MAX_WIDTH = 880;
+
 
 export default function EditChecklistScreen() {
   const { width, height } = useWindowDimensions();
@@ -42,8 +44,44 @@ export default function EditChecklistScreen() {
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
 
+  // Checklist items come from Supabase Settings (final_checklist_items).
+  // Fallback to DEFAULT_CHECKLIST if table is empty or fetch fails.
+  const [items, setItems] = useState(DEFAULT_CHECKLIST);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('final_checklist_items')
+        .select('id,name')
+        .order('name', { ascending: true });
+
+      if (cancelled) return;
+
+      if (!error && data && data.length > 0) {
+        setItems(
+          data.map((r: any) => ({
+            id: String(r.id),
+            name: String(r.name ?? ''),
+          })),
+        );
+      } else {
+        // Keep default list
+        setItems(DEFAULT_CHECKLIST);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
   // Prefer schedule staff, fallback to static
-  const staff: Staff[] = scheduleStaff?.length ? scheduleStaff : [];
+  const staff = (scheduleStaff && scheduleStaff.length
+    ? scheduleStaff
+    : STATIC_STAFF) as typeof STATIC_STAFF;
 
   // Dream Team (if present) or all staff
   const staffPool = useMemo(
@@ -132,7 +170,7 @@ export default function EditChecklistScreen() {
               Checklist items
             </Text>
 
-            {((checklistFromStore.length ? checklistFromStore : DEFAULT_CHECKLIST) as any[]).map((item) => {
+            {items.map((item) => {
               const key = String(item.id);
               const checked = !!finalChecklist?.[key];
               const label = (item as any).name || (item as any).label || '';
