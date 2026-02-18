@@ -923,11 +923,11 @@ const __ds_normaliseAssignmentsMap = (
 };
 
 snapshot = {
-        staff: state.staff ?? (staffSource ?? []),
-        participants: state.participants ?? (partsSource ?? []),
+        staff: (state.staff && (state.staff as any[]).length ? state.staff : (staffSource ?? [])),
+        participants: (state.participants && (state.participants as any[]).length ? state.participants : (partsSource ?? [])),
 
-        workingStaff: state.workingStaff ?? realWorkers,
-        attendingParticipants: state.attendingParticipants ?? attendingParticipants,
+        workingStaff: (state.workingStaff && (state.workingStaff as any[]).length ? state.workingStaff : realWorkers),
+        attendingParticipants: (state.attendingParticipants && (state.attendingParticipants as any[]).length ? state.attendingParticipants : attendingParticipants),
 
         assignments: __ds_normaliseAssignmentsMap(state.assignments, assignmentsMap),
         floatingAssignments: state.floatingAssignments ?? {},
