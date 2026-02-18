@@ -46,35 +46,7 @@ const TIME_SLOTS: Array<{
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
 
 // Participant groups for each floating room
-const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
-  ? ((Data as any).PARTICIPANTS as any[])
-  : [];
 
-function findParticipantIdByName(name: string): string | null {
-  const lower = name.trim().toLowerCase();
-  const found = PARTICIPANTS.find((p) =>
-    String(p?.name || '').trim().toLowerCase() === lower,
-  );
-  return found ? String(found.id) : null;
-}
-
-const FRONT_ROOM_GROUP: string[] = [];
-['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) FRONT_ROOM_GROUP.push(id);
-});
-
-const SCOTTY_GROUP: string[] = [];
-['Scott'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) SCOTTY_GROUP.push(id);
-});
-
-const TWINS_GROUP: string[] = [];
-['Zara', 'Zoya'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) TWINS_GROUP.push(id);
-});
 
 function getParticipantGroupForRoom(col: ColKey): string[] {
   switch (col) {
@@ -492,29 +464,18 @@ function getSlotWindowMinutes(slot: any): { start: number | null; end: number | 
 function getOutingWindowMinutes(outingGroup: any): {
   start: number | null;
   end: number | null;
-  invalid?: boolean;
 } {
   if (!outingGroup) return { start: null, end: null };
-
-  const rawStart = typeof outingGroup.startTime === 'string' ? outingGroup.startTime.trim() : '';
-  const rawEnd = typeof outingGroup.endTime === 'string' ? outingGroup.endTime.trim() : '';
-  const hasAnyTime = !!rawStart || !!rawEnd;
-
-  const start = parseTimeToMinutes(rawStart);
-  const end = parseTimeToMinutes(rawEnd);
-
-  // If staff typed *something* but it's not a valid 24h window, mark invalid so we DON'T
-  // accidentally treat the outing as "all-day offsite" and wipe allocations.
-  if (hasAnyTime) {
-    if (start == null || end == null) return { start: null, end: null, invalid: true };
-    if (end <= start) return { start: null, end: null, invalid: true };
-    return { start, end };
+  const start = parseTimeToMinutes(outingGroup.startTime);
+  const end = parseTimeToMinutes(outingGroup.endTime);
+  if (start == null || end == null) {
+    return { start: null, end: null };
   }
-
-  // No time provided = treat as "all day"
-  return { start: null, end: null };
+  if (end <= start) {
+    return { start: null, end: null };
+  }
+  return { start, end };
 }
-
 
 function timesOverlap(
   s1: number | null,
@@ -539,10 +500,7 @@ function isStaffOffsiteForSlot(slot: any, staffId: ID, outingGroup: any): boolea
 
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
-  // If times are invalid (eg end <= start or not 24h), do NOT treat as all-day offsite.
-  if ((outingWindow as any).invalid) return false;
-
-  // If no time provided at all, treat as all-day offsite.
+  // If no valid time window, treat as all-day offsite.
   if (outingWindow.start == null || outingWindow.end == null) return true;
 
   const slotWindow = getSlotWindowMinutes(slot);
@@ -571,19 +529,12 @@ function isRoomOffsiteForSlot(
     ),
   );
 
-  const onOutingCount = groupIds.filter((id) => outingIds.has(String(id))).length;
-  // IMPORTANT: only treat the entire room as offsite if *all* participants in the group are on the outing.
-  // If only some participants are offsite, the room remains active so staff can still be allocated to the remainder.
-  if (onOutingCount === 0) return false;
-  if (onOutingCount < groupIds.length) return false;
+  const anyOnOuting = groupIds.some((id) => outingIds.has(String(id)));
+  if (!anyOnOuting) return false;
 
   const slotWindow = getSlotWindowMinutes(slot);
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
-  // If times are invalid (eg end <= start or not 24h), do NOT treat as all-day offsite.
-  if ((outingWindow as any).invalid) return false;
-
-  // If no time provided at all, treat as all-day offsite.
   if (outingWindow.start == null || outingWindow.end == null) {
     return true;
   }
@@ -719,6 +670,7 @@ export default function FloatingScreen() {
 
   const {
     staff = [],
+    participants = [],
     workingStaff = [],
     floatingAssignments = {},
     outingGroup = null,
@@ -819,6 +771,42 @@ export default function FloatingScreen() {
         ),
     [onsiteWorking],
   );
+
+// -------------------------------------------------------------------------
+  // Participant groups (Front Room / Scotty / Twins)
+  // IMPORTANT: derive IDs from the *current schedule participants* (Supabase),
+  // not from static constants, otherwise attendance checks will misfire.
+  // -------------------------------------------------------------------------
+  const participantIdByName = useMemo(() => {
+    const map = new Map<string, string>();
+    (participants || []).forEach((p: any) => {
+      const key = String(p?.name || '').trim().toLowerCase();
+      if (!key) return;
+      map.set(key, String(p.id));
+    });
+    return map;
+  }, [participants]);
+
+  const FRONT_ROOM_GROUP = useMemo(() => {
+    const names = ['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'];
+    return names
+      .map((n) => participantIdByName.get(n.trim().toLowerCase()))
+      .filter(Boolean) as string[];
+  }, [participantIdByName]);
+
+  const SCOTTY_GROUP = useMemo(() => {
+    const names = ['Scott'];
+    return names
+      .map((n) => participantIdByName.get(n.trim().toLowerCase()))
+      .filter(Boolean) as string[];
+  }, [participantIdByName]);
+
+  const TWINS_GROUP = useMemo(() => {
+    const names = ['Antoinette', 'Rosa'];
+    return names
+      .map((n) => participantIdByName.get(n.trim().toLowerCase()))
+      .filter(Boolean) as string[];
+  }, [participantIdByName]);
 
   // 🔹 Attendance-based room availability (Not attending)
   const participantsAttendingSet = useMemo(
