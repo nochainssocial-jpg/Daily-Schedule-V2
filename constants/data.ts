@@ -168,6 +168,18 @@ export const TIME_SLOTS: TimeSlot[] = [
 // These correspond to TIME_SLOTS with IDs '3' (11:00–11:30) and '7' (13:00–13:30).
 export const TWIN_FSO_TIME_SLOT_IDS: ID[] = ['3', '7'];
 
+// ---------------------------------------------------------------------------
+// Backwards-compatible aliases
+// ---------------------------------------------------------------------------
+// Some older screens/components import `master*` names. Keep these aliases so
+// runtime imports don't become `undefined` (which can blank a screen on web).
+
+export const masterStaff = STAFF;
+export const masterParticipants = PARTICIPANTS;
+export const masterChores = DEFAULT_CHORES;
+export const masterChecklistItems = DEFAULT_CHECKLIST;
+export const masterTimeSlots = TIME_SLOTS;
+
 // Rooms used in the Floating Assignments table (one column per room).
 export const FLOATING_ROOMS = [
   { id: 'front', label: 'Front Room' },
