@@ -48,6 +48,8 @@ const TIME_SLOTS: Array<{
   : (Array.isArray((Data as any).TIME_SLOTS) ? (Data as any).TIME_SLOTS : []);
 
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
+// Assignment priority (Twins highest needs)
+const ASSIGN_ORDER: ColKey[] = ['twins', 'scotty', 'frontRoom'];
 
 // Participant groups for each floating room
 const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
@@ -584,6 +586,7 @@ function buildAutoAssignments(
   timeSlots: any[],
   getActiveRoomsForSlot?: (slot: any) => ColKey[],
   isStaffAvailableForSlot?: (slot: any, staffId: ID) => boolean,
+  getForcedAssignmentForSlotRoom?: (slot: any, col: ColKey) => ID | null,
 ): Record<string, { [K in ColKey]?: ID }> {
   if (!Array.isArray(working) || working.length === 0) return {};
 
@@ -613,9 +616,17 @@ function buildAutoAssignments(
 
     const roomOrder: ColKey[] = getActiveRoomsForSlot
       ? getActiveRoomsForSlot(slot)
-      : ROOM_KEYS;
+      : ASSIGN_ORDER;
 
     roomOrder.forEach((col) => {
+      // Forced assignment (e.g., Drive/Outing label) does not consume staff capacity
+      if (getForcedAssignmentForSlotRoom) {
+        const forced = getForcedAssignmentForSlotRoom(slot, col);
+        if (forced) {
+          row[col] = forced;
+          return;
+        }
+      }
       let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
 
       // Exclude staff who are offsite (on outing) during this slot
@@ -643,12 +654,6 @@ function buildAutoAssignments(
         }
       }
 
-      // Cooldown across slots – prefer staff who were not used in previous slot
-      const cooled = candidates.filter((s) => !prevSlotStaff.has(s.id));
-      if (cooled.length) {
-        candidates = cooled;
-      }
-
       if (!candidates.length) return;
 
       // 1) Global fairness: minimise total assignments
@@ -667,8 +672,12 @@ function buildAutoAssignments(
       });
       best = best.filter((s) => (roomUsage[s.id]?.[col] ?? 0) === minRoom);
 
-      // 3) Tie-breaker: random between equally good options
-      const chosen = best[Math.floor(Math.random() * best.length)];
+      // 3) Tie-breaker: prefer staff not used in previous slot (but allow back-to-back when needed)
+      const fresh = best.filter((s) => !prevSlotStaff.has(s.id));
+      const pool = fresh.length ? fresh : best;
+
+      // Final tie-breaker: random between equally good options
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
       if (!chosen) return;
 
       row[col] = chosen.id;
@@ -833,6 +842,55 @@ export default function FloatingScreen() {
     [participantsAttendingSet],
   );
 
+
+  // 🔹 Outing participant set (used for per-room onsite counts)
+  const outingParticipantSet = useMemo(() => {
+    if (!outingGroup) return new Set<string>();
+    return new Set<string>(
+      ((outingGroup.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
+    );
+  }, [outingGroup]);
+
+  const outingWindow = useMemo(() => getOutingWindowMinutes(outingGroup), [outingGroup]);
+
+  const isParticipantOffsiteForSlot = (slot: any, participantId: string): boolean => {
+    if (!outingGroup) return false;
+    const pid = String(participantId);
+    if (!outingParticipantSet.has(pid)) return false;
+
+    // If no valid time window, treat as all-day offsite.
+    if (outingWindow.start == null || outingWindow.end == null) return true;
+
+    const slotWindow = getSlotWindowMinutes(slot);
+    return timesOverlap(slotWindow.start, slotWindow.end, outingWindow.start, outingWindow.end);
+  };
+
+  type RoomDirective = { active: boolean; forcedId?: ID; onsiteCount: number; attendingCount: number };
+
+  // Returns per-slot directive for each room, based on how many participants remain onsite.
+  const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
+    const groupIds = getParticipantGroupForRoom(col);
+    const attendingIds = groupIds.filter((id) => participantsAttendingSet.has(String(id)));
+
+    // No one from this room is attending today
+    if (attendingIds.length === 0) return { active: false, onsiteCount: 0, attendingCount: 0 };
+
+    const offsiteCount = attendingIds.filter((id) => isParticipantOffsiteForSlot(slot, String(id))).length;
+    const onsiteCount = attendingIds.length - offsiteCount;
+
+    // If everyone who is attending for this room is offsite during this slot, show Drive/Outing.
+    if (onsiteCount === 0 && offsiteCount > 0) {
+      return { active: false, forcedId: '1002', onsiteCount, attendingCount: attendingIds.length };
+    }
+
+    if (col === 'frontRoom') {
+      // Front Room operational threshold: at least 3 onsite participants
+      return { active: onsiteCount >= 3, onsiteCount, attendingCount: attendingIds.length };
+    }
+
+    // Scotty + Twins: operational if at least 1 onsite participant
+    return { active: onsiteCount >= 1, onsiteCount, attendingCount: attendingIds.length };
+  };
   const [open, setOpen] = useState(false);
   const [pick, setPick] = useState<{
     slotId?: string;
@@ -897,33 +955,36 @@ export default function FloatingScreen() {
   );
 
   const activeRoomsForSlot = (slot: any): ColKey[] => {
-    const offsite: ColKey[] = outingGroup
-      ? ROOM_KEYS.filter((col) => isRoomOffsiteForSlot(col, slot, outingGroup))
-      : [];
+    // Rooms requiring staff coverage for this slot, ordered by priority.
+    // Twins are always highest needs.
+    const directives: Record<ColKey, RoomDirective> = {
+      frontRoom: getRoomDirective('frontRoom', slot),
+      scotty: getRoomDirective('scotty', slot),
+      twins: getRoomDirective('twins', slot),
+    };
 
-    const inactiveAttendance: ColKey[] = ROOM_KEYS.filter((col) => {
-      if (col === 'frontRoom') return roomNotAttending.frontRoom;
-      if (col === 'scotty') return roomNotAttending.scotty;
-      if (col === 'twins') return roomNotAttending.twins;
-      return false;
-    });
+    const active = ASSIGN_ORDER.filter((col) => directives[col]?.active);
 
-    const disabled = new Set<ColKey>([...offsite, ...inactiveAttendance]);
-    const active = ROOM_KEYS.filter((col) => !disabled.has(col));
-
-    // If somehow everything is disabled, fall back to all rooms
-    return active.length ? active : ROOM_KEYS;
+    // If no rooms require coverage (e.g., Front Room merged / everyone offsite), return empty list.
+    return active;
   };
+
+  const forcedAssignmentForSlotRoom = (slot: any, col: ColKey): ID | null => {
+    const d = getRoomDirective(col, slot);
+    return d?.forcedId ? String(d.forcedId) : null;
+  };
+
 
   useEffect(() => {
     // 🔥 Auto-build using *onsite* working staff only
     if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
       const next = buildAutoAssignments(
-      onsiteWorking,
-      TIME_SLOTS,
-      activeRoomsForSlot,
-      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
-    );
+        onsiteWorking,
+        TIME_SLOTS,
+        activeRoomsForSlot,
+        (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
+        forcedAssignmentForSlotRoom,
+      );
       updateSchedule({ floatingAssignments: next });
       push('Floating assignments updated', 'floating');
     }
@@ -940,6 +1001,7 @@ export default function FloatingScreen() {
       TIME_SLOTS,
       activeRoomsForSlot,
       (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroup),
+      forcedAssignmentForSlotRoom,
     );
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
