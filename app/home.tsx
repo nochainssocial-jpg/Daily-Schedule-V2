@@ -26,10 +26,11 @@ export default function HomeScreen() {
       width < 900 ||
       height < 700);
 
-  useEffect(() => {
-    // For now, hard-coded to B2
-    initScheduleForToday('B2');
-  }, []);
+useEffect(() => {
+  void initScheduleForToday('B2').catch((e) => {
+    console.error('initScheduleForToday failed (home):', e);
+  });
+}, []);
 
   const showWebBranding = Platform.OS === 'web' && !isMobileWeb;
 
