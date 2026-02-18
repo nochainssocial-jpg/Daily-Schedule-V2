@@ -12,10 +12,6 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
-import {
-  ,
-  PARTICIPANTS as STATIC_PARTS,
-} from '@/constants/data';
 import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
