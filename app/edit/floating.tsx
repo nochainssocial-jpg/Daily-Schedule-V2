@@ -48,44 +48,10 @@ const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
   ? ((Data as any).PARTICIPANTS as any[])
   : [];
 
-function findParticipantIdByName(name: string): string | null {
-  const lower = name.trim().toLowerCase();
-  const found = PARTICIPANTS.find((p) =>
-    String(p?.name || '').trim().toLowerCase() === lower,
-  );
-  return found ? String(found.id) : null;
-}
 
-const FRONT_ROOM_GROUP: string[] = [];
-['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) FRONT_ROOM_GROUP.push(id);
-});
-
-const SCOTTY_GROUP: string[] = [];
-['Scott'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) SCOTTY_GROUP.push(id);
-});
-
-const TWINS_GROUP: string[] = [];
-['Zara', 'Zoya'].forEach((n) => {
-  const id = findParticipantIdByName(n);
-  if (id) TWINS_GROUP.push(id);
-});
-
-function getParticipantGroupForRoom(col: ColKey): string[] {
-  switch (col) {
-    case 'frontRoom':
-      return FRONT_ROOM_GROUP;
-    case 'scotty':
-      return SCOTTY_GROUP;
-    case 'twins':
-      return TWINS_GROUP;
-    default:
-      return [];
-  }
-}
+// Participant room-group membership must be derived from the *current* participant IDs.
+// Do NOT compute groups at module scope from static Data.* arrays (IDs can differ from Supabase legacy_id mapping).
+// Groups are computed inside FloatingScreen from the Supabase participants list (fallback to Data.PARTICIPANTS).
 
 function slotLabel(slot: any): string {
   if (!slot) return '';
@@ -539,39 +505,9 @@ function isStaffOffsiteForSlot(slot: any, staffId: ID, outingGroup: any): boolea
 }
 
 // For a given slot + room, is that room's participant group on outing at that time?
-function isRoomOffsiteForSlot(
-  col: ColKey,
-  slot: any,
-  outingGroup: any,
-): boolean {
-  if (!outingGroup) return false;
 
-  const groupIds = getParticipantGroupForRoom(col);
-  if (!groupIds.length) return false;
+// NOTE: Room offsite logic is evaluated inside FloatingScreen (needs current participant groups + attending IDs).
 
-  const outingIds = new Set(
-    ((outingGroup.participantIds ?? []) as (string | number)[]).map((id) =>
-      String(id),
-    ),
-  );
-
-  const anyOnOuting = groupIds.some((id) => outingIds.has(String(id)));
-  if (!anyOnOuting) return false;
-
-  const slotWindow = getSlotWindowMinutes(slot);
-  const outingWindow = getOutingWindowMinutes(outingGroup);
-
-  if (outingWindow.start == null || outingWindow.end == null) {
-    return true;
-  }
-
-  return timesOverlap(
-    slotWindow.start,
-    slotWindow.end,
-    outingWindow.start,
-    outingWindow.end,
-  );
-}
 
 function buildAutoAssignments(
   working: any[],
@@ -828,139 +764,119 @@ export default function FloatingScreen() {
       ),
     [attendingParticipants],
   );
+// --- Participants (Supabase) for robust room grouping ---
+// We derive room membership by NAME, but resolve to the *current* schedule participant IDs:
+// prefer legacy_id (stable) and fall back to UUID id if needed.
+const [participantsDb, setParticipantsDb] = useState<any[]>([]);
+useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('id,name,legacy_id,is_active')
+        .eq('is_active', true);
+      if (error) throw error;
+      if (!cancelled) setParticipantsDb(Array.isArray(data) ? data : []);
+    } catch (e) {
+      // Non-fatal: we can still fall back to Data.PARTICIPANTS for display,
+      // but room grouping may be inaccurate until DB loads.
+      console.error('Failed to load participants for room groups:', e);
+      if (!cancelled) setParticipantsDb([]);
+    }
+  })();
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
-  const roomNotAttending = useMemo(
-    () => ({
-      frontRoom: FRONT_ROOM_GROUP.length
-        ? FRONT_ROOM_GROUP.every(
-            (id) => !participantsAttendingSet.has(String(id)),
-          )
-        : false,
-      scotty: SCOTTY_GROUP.length
-        ? SCOTTY_GROUP.every(
-            (id) => !participantsAttendingSet.has(String(id)),
-          )
-        : false,
-      twins: TWINS_GROUP.length
-        ? TWINS_GROUP.every(
-            (id) => !participantsAttendingSet.has(String(id)),
-          )
-        : false,
-    }),
-    [participantsAttendingSet],
+const participantIdByName = useMemo(() => {
+  const map = new Map<string, string>();
+  const source = (participantsDb && participantsDb.length)
+    ? participantsDb.map((p: any) => ({
+        name: String(p?.name || ''),
+        id: String(p?.legacy_id ?? p?.id ?? ''),
+      }))
+    : (PARTICIPANTS as any[]);
+  (source || []).forEach((p: any) => {
+    const name = String(p?.name || '').trim().toLowerCase();
+    const id = String(p?.id ?? '').trim();
+    if (name && id) map.set(name, id);
+  });
+  return map;
+}, [participantsDb]);
+
+const participantGroups = useMemo(() => {
+  const pick = (names: string[]) =>
+    names
+      .map((n) => participantIdByName.get(n.trim().toLowerCase()) || null)
+      .filter(Boolean) as string[];
+
+  return {
+    frontRoom: pick(['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob']),
+    scotty: pick(['Scott']),
+    twins: pick(['Zara', 'Zoya']),
+  } as Record<ColKey, string[]>;
+}, [participantIdByName]);
+
+const getGroupIds = (col: ColKey): string[] => participantGroups[col] || [];
+
+const isRoomOffsiteForSlot = (col: ColKey, slot: any): boolean => {
+  if (!outingGroup) return false;
+
+  const groupIds = getGroupIds(col);
+  if (!groupIds.length) return false;
+
+  const attendingGroup = groupIds.filter((id) =>
+    participantsAttendingSet.has(String(id)),
+  );
+  if (!attendingGroup.length) return false;
+
+  const outingIds = new Set(
+    ((outingGroup.participantIds ?? []) as (string | number)[]).map((id) =>
+      String(id),
+    ),
   );
 
+  const slotWindow = getSlotWindowMinutes(slot);
+  const outingWindow = getOutingWindowMinutes(outingGroup);
 
-  // 🔹 Outing participant set (used for per-room onsite counts)
-  const outingParticipantSet = useMemo(() => {
-    if (!outingGroup) return new Set<string>();
-    return new Set<string>(
-      ((outingGroup.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
-    );
-  }, [outingGroup]);
+  // If no valid time window, treat as all-day offsite for those participants.
+  const windowOverlaps =
+    outingWindow.start == null || outingWindow.end == null
+      ? true
+      : timesOverlap(slotWindow.start, slotWindow.end, outingWindow.start, outingWindow.end);
 
-  const outingWindow = useMemo(() => getOutingWindowMinutes(outingGroup), [outingGroup]);
+  if (!windowOverlaps) return false;
 
-  const isParticipantOffsiteForSlot = (slot: any, participantId: string): boolean => {
-    if (!outingGroup) return false;
-    const pid = String(participantId);
-    if (!outingParticipantSet.has(pid)) return false;
+  const offsiteCount = attendingGroup.filter((id) => outingIds.has(String(id))).length;
+  const onsiteCount = attendingGroup.length - offsiteCount;
 
-    // If no valid time window, treat as all-day offsite.
-    if (outingWindow.start == null || outingWindow.end == null) return true;
+  // A room is only considered offsite if *all attending participants in that room* are offsite.
+  return offsiteCount > 0 && onsiteCount === 0;
+};
 
-    const slotWindow = getSlotWindowMinutes(slot);
-    return timesOverlap(slotWindow.start, slotWindow.end, outingWindow.start, outingWindow.end);
-  };
 
-  type RoomDirective = { active: boolean; forcedId?: ID; onsiteCount: number; attendingCount: number };
 
-  // Returns per-slot directive for each room, based on how many participants remain onsite.
-  const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
-    const groupIds = getParticipantGroupForRoom(col);
-    const attendingIds = groupIds.filter((id) => participantsAttendingSet.has(String(id)));
 
-    // No one from this room is attending today
-    if (attendingIds.length === 0) return { active: false, onsiteCount: 0, attendingCount: 0 };
+const roomNotAttending = useMemo(
+  () => ({
+    frontRoom: (() => {
+      const ids = getGroupIds('frontRoom');
+      return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
+    })(),
+    scotty: (() => {
+      const ids = getGroupIds('scotty');
+      return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
+    })(),
+    twins: (() => {
+      const ids = getGroupIds('twins');
+      return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
+    })(),
+  }),
+  [participantsAttendingSet, participantGroups],
+);
 
-    const offsiteCount = attendingIds.filter((id) => isParticipantOffsiteForSlot(slot, String(id))).length;
-    const onsiteCount = attendingIds.length - offsiteCount;
-
-    // If everyone who is attending for this room is offsite during this slot, show Drive/Outing.
-    if (onsiteCount === 0 && offsiteCount > 0) {
-      return { active: false, forcedId: '1002', onsiteCount, attendingCount: attendingIds.length };
-    }
-
-    if (col === 'frontRoom') {
-      // Front Room operational threshold: at least 3 onsite participants
-      return { active: onsiteCount >= 3, onsiteCount, attendingCount: attendingIds.length };
-    }
-
-    // Scotty + Twins: operational if at least 1 onsite participant
-    return { active: onsiteCount >= 1, onsiteCount, attendingCount: attendingIds.length };
-  };
-  const [open, setOpen] = useState(false);
-  const [pick, setPick] = useState<{
-    slotId?: string;
-    col?: ColKey;
-    fso?: boolean;
-  } | null>(null);
-
-  const getRow = (slotId: string) =>
-    (floatingAssignments as any)[slotId] || {};
-
-  const nameOf = (id?: string) => (id ? staffById[id]?.name ?? '' : '');
-
-  const openPicker = (slotId: string, col: ColKey) => {
-    const slot = (TIME_SLOTS || []).find(
-      (s) => String(s.id) === String(slotId),
-    );
-    setPick({
-      slotId,
-      col,
-      fso: col === 'twins' && isFSOTwinsSlot(slot),
-    });
-    setOpen(true);
-  };
-
-  const choose = (id: string) => {
-    if (readOnly) {
-      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-      return;
-    }
-    if (!pick?.slotId || !pick.col) return;
-    const next = { ...(floatingAssignments || {}) } as any;
-    next[pick.slotId] = {
-      ...(next[pick.slotId] || {}),
-      [pick.col]: id,
-    };
-    updateSchedule?.({ floatingAssignments: next });
-    touch?.();
-    setOpen(false);
-  };
-
-  const clearCell = () => {
-    if (readOnly) {
-      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-      return;
-    }
-    if (!pick?.slotId || !pick.col) return;
-    const next = { ...(floatingAssignments || {}) } as any;
-    if (next[pick.slotId]) {
-      delete next[pick.slotId][pick.col];
-    }
-    updateSchedule?.({ floatingAssignments: next });
-    touch?.();
-    setOpen(false);
-  };
-
-  const hasFrontRoom = useMemo(
-    () =>
-      Object.values(floatingAssignments || {}).some(
-        (row: any) => row && row.frontRoom,
-      ),
-    [floatingAssignments],
-  );
 
   const activeRoomsForSlot = (slot: any): ColKey[] => {
     // Rooms requiring staff coverage for this slot, ordered by priority.
@@ -1188,9 +1104,9 @@ export default function FloatingScreen() {
               let tw = '';
 
               const fso = isFSOTwinsSlot(slot);
-              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot, outingGroup);
-              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot, outingGroup);
-              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot, outingGroup);
+              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot);
+              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot);
+              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot);
               const isFrontNotAttending = roomNotAttending.frontRoom;
               const isScottyNotAttending = roomNotAttending.scotty;
               const isTwinsNotAttending = roomNotAttending.twins;
