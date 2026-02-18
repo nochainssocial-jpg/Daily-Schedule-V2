@@ -492,18 +492,29 @@ function getSlotWindowMinutes(slot: any): { start: number | null; end: number | 
 function getOutingWindowMinutes(outingGroup: any): {
   start: number | null;
   end: number | null;
+  invalid?: boolean;
 } {
   if (!outingGroup) return { start: null, end: null };
-  const start = parseTimeToMinutes(outingGroup.startTime);
-  const end = parseTimeToMinutes(outingGroup.endTime);
-  if (start == null || end == null) {
-    return { start: null, end: null };
+
+  const rawStart = typeof outingGroup.startTime === 'string' ? outingGroup.startTime.trim() : '';
+  const rawEnd = typeof outingGroup.endTime === 'string' ? outingGroup.endTime.trim() : '';
+  const hasAnyTime = !!rawStart || !!rawEnd;
+
+  const start = parseTimeToMinutes(rawStart);
+  const end = parseTimeToMinutes(rawEnd);
+
+  // If staff typed *something* but it's not a valid 24h window, mark invalid so we DON'T
+  // accidentally treat the outing as "all-day offsite" and wipe allocations.
+  if (hasAnyTime) {
+    if (start == null || end == null) return { start: null, end: null, invalid: true };
+    if (end <= start) return { start: null, end: null, invalid: true };
+    return { start, end };
   }
-  if (end <= start) {
-    return { start: null, end: null };
-  }
-  return { start, end };
+
+  // No time provided = treat as "all day"
+  return { start: null, end: null };
 }
+
 
 function timesOverlap(
   s1: number | null,
@@ -528,7 +539,10 @@ function isStaffOffsiteForSlot(slot: any, staffId: ID, outingGroup: any): boolea
 
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
-  // If no valid time window, treat as all-day offsite.
+  // If times are invalid (eg end <= start or not 24h), do NOT treat as all-day offsite.
+  if ((outingWindow as any).invalid) return false;
+
+  // If no time provided at all, treat as all-day offsite.
   if (outingWindow.start == null || outingWindow.end == null) return true;
 
   const slotWindow = getSlotWindowMinutes(slot);
@@ -566,6 +580,10 @@ function isRoomOffsiteForSlot(
   const slotWindow = getSlotWindowMinutes(slot);
   const outingWindow = getOutingWindowMinutes(outingGroup);
 
+  // If times are invalid (eg end <= start or not 24h), do NOT treat as all-day offsite.
+  if ((outingWindow as any).invalid) return false;
+
+  // If no time provided at all, treat as all-day offsite.
   if (outingWindow.start == null || outingWindow.end == null) {
     return true;
   }
