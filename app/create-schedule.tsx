@@ -7,7 +7,6 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 import { persistFinish } from '@/hooks/persist-finish';
 import useSchedule from '@/hooks/schedule-adapter';
 import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/schedule-store';
-import { STAFF, PARTICIPANTS } from '@/constants/data';
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type ID = string;
@@ -57,9 +56,17 @@ export default function CreateScheduleScreen() {
   };
 
   // ---- sources & defaults --------------------------------------------------
-  const staffSource = (Array.isArray(staff) && staff.length ? staff : STAFF) || [];
+  const staffSource = (Array.isArray(staff) && staff.length ? staff : []) || [];
   const partsSource =
-    (Array.isArray(participants) && participants.length ? participants : PARTICIPANTS) || [];
+    (Array.isArray(participants) && participants.length ? participants : []) || [];
+
+  // Ensure master data (staff/participants/chores/checklist) is loaded from Supabase
+  useEffect(() => {
+    try {
+      baseSchedule.getState().loadMasterData?.();
+    } catch {}
+  }, []);
+
   const everyone = staffSource.find(s => isEveryone(s.name));
   const everyoneId = everyone?.id;
 
@@ -871,6 +878,7 @@ export default function CreateScheduleScreen() {
         pickupParticipants,
         helperStaff,
         dropoffAssignments,
+        chores: (baseSchedule.getState().chores || []),
         date: selectedDate,
         // 🔥 pass history into fairness engine
         recentSnapshots: recentCleaningSnapshots,
@@ -967,6 +975,7 @@ snapshot = {
         pickupParticipants,
         helperStaff,
         dropoffAssignments,
+        chores: (baseSchedule.getState().chores || []),
         dropoffLocations: {},
         outingGroup: null,
         date: selectedDate,
