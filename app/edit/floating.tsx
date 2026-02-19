@@ -707,6 +707,53 @@ function FloatingScreenInner() {
 
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
 
+  // --- Cell picker (modal) ---
+  type PickState = { slotId: string; col: ColKey; fso?: boolean } | null;
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState<PickState>(null);
+
+  const openPicker = (slotId: string, col: ColKey) => {
+    if (readOnly) {
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+    // FSO applies only to Twins column and only for slots tagged as FSO
+    const slot = (TIME_SLOTS || []).find((ts: any) => String(ts.id) === String(slotId));
+    const isFsoSlot = col === 'twins' && Boolean((slot as any)?.fso);
+    setPick({ slotId: String(slotId), col, fso: isFsoSlot });
+    setOpen(true);
+  };
+
+  const getRow = (slotId: string): any => {
+    const fa: any = floatingAssignments || {};
+    const row = fa[String(slotId)];
+    return row && typeof row === 'object' ? row : {};
+  };
+
+  const setCell = (slotId: string, col: ColKey, staffId: string | null) => {
+    if (!updateSchedule) return;
+    const fa: any = floatingAssignments || {};
+    const nextRow = { ...(fa[String(slotId)] || {}) };
+    if (staffId) nextRow[col] = String(staffId);
+    else delete nextRow[col];
+    const next = { ...fa, [String(slotId)]: nextRow };
+    updateSchedule({ floatingAssignments: next });
+  };
+
+  const choose = (staffId: string) => {
+    if (!pick) return;
+    setCell(pick.slotId, pick.col, String(staffId));
+    setOpen(false);
+    setPick(null);
+  };
+
+  const clearCell = () => {
+    if (!pick) return;
+    setCell(pick.slotId, pick.col, null);
+    setOpen(false);
+    setPick(null);
+  };
+
   const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
@@ -962,13 +1009,6 @@ const hasFrontRoom = useMemo(() => {
   const existing = floatingAssignments || {};
   return Object.values(existing).some((row: any) => !!row?.frontRoom);
 }, [floatingAssignments]);
-
-const getRow = (slotId: string): { frontRoom?: any; scotty?: any; twins?: any } => {
-  const fa: any = floatingAssignments || {};
-  const row = fa[slotId];
-  return (row && typeof row === 'object') ? row : {};
-};
-
 
 useEffect(() => {
   // 🔥 Auto-build using *onsite* working staff only
