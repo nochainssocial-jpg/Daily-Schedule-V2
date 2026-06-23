@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import { useSchedule } from '@/hooks/schedule-store';
 import { useIsAdmin } from '@/hooks/access-control';
+import { useSchedule } from '@/hooks/schedule-store';
 import { supabase } from '@/lib/supabase';
 
 const HOUSE_ID = 'B2';
@@ -17,7 +17,7 @@ const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
-type SnapshotCleaningAssignments = Record<string, string | null | undefined>;
+type SnapshotCleaningAssignments = Record<string, string>;
 
 type Snapshot = {
   date?: string | null;
@@ -39,12 +39,24 @@ type ScheduleRow = {
   seq_id: number | null;
 };
 
+type WeekBucket = {
+  startKey: string;
+  start: Date;
+};
+
+type DayCandidate = {
+  snapshot: Snapshot;
+  created_at: string;
+  seq: number;
+  hasData: boolean;
+};
+
 function safeArray<T>(value: any): T[] {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
-function safeObject(value: any): Record<string, any> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+function safeObject<T extends object>(value: any): T {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as T) : ({} as T);
 }
 
 function toLocalDateKey(date: Date): string {
@@ -55,7 +67,7 @@ function toLocalDateKey(date: Date): string {
   ].join('-');
 }
 
-function parseLocalDateKey(value?: string | null): Date | null {
+function parseDateKey(value?: string | null): Date | null {
   if (!value) return null;
   const match = String(value).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
@@ -63,35 +75,47 @@ function parseLocalDateKey(value?: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function getWeekStart(weekOffset: number): Date {
-  const now = new Date();
-  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffToMonday = (base.getDay() + 6) % 7;
-  base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
-  return base;
+function getDateKeyFromRow(row: ScheduleRow, snap: Snapshot): string | null {
+  if (typeof snap.date === 'string' && snap.date.trim()) {
+    const key = snap.date.slice(0, 10);
+    return parseDateKey(key) ? key : null;
+  }
+
+  if (typeof row.created_at === 'string' && row.created_at) {
+    const created = new Date(row.created_at);
+    if (!Number.isNaN(created.getTime())) return toLocalDateKey(created);
+  }
+
+  return null;
 }
 
-function formatWeekLabel(weekStart: Date): string {
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4);
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-  return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString('en-AU', opts)}`;
+function getWeekStartForDateKey(dateKey: string): Date | null {
+  const d = parseDateKey(dateKey);
+  if (!d) return null;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffToMonday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - diffToMonday);
+  return start;
+}
+
+function getWeekStartKeyForDateKey(dateKey: string): string | null {
+  const start = getWeekStartForDateKey(dateKey);
+  return start ? toLocalDateKey(start) : null;
 }
 
 function getLabelFromDateKey(dateKey: string): WeekDayLabel | null {
-  const d = parseLocalDateKey(dateKey);
+  const d = parseDateKey(dateKey);
   if (!d) return null;
   const idx = (d.getDay() + 6) % 7;
   return idx >= 0 && idx < 5 ? WEEK_DAYS[idx] : null;
 }
 
-function isDateKeyInWeek(dateKey: string, weekStart: Date): boolean {
-  const d = parseLocalDateKey(dateKey);
-  if (!d) return false;
-  const start = new Date(weekStart);
+function formatWeekLabel(weekStart: Date | null): string {
+  if (!weekStart) return 'Week: No saved working week found';
   const end = new Date(weekStart);
-  end.setDate(end.getDate() + 7);
-  return d >= start && d < end;
+  end.setDate(end.getDate() + 4);
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString('en-AU', opts)}`;
 }
 
 function normaliseSnapshot(raw: any): Snapshot | null {
@@ -101,41 +125,51 @@ function normaliseSnapshot(raw: any): Snapshot | null {
     return {
       date: snap.date ?? null,
       staff: safeArray<SnapshotStaff>(snap.staff),
-      cleaningAssignments: safeObject(snap.cleaningAssignments),
+      cleaningAssignments: safeObject<SnapshotCleaningAssignments>(snap.cleaningAssignments),
     };
   } catch {
     return null;
   }
 }
 
-function isNewerCandidate(
-  current: { created_at: string; seq: number } | undefined,
-  candidate: { created_at: string; seq: number },
-): boolean {
+function snapshotHasCleaningData(snapshot: Snapshot): boolean {
+  return Object.values(safeObject<SnapshotCleaningAssignments>(snapshot.cleaningAssignments)).some(Boolean);
+}
+
+function isNewerCandidate(current: DayCandidate | undefined, candidate: DayCandidate): boolean {
   if (!current) return true;
+
+  // Prefer a saved schedule that actually contains cleaning data.
+  // This prevents a later partial/blank save for the same day from wiping the report.
+  if (candidate.hasData !== current.hasData) return candidate.hasData;
+
   if (candidate.seq !== current.seq) return candidate.seq > current.seq;
   return String(candidate.created_at || '') > String(current.created_at || '');
+}
+
+function makeEmptyDays(): Record<WeekDayLabel, string[]> {
+  return { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [] };
 }
 
 export default function DailyCleaningTrackerScreen() {
   const { chores = [] } = useSchedule() as any;
   const isAdmin = useIsAdmin();
-
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekIndex, setWeekIndex] = useState(0); // 0 = latest saved working week, 1 = previous saved working week
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<CleaningRow[]>([]);
+  const [weeks, setWeeks] = useState<WeekBucket[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<WeekBucket | null>(null);
 
   const choreLabelById = useMemo(() => {
-    const out: Record<string, string> = {};
-    safeArray<any>(chores).forEach((chore) => {
-      if (chore?.id && chore?.name) out[String(chore.id)] = String(chore.name);
+    const map: Record<string, string> = {};
+    (chores || []).forEach((chore: any) => {
+      if (chore?.id && chore?.name) map[String(chore.id)] = String(chore.name);
     });
-    return out;
+    return map;
   }, [chores]);
 
-  const weekStart = useMemo(() => getWeekStart(weekOffset), [weekOffset]);
-  const weekLabel = useMemo(() => formatWeekLabel(weekStart), [weekStart]);
+  const weekLabel = useMemo(() => formatWeekLabel(selectedWeek?.start ?? null), [selectedWeek]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -152,39 +186,54 @@ export default function DailyCleaningTrackerScreen() {
           .select('id, house, snapshot, created_at, seq_id')
           .eq('house', HOUSE_ID)
           .order('created_at', { ascending: false })
-          .limit(500);
+          .limit(1000);
 
         if (supaError) throw supaError;
 
-        const latestByDay: Record<string, { snapshot: Snapshot; created_at: string; seq: number }> = {};
+        const rowsRaw = (data ?? []) as ScheduleRow[];
+        const parsed: Array<{ row: ScheduleRow; snapshot: Snapshot; dateKey: string; weekKey: string; weekStart: Date }> = [];
+        const weekMap: Record<string, WeekBucket> = {};
 
-        for (const row of (data ?? []) as ScheduleRow[]) {
-          const snap = normaliseSnapshot(row.snapshot);
-          if (!snap) continue;
+        for (const row of rowsRaw) {
+          const snapshot = normaliseSnapshot(row.snapshot);
+          if (!snapshot) continue;
+          const dateKey = getDateKeyFromRow(row, snapshot);
+          if (!dateKey) continue;
+          if (!getLabelFromDateKey(dateKey)) continue; // only Mon-Fri working schedules
+          const weekStart = getWeekStartForDateKey(dateKey);
+          const weekKey = getWeekStartKeyForDateKey(dateKey);
+          if (!weekStart || !weekKey) continue;
 
-          const dayKey =
-            typeof snap.date === 'string' && snap.date
-              ? snap.date.slice(0, 10)
-              : toLocalDateKey(new Date(row.created_at));
+          parsed.push({ row, snapshot, dateKey, weekKey, weekStart });
+          if (!weekMap[weekKey]) weekMap[weekKey] = { startKey: weekKey, start: weekStart };
+        }
 
-          if (!dayKey || !isDateKeyInWeek(dayKey, weekStart)) continue;
+        const sortedWeeks = Object.values(weekMap).sort((a, b) => b.startKey.localeCompare(a.startKey));
+        const safeWeekIndex = Math.min(Math.max(weekIndex, 0), Math.max(sortedWeeks.length - 1, 0));
+        const week = sortedWeeks[safeWeekIndex] ?? null;
 
-          const candidate = {
-            snapshot: snap,
-            created_at: row.created_at,
-            seq: typeof row.seq_id === 'number' ? row.seq_id : 0,
-          };
+        const latestByDay: Record<string, DayCandidate> = {};
+        if (week) {
+          for (const item of parsed) {
+            if (item.weekKey !== week.startKey) continue;
 
-          if (isNewerCandidate(latestByDay[dayKey], candidate)) {
-            latestByDay[dayKey] = candidate;
+            const candidate: DayCandidate = {
+              snapshot: item.snapshot,
+              created_at: item.row.created_at,
+              seq: typeof item.row.seq_id === 'number' ? item.row.seq_id : 0,
+              hasData: snapshotHasCleaningData(item.snapshot),
+            };
+
+            if (isNewerCandidate(latestByDay[item.dateKey], candidate)) {
+              latestByDay[item.dateKey] = candidate;
+            }
           }
         }
 
-        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({ Mon: [], Tue: [], Wed: [], Thu: [], Fri: [] });
         const staffSummary: Record<string, CleaningRow> = {};
 
-        for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
-          const label = getLabelFromDateKey(dayKey);
+        for (const [dateKey, { snapshot }] of Object.entries(latestByDay)) {
+          const label = getLabelFromDateKey(dateKey);
           if (!label) continue;
 
           const staffById: Record<string, string> = {};
@@ -192,30 +241,38 @@ export default function DailyCleaningTrackerScreen() {
             if (s?.id && s?.name) staffById[String(s.id)] = s.name;
           });
 
-          const cleaningAssignments = safeObject(snapshot.cleaningAssignments);
+          const cleaningAssignments = safeObject<SnapshotCleaningAssignments>(snapshot.cleaningAssignments);
 
-          Object.entries(cleaningAssignments).forEach(([choreId, staffIdRaw]) => {
-            const staffId = String(staffIdRaw ?? '').trim();
+          Object.entries(cleaningAssignments).forEach(([choreId, staffId]) => {
             if (!staffId) return;
-
-            const staffName = staffById[staffId];
+            const sid = String(staffId);
+            const staffName = staffById[sid];
             if (!staffName) return;
 
             const choreLabel = choreLabelById[String(choreId)] ?? `Chore ${choreId}`;
 
-            if (!staffSummary[staffId]) {
-              staffSummary[staffId] = { staffId, name: staffName, byDay: makeEmptyDays() };
+            if (!staffSummary[sid]) {
+              staffSummary[sid] = {
+                staffId: sid,
+                name: staffName,
+                byDay: makeEmptyDays(),
+              };
             }
 
-            staffSummary[staffId].byDay[label].push(choreLabel);
+            staffSummary[sid].byDay[label].push(choreLabel);
           });
         }
 
         const summaryArr = Object.values(staffSummary).sort((a, b) => a.name.localeCompare(b.name, 'en-AU'));
-        if (!cancelled) setRows(summaryArr);
+
+        if (!cancelled) {
+          setWeeks(sortedWeeks);
+          setSelectedWeek(week);
+          setRows(summaryArr);
+        }
       } catch (err) {
-        console.error('Cleaning tracker error', err);
-        if (!cancelled) setError('Could not load cleaning tracker.');
+        console.error('Error loading weekly cleaning tracker', err);
+        if (!cancelled) setError('Could not load weekly cleaning data.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -225,7 +282,7 @@ export default function DailyCleaningTrackerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, weekStart, choreLabelById]);
+  }, [isAdmin, weekIndex, choreLabelById]);
 
   const handlePrint = () => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.print) window.print();
@@ -242,6 +299,9 @@ export default function DailyCleaningTrackerScreen() {
     );
   }
 
+  const canGoNewer = weekIndex > 0;
+  const canGoOlder = weekIndex < weeks.length - 1;
+
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.card}>
@@ -252,13 +312,13 @@ export default function DailyCleaningTrackerScreen() {
           </View>
 
           <View style={styles.headerButtons}>
-            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev - 1)}>
+            <TouchableOpacity style={[styles.navButton, !canGoOlder && styles.navButtonDisabled]} disabled={!canGoOlder} onPress={() => setWeekIndex((prev) => prev + 1)}>
               <Text style={styles.navButtonText}>{'‹'} Prev</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset(0)}>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekIndex(0)}>
               <Text style={styles.navButtonText}>Current</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev + 1)}>
+            <TouchableOpacity style={[styles.navButton, !canGoNewer && styles.navButtonDisabled]} disabled={!canGoNewer} onPress={() => setWeekIndex((prev) => Math.max(0, prev - 1))}>
               <Text style={styles.navButtonText}>Next {'›'}</Text>
             </TouchableOpacity>
             {Platform.OS === 'web' && rows.length > 0 && (
@@ -272,7 +332,7 @@ export default function DailyCleaningTrackerScreen() {
         <View style={styles.tableWrapper} id="print-area">
           {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
           {error && <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>}
-          {!loading && !error && rows.length === 0 && <Text style={styles.helper}>No tracked cleaning data yet for this week.</Text>}
+          {!loading && !error && rows.length === 0 && <Text style={styles.helper}>No cleaning assignment data found for this saved working week.</Text>}
 
           {rows.length > 0 && (
             <View style={styles.table}>
@@ -301,6 +361,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   headerButtons: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
   navButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#CBD5F5', marginLeft: 8, marginBottom: 6, backgroundColor: '#FFFFFF' },
+  navButtonDisabled: { opacity: 0.45 },
   navButtonText: { fontSize: 13, color: '#1F2933' },
   printButton: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#F54FA5', backgroundColor: '#FDF2FB', marginLeft: 8, marginBottom: 6 },
   printButtonText: { fontSize: 13, fontWeight: '600', color: '#F54FA5', textTransform: 'uppercase', letterSpacing: 0.5 },
