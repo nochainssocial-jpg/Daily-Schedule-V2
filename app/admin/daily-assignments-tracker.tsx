@@ -1,5 +1,5 @@
 // app/admin/daily-assignments-tracker.tsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,24 +11,24 @@ import {
 import { useIsAdmin } from '@/hooks/access-control';
 import { supabase } from '@/lib/supabase';
 
+const HOUSE_ID = 'B2';
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
 type SnapshotParticipant = { id: string; name: string };
-type SnapshotAssignments = Record<string, string[]>; // staffId -> participantIds[]
 
 type Snapshot = {
-  date: string | null;
-  staff: SnapshotStaff[];
-  participants: SnapshotParticipant[];
-  assignments: SnapshotAssignments;
+  date?: string | null;
+  staff?: SnapshotStaff[];
+  participants?: SnapshotParticipant[];
+  assignments?: any;
 };
 
 type StaffRow = {
   staffId: string;
   name: string;
-  byDay: Record<WeekDayLabel, string[]>; // participant names
+  byDay: Record<WeekDayLabel, string[]>;
 };
 
 type ScheduleRow = {
@@ -39,169 +39,65 @@ type ScheduleRow = {
   seq_id: number | null;
 };
 
-// ------------------ Utilities -------------------------
-
-function safeDateLabel(dateStr: string): WeekDayLabel | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-
-  const js = d.getDay(); // 0=Sun..6=Sat
-  const idx = (js + 6) % 7;
-  if (idx < 0 || idx > 4) return null;
-  return WEEK_DAYS[idx];
+function safeArray<T>(value: any): T[] {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
-function safeArray<T>(val: any): T[] {
-  return Array.isArray(val) ? val.filter(Boolean) : [];
+function safeObject(value: any): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-function safeObject(val: any): Record<string, any> {
-  return val && typeof val === 'object' && !Array.isArray(val) ? val : {};
+function toLocalDateKey(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
-// ------------------ Assignments shape helpers -------------------------
-
-function __ds_isPlainObject(v: any): v is Record<string, any> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
+function parseLocalDateKey(value?: string | null): Date | null {
+  if (!value) return null;
+  const match = String(value).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function __ds_toStringArray(v: any): string[] {
-  return Array.isArray(v) ? v.filter(Boolean).map((x) => String(x)) : [];
+function getWeekStart(weekOffset: number): Date {
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffToMonday = (base.getDay() + 6) % 7;
+  base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
+  return base;
 }
 
-function __ds_resolveStaffIdFromKey(
-  key: string,
-  staffById: Record<string, string>,
-  staffList: SnapshotStaff[],
-): string | null {
-  const k = String(key ?? '').trim();
-  if (!k) return null;
-
-  // 1) exact staffId
-  if (staffById[k]) return k;
-
-  // 2) numeric index keys (legacy) -> try 0-based then 1-based
-  if (/^\d+$/.test(k)) {
-    const n = parseInt(k, 10);
-    const zeroIdx = n;
-    if (staffList[zeroIdx]?.id) return staffList[zeroIdx].id;
-    const oneIdx = n - 1;
-    if (oneIdx >= 0 && staffList[oneIdx]?.id) return staffList[oneIdx].id;
-  }
-
-  // 3) staff name as key (legacy)
-  const lower = k.toLowerCase();
-  const found = staffList.find((s) => (s?.name ?? '').toLowerCase() === lower);
-  return found?.id ?? null;
+function formatWeekLabel(weekStart: Date): string {
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 4);
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString('en-AU', opts)}`;
 }
 
-function __ds_normaliseAssignments(
-  raw: any,
-  staffById: Record<string, string>,
-  staffList: SnapshotStaff[],
-): Record<string, string[]> {
-  const out: Record<string, string[]> = {};
-
-  // Object map shapes:
-  //  A) staff -> participantIds[]  (preferred)
-  //  B) participantId -> staffId   (legacy persisted in schedules_rows.json)
-  if (__ds_isPlainObject(raw)) {
-
-  // Detect whether values are arrays (staff->participants) or scalars (participant->staff)
-  let sawArray = false;
-  let sawScalar = false;
-  for (const v of Object.values(raw)) {
-    if (Array.isArray(v)) { sawArray = true; break; }
-    if (v != null) sawScalar = true;
-  }
-
-  // A) staffKey -> participantIds[]
-  if (sawArray) {
-    for (const [key, pids] of Object.entries(raw)) {
-      const sid = __ds_resolveStaffIdFromKey(String(key), staffById, staffList);
-      if (!sid) continue;
-      const arr = __ds_toStringArray(pids);
-      if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
-    }
-    return out;
-  }
-
-  // B) participantId -> staffId (scalar map)
-  if (sawScalar) {
-    for (const [participantIdRaw, staffKeyRaw] of Object.entries(raw)) {
-      const participantId = String(participantIdRaw ?? '').trim();
-      if (!participantId) continue;
-
-      const sid = __ds_resolveStaffIdFromKey(String(staffKeyRaw ?? ''), staffById, staffList);
-      if (!sid) continue;
-
-      out[sid] = out[sid] ?? [];
-      out[sid].push(participantId);
-    }
-    return out;
-  }
-
-    return out;
-  }
-
-  // Array shapes:
-  //  - [{ staffId, participantIds }]
-  //  - [[staffKey, participantIds]]
-  if (Array.isArray(raw)) {
-    for (const item of raw) {
-      if (!item) continue;
-
-      // tuple form
-      if (Array.isArray(item) && item.length >= 2) {
-        const key = String(item[0]);
-        const sid = __ds_resolveStaffIdFromKey(key, staffById, staffList);
-        if (!sid) continue;
-        const arr = __ds_toStringArray(item[1]);
-        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
-        continue;
-      }
-
-      // object form
-      if (__ds_isPlainObject(item)) {
-        const key =
-          item.staffId ?? item.staff_id ?? item.staffKey ?? item.staff_key ?? item.staff ?? item.name;
-        const sid = __ds_resolveStaffIdFromKey(String(key ?? ''), staffById, staffList);
-        if (!sid) continue;
-
-        const pids =
-          item.participantIds ??
-          item.participant_ids ??
-          item.participants ??
-          item.participantIdsAssigned ??
-          item.value;
-
-        // Object may be staff->participants OR participant->staff
-        if (Array.isArray(pids)) {
-          const arr = __ds_toStringArray(pids);
-          if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
-        } else {
-          const participantId = String(item.participantId ?? item.participant_id ?? item.participant ?? item.pid ?? '').trim();
-          const sid2 = __ds_resolveStaffIdFromKey(String(item.staffId ?? item.staff_id ?? item.staff ?? item.sid ?? pids ?? ''), staffById, staffList);
-          if (participantId && sid2) {
-            out[sid2] = out[sid2] ?? [];
-            out[sid2].push(participantId);
-          }
-        }
-      }
-    }
-  }
-
-  return out;
+function getLabelFromDateKey(dateKey: string): WeekDayLabel | null {
+  const d = parseLocalDateKey(dateKey);
+  if (!d) return null;
+  const idx = (d.getDay() + 6) % 7;
+  return idx >= 0 && idx < 5 ? WEEK_DAYS[idx] : null;
 }
 
+function isDateKeyInWeek(dateKey: string, weekStart: Date): boolean {
+  const d = parseLocalDateKey(dateKey);
+  if (!d) return false;
+  const start = new Date(weekStart);
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 7);
+  return d >= start && d < end;
+}
 
-// ------------------ Normalise Snapshot -------------------------
-
-function normaliseSnapshot(raw: any): Snapshot {
+function normaliseSnapshot(raw: any): Snapshot | null {
+  if (!raw) return null;
   try {
-    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
-
+    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return {
       date: snap.date ?? null,
       staff: safeArray<SnapshotStaff>(snap.staff),
@@ -209,150 +105,208 @@ function normaliseSnapshot(raw: any): Snapshot {
       assignments: safeObject(snap.assignments),
     };
   } catch {
-    return {
-      date: null,
-      staff: [],
-      participants: [],
-      assignments: {},
-    };
+    return null;
   }
 }
 
-// ------------------ Component -------------------------
+function isPlainObject(v: any): v is Record<string, any> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function toStringArray(v: any): string[] {
+  return Array.isArray(v) ? v.filter(Boolean).map((x) => String(x)) : [];
+}
+
+function resolveStaffIdFromKey(
+  key: string,
+  staffById: Record<string, string>,
+  staffList: SnapshotStaff[],
+): string | null {
+  const k = String(key ?? '').trim();
+  if (!k) return null;
+  if (staffById[k]) return k;
+
+  if (/^\d+$/.test(k)) {
+    const n = parseInt(k, 10);
+    if (staffList[n]?.id) return staffList[n].id;
+    if (n > 0 && staffList[n - 1]?.id) return staffList[n - 1].id;
+  }
+
+  const lower = k.toLowerCase();
+  return staffList.find((s) => String(s?.name ?? '').toLowerCase() === lower)?.id ?? null;
+}
+
+function normaliseAssignments(
+  raw: any,
+  staffById: Record<string, string>,
+  staffList: SnapshotStaff[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+
+  if (isPlainObject(raw)) {
+    let sawArray = false;
+    let sawScalar = false;
+
+    for (const v of Object.values(raw)) {
+      if (Array.isArray(v)) sawArray = true;
+      else if (v != null) sawScalar = true;
+    }
+
+    // staffId -> participantIds[]
+    if (sawArray) {
+      for (const [key, pids] of Object.entries(raw)) {
+        const sid = resolveStaffIdFromKey(String(key), staffById, staffList);
+        if (!sid) continue;
+        const arr = toStringArray(pids);
+        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+      }
+      return out;
+    }
+
+    // participantId -> staffId, which is the current Edit Hub save shape.
+    if (sawScalar) {
+      for (const [participantIdRaw, staffKeyRaw] of Object.entries(raw)) {
+        const participantId = String(participantIdRaw ?? '').trim();
+        if (!participantId || !staffKeyRaw) continue;
+        const sid = resolveStaffIdFromKey(String(staffKeyRaw), staffById, staffList);
+        if (!sid) continue;
+        out[sid] = out[sid] ?? [];
+        out[sid].push(participantId);
+      }
+    }
+
+    return out;
+  }
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item) continue;
+      if (Array.isArray(item) && item.length >= 2) {
+        const sid = resolveStaffIdFromKey(String(item[0]), staffById, staffList);
+        if (!sid) continue;
+        const arr = toStringArray(item[1]);
+        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+        continue;
+      }
+
+      if (isPlainObject(item)) {
+        const sid = resolveStaffIdFromKey(
+          String(item.staffId ?? item.staff_id ?? item.staffKey ?? item.staff_key ?? item.staff ?? item.name ?? ''),
+          staffById,
+          staffList,
+        );
+        const arr = toStringArray(item.participantIds ?? item.participant_ids ?? item.participants ?? item.value);
+        if (sid && arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+      }
+    }
+  }
+
+  return out;
+}
+
+function isNewerCandidate(
+  current: { created_at: string; seq: number } | undefined,
+  candidate: { created_at: string; seq: number },
+): boolean {
+  if (!current) return true;
+  if (candidate.seq !== current.seq) return candidate.seq > current.seq;
+  return String(candidate.created_at || '') > String(current.created_at || '');
+}
 
 export default function DailyAssignmentsTrackerScreen() {
   const isAdmin = useIsAdmin();
-
+  const [weekOffset, setWeekOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<StaffRow[]>([]);
 
-  const weekStart = useMemo(() => {
-    const now = new Date();
-    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diff = (base.getDay() + 6) % 7;
-    base.setDate(base.getDate() - diff);
-    return base;
-  }, []);
-
-  const weekLabel = useMemo(() => {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 4);
-    const opts: Intl.DateTimeFormatOptions = {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    };
-    return `Week: ${weekStart.toLocaleDateString(
-      'en-AU',
-      opts,
-    )} – ${end.toLocaleDateString('en-AU', opts)}`;
-  }, [weekStart]);
+  const weekStart = useMemo(() => getWeekStart(weekOffset), [weekOffset]);
+  const weekLabel = useMemo(() => formatWeekLabel(weekStart), [weekStart]);
 
   useEffect(() => {
     if (!isAdmin) return;
-
     let cancelled = false;
 
     async function load() {
       setLoading(true);
       setError(null);
+      setRows([]);
 
       try {
-        const rangeStart = new Date(weekStart);
-        const rangeEnd = new Date(weekStart);
-        rangeEnd.setDate(rangeEnd.getDate() + 7);
-
         const { data, error: supaError } = await supabase
           .from('schedules')
           .select('id, house, snapshot, created_at, seq_id')
-          .eq('house', 'B2')
-          .gte('created_at', rangeStart.toISOString())
-          .lt('created_at', rangeEnd.toISOString())
-          .order('created_at', { ascending: true });
+          .eq('house', HOUSE_ID)
+          .order('created_at', { ascending: false })
+          .limit(500);
 
         if (supaError) throw supaError;
 
-        const latestByDay: Record<
-          string,
-          { snapshot: Snapshot; created_at: string; seq: number }
-        > = {};
+        const latestByDay: Record<string, { snapshot: Snapshot; created_at: string; seq: number }> = {};
 
         for (const row of (data ?? []) as ScheduleRow[]) {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
 
-          const createdAt = typeof row.created_at === 'string' ? row.created_at : '';
-
           const dayKey =
             typeof snap.date === 'string' && snap.date
               ? snap.date.slice(0, 10)
-              : (createdAt ? createdAt.slice(0, 10) : '');
+              : toLocalDateKey(new Date(row.created_at));
 
-          if (!dayKey) continue;
+          if (!dayKey || !isDateKeyInWeek(dayKey, weekStart)) continue;
 
-          const seq = row.seq_id ?? 0;
-          if (!latestByDay[dayKey] || seq > latestByDay[dayKey].seq) {
-            latestByDay[dayKey] = {
-              snapshot: snap,
-              created_at: row.created_at,
-              seq,
-            };
+          const candidate = {
+            snapshot: snap,
+            created_at: row.created_at,
+            seq: typeof row.seq_id === 'number' ? row.seq_id : 0,
+          };
+
+          if (isNewerCandidate(latestByDay[dayKey], candidate)) {
+            latestByDay[dayKey] = candidate;
           }
         }
 
-        const makeDays = () =>
-          ({
-            Mon: [],
-            Tue: [],
-            Wed: [],
-            Thu: [],
-            Fri: [],
-          } as Record<WeekDayLabel, string[]>);
-
-        const summary: Record<string, StaffRow> = {};
+        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({ Mon: [], Tue: [], Wed: [], Thu: [], Fri: [] });
+        const summaryByStaff: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
-          const label = safeDateLabel(dayKey);
+          const label = getLabelFromDateKey(dayKey);
           if (!label) continue;
 
           const staffById: Record<string, string> = {};
-          snapshot.staff.forEach((s) => {
-            if (s?.id && s?.name) staffById[s.id] = s.name;
+          safeArray<SnapshotStaff>(snapshot.staff).forEach((s) => {
+            if (s?.id && s?.name) staffById[String(s.id)] = s.name;
           });
 
           const participantsById: Record<string, string> = {};
-          snapshot.participants.forEach((p) => {
-            if (p?.id && p?.name) participantsById[p.id] = p.name;
+          safeArray<SnapshotParticipant>(snapshot.participants).forEach((p) => {
+            if (p?.id && p?.name) participantsById[String(p.id)] = p.name;
           });
 
-          const assignments = __ds_normaliseAssignments(snapshot.assignments, staffById, snapshot.staff);
+          const assignments = normaliseAssignments(snapshot.assignments, staffById, safeArray<SnapshotStaff>(snapshot.staff));
 
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
-            if (!Array.isArray(participantIds)) return;
+            if (!staffId || !Array.isArray(participantIds)) return;
 
-            if (!summary[staffId]) {
-              summary[staffId] = {
+            if (!summaryByStaff[staffId]) {
+              summaryByStaff[staffId] = {
                 staffId,
                 name: staffById[staffId] ?? staffId,
-                byDay: makeDays(),
+                byDay: makeEmptyDays(),
               };
             }
 
             participantIds.forEach((pid) => {
-              const name = participantsById[pid];
-              if (name) summary[staffId].byDay[label].push(name);
+              const participantName = participantsById[String(pid)];
+              if (participantName) summaryByStaff[staffId].byDay[label].push(participantName);
             });
           });
         }
 
-        const arr = Object.values(summary).sort((a, b) =>
-          a.name.localeCompare(b.name, 'en-AU'),
-        );
-
-        if (!cancelled) setRows(arr);
+        const summaryArr = Object.values(summaryByStaff).sort((a, b) => a.name.localeCompare(b.name, 'en-AU'));
+        if (!cancelled) setRows(summaryArr);
       } catch (err) {
-        console.error('Assignment tracker error:', err);
+        console.error('Assignment tracker error', err);
         if (!cancelled) setError('Could not load weekly tracker.');
       } finally {
         if (!cancelled) setLoading(false);
@@ -366,11 +320,7 @@ export default function DailyAssignmentsTrackerScreen() {
   }, [isAdmin, weekStart]);
 
   const handlePrint = () => {
-    if (Platform.OS === 'web') {
-      (window as any).print();
-    } else {
-      console.log('Print is only available on web.');
-    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.print) window.print();
   };
 
   if (!isAdmin) {
@@ -378,9 +328,7 @@ export default function DailyAssignmentsTrackerScreen() {
       <View style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
-          <Text style={styles.subtitle}>
-            Admin Mode is required. Enable Admin Mode on the Share screen.
-          </Text>
+          <Text style={styles.subtitle}>Admin Mode is required to view this report. Enable Admin Mode on the Share screen.</Text>
         </View>
       </View>
     );
@@ -389,167 +337,78 @@ export default function DailyAssignmentsTrackerScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.card}>
-        <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
-        <Text style={styles.subtitle}>
-          Live Mon–Fri view. As you save each day’s schedule, this tracker fills
-          automatically.
-        </Text>
-        <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
-
-        {/* Print button */}
-        {rows.length > 0 && (
-          <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
-              <Text style={styles.printButtonText}>Print</Text>
-            </TouchableOpacity>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
+            <Text style={styles.subtitle}>{weekLabel}</Text>
           </View>
-        )}
 
-        {loading && <Text style={styles.helper}>Loading…</Text>}
-        {error && <Text style={[styles.helper, { color: 'red' }]}>{error}</Text>}
-        {!loading && !error && rows.length === 0 && (
-          <Text style={styles.helper}>
-            No tracked assignment data yet for this week.
-          </Text>
-        )}
+          <View style={styles.headerButtons}>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev - 1)}>
+              <Text style={styles.navButtonText}>{'‹'} Prev</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset(0)}>
+              <Text style={styles.navButtonText}>Current</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev + 1)}>
+              <Text style={styles.navButtonText}>Next {'›'}</Text>
+            </TouchableOpacity>
+            {Platform.OS === 'web' && rows.length > 0 && (
+              <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
+                <Text style={styles.printButtonText}>Print</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
-        {rows.length > 0 && (
-          <View style={styles.table}>
-            {/* Header */}
-            <View style={[styles.row, styles.headerRow]}>
-              <View style={[styles.cell, styles.staffCellHeader]}>
-                <Text style={[styles.cellText, styles.headerText]}>Staff</Text>
+        <View style={styles.tableWrapper} id="print-area">
+          {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
+          {error && <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>}
+          {!loading && !error && rows.length === 0 && <Text style={styles.helper}>No tracked assignment data yet for this week.</Text>}
+
+          {rows.length > 0 && (
+            <View style={styles.table}>
+              <View style={[styles.row, styles.headerRowTable]}>
+                <View style={[styles.cell, styles.staffHeaderCell]}><Text style={[styles.cellText, styles.headerCellText]}>Staff</Text></View>
+                {WEEK_DAYS.map((day) => <View key={day} style={[styles.cell, styles.dayHeaderCell]}><Text style={[styles.cellText, styles.headerCellText]}>{day}</Text></View>)}
               </View>
-              {WEEK_DAYS.map((d) => (
-                <View key={d} style={[styles.cell, styles.dayHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerText]}>{d}</Text>
+              {rows.map((row) => (
+                <View key={row.staffId} style={styles.row}>
+                  <View style={[styles.cell, styles.staffCell]}><Text style={[styles.cellText, styles.staffText]}>{row.name}</Text></View>
+                  {WEEK_DAYS.map((day) => <View key={day} style={[styles.cell, styles.dataCell]}><Text style={styles.cellText}>{(row.byDay[day] ?? []).join('\n')}</Text></View>)}
                 </View>
               ))}
             </View>
-
-            {/* Rows */}
-            {rows.map((row) => (
-              <View key={row.staffId} style={styles.row}>
-                <View style={[styles.cell, styles.staffCell]}>
-                  <Text style={[styles.cellText, styles.staffName]}>
-                    {row.name}
-                  </Text>
-                </View>
-
-                {WEEK_DAYS.map((d) => {
-                  const content = (row.byDay[d] ?? []).join('\n');
-                  return (
-                    <View key={d} style={[styles.cell, styles.dataCell]}>
-                      <Text style={styles.cellText}>{content}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-        )}
+          )}
+        </View>
       </View>
     </ScrollView>
   );
 }
 
-// ------------------ Styles -------------------------
-
 const styles = StyleSheet.create({
-  scroll: {
-    flexGrow: 1,
-    backgroundColor: '#E0E7FF',
-    alignItems: 'center',
-    padding: 16,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: '#E0E7FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 1040,
-    backgroundColor: '#FFF',
-    padding: 20,
-    borderRadius: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#332244',
-  },
-  subtitle: {
-    fontSize: 13,
-    opacity: 0.8,
-    color: '#5a486b',
-  },
-  helper: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#444',
-  },
-  actionsRow: {
-    marginTop: 12,
-    marginBottom: 4,
-    alignItems: 'flex-end',
-  },
-  printButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#F54FA5',
-    backgroundColor: '#FDF2FB',
-  },
-  printButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#F54FA5',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  table: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  headerRow: {
-    backgroundColor: '#EFF3FF',
-  },
-  cell: {
-    padding: 8,
-    borderRightWidth: 1,
-    borderRightColor: '#EEE',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  cellText: {
-    fontSize: 14,
-  },
-  headerText: {
-    fontWeight: '700',
-  },
-  staffCellHeader: {
-    width: 150,
-  },
-  dayHeaderCell: {
-    width: 168,
-  },
-  staffCell: {
-    width: 150,
-    backgroundColor: '#F8F8F8',
-  },
-  staffName: {
-    fontWeight: '600',
-  },
-  dataCell: {
-    width: 168,
-  },
+  scroll: { flexGrow: 1, backgroundColor: '#E0E7FF', alignItems: 'center', padding: 16 },
+  screen: { flex: 1, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  card: { width: '100%', maxWidth: 1040, backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 24, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
+  navButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#CBD5F5', marginLeft: 8, marginBottom: 6, backgroundColor: '#FFFFFF' },
+  navButtonText: { fontSize: 13, color: '#1F2933' },
+  printButton: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#F54FA5', backgroundColor: '#FDF2FB', marginLeft: 8, marginBottom: 6 },
+  printButtonText: { fontSize: 13, fontWeight: '600', color: '#F54FA5', textTransform: 'uppercase', letterSpacing: 0.5 },
+  title: { fontSize: 18, fontWeight: '700', color: '#332244' },
+  subtitle: { fontSize: 13, opacity: 0.8, color: '#5a486b' },
+  tableWrapper: { marginTop: 8 },
+  helper: { fontSize: 13, color: '#4B5563' },
+  table: { marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, overflow: 'hidden' },
+  row: { flexDirection: 'row' },
+  headerRowTable: { backgroundColor: '#EFF3FF' },
+  cell: { paddingHorizontal: 8, paddingVertical: 6, borderRightWidth: 1, borderRightColor: '#E5E7EB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', justifyContent: 'flex-start', alignItems: 'flex-start', flexShrink: 0, flexGrow: 0, overflow: 'hidden' },
+  cellText: { fontSize: 15, lineHeight: 20, color: '#111827', textAlign: 'left', flexWrap: 'wrap' },
+  headerCellText: { fontWeight: '600', color: '#111827' },
+  staffHeaderCell: { width: 150 },
+  dayHeaderCell: { width: 168 },
+  staffCell: { backgroundColor: '#F9FAFB', width: 150 },
+  staffText: { fontWeight: '600' },
+  dataCell: { backgroundColor: '#FFFFFF', width: 168 },
 });

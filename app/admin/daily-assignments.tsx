@@ -1,5 +1,5 @@
 // app/admin/daily-assignments.tsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,24 +11,24 @@ import {
 import { useIsAdmin } from '@/hooks/access-control';
 import { supabase } from '@/lib/supabase';
 
+const HOUSE_ID = 'B2';
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 type WeekDayLabel = (typeof WEEK_DAYS)[number];
 
 type SnapshotStaff = { id: string; name: string };
 type SnapshotParticipant = { id: string; name: string };
-type SnapshotAssignments = Record<string, string[]>; // staffId -> participantIds[]
 
 type Snapshot = {
-  date?: string;
+  date?: string | null;
   staff?: SnapshotStaff[];
   participants?: SnapshotParticipant[];
-  assignments?: SnapshotAssignments;
+  assignments?: any;
 };
 
 type StaffRow = {
   staffId: string;
   name: string;
-  byDay: Record<WeekDayLabel, string[]>; // participant names
+  byDay: Record<WeekDayLabel, string[]>;
 };
 
 type ScheduleRow = {
@@ -39,192 +39,164 @@ type ScheduleRow = {
   seq_id: number | null;
 };
 
+function safeArray<T>(value: any): T[] {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function safeObject(value: any): Record<string, any> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function toLocalDateKey(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function parseLocalDateKey(value?: string | null): Date | null {
+  if (!value) return null;
+  const match = String(value).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function getWeekStart(weekOffset: number): Date {
   const now = new Date();
-  const base = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    0,
-    0,
-    0,
-    0,
-  );
-
-  const day = base.getDay(); // 0–6 (Sun–Sat)
-  const diffToMonday = (day + 6) % 7; // 0 if Monday
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffToMonday = (base.getDay() + 6) % 7;
   base.setDate(base.getDate() - diffToMonday + weekOffset * 7);
   return base;
 }
 
 function formatWeekLabel(weekStart: Date): string {
   const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4); // Mon + 4 = Fri
-
-  const opts: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  };
-  const startStr = weekStart.toLocaleDateString('en-AU', opts);
-  const endStr = end.toLocaleDateString('en-AU', opts);
-  return `Week: ${startStr} – ${endStr}`;
+  end.setDate(end.getDate() + 4);
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+  return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString('en-AU', opts)}`;
 }
 
-function getLabelFromDateString(dateStr: string): WeekDayLabel | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return null;
+function getLabelFromDateKey(dateKey: string): WeekDayLabel | null {
+  const d = parseLocalDateKey(dateKey);
+  if (!d) return null;
+  const idx = (d.getDay() + 6) % 7;
+  return idx >= 0 && idx < 5 ? WEEK_DAYS[idx] : null;
+}
 
-  const jsDay = d.getDay(); // 0=Sun..6=Sat
-  const idx = (jsDay + 6) % 7; // 0=Mon..6=Sun
-  if (idx < 0 || idx > 4) return null; // only Mon–Fri
-  return WEEK_DAYS[idx];
+function isDateKeyInWeek(dateKey: string, weekStart: Date): boolean {
+  const d = parseLocalDateKey(dateKey);
+  if (!d) return false;
+  const start = new Date(weekStart);
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 7);
+  return d >= start && d < end;
 }
 
 function normaliseSnapshot(raw: any): Snapshot | null {
   if (!raw) return null;
   try {
-    const snap: any = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return {
-      date: snap.date,
-      staff: snap.staff ?? [],
-      participants: snap.participants ?? [],
-      assignments: snap.assignments ?? {},
+      date: snap.date ?? null,
+      staff: safeArray<SnapshotStaff>(snap.staff),
+      participants: safeArray<SnapshotParticipant>(snap.participants),
+      assignments: safeObject(snap.assignments),
     };
   } catch {
     return null;
   }
 }
 
-// ------------------ Assignments shape helpers -------------------------
-
-function __ds_isPlainObject(v: any): v is Record<string, any> {
+function isPlainObject(v: any): v is Record<string, any> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
-function __ds_toStringArray(v: any): string[] {
+function toStringArray(v: any): string[] {
   return Array.isArray(v) ? v.filter(Boolean).map((x) => String(x)) : [];
 }
 
-function __ds_resolveStaffIdFromKey(
+function resolveStaffIdFromKey(
   key: string,
   staffById: Record<string, string>,
   staffList: SnapshotStaff[],
 ): string | null {
   const k = String(key ?? '').trim();
   if (!k) return null;
-
-  // 1) exact staffId
   if (staffById[k]) return k;
 
-  // 2) numeric index keys (legacy) -> try 0-based then 1-based
   if (/^\d+$/.test(k)) {
     const n = parseInt(k, 10);
-    const zeroIdx = n;
-    if (staffList[zeroIdx]?.id) return staffList[zeroIdx].id;
-    const oneIdx = n - 1;
-    if (oneIdx >= 0 && staffList[oneIdx]?.id) return staffList[oneIdx].id;
+    if (staffList[n]?.id) return staffList[n].id;
+    if (n > 0 && staffList[n - 1]?.id) return staffList[n - 1].id;
   }
 
-  // 3) staff name as key (legacy)
   const lower = k.toLowerCase();
-  const found = staffList.find((s) => (s?.name ?? '').toLowerCase() === lower);
-  return found?.id ?? null;
+  return staffList.find((s) => String(s?.name ?? '').toLowerCase() === lower)?.id ?? null;
 }
 
-function __ds_normaliseAssignments(
+function normaliseAssignments(
   raw: any,
   staffById: Record<string, string>,
   staffList: SnapshotStaff[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
 
-  // Object map shapes:
-  //  A) staff -> participantIds[]  (preferred)
-  //  B) participantId -> staffId   (legacy persisted in schedules_rows.json)
-  if (__ds_isPlainObject(raw)) {
+  if (isPlainObject(raw)) {
+    let sawArray = false;
+    let sawScalar = false;
 
-  // Detect whether values are arrays (staff->participants) or scalars (participant->staff)
-  let sawArray = false;
-  let sawScalar = false;
-  for (const v of Object.values(raw)) {
-    if (Array.isArray(v)) { sawArray = true; break; }
-    if (v != null) sawScalar = true;
-  }
-
-  // A) staffKey -> participantIds[]
-  if (sawArray) {
-    for (const [key, pids] of Object.entries(raw)) {
-      const sid = __ds_resolveStaffIdFromKey(String(key), staffById, staffList);
-      if (!sid) continue;
-      const arr = __ds_toStringArray(pids);
-      if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+    for (const v of Object.values(raw)) {
+      if (Array.isArray(v)) sawArray = true;
+      else if (v != null) sawScalar = true;
     }
-    return out;
-  }
 
-  // B) participantId -> staffId (scalar map)
-  if (sawScalar) {
-    for (const [participantIdRaw, staffKeyRaw] of Object.entries(raw)) {
-      const participantId = String(participantIdRaw ?? '').trim();
-      if (!participantId) continue;
-
-      const sid = __ds_resolveStaffIdFromKey(String(staffKeyRaw ?? ''), staffById, staffList);
-      if (!sid) continue;
-
-      out[sid] = out[sid] ?? [];
-      out[sid].push(participantId);
+    // staffId -> participantIds[]
+    if (sawArray) {
+      for (const [key, pids] of Object.entries(raw)) {
+        const sid = resolveStaffIdFromKey(String(key), staffById, staffList);
+        if (!sid) continue;
+        const arr = toStringArray(pids);
+        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+      }
+      return out;
     }
-    return out;
-  }
+
+    // participantId -> staffId, which is the current Edit Hub save shape.
+    if (sawScalar) {
+      for (const [participantIdRaw, staffKeyRaw] of Object.entries(raw)) {
+        const participantId = String(participantIdRaw ?? '').trim();
+        if (!participantId || !staffKeyRaw) continue;
+        const sid = resolveStaffIdFromKey(String(staffKeyRaw), staffById, staffList);
+        if (!sid) continue;
+        out[sid] = out[sid] ?? [];
+        out[sid].push(participantId);
+      }
+    }
 
     return out;
   }
 
-  // Array shapes:
-  //  - [{ staffId, participantIds }]
-  //  - [[staffKey, participantIds]]
   if (Array.isArray(raw)) {
     for (const item of raw) {
       if (!item) continue;
-
-      // tuple form
       if (Array.isArray(item) && item.length >= 2) {
-        const key = String(item[0]);
-        const sid = __ds_resolveStaffIdFromKey(key, staffById, staffList);
+        const sid = resolveStaffIdFromKey(String(item[0]), staffById, staffList);
         if (!sid) continue;
-        const arr = __ds_toStringArray(item[1]);
+        const arr = toStringArray(item[1]);
         if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
         continue;
       }
 
-      // object form
-      if (__ds_isPlainObject(item)) {
-        const key =
-          item.staffId ?? item.staff_id ?? item.staffKey ?? item.staff_key ?? item.staff ?? item.name;
-        const sid = __ds_resolveStaffIdFromKey(String(key ?? ''), staffById, staffList);
-        if (!sid) continue;
-
-        const pids =
-          item.participantIds ??
-          item.participant_ids ??
-          item.participants ??
-          item.participantIdsAssigned ??
-          item.value;
-
-        // Object may be staff->participants OR participant->staff
-        if (Array.isArray(pids)) {
-          const arr = __ds_toStringArray(pids);
-          if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
-        } else {
-          const participantId = String(item.participantId ?? item.participant_id ?? item.participant ?? item.pid ?? '').trim();
-          const sid2 = __ds_resolveStaffIdFromKey(String(item.staffId ?? item.staff_id ?? item.staff ?? item.sid ?? pids ?? ''), staffById, staffList);
-          if (participantId && sid2) {
-            out[sid2] = out[sid2] ?? [];
-            out[sid2].push(participantId);
-          }
-        }
+      if (isPlainObject(item)) {
+        const sid = resolveStaffIdFromKey(
+          String(item.staffId ?? item.staff_id ?? item.staffKey ?? item.staff_key ?? item.staff ?? item.name ?? ''),
+          staffById,
+          staffList,
+        );
+        const arr = toStringArray(item.participantIds ?? item.participant_ids ?? item.participants ?? item.value);
+        if (sid && arr.length) out[sid] = (out[sid] ?? []).concat(arr);
       }
     }
   }
@@ -232,11 +204,17 @@ function __ds_normaliseAssignments(
   return out;
 }
 
+function isNewerCandidate(
+  current: { created_at: string; seq: number } | undefined,
+  candidate: { created_at: string; seq: number },
+): boolean {
+  if (!current) return true;
+  if (candidate.seq !== current.seq) return candidate.seq > current.seq;
+  return String(candidate.created_at || '') > String(current.created_at || '');
+}
 
 export default function DailyAssignmentsReportScreen() {
   const isAdmin = useIsAdmin();
-
-  // 0 = current week; on a Saturday this is the week that just finished
   const [weekOffset, setWeekOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +225,6 @@ export default function DailyAssignmentsReportScreen() {
 
   useEffect(() => {
     if (!isAdmin) return;
-
     let cancelled = false;
 
     async function load() {
@@ -256,84 +233,58 @@ export default function DailyAssignmentsReportScreen() {
       setRows([]);
 
       try {
-        const rangeStart = new Date(weekStart);
-        const rangeEnd = new Date(weekStart);
-        rangeEnd.setDate(rangeEnd.getDate() + 7); // [Mon, next Mon)
-
         const { data, error: supaError } = await supabase
           .from('schedules')
           .select('id, house, snapshot, created_at, seq_id')
-          .eq('house', 'B2')
-          .gte('created_at', rangeStart.toISOString())
-          .lt('created_at', rangeEnd.toISOString())
-          .order('created_at', { ascending: true });
+          .eq('house', HOUSE_ID)
+          .order('created_at', { ascending: false })
+          .limit(500);
 
         if (supaError) throw supaError;
 
-        const rowsRaw = (data ?? []) as ScheduleRow[];
+        const latestByDay: Record<string, { snapshot: Snapshot; created_at: string; seq: number }> = {};
 
-        // Latest snapshot per calendar day (prefer snapshot.date in AEST)
-        const latestByDay: Record<
-          string,
-          { snapshot: Snapshot; created_at: string; seq: number }
-        > = {};
-
-        for (const row of rowsRaw) {
-          try {
+        for (const row of (data ?? []) as ScheduleRow[]) {
           const snap = normaliseSnapshot(row.snapshot);
           if (!snap) continue;
 
-          // If we have a local AEST date in the snapshot, use that;
-          // otherwise fall back to the UTC created_at date.
           const dayKey =
             typeof snap.date === 'string' && snap.date
               ? snap.date.slice(0, 10)
-              : (typeof row.created_at === 'string' ? row.created_at.slice(0, 10) : ''); // YYYY-MM-DD
+              : toLocalDateKey(new Date(row.created_at));
 
-          if (!dayKey) continue;
+          if (!dayKey || !isDateKeyInWeek(dayKey, weekStart)) continue;
 
-          const seq = row.seq_id ?? 0;
-          const existing = latestByDay[dayKey];
+          const candidate = {
+            snapshot: snap,
+            created_at: row.created_at,
+            seq: typeof row.seq_id === 'number' ? row.seq_id : 0,
+          };
 
-          if (!existing || seq > existing.seq) {
-            latestByDay[dayKey] = {
-              snapshot: snap,
-              created_at: row.created_at,
-              seq,
-            };
-          }
-          } catch (e) {
-            console.warn('Weekly report: skipping bad schedule row', e);
+          if (isNewerCandidate(latestByDay[dayKey], candidate)) {
+            latestByDay[dayKey] = candidate;
           }
         }
 
-        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({
-          Mon: [],
-          Tue: [],
-          Wed: [],
-          Thu: [],
-          Fri: [],
-        });
-
+        const makeEmptyDays = (): Record<WeekDayLabel, string[]> => ({ Mon: [], Tue: [], Wed: [], Thu: [], Fri: [] });
         const summaryByStaff: Record<string, StaffRow> = {};
 
         for (const [dayKey, { snapshot }] of Object.entries(latestByDay)) {
-          const label = getLabelFromDateString(dayKey);
-          if (!label) continue; // weekend
+          const label = getLabelFromDateKey(dayKey);
+          if (!label) continue;
 
           const staffById: Record<string, string> = {};
-          (snapshot.staff ?? []).forEach((s) => {
-            if (s?.id && s?.name) staffById[s.id] = s.name;
+          safeArray<SnapshotStaff>(snapshot.staff).forEach((s) => {
+            if (s?.id && s?.name) staffById[String(s.id)] = s.name;
           });
 
           const participantsById: Record<string, string> = {};
-          (snapshot.participants ?? []).forEach((p) => {
-            if (p?.id && p?.name) participantsById[p.id] = p.name;
+          safeArray<SnapshotParticipant>(snapshot.participants).forEach((p) => {
+            if (p?.id && p?.name) participantsById[String(p.id)] = p.name;
           });
 
-          const assignments = __ds_normaliseAssignments(snapshot.assignments, staffById, snapshot.staff ?? []);
+          const assignments = normaliseAssignments(snapshot.assignments, staffById, safeArray<SnapshotStaff>(snapshot.staff));
 
-          // assignments: staffId -> participantIds[]
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
             if (!staffId || !Array.isArray(participantIds)) return;
 
@@ -345,30 +296,20 @@ export default function DailyAssignmentsReportScreen() {
               };
             }
 
-            const row = summaryByStaff[staffId];
-
             participantIds.forEach((pid) => {
-              const participantName = participantsById[pid];
-              if (!participantName) return;
-              row.byDay[label].push(participantName);
+              const participantName = participantsById[String(pid)];
+              if (participantName) summaryByStaff[staffId].byDay[label].push(participantName);
             });
           });
         }
 
-        const summaryArr = Object.values(summaryByStaff).sort((a, b) =>
-          a.name.localeCompare(b.name, 'en-AU'),
-        );
-
-        if (!cancelled) {
-          setRows(summaryArr);
-          setLoading(false);
-        }
+        const summaryArr = Object.values(summaryByStaff).sort((a, b) => a.name.localeCompare(b.name, 'en-AU'));
+        if (!cancelled) setRows(summaryArr);
       } catch (err) {
         console.error('Error loading weekly assignment report', err);
-        if (!cancelled) {
-          setError('Could not load weekly assignment data.');
-          setLoading(false);
-        }
+        if (!cancelled) setError('Could not load weekly assignment data.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -379,12 +320,7 @@ export default function DailyAssignmentsReportScreen() {
   }, [isAdmin, weekStart]);
 
   const handlePrint = () => {
-    if (Platform.OS === 'web') {
-      // @ts-ignore
-      if (typeof window !== 'undefined' && window.print) {
-        window.print();
-      }
-    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.print) window.print();
   };
 
   if (!isAdmin) {
@@ -392,10 +328,7 @@ export default function DailyAssignmentsReportScreen() {
       <View style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.title}>Team Daily Assignment – Weekly Report</Text>
-          <Text style={styles.subtitle}>
-            Admin Mode is required to view this report. Enable Admin Mode on the
-            Share screen.
-          </Text>
+          <Text style={styles.subtitle}>Admin Mode is required to view this report. Enable Admin Mode on the Share screen.</Text>
         </View>
       </View>
     );
@@ -411,20 +344,16 @@ export default function DailyAssignmentsReportScreen() {
           </View>
 
           <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={() => setWeekOffset((prev) => prev - 1)}
-            >
-              <Text style={styles.navButtonText}>{'\u2039'} Prev</Text>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev - 1)}>
+              <Text style={styles.navButtonText}>{'‹'} Prev</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={() => setWeekOffset((prev) => prev + 1)}
-            >
-              <Text style={styles.navButtonText}>Next {'\u203A'}</Text>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset(0)}>
+              <Text style={styles.navButtonText}>Current</Text>
             </TouchableOpacity>
-
-            {Platform.OS === 'web' && (
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev + 1)}>
+              <Text style={styles.navButtonText}>Next {'›'}</Text>
+            </TouchableOpacity>
+            {Platform.OS === 'web' && rows.length > 0 && (
               <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
                 <Text style={styles.printButtonText}>Print</Text>
               </TouchableOpacity>
@@ -434,51 +363,19 @@ export default function DailyAssignmentsReportScreen() {
 
         <View style={styles.tableWrapper} id="print-area">
           {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
-          {error && (
-            <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <Text style={styles.helper}>
-              No assignment data found for this week.
-            </Text>
-          )}
+          {error && <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>}
+          {!loading && !error && rows.length === 0 && <Text style={styles.helper}>No assignment data found for this week.</Text>}
 
           {rows.length > 0 && (
             <View style={styles.table}>
-              {/* Header row */}
               <View style={[styles.row, styles.headerRowTable]}>
-                <View style={[styles.cell, styles.staffHeaderCell]}>
-                  <Text style={[styles.cellText, styles.headerCellText]}>
-                    Staff
-                  </Text>
-                </View>
-                {WEEK_DAYS.map((day) => (
-                  <View key={day} style={[styles.cell, styles.dayHeaderCell]}>
-                    <Text style={[styles.cellText, styles.headerCellText]}>
-                      {day}
-                    </Text>
-                  </View>
-                ))}
+                <View style={[styles.cell, styles.staffHeaderCell]}><Text style={[styles.cellText, styles.headerCellText]}>Staff</Text></View>
+                {WEEK_DAYS.map((day) => <View key={day} style={[styles.cell, styles.dayHeaderCell]}><Text style={[styles.cellText, styles.headerCellText]}>{day}</Text></View>)}
               </View>
-
-              {/* Data rows */}
               {rows.map((row) => (
                 <View key={row.staffId} style={styles.row}>
-                  <View style={[styles.cell, styles.staffCell]}>
-                    <Text style={[styles.cellText, styles.staffText]}>
-                      {row.name}
-                    </Text>
-                  </View>
-                  {WEEK_DAYS.map((day) => {
-                    const names = row.byDay[day] ?? [];
-                    const content = names.join('\n'); // one name per line
-                    return (
-                      <View key={day} style={[styles.cell, styles.dataCell]}>
-                        <Text style={styles.cellText}>{content}</Text>
-                      </View>
-                    );
-                  })}
+                  <View style={[styles.cell, styles.staffCell]}><Text style={[styles.cellText, styles.staffText]}>{row.name}</Text></View>
+                  {WEEK_DAYS.map((day) => <View key={day} style={[styles.cell, styles.dataCell]}><Text style={styles.cellText}>{(row.byDay[day] ?? []).join('\n')}</Text></View>)}
                 </View>
               ))}
             </View>
@@ -490,139 +387,28 @@ export default function DailyAssignmentsReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flexGrow: 1,
-    backgroundColor: '#E0E7FF',
-    alignItems: 'center',
-    padding: 16,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: '#E0E7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 1040,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  navButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#CBD5F5',
-    marginLeft: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  navButtonText: {
-    fontSize: 13,
-    color: '#1F2933',
-  },
-  printButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#F54FA5',
-    backgroundColor: '#FDF2FB',
-    marginLeft: 8,
-  },
-  printButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#F54FA5',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#332244',
-  },
-  subtitle: {
-    fontSize: 13,
-    opacity: 0.8,
-    color: '#5a486b',
-  },
-  tableWrapper: {
-    marginTop: 8,
-  },
-  helper: {
-    fontSize: 13,
-    color: '#4B5563',
-  },
-  table: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  headerRowTable: {
-    backgroundColor: '#EFF3FF',
-  },
-  cell: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    flexShrink: 0,
-    flexGrow: 0,
-    overflow: 'hidden',
-  },
-  cellText: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: '#111827',
-    textAlign: 'left',
-    flexWrap: 'wrap',
-  },
-  headerCellText: {
-    fontWeight: '600',
-    color: '#111827',
-  },
-  staffHeaderCell: {
-    width: 150,
-  },
-  dayHeaderCell: {
-    width: 168,
-  },
-  staffCell: {
-    backgroundColor: '#F9FAFB',
-    width: 150,
-  },
-  staffText: {
-    fontWeight: '600',
-  },
-  dataCell: {
-    backgroundColor: '#FFFFFF',
-    width: 168,
-  },
+  scroll: { flexGrow: 1, backgroundColor: '#E0E7FF', alignItems: 'center', padding: 16 },
+  screen: { flex: 1, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  card: { width: '100%', maxWidth: 1040, backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 24, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
+  navButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#CBD5F5', marginLeft: 8, marginBottom: 6, backgroundColor: '#FFFFFF' },
+  navButtonText: { fontSize: 13, color: '#1F2933' },
+  printButton: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#F54FA5', backgroundColor: '#FDF2FB', marginLeft: 8, marginBottom: 6 },
+  printButtonText: { fontSize: 13, fontWeight: '600', color: '#F54FA5', textTransform: 'uppercase', letterSpacing: 0.5 },
+  title: { fontSize: 18, fontWeight: '700', color: '#332244' },
+  subtitle: { fontSize: 13, opacity: 0.8, color: '#5a486b' },
+  tableWrapper: { marginTop: 8 },
+  helper: { fontSize: 13, color: '#4B5563' },
+  table: { marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, overflow: 'hidden' },
+  row: { flexDirection: 'row' },
+  headerRowTable: { backgroundColor: '#EFF3FF' },
+  cell: { paddingHorizontal: 8, paddingVertical: 6, borderRightWidth: 1, borderRightColor: '#E5E7EB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', justifyContent: 'flex-start', alignItems: 'flex-start', flexShrink: 0, flexGrow: 0, overflow: 'hidden' },
+  cellText: { fontSize: 15, lineHeight: 20, color: '#111827', textAlign: 'left', flexWrap: 'wrap' },
+  headerCellText: { fontWeight: '600', color: '#111827' },
+  staffHeaderCell: { width: 150 },
+  dayHeaderCell: { width: 168 },
+  staffCell: { backgroundColor: '#F9FAFB', width: 150 },
+  staffText: { fontWeight: '600' },
+  dataCell: { backgroundColor: '#FFFFFF', width: 168 },
 });
