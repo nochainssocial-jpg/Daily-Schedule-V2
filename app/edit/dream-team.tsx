@@ -66,6 +66,7 @@ export default function EditDreamTeamScreen() {
     staff: scheduleStaff,
     workingStaff = [],
     trainingStaffToday = [],
+    outingGroups = [],
     outingGroup,
     updateSchedule,
   } = useSchedule() as any;
@@ -165,26 +166,26 @@ export default function EditDreamTeamScreen() {
     [allStaff, workingSet],
   );
 
-  // 🔹 Determine if today's outing is timed (has explicit start & end) vs all-day.
-  const hasTimedOuting = useMemo(() => {
-    if (!outingGroup) return false;
-    const start =
-      typeof outingGroup.startTime === 'string'
-        ? outingGroup.startTime.trim()
-        : '';
-    const end =
-      typeof outingGroup.endTime === 'string'
-        ? outingGroup.endTime.trim()
-        : '';
-    return !!start && !!end;
-  }, [outingGroup]);
+  const normalizedOutingGroups = useMemo(() => {
+    const groups = Array.isArray(outingGroups)
+      ? outingGroups
+      : outingGroup
+        ? [outingGroup]
+        : [];
+
+    return groups.filter((group: any) => {
+      const staffCount = group?.staffIds?.length ?? 0;
+      const participantCount = group?.participantIds?.length ?? 0;
+      return staffCount > 0 || participantCount > 0;
+    });
+  }, [outingGroups, outingGroup]);
 
   const outingStaffSet = useMemo(() => {
-    const ids = ((outingGroup?.staffIds ?? []) as (string | number)[]).map(
-      (raw) => String(raw),
+    const ids = normalizedOutingGroups.flatMap((group: any) =>
+      ((group?.staffIds ?? []) as (string | number)[]).map((raw) => String(raw)),
     );
     return new Set<string>(ids);
-  }, [outingGroup]);
+  }, [normalizedOutingGroups]);
 
   const toggleStaff = (id: ID) => {
     if (readOnly) {

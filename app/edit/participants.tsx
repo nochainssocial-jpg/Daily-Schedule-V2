@@ -281,6 +281,7 @@ export default function EditParticipantsScreen() {
   const {
     participants,
     attendingParticipants = [],
+    outingGroups = [],
     outingGroup,
     updateSchedule,
   } = useSchedule() as any;
@@ -314,23 +315,42 @@ export default function EditParticipantsScreen() {
     [allParts, attendingSet],
   );
 
-  const outingParticipantSet = useMemo(
-    () => new Set<string>(outingGroup?.participantIds ?? []),
-    [outingGroup],
+  const normalizedOutingGroups = useMemo<OutingGroup[]>(() => {
+    const groups = Array.isArray(outingGroups)
+      ? outingGroups
+      : outingGroup
+        ? [outingGroup]
+        : [];
+
+    return groups.filter((group: any) => {
+      const staffCount = group?.staffIds?.length ?? 0;
+      const participantCount = group?.participantIds?.length ?? 0;
+      return staffCount > 0 || participantCount > 0;
+    });
+  }, [outingGroups, outingGroup]);
+
+  // Determine outing phase so that short outings revert back to onsite after end time.
+  // With two outings, a participant is offsite if they are in any currently active outing.
+  const activeOutingGroups = useMemo(
+    () =>
+      normalizedOutingGroups.filter((group) => {
+        const phase = getOutingPhase(group);
+        return phase === 'activeShort' || phase === 'activeLong';
+      }),
+    [normalizedOutingGroups],
   );
 
-  // Determine outing phase so that short outings revert back to onsite after end time
-  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
-  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
-  const hasOutingBase =
-    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
+  const outingParticipantSet = useMemo(
+    () =>
+      new Set<string>(
+        activeOutingGroups.flatMap((group) =>
+          ((group.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
+        ),
+      ),
+    [activeOutingGroups],
+  );
 
-  const outingPhase: OutingPhase = hasOutingBase
-    ? getOutingPhase(outingGroup)
-    : 'none';
-
-  const outingIsActive =
-    outingPhase === 'activeShort' || outingPhase === 'activeLong';
+  const outingIsActive = activeOutingGroups.length > 0;
 
   const toggleParticipant = (id: ID) => {
     if (readOnly) {

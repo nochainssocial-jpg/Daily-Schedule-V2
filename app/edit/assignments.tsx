@@ -210,7 +210,8 @@ export default function EditAssignmentsScreen() {
     workingStaff,
     attendingParticipants,
     trainingStaffToday = [],
-    outingGroup, // read outing group for offsite state
+    outingGroups = [],
+    outingGroup, // legacy fallback for older saved schedules
     updateSchedule,
   } = useSchedule() as any;
   const { push } = useNotifications();
@@ -350,30 +351,42 @@ export default function EditAssignmentsScreen() {
   const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
-  // Offsite participants from outingGroup (IDs only)
+  const normalizedOutingGroups = React.useMemo<OutingGroup[]>(() => {
+    const groups = Array.isArray(outingGroups)
+      ? outingGroups
+      : outingGroup
+        ? [outingGroup]
+        : [];
+
+    return groups.filter((group: any) => {
+      const staffCount = group?.staffIds?.length ?? 0;
+      const participantCount = group?.participantIds?.length ?? 0;
+      return staffCount > 0 || participantCount > 0;
+    });
+  }, [outingGroups, outingGroup]);
+
+  // Outing phase: only treat participants as offsite while their outing is active.
+  const activeOutingGroups = React.useMemo(
+    () =>
+      normalizedOutingGroups.filter((group) => {
+        const phase = getOutingPhase(group);
+        return phase === 'activeShort' || phase === 'activeLong';
+      }),
+    [normalizedOutingGroups],
+  );
+
+  // Offsite participants from all active outing groups (IDs only)
   const offsiteParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
-    const og = outingGroup as any;
-    if (og && Array.isArray(og.participantIds)) {
-      og.participantIds.forEach((id: any) => {
+    activeOutingGroups.forEach((group: any) => {
+      ((group?.participantIds ?? []) as (string | number)[]).forEach((id: any) => {
         set.add(String(id) as ID);
       });
-    }
+    });
     return set;
-  }, [outingGroup]);
+  }, [activeOutingGroups]);
 
-  // Outing phase: only treat as offsite while outing is active (short or long)
-  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
-  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
-  const hasOutingBase =
-    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
-
-  const outingPhase: OutingPhase = hasOutingBase
-    ? getOutingPhase(outingGroup)
-    : 'none';
-
-  const outingIsActive =
-    outingPhase === 'activeShort' || outingPhase === 'activeLong';
+  const outingIsActive = activeOutingGroups.length > 0;
 
   // Ensure training staff do not keep participant assignments
   React.useEffect(() => {
