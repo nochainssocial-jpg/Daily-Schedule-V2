@@ -56,6 +56,16 @@ export interface PickupAssignment {
   location?: string;
 }
 
+export interface OutingGroup {
+  id: string;
+  name: string;
+  staffIds: string[];
+  participantIds: string[];
+  startTime?: string;
+  endTime?: string;
+  notes?: string;
+}
+
 export interface Schedule {
   id: string;
   date: string;
@@ -67,8 +77,10 @@ export interface Schedule {
   twinsSlots: TimeSlotAssignment[];
   choreAssignments: ChoreAssignment[];
   finalChecklistStaff: string;
-  dropoffs_pickups: DropOffAssignment[];
-  dropoffs_pickups: PickupAssignment[];
+  dropoffs_pickups: Array<DropOffAssignment | PickupAssignment>;
+  outingGroups?: OutingGroup[];
+  /** Legacy single-outing field retained for older saved schedules. */
+  outingGroup?: OutingGroup | null;
 }
 
 export interface ScheduleStep {
