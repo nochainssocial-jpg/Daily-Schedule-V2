@@ -1,10 +1,16 @@
 // hooks/schedule-store.ts
-import { useMemo } from 'react';
-import { create } from 'zustand';
-import type { Staff, Participant, Chore, ChecklistItem, TimeSlot } from '@/constants/data';
-import { TIME_SLOTS } from '@/constants/data';
-import { fetchLatestScheduleForHouse } from '@/lib/saveSchedule';
-import { supabase } from '@/lib/supabase';
+import { useMemo } from "react";
+import { create } from "zustand";
+import type {
+  Staff,
+  Participant,
+  Chore,
+  ChecklistItem,
+  TimeSlot,
+} from "@/constants/data";
+import { TIME_SLOTS } from "@/constants/data";
+import { fetchLatestScheduleForHouse } from "@/lib/saveSchedule";
+import { supabase } from "@/lib/supabase";
 
 export type ID = string;
 
@@ -14,7 +20,8 @@ export type OutingGroup = {
   staffIds: ID[];
   participantIds: ID[];
   startTime?: string; // e.g. '11:00'
-  endTime?: string;   // e.g. '15:00'
+  endTime?: string; // e.g. '15:00'
+  notes?: string;
 };
 
 export type FloatingAssignments = {
@@ -69,19 +76,23 @@ export type ScheduleSnapshot = {
   // Locations still stored separately (for now)
   dropoffLocations: Record<ID, number | null>;
 
-  // Optional outing group (not fully wired yet)
-  outingGroup: OutingGroup | null;
+  // Primary outings model. The UI currently supports up to two outings.
+  outingGroups: OutingGroup[];
+
+  // Backwards compatibility for older saved schedules and any screens not yet refactored.
+  // New code should use outingGroups.
+  outingGroup?: OutingGroup | null;
 
   // Schedule date as YYYY-MM-DD (local calendar date)
   date?: string;
 
   // Misc metadata
   meta?: {
-    from?: 'create-wizard' | 'prefill';
+    from?: "create-wizard" | "prefill";
   };
 };
 
-export type ScheduleBannerType = 'created' | 'loaded' | 'prefilled';
+export type ScheduleBannerType = "created" | "loaded" | "prefilled";
 
 export type ScheduleBanner = {
   type: ScheduleBannerType;
@@ -148,18 +159,83 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     helperStaff: [],
     dropoffAssignments: {},
     dropoffLocations: {},
+    outingGroups: [],
     outingGroup: null,
     date: undefined,
     meta: undefined,
   };
 }
 
-function normalizeDropoffAssignments(
-  value: ScheduleSnapshot['dropoffAssignments'] | undefined | null,
-): ScheduleSnapshot['dropoffAssignments'] {
-  const result: ScheduleSnapshot['dropoffAssignments'] = {};
+function isOutingMeaningful(
+  outing: OutingGroup | null | undefined,
+): outing is OutingGroup {
+  if (!outing) return false;
+  return Boolean(
+    (outing.name || "").trim() ||
+    (outing.startTime || "").trim() ||
+    (outing.endTime || "").trim() ||
+    (outing.notes || "").trim() ||
+    (outing.staffIds?.length ?? 0) > 0 ||
+    (outing.participantIds?.length ?? 0) > 0,
+  );
+}
 
-  if (!value || typeof value !== 'object') {
+function normalizeOutingGroup(value: any, fallbackId: string): OutingGroup {
+  return {
+    id: String(value?.id || fallbackId),
+    name: String(value?.name || ""),
+    staffIds: Array.isArray(value?.staffIds) ? value.staffIds.map(String) : [],
+    participantIds: Array.isArray(value?.participantIds)
+      ? value.participantIds.map(String)
+      : [],
+    startTime: value?.startTime ? String(value.startTime) : "",
+    endTime: value?.endTime ? String(value.endTime) : "",
+    notes: value?.notes ? String(value.notes) : "",
+  };
+}
+
+function normalizeOutingGroupsFromSnapshot(snapshot: any): OutingGroup[] {
+  const rawGroups = Array.isArray(snapshot?.outingGroups)
+    ? snapshot.outingGroups
+    : snapshot?.outingGroup
+      ? [snapshot.outingGroup]
+      : [];
+
+  return rawGroups
+    .slice(0, 2)
+    .map((outing: any, index: number) =>
+      normalizeOutingGroup(outing, `outing-${index + 1}`),
+    )
+    .filter(isOutingMeaningful);
+}
+
+function syncOutingCompatibility<T extends Partial<ScheduleSnapshot>>(
+  next: T,
+): T {
+  const anyNext = next as any;
+
+  if ("outingGroups" in anyNext) {
+    const outingGroups = normalizeOutingGroupsFromSnapshot(anyNext);
+    anyNext.outingGroups = outingGroups;
+    anyNext.outingGroup = outingGroups[0] ?? null;
+    return next;
+  }
+
+  if ("outingGroup" in anyNext) {
+    const outingGroups = normalizeOutingGroupsFromSnapshot(anyNext);
+    anyNext.outingGroups = outingGroups;
+    anyNext.outingGroup = outingGroups[0] ?? null;
+  }
+
+  return next;
+}
+
+function normalizeDropoffAssignments(
+  value: ScheduleSnapshot["dropoffAssignments"] | undefined | null,
+): ScheduleSnapshot["dropoffAssignments"] {
+  const result: ScheduleSnapshot["dropoffAssignments"] = {};
+
+  if (!value || typeof value !== "object") {
     return result;
   }
 
@@ -172,10 +248,10 @@ function normalizeDropoffAssignments(
     const v = assignment as any;
 
     // Newer shape: { staffId, locationId }
-    if (typeof v === 'object' && 'staffId' in v && 'locationId' in v) {
+    if (typeof v === "object" && "staffId" in v && "locationId" in v) {
       const staffId = (v.staffId ?? null) as ID | null;
       const locationId =
-        typeof v.locationId === 'number' ? (v.locationId as number) : null;
+        typeof v.locationId === "number" ? (v.locationId as number) : null;
 
       result[key as ID] = {
         staffId,
@@ -185,7 +261,7 @@ function normalizeDropoffAssignments(
     }
 
     // Older shape: value is a staffId string
-    const staffId = (assignment as any) as ID | null;
+    const staffId = assignment as any as ID | null;
     result[key as ID] = {
       staffId,
       locationId: null,
@@ -223,13 +299,26 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
     set({ masterDataLoading: true });
 
     try {
-      const [staffRes, partRes, choresRes, checklistRes, timeSlotsRes] = await Promise.all([
-        supabase.from('staff').select('*').order('name', { ascending: true }),
-        supabase.from('participants').select('*').order('name', { ascending: true }),
-        supabase.from('cleaning_chores').select('*').order('id', { ascending: true }),
-        supabase.from('final_checklist_items').select('*').order('id', { ascending: true }),
-        supabase.from('time_slots').select('*').order('id', { ascending: true }),
-      ]);
+      const [staffRes, partRes, choresRes, checklistRes, timeSlotsRes] =
+        await Promise.all([
+          supabase.from("staff").select("*").order("name", { ascending: true }),
+          supabase
+            .from("participants")
+            .select("*")
+            .order("name", { ascending: true }),
+          supabase
+            .from("cleaning_chores")
+            .select("*")
+            .order("id", { ascending: true }),
+          supabase
+            .from("final_checklist_items")
+            .select("*")
+            .order("id", { ascending: true }),
+          supabase
+            .from("time_slots")
+            .select("*")
+            .order("id", { ascending: true }),
+        ]);
 
       const staff = (staffRes.data || []) as any[];
       const participants = (partRes.data || []) as any[];
@@ -238,7 +327,7 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       const timeSlots = (timeSlotsRes.data || []) as any[];
 
       // Map DB rows into app types (keep unknown fields for now; screens use what they need)
-            set((s) => {
+      set((s) => {
         const mappedStaff = staff.map((r) => ({
           id: String(r.id),
           name: r.name,
@@ -250,19 +339,25 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
         const mappedParticipants = participants.map((r) => {
           const legacyRaw =
-            (r as any).legacy_id ?? (r as any).legacyId ?? (r as any).legacy ?? null;
+            (r as any).legacy_id ??
+            (r as any).legacyId ??
+            (r as any).legacy ??
+            null;
           const legacy =
-            legacyRaw === null || legacyRaw === undefined || legacyRaw === ''
+            legacyRaw === null || legacyRaw === undefined || legacyRaw === ""
               ? null
               : Number(legacyRaw);
           const scheduleId =
-            legacy !== null && !Number.isNaN(legacy) ? String(legacy) : String(r.id);
+            legacy !== null && !Number.isNaN(legacy)
+              ? String(legacy)
+              : String(r.id);
 
           return {
             ...(r as any),
             id: scheduleId, // used in schedules/attending/outing etc.
             dbId: String(r.id), // Supabase UUID PK
-            legacyId: legacy !== null && !Number.isNaN(legacy) ? legacy : undefined,
+            legacyId:
+              legacy !== null && !Number.isNaN(legacy) ? legacy : undefined,
             name: r.name,
           };
         });
@@ -274,10 +369,10 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
           if (p?.dbId) pIdMap.set(String(p.dbId), String(p.id));
         });
         const mapPid = (pid: any): string => {
-          const key = String(pid ?? '');
+          const key = String(pid ?? "");
           return pIdMap.get(key) ?? key;
         };
-        const remapRecordKeys = <T,>(
+        const remapRecordKeys = <T>(
           rec: Record<string, T> | null | undefined,
         ): Record<string, T> => {
           const out: Record<string, T> = {};
@@ -287,13 +382,12 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
           return out;
         };
 
-        const normalizedOuting =
-          s.outingGroup
-            ? {
-                ...s.outingGroup,
-                participantIds: (s.outingGroup.participantIds || []).map(mapPid),
-              }
-            : null;
+        const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(s).map(
+          (outing) => ({
+            ...outing,
+            participantIds: (outing.participantIds || []).map(mapPid),
+          }),
+        );
 
         return {
           ...s,
@@ -305,35 +399,42 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
           assignments: remapRecordKeys<ID | null>(s.assignments),
           dropoffAssignments: remapRecordKeys<any>(s.dropoffAssignments as any),
           dropoffLocations: remapRecordKeys<any>(s.dropoffLocations as any),
-          outingGroup: normalizedOuting,
+          outingGroups: normalizedOutingGroups,
+          outingGroup: normalizedOutingGroups[0] ?? null,
 
           chores: chores.map((r) => ({ id: String(r.id), name: r.name })),
           checklistItems: checklistItems.map((r) => ({
             id: String(r.id),
             name: r.name,
           })),
-          timeSlots: (timeSlots.length ? timeSlots.map((r) => ({
-            id: String(r.id),
-            startTime: r.start_time ?? r.startTime ?? r.start ?? r.starttime ?? '',
-            endTime: r.end_time ?? r.endTime ?? r.end ?? r.endtime ?? '',
-            displayTime: r.display_time ?? r.displayTime ?? r.display ?? r.label ?? '',
-          })) : TIME_SLOTS),
+          timeSlots: timeSlots.length
+            ? timeSlots.map((r) => ({
+                id: String(r.id),
+                startTime:
+                  r.start_time ?? r.startTime ?? r.start ?? r.starttime ?? "",
+                endTime: r.end_time ?? r.endTime ?? r.end ?? r.endtime ?? "",
+                displayTime:
+                  r.display_time ?? r.displayTime ?? r.display ?? r.label ?? "",
+              }))
+            : TIME_SLOTS,
           masterDataLoaded: true,
           masterDataLoading: false,
         };
-      });;
+      });
     } catch (e) {
-      console.error('[masterData] load failed', e);
+      console.error("[masterData] load failed", e);
       set({ masterDataLoading: false });
     }
   },
 
   createSchedule: (snapshot: ScheduleSnapshot) =>
     new Promise<void>((resolve) => {
-      set((state) => ({
-        ...state,
-        ...snapshot,
-      }));
+      set((state) =>
+        syncOutingCompatibility({
+          ...state,
+          ...snapshot,
+        } as ScheduleState),
+      );
       resolve();
     }),
 
@@ -352,7 +453,7 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         next.dropoffAssignments = normalizedDropoffs;
       }
 
-      return next;
+      return syncOutingCompatibility(next);
     }),
 
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => {
@@ -366,11 +467,11 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       if (Object.keys(patch).length > 0) {
         next.meta = {
           ...(state.meta || {}),
-          from: state.meta?.from || 'create-wizard',
+          from: state.meta?.from || "create-wizard",
         };
       }
 
-      return next;
+      return syncOutingCompatibility(next);
     });
   },
 
@@ -410,7 +511,7 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       ...state,
       meta: {
         ...(state.meta || {}),
-        from: state.meta?.from || 'create-wizard',
+        from: state.meta?.from || "create-wizard",
       },
     })),
 }));
@@ -422,10 +523,7 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 export function useWorkingStaff() {
   const { staff, workingStaff } = useSchedule();
   return useMemo(
-    () =>
-      staff.filter((s) =>
-        workingStaff.includes(s.id as ID),
-      ),
+    () => staff.filter((s) => workingStaff.includes(s.id as ID)),
     [staff, workingStaff],
   );
 }
@@ -449,9 +547,9 @@ export async function initScheduleForToday(houseId: string) {
   const now = new Date();
   const todayKey = [
     now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-');
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
 
   return initialiseScheduleForTodayIfNeeded(houseId, todayKey);
 }
@@ -484,14 +582,14 @@ export async function initialiseScheduleForTodayIfNeeded(
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
-  chores: [],
-  checklistItems: [],
-  timeSlots: TIME_SLOTS,
-  masterDataLoaded: false,
-  masterDataLoading: false,
+        chores: [],
+        checklistItems: [],
+        timeSlots: TIME_SLOTS,
+        masterDataLoaded: false,
+        masterDataLoading: false,
         date: todayKey,
         banner: {
-          type: 'created',
+          type: "created",
           scheduleDate: todayKey,
         },
         hasInitialisedToday: true,
@@ -507,14 +605,14 @@ export async function initialiseScheduleForTodayIfNeeded(
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
-  chores: [],
-  checklistItems: [],
-  timeSlots: TIME_SLOTS,
-  masterDataLoaded: false,
-  masterDataLoading: false,
+        chores: [],
+        checklistItems: [],
+        timeSlots: TIME_SLOTS,
+        masterDataLoaded: false,
+        masterDataLoading: false,
         date: todayKey,
         banner: {
-          type: 'created',
+          type: "created",
           scheduleDate: todayKey,
         },
         hasInitialisedToday: true,
@@ -528,25 +626,29 @@ export async function initialiseScheduleForTodayIfNeeded(
       (snapshot as any).dropoffAssignments,
     );
 
-    const normalizedSnapshot: ScheduleSnapshot = {
+    const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot);
+
+    const normalizedSnapshot: ScheduleSnapshot = syncOutingCompatibility({
       ...makeInitialSnapshot(),
-  chores: [],
-  checklistItems: [],
-  timeSlots: TIME_SLOTS,
-  masterDataLoaded: false,
-  masterDataLoading: false,
+      chores: [],
+      checklistItems: [],
+      timeSlots: TIME_SLOTS,
+      masterDataLoaded: false,
+      masterDataLoading: false,
       ...(snapshot as ScheduleSnapshot),
       dropoffAssignments: normalizedDropoffs,
-    };
+      outingGroups: normalizedOutingGroups,
+      outingGroup: normalizedOutingGroups[0] ?? null,
+    } as ScheduleSnapshot);
 
     // Decide banner type
     const bannerType: ScheduleBannerType =
-      scheduleDate === todayKey ? 'loaded' : 'prefilled';
+      scheduleDate === todayKey ? "loaded" : "prefilled";
 
     const banner: ScheduleBanner = {
       type: bannerType,
       scheduleDate: todayKey,
-      ...(bannerType === 'prefilled' ? { sourceDate: scheduleDate } : {}),
+      ...(bannerType === "prefilled" ? { sourceDate: scheduleDate } : {}),
     };
 
     useSchedule.setState((s) => ({
@@ -557,18 +659,18 @@ export async function initialiseScheduleForTodayIfNeeded(
       currentInitDate: todayKey,
     }));
   } catch (error) {
-    console.error('Error initialising schedule for today:', error);
+    console.error("Error initialising schedule for today:", error);
     useSchedule.setState((s) => ({
       ...s,
       ...makeInitialSnapshot(),
-  chores: [],
-  checklistItems: [],
-  timeSlots: TIME_SLOTS,
-  masterDataLoaded: false,
-  masterDataLoading: false,
+      chores: [],
+      checklistItems: [],
+      timeSlots: TIME_SLOTS,
+      masterDataLoaded: false,
+      masterDataLoading: false,
       date: todayKey,
       banner: {
-        type: 'created',
+        type: "created",
         scheduleDate: todayKey,
       },
       hasInitialisedToday: true,
