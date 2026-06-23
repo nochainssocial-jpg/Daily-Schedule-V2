@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
   ScrollView,
   Text,
@@ -8,19 +8,27 @@ import {
   StyleSheet,
   Platform,
   useWindowDimensions,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { useSchedule } from '@/hooks/schedule-store';
-import { useNotifications } from '@/hooks/notifications';
-import { useIsAdmin } from '@/hooks/access-control';
-import SaveExit from '@/components/SaveExit';
-import { masterParticipants, masterStaff } from '@/constants/data';
-import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
+import { useSchedule } from "@/hooks/schedule-store";
+import { useNotifications } from "@/hooks/notifications";
+import { useIsAdmin } from "@/hooks/access-control";
+import SaveExit from "@/components/SaveExit";
+import { masterParticipants, masterStaff } from "@/constants/data";
+import { getRiskBand, SCORE_BUBBLE_STYLES } from "@/constants/ratingsTheme";
 
 type ID = string;
 
-const PINK = '#F54FA5';
+type OutingGroup = {
+  id: string;
+  name: string;
+  staffIds: ID[];
+  participantIds: ID[];
+  startTime?: string;
+  endTime?: string;
+  notes?: string;
+};
 
 type StaffLike = {
   experience_level?: number | null;
@@ -41,6 +49,27 @@ type ParticipantLike = {
   safety?: number | null;
 };
 
+const DEFAULT_OUTINGS: OutingGroup[] = [
+  {
+    id: "outing-1",
+    name: "",
+    staffIds: [],
+    participantIds: [],
+    startTime: "",
+    endTime: "",
+    notes: "",
+  },
+  {
+    id: "outing-2",
+    name: "",
+    staffIds: [],
+    participantIds: [],
+    startTime: "",
+    endTime: "",
+    notes: "",
+  },
+];
+
 function getStaffTotalScore(member: StaffLike | any): number | null {
   if (!member) return null;
 
@@ -51,19 +80,21 @@ function getStaffTotalScore(member: StaffLike | any): number | null {
     member.mobility_assistance,
     member.communication_support,
     member.reliability_rating,
-  ].filter((v: any): v is number => typeof v === 'number' && !Number.isNaN(v));
+  ].filter((v: any): v is number => typeof v === "number" && !Number.isNaN(v));
 
   if (!values.length) return null;
   return values.reduce((sum: number, v: number) => sum + v, 0);
 }
 
-function getStaffScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  if (total >= 15) return 'high';
-  if (total >= 10) return 'medium';
-  return 'low';
+function getStaffScoreLevel(total: number): "low" | "medium" | "high" {
+  if (total >= 15) return "high";
+  if (total >= 10) return "medium";
+  return "low";
 }
 
-function getParticipantTotalScore(member: ParticipantLike | any): number | null {
+function getParticipantTotalScore(
+  member: ParticipantLike | any,
+): number | null {
   if (!member) return null;
 
   const values = [
@@ -74,26 +105,46 @@ function getParticipantTotalScore(member: ParticipantLike | any): number | null 
     member.social,
     member.community,
     member.safety,
-  ].filter((v: any): v is number => typeof v === 'number' && !Number.isNaN(v));
+  ].filter((v: any): v is number => typeof v === "number" && !Number.isNaN(v));
 
   if (!values.length) return null;
   return values.reduce((sum: number, v: number) => sum + v, 0);
 }
 
-function getParticipantScoreLevel(total: number): 'low' | 'medium' | 'high' {
-  // Delegate to shared participant risk bands (0–35)
+function getParticipantScoreLevel(total: number): "low" | "medium" | "high" {
   return getRiskBand(total);
 }
 
-export default function OutingsScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
+function mergeDefaultOutings(
+  outingGroups: Partial<OutingGroup>[] | null | undefined,
+): OutingGroup[] {
+  return DEFAULT_OUTINGS.map((fallback, index) => ({
+    ...fallback,
+    ...(outingGroups?.[index] || {}),
+    id: outingGroups?.[index]?.id || fallback.id,
+    staffIds: outingGroups?.[index]?.staffIds || [],
+    participantIds: outingGroups?.[index]?.participantIds || [],
+  }));
+}
 
+function hasOutingContent(outing: OutingGroup): boolean {
+  return Boolean(
+    outing.name.trim() ||
+    (outing.startTime || "").trim() ||
+    (outing.endTime || "").trim() ||
+    (outing.notes || "").trim() ||
+    outing.staffIds.length > 0 ||
+    outing.participantIds.length > 0,
+  );
+}
+
+export default function OutingsScreen() {
   const {
     staff,
     participants,
     workingStaff = [],
     attendingParticipants = [],
-    outingGroup = null,
+    outingGroups = [],
     updateSchedule,
   } = useSchedule() as any;
 
@@ -102,11 +153,12 @@ export default function OutingsScreen() {
   const readOnly = !isAdmin;
   const { width } = useWindowDimensions();
 
-  // Fallback to constants if schedule hasn’t customised staff/participants yet
-  const staffSource = (staff && staff.length ? staff : masterStaff) as typeof masterStaff;
-  const partsSource = (participants && participants.length
-    ? participants
-    : masterParticipants) as typeof masterParticipants;
+  const staffSource = (
+    staff && staff.length ? staff : masterStaff
+  ) as typeof masterStaff;
+  const partsSource = (
+    participants && participants.length ? participants : masterParticipants
+  ) as typeof masterParticipants;
 
   const workingSet = useMemo(
     () => new Set<string>(workingStaff || []),
@@ -117,85 +169,80 @@ export default function OutingsScreen() {
     [attendingParticipants],
   );
 
-  const current = outingGroup ?? {
-    id: `outing-${Date.now()}`,
-    name: '',
-    staffIds: [] as ID[],
-    participantIds: [] as ID[],
-    startTime: '',
-    endTime: '',
-    notes: '',
-  };
-
-  const staffOnOuting = new Set<string>((current.staffIds ?? []) as string[]);
-  const partsOnOuting = new Set<string>(
-    (current.participantIds ?? []) as string[],
+  const outings = useMemo(
+    () => mergeDefaultOutings(outingGroups),
+    [outingGroups],
   );
 
-  const applyChange = (patch: Partial<typeof current>) => {
-    if (readOnly) {
-      push?.(
-        'B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)',
-        'general',
-      );
-      return;
-    }
-
-    const next = { ...current, ...patch };
-    updateSchedule?.({ outingGroup: next });
-    // 🔔 Toast for Drive / Outings changes
-    push?.('Drive / Outings updated', 'outings');
-  };
-
-  const toggleStaff = (id: ID) => {
-    const next = new Set(staffOnOuting);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    applyChange({ staffIds: Array.from(next) });
-  };
-
-  const toggleParticipant = (id: ID) => {
-    const next = new Set(partsOnOuting);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    applyChange({ participantIds: Array.from(next) });
-  };
-
-  const handleNameChange = (value: string) => {
-    applyChange({ name: value });
-  };
-
-  const handleTimeChange = (key: 'startTime' | 'endTime', value: string) => {
-    applyChange({ [key]: value });
-  };
-
-  const handleNotesChange = (value: string) => {
-    applyChange({ notes: value });
-  };
-
-  const handleDeleteOuting = () => {
-    applyChange({
-      name: '',
-      staffIds: [],
-      participantIds: [],
-      startTime: '',
-      endTime: '',
-      notes: '',
-    });
-  };
-
-  const workingStaffObjs = staffSource.filter((s) => workingSet.has(s.id));
-  const attendingPartsObjs = partsSource.filter((p) =>
+  const workingStaffObjs = staffSource.filter((s: any) => workingSet.has(s.id));
+  const attendingPartsObjs = partsSource.filter((p: any) =>
     attendingSet.has(p.id),
   );
 
+  const saveOutings = (nextOutings: OutingGroup[]) => {
+    const cleaned = nextOutings.filter(hasOutingContent);
+    updateSchedule?.({
+      outingGroups: cleaned,
+      outingGroup: cleaned[0] ?? null,
+    });
+    push?.("Drive / Outings updated", "outings");
+  };
+
+  const applyChange = (index: number, patch: Partial<OutingGroup>) => {
+    if (readOnly) {
+      push?.("B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)", "general");
+      return;
+    }
+
+    const nextOutings = outings.map((outing, i) =>
+      i === index ? { ...outing, ...patch } : outing,
+    );
+    saveOutings(nextOutings);
+  };
+
+  const isSelectedElsewhere = (
+    type: "staffIds" | "participantIds",
+    id: ID,
+    currentIndex: number,
+  ) =>
+    outings.some(
+      (outing, index) => index !== currentIndex && outing[type].includes(id),
+    );
+
+  const toggleStaff = (index: number, id: ID) => {
+    if (isSelectedElsewhere("staffIds", id, index)) return;
+    const current = outings[index];
+    const next = new Set<ID>(current.staffIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applyChange(index, { staffIds: Array.from(next) });
+  };
+
+  const toggleParticipant = (index: number, id: ID) => {
+    if (isSelectedElsewhere("participantIds", id, index)) return;
+    const current = outings[index];
+    const next = new Set<ID>(current.participantIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applyChange(index, { participantIds: Array.from(next) });
+  };
+
+  const handleDeleteOuting = (index: number) => {
+    applyChange(index, {
+      name: "",
+      staffIds: [],
+      participantIds: [],
+      startTime: "",
+      endTime: "",
+      notes: "",
+    });
+  };
+
   return (
     <View style={styles.screen}>
-      {/* Header bar + Save & Exit */}
       <SaveExit touchKey="Drive / Outings" />
 
-      {/* Desktop-only hero icon */}
-      {Platform.OS === 'web' && width >= 900 && (
+      {Platform.OS === "web" && width >= 900 && (
         <Ionicons
           name="car-outline"
           size={220}
@@ -213,176 +260,251 @@ export default function OutingsScreen() {
           <Text style={styles.heading}>Drive / Outings</Text>
           <Text style={styles.subheading}>
             Use this screen when some staff and participants are out on an
-            excursion or appointment. Onsite-only logic in other screens will
-            automatically respect who is on outing.
+            excursion or appointment. You can now run two separate outings at
+            the same time. Staff and participants selected in one outing are
+            disabled in the other outing.
           </Text>
 
-          {/* Outing title + time */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Outing Name</Text>
-            <TextInput
-              value={current.name}
-              onChangeText={handleNameChange}
-              placeholder="e.g. Shopping with Shatha"
-              style={styles.input}
-            />
-            <View style={[styles.row, { marginTop: 8 }]}>
-              <View style={{ flex: 1, marginRight: 6 }}>
-                <Text style={styles.sectionTitle}>Start Time</Text>
-                <TextInput
-                  value={current.startTime}
-                  onChangeText={(v) => handleTimeChange('startTime', v)}
-                  placeholder="11:00"
-                  style={styles.input}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={styles.sectionTitle}>End Time</Text>
-                <TextInput
-                  value={current.endTime}
-                  onChangeText={(v) => handleTimeChange('endTime', v)}
-                  placeholder="15:00"
-                  style={styles.input}
-                />
-              </View>
-            </View>
-          </View>
+          {outings.map((outing, index) => {
+            const staffOnOuting = new Set<string>(outing.staffIds ?? []);
+            const partsOnOuting = new Set<string>(outing.participantIds ?? []);
+            const isSecond = index === 1;
 
-          {/* Staff on outing */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Staff on Outing</Text>
-            <Text style={styles.sectionSub}>
-              Only staff currently working at B2 can be added to this outing.
-            </Text>
+            return (
+              <View
+                key={outing.id || `outing-${index + 1}`}
+                style={[styles.outingCard, isSecond && styles.outingCardSecond]}
+              >
+                <View style={styles.outingHeaderRow}>
+                  <View>
+                    <Text style={styles.outingHeading}>Outing {index + 1}</Text>
+                    <Text style={styles.outingHint}>
+                      {isSecond
+                        ? "Second group / parallel outing"
+                        : "Primary outing group"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.outingBadge,
+                      isSecond && styles.outingBadgeSecond,
+                    ]}
+                  >
+                    <Text style={styles.outingBadgeText}>
+                      {outing.staffIds.length} staff ·{" "}
+                      {outing.participantIds.length} participants
+                    </Text>
+                  </View>
+                </View>
 
-            {workingStaffObjs.length === 0 ? (
-              <Text style={styles.empty}>
-                No working staff set for this schedule yet.
-              </Text>
-            ) : (
-              <View style={styles.chipGrid}>
-                {workingStaffObjs.map((st: any) => {
-                  const selected = staffOnOuting.has(st.id);
-                  const total = getStaffTotalScore(st);
-                  const level =
-                    total !== null ? getStaffScoreLevel(total) : null;
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Outing Name</Text>
+                  <TextInput
+                    value={outing.name}
+                    onChangeText={(value) =>
+                      applyChange(index, { name: value })
+                    }
+                    placeholder={
+                      isSecond
+                        ? "e.g. Bowling with Mary"
+                        : "e.g. Shopping with Shatha"
+                    }
+                    style={styles.input}
+                  />
+                  <View style={[styles.row, { marginTop: 8 }]}>
+                    <View style={{ flex: 1, marginRight: 6 }}>
+                      <Text style={styles.sectionTitle}>Start Time</Text>
+                      <TextInput
+                        value={outing.startTime}
+                        onChangeText={(value) =>
+                          applyChange(index, { startTime: value })
+                        }
+                        placeholder="11:00"
+                        style={styles.input}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 6 }}>
+                      <Text style={styles.sectionTitle}>End Time</Text>
+                      <TextInput
+                        value={outing.endTime}
+                        onChangeText={(value) =>
+                          applyChange(index, { endTime: value })
+                        }
+                        placeholder="15:00"
+                        style={styles.input}
+                      />
+                    </View>
+                  </View>
+                </View>
 
-                  return (
-                    <TouchableOpacity
-                      key={st.id}
-                      onPress={() => toggleStaff(st.id)}
-                      activeOpacity={0.85}
-                      style={[styles.chip, selected && styles.chipSelected]}
-                    >
-                      <View style={styles.chipContent}>
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            selected && styles.chipLabelSelected,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {st.name}
-                        </Text>
-                        {total !== null && (
-                          <View
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    Staff on Outing {index + 1}
+                  </Text>
+                  <Text style={styles.sectionSub}>
+                    Only staff currently working at B2 can be added. Staff
+                    already selected in the other outing are disabled.
+                  </Text>
+
+                  {workingStaffObjs.length === 0 ? (
+                    <Text style={styles.empty}>
+                      No working staff set for this schedule yet.
+                    </Text>
+                  ) : (
+                    <View style={styles.chipGrid}>
+                      {workingStaffObjs.map((st: any) => {
+                        const selected = staffOnOuting.has(st.id);
+                        const disabled =
+                          !selected &&
+                          isSelectedElsewhere("staffIds", st.id, index);
+                        const total = getStaffTotalScore(st);
+                        const level =
+                          total !== null ? getStaffScoreLevel(total) : null;
+
+                        return (
+                          <TouchableOpacity
+                            key={st.id}
+                            onPress={() => toggleStaff(index, st.id)}
+                            activeOpacity={disabled ? 1 : 0.85}
                             style={[
-                              styles.scoreBubble,
-                              level === 'low' && styles.scoreBubbleLow,
-                              level === 'medium' && styles.scoreBubbleMedium,
-                              level === 'high' && styles.scoreBubbleHigh,
+                              styles.chip,
+                              selected && styles.chipSelected,
+                              disabled && styles.chipDisabled,
                             ]}
                           >
-                            <Text style={styles.scoreBubbleText}>{total}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
+                            <View style={styles.chipContent}>
+                              <Text
+                                style={[
+                                  styles.chipLabel,
+                                  selected && styles.chipLabelSelected,
+                                  disabled && styles.chipLabelDisabled,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {st.name}
+                              </Text>
+                              {total !== null && (
+                                <View
+                                  style={[
+                                    styles.scoreBubble,
+                                    level === "low" && styles.scoreBubbleLow,
+                                    level === "medium" &&
+                                      styles.scoreBubbleMedium,
+                                    level === "high" && styles.scoreBubbleHigh,
+                                  ]}
+                                >
+                                  <Text style={styles.scoreBubbleText}>
+                                    {total}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
 
-          {/* Participants on outing */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Participants on Outing</Text>
-            <Text style={styles.sectionSub}>
-              Only attending participants can be added to this outing.
-            </Text>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    Participants on Outing {index + 1}
+                  </Text>
+                  <Text style={styles.sectionSub}>
+                    Only attending participants can be added. Participants
+                    already selected in the other outing are disabled.
+                  </Text>
 
-            {attendingPartsObjs.length === 0 ? (
-              <Text style={styles.empty}>
-                No attending participants set for this schedule yet.
-              </Text>
-            ) : (
-              <View style={styles.chipGrid}>
-                {attendingPartsObjs.map((p: any) => {
-                  const selected = partsOnOuting.has(p.id);
-                  const total = getParticipantTotalScore(p);
-                  const level =
-                    total !== null ? getParticipantScoreLevel(total) : null;
+                  {attendingPartsObjs.length === 0 ? (
+                    <Text style={styles.empty}>
+                      No attending participants set for this schedule yet.
+                    </Text>
+                  ) : (
+                    <View style={styles.chipGrid}>
+                      {attendingPartsObjs.map((p: any) => {
+                        const selected = partsOnOuting.has(p.id);
+                        const disabled =
+                          !selected &&
+                          isSelectedElsewhere("participantIds", p.id, index);
+                        const total = getParticipantTotalScore(p);
+                        const level =
+                          total !== null
+                            ? getParticipantScoreLevel(total)
+                            : null;
 
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      onPress={() => toggleParticipant(p.id)}
-                      activeOpacity={0.85}
-                      style={[styles.chip, selected && styles.chipSelected]}
-                    >
-                      <View style={styles.chipContent}>
-                        <Text
-                          style={[
-                            styles.chipLabel,
-                            selected && styles.chipLabelSelected,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {p.name}
-                        </Text>
-                        {total !== null && (
-                          <View
+                        return (
+                          <TouchableOpacity
+                            key={p.id}
+                            onPress={() => toggleParticipant(index, p.id)}
+                            activeOpacity={disabled ? 1 : 0.85}
                             style={[
-                              styles.scoreBubble,
-                              level === 'low' && styles.scoreBubbleLow,
-                              level === 'medium' && styles.scoreBubbleMedium,
-                              level === 'high' && styles.scoreBubbleHigh,
+                              styles.chip,
+                              selected && styles.chipSelected,
+                              disabled && styles.chipDisabled,
                             ]}
                           >
-                            <Text style={styles.scoreBubbleText}>{total}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                            <View style={styles.chipContent}>
+                              <Text
+                                style={[
+                                  styles.chipLabel,
+                                  selected && styles.chipLabelSelected,
+                                  disabled && styles.chipLabelDisabled,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {p.name}
+                              </Text>
+                              {total !== null && (
+                                <View
+                                  style={[
+                                    styles.scoreBubble,
+                                    level === "low" && styles.scoreBubbleLow,
+                                    level === "medium" &&
+                                      styles.scoreBubbleMedium,
+                                    level === "high" && styles.scoreBubbleHigh,
+                                  ]}
+                                >
+                                  <Text style={styles.scoreBubbleText}>
+                                    {total}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Notes (optional)</Text>
+                  <TextInput
+                    value={outing.notes}
+                    onChangeText={(value) =>
+                      applyChange(index, { notes: value })
+                    }
+                    placeholder="Anything important about this outing..."
+                    style={[styles.input, styles.notesInput]}
+                    multiline
+                  />
+                </View>
+
+                <View style={[styles.section, styles.deleteRow]}>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteOuting(index)}
+                    activeOpacity={0.9}
+                    style={styles.deleteBtn}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.deleteText}>
+                      Clear outing {index + 1}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            )}
-          </View>
-
-          {/* Notes */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes (optional)</Text>
-            <TextInput
-              value={current.notes}
-              onChangeText={handleNotesChange}
-              placeholder="Anything important about this outing..."
-              style={[styles.input, styles.notesInput]}
-              multiline
-            />
-          </View>
-
-          {/* Delete outing */}
-          <View style={[styles.section, styles.deleteRow]}>
-            <TouchableOpacity
-              onPress={handleDeleteOuting}
-              activeOpacity={0.9}
-              style={styles.deleteBtn}
-            >
-              <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.deleteText}>Delete outing</Text>
-            </TouchableOpacity>
-          </View>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -390,115 +512,100 @@ export default function OutingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#FFE4CC', // keep original peach background
-  },
+  screen: { flex: 1, backgroundColor: "#FFE4CC" },
   heroIcon: {
-    position: 'absolute',
-    top: '25%',
-    left: '10%',
+    position: "absolute",
+    top: "25%",
+    left: "10%",
     opacity: 1,
     zIndex: 0,
   },
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   wrap: {
     flex: 1,
-    width: '100%',
+    width: "100%",
     maxWidth: 880,
-    alignSelf: 'center',
+    alignSelf: "center",
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
-  heading: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#36144F', // match Dream Team purple
-  },
-  subheading: {
-    fontSize: 14,
-    color: '#000',
-    marginBottom: 16,
-  },
-  section: {
+  heading: { fontSize: 24, fontWeight: "700", color: "#36144F" },
+  subheading: { fontSize: 14, color: "#000", marginBottom: 16 },
+  outingCard: {
     marginTop: 16,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.72)",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
   },
-  row: {
-    flexDirection: 'row',
+  outingCardSecond: {
+    borderColor: "#DDD6FE",
+    backgroundColor: "rgba(245,243,255,0.86)",
   },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#36144F', // black labels
-    marginBottom: 4,
+  outingHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
   },
+  outingHeading: { fontSize: 19, fontWeight: "800", color: "#36144F" },
+  outingHint: { fontSize: 12, color: "#6B4F7A", marginTop: 2 },
+  outingBadge: {
+    borderRadius: 999,
+    backgroundColor: "#FDBA74",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  outingBadgeSecond: { backgroundColor: "#C4B5FD" },
+  outingBadgeText: { fontSize: 12, fontWeight: "700", color: "#111827" },
+  section: { marginTop: 16 },
+  row: { flexDirection: "row" },
   input: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D1D5DB', // neutral border
+    borderColor: "#D1D5DB",
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF', // white fields
+    backgroundColor: "#FFFFFF",
     fontSize: 14,
-    color: '#000', // black text
+    color: "#000",
   },
-  notesInput: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
+  notesInput: { height: 80, textAlignVertical: "top" },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#36144F', // black section titles
+    fontWeight: "700",
+    color: "#36144F",
     marginBottom: 4,
   },
-  sectionSub: {
-    fontSize: 12,
-    color: '#36144F',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  chipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-  },
+  sectionSub: { fontSize: 12, color: "#36144F", marginTop: 4, marginBottom: 8 },
+  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   chip: {
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#FED7AA', // keep original chip border colour
-    backgroundColor: '#FFF',
+    borderColor: "#FED7AA",
+    backgroundColor: "#FFF",
   },
-  chipSelected: {
-    backgroundColor: '#FDBA74',
-    borderColor: '#FB923C',
+  chipSelected: { backgroundColor: "#FDBA74", borderColor: "#FB923C" },
+  chipDisabled: {
+    opacity: 0.35,
+    backgroundColor: "#F3F4F6",
+    borderColor: "#E5E7EB",
   },
-  chipContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  chipLabel: {
-    fontSize: 13,
-    color: '#000', // black chip text
-  },
-  chipLabelSelected: {
-    fontWeight: '600',
-    color: '#000', // black chip text even when selected
-  },
+  chipContent: { flexDirection: "row", alignItems: "center", gap: 6 },
+  chipLabel: { fontSize: 13, color: "#000" },
+  chipLabelSelected: { fontWeight: "600", color: "#000" },
+  chipLabelDisabled: { color: "#6B7280" },
   scoreBubble: {
     minWidth: 26,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scoreBubbleLow: {
     backgroundColor: SCORE_BUBBLE_STYLES.low.bg,
@@ -512,32 +619,17 @@ const styles = StyleSheet.create({
     backgroundColor: SCORE_BUBBLE_STYLES.high.bg,
     borderColor: SCORE_BUBBLE_STYLES.high.border,
   },
-  scoreBubbleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  empty: {
-    fontSize: 13,
-    color: '#111827',
-  },
-  deleteRow: {
-    alignItems: 'flex-end',
-    marginTop: 12,
-  },
+  scoreBubbleText: { fontSize: 11, fontWeight: "600", color: "#111827" },
+  empty: { fontSize: 13, color: "#111827" },
+  deleteRow: { alignItems: "flex-end", marginTop: 12 },
   deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: '#36144F',
+    backgroundColor: "#36144F",
     gap: 6,
   },
-  deleteText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
+  deleteText: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
 });
-

@@ -1,6 +1,6 @@
 // app/edit/index.tsx
-import React, { useEffect, useMemo } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useMemo } from "react";
+import { Stack, useRouter } from "expo-router";
 import {
   ScrollView,
   View,
@@ -9,15 +9,15 @@ import {
   Pressable,
   Image,
   Platform,
-} from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+} from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
-import Footer from '@/components/Footer';
-import ScheduleBanner from '@/components/ScheduleBanner';
-import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
+import Footer from "@/components/Footer";
+import ScheduleBanner from "@/components/ScheduleBanner";
+import { initScheduleForToday, useSchedule } from "@/hooks/schedule-store";
 
 const MAX_WIDTH = 960;
-const showWebBranding = Platform.OS === 'web';
+const showWebBranding = Platform.OS === "web";
 
 type CardConfig = {
   key: string;
@@ -30,81 +30,78 @@ type CardConfig = {
 
 const CARDS: CardConfig[] = [
   {
-    key: 'dream-team',
-    title: 'The Dream Team (Working at B2)',
-    description: 'Choose who is working at B2 today and who is away.',
-    icon: 'people-circle-outline',
-    iconBg: '#ffd5b4',
-    route: '/edit/dream-team',
+    key: "dream-team",
+    title: "The Dream Team (Working at B2)",
+    description: "Choose who is working at B2 today and who is away.",
+    icon: "people-circle-outline",
+    iconBg: "#ffd5b4",
+    route: "/edit/dream-team",
   },
   {
-    key: 'participants',
-    title: 'Attending Participants',
-    description: 'Confirm who is attending for the day (onsite or on outing).',
-    icon: 'happy-outline',
-    iconBg: '#E0F2FE',
-    route: '/edit/participants',
+    key: "participants",
+    title: "Attending Participants",
+    description: "Confirm who is attending for the day (onsite or on outing).",
+    icon: "happy-outline",
+    iconBg: "#E0F2FE",
+    route: "/edit/participants",
   },
   {
-    key: 'outings',
-    title: 'Drive / Outing / Off-site',
+    key: "outings",
+    title: "Drive / Outing / Off-site",
     description:
-      'Set up any drives or outings so cleaning and floating only use onsite staff.',
-    icon: 'car-outline',
-    iconBg: '#FFE4CC',
-    route: '/edit/outings',
+      "Set up any drives or outings so cleaning and floating only use onsite staff.",
+    icon: "car-outline",
+    iconBg: "#FFE4CC",
+    route: "/edit/outings",
   },
   {
-    key: 'assignments',
-    title: 'Team Daily Assignments',
-    description: 'Assign participants to staff for the day.',
-    icon: 'clipboard-outline',
-    iconBg: '#E5DEFF',
-    route: '/edit/assignments',
+    key: "assignments",
+    title: "Team Daily Assignments",
+    description: "Assign participants to staff for the day.",
+    icon: "clipboard-outline",
+    iconBg: "#E5DEFF",
+    route: "/edit/assignments",
   },
   {
-    key: 'floating',
-    title: 'Floating Assignments (Front Room, Scotty, Twins)',
+    key: "floating",
+    title: "Floating Assignments (Front Room, Scotty, Twins)",
     description:
-      'Plan floating support across the key shared spaces throughout the day.',
-    icon: 'refresh-circle-outline',
-    iconBg: '#FDF2FF',
-    route: '/edit/floating',
+      "Plan floating support across the key shared spaces throughout the day.",
+    icon: "refresh-circle-outline",
+    iconBg: "#FDF2FF",
+    route: "/edit/floating",
   },
   {
-    key: 'cleaning',
-    title: 'End of Shift Cleaning Assignments',
+    key: "cleaning",
+    title: "End of Shift Cleaning Assignments",
     description:
-      'Distribute cleaning tasks fairly so no one is stuck with the same jobs.',
-    icon: 'sparkles-outline' as keyof typeof Ionicons.glyphMap,
-    iconBg: '#DCFCE7',
-    route: '/edit/cleaning',
+      "Distribute cleaning tasks fairly so no one is stuck with the same jobs.",
+    icon: "sparkles-outline" as keyof typeof Ionicons.glyphMap,
+    iconBg: "#DCFCE7",
+    route: "/edit/cleaning",
   },
   {
-    key: 'pickups-dropoffs',
-    title: 'Pickups and Dropoffs with Helpers',
+    key: "pickups-dropoffs",
+    title: "Pickups and Dropoffs with Helpers",
     description:
-      'Organise transport, helpers and dropoff locations for each participant.',
-    icon: 'bus-outline',
-    iconBg: '#FFE4E6',
-    route: '/edit/pickups-dropoffs',
+      "Organise transport, helpers and dropoff locations for each participant.",
+    icon: "bus-outline",
+    iconBg: "#FFE4E6",
+    route: "/edit/pickups-dropoffs",
   },
   {
-    key: 'checklist',
-    title: 'End of Shift Checklist',
+    key: "checklist",
+    title: "End of Shift Checklist",
     description:
-      'Final checklist to confirm everything is complete before handing over.',
-    icon: 'checkbox-outline',
-    iconBg: '#E0E7FF',
-    route: '/edit/checklist',
+      "Final checklist to confirm everything is complete before handing over.",
+    icon: "checkbox-outline",
+    iconBg: "#E0E7FF",
+    route: "/edit/checklist",
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Outing phase helpers
-// ---------------------------------------------------------------------------
-
 type OutingGroup = {
+  id?: string | null;
   name?: string | null;
   startTime?: string | null;
   endTime?: string | null;
@@ -112,18 +109,13 @@ type OutingGroup = {
   participantIds?: (string | number)[];
 };
 
-type OutingPhase = 'none' | 'upcoming' | 'active' | 'complete';
-
-// Used only to decide whether an outing is considered "all day" when no end time is provided.
-// We still show the banner as upcoming/active/complete based on real time when we have a valid end time.
-const SHORT_OUTING_THRESHOLD_MINUTES = 14 * 60; // 14:00
+type OutingPhase = "none" | "upcoming" | "active" | "complete";
 
 function parseTimeToMinutes(value?: string | null): number | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  // Expect formats like "10:30" or "9:05"
   const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
 
@@ -142,12 +134,14 @@ function parseTimeToMinutes(value?: string | null): number | null {
   return hours * 60 + minutes;
 }
 
-function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhase {
-  if (!outingGroup) return 'none';
+function getOutingPhase(
+  outingGroup: OutingGroup | null | undefined,
+): OutingPhase {
+  if (!outingGroup) return "none";
 
   const staffCount = outingGroup.staffIds?.length ?? 0;
   const participantCount = outingGroup.participantIds?.length ?? 0;
-  if (staffCount === 0 && participantCount === 0) return 'none';
+  if (staffCount === 0 && participantCount === 0) return "none";
 
   const startMinutes = parseTimeToMinutes(outingGroup.startTime);
   const endMinutes = parseTimeToMinutes(outingGroup.endTime);
@@ -155,91 +149,73 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // Future start time → upcoming
-  if (startMinutes !== null && nowMinutes < startMinutes) {
-    return 'upcoming';
-  }
+  if (startMinutes !== null && nowMinutes < startMinutes) return "upcoming";
+  if (endMinutes === null) return "active";
 
-  // No valid end time:
-  // - before start → upcoming (handled above)
-  // - after start → active (treated as out for the day)
-  if (endMinutes === null) {
-    return 'active';
-  }
-
-  // With a valid end time: upcoming/active/complete based on window
   if (startMinutes !== null) {
-    if (nowMinutes >= startMinutes && nowMinutes <= endMinutes) return 'active';
-    if (nowMinutes > endMinutes) return 'complete';
+    if (nowMinutes >= startMinutes && nowMinutes <= endMinutes) return "active";
+    if (nowMinutes > endMinutes) return "complete";
   }
 
-  // If start time is missing/invalid, fall back to using end time.
-  // - before end → active
-  // - after end → complete
-  if (nowMinutes <= endMinutes) return 'active';
-  return 'complete';
+  if (nowMinutes <= endMinutes) return "active";
+  return "complete";
+}
+
+function buildVisibleOutings(outingGroups: OutingGroup[] = []) {
+  return outingGroups
+    .map((group, index) => {
+      const phase = getOutingPhase(group);
+      const staffCount = group.staffIds?.length ?? 0;
+      const participantCount = group.participantIds?.length ?? 0;
+      const hasTime =
+        (group.startTime && group.startTime.trim() !== "") ||
+        (group.endTime && group.endTime.trim() !== "");
+      const timeRange = hasTime
+        ? `${group.startTime || "?"}–${group.endTime || "?"}`
+        : "";
+
+      return {
+        group,
+        index,
+        phase,
+        staffCount,
+        participantCount,
+        timeRange,
+      };
+    })
+    .filter((item) => item.phase !== "none")
+    .slice(0, 2);
 }
 
 export default function EditHubScreen() {
   const router = useRouter();
-  const { outingGroup } = useSchedule() as { outingGroup?: OutingGroup | null };
+  const { outingGroups = [] } = useSchedule() as {
+    outingGroups?: OutingGroup[];
+  };
 
-  // Auto-hydrate today on first load
   useEffect(() => {
-    void initScheduleForToday('B2').catch((e) => {
-      console.error('initScheduleForToday failed (edit hub):', e);
+    void initScheduleForToday("B2").catch((e) => {
+      console.error("initScheduleForToday failed (edit hub):", e);
     });
   }, []);
 
-  const outingStaffCount = outingGroup?.staffIds?.length ?? 0;
-  const outingParticipantCount = outingGroup?.participantIds?.length ?? 0;
-
-  const hasOutingBase =
-    !!outingGroup && (outingStaffCount > 0 || outingParticipantCount > 0);
-
-  const outingPhase: OutingPhase = useMemo(() => {
-    return hasOutingBase ? getOutingPhase(outingGroup) : 'none';
-  }, [hasOutingBase, outingGroup]);
-
-  const hasOuting = outingPhase !== 'none';
-
-  const hasTime =
-    (outingGroup?.startTime && outingGroup.startTime.trim() !== '') ||
-    (outingGroup?.endTime && outingGroup.endTime.trim() !== '');
-
-  const timeRange = hasTime
-    ? `${outingGroup?.startTime || '?'}–${outingGroup?.endTime || '?'}`
-    : '';
-
-  const isUpcoming = outingPhase === 'upcoming';
-  const isActive = outingPhase === 'active';
-  const isComplete = outingPhase === 'complete';
-
-  const outingTitle = isUpcoming
-    ? 'Upcoming outing'
-    : isComplete
-      ? 'Outing complete'
-      : 'Outing in progress';
-
-  const outingSubtitle = isUpcoming
-    ? 'Planned'
-    : isComplete
-      ? 'Completed'
-      : 'Live now';
+  const visibleOutings = useMemo(
+    () => buildVisibleOutings(outingGroups),
+    [outingGroups],
+  );
 
   return (
     <View style={styles.screen}>
       <Stack.Screen
         options={{
-          title: 'Edit Hub',
+          title: "Edit Hub",
           headerShown: true,
         }}
       />
 
-      {/* Large washed-out background logo – web only */}
       {showWebBranding && (
         <Image
-          source={require('@/assets/images/nochains-bg.png')}
+          source={require("@/assets/images/nochains-bg.png")}
           style={styles.bgLogo}
           resizeMode="contain"
         />
@@ -250,64 +226,107 @@ export default function EditHubScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.inner}>
-          {/* Schedule banner (created / loaded) */}
           <ScheduleBanner />
 
-          {/* Outing summary card, when an outing exists */}
-          {hasOuting && (
-            <View
-              style={[
-                styles.outingSummary,
-                isUpcoming && styles.outingSummaryUpcoming,
-                isComplete && styles.outingSummaryComplete,
-              ]}
-            >
-              <View style={styles.outingSummaryInner}>
-                <View
-                  style={[
-                    styles.outingSummaryIconBubble,
-                    isComplete && styles.outingSummaryIconBubbleComplete,
-                  ]}
-                >
-                  <Ionicons
-                    name="car-outline"
-                    size={22}
-                    color={isComplete ? '#166534' : isUpcoming ? '#1D4ED8' : '#C05621'}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.outingSummaryTitle,
-                      isComplete && styles.outingSummaryTitleComplete,
-                    ]}
-                  >
-                    {outingTitle}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.outingSummaryLine,
-                      isComplete && styles.outingSummaryLineComplete,
-                    ]}
-                  >
-                    {outingGroup?.name || 'Unnamed outing'}
-                    {timeRange ? ` · ${timeRange}` : ''}
-                    {` · ${outingSubtitle}`}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.outingSummaryLine,
-                      isComplete && styles.outingSummaryLineComplete,
-                    ]}
-                  >
-                    {outingStaffCount} staff · {outingParticipantCount} participants
-                  </Text>
-                </View>
-              </View>
+          {visibleOutings.length > 0 && (
+            <View style={styles.outingSummaryRow}>
+              {visibleOutings.map(
+                ({
+                  group,
+                  index,
+                  phase,
+                  staffCount,
+                  participantCount,
+                  timeRange,
+                }) => {
+                  const isUpcoming = phase === "upcoming";
+                  const isActive = phase === "active";
+                  const isComplete = phase === "complete";
+                  const outingTitle = isUpcoming
+                    ? `Upcoming outing ${index + 1}`
+                    : isComplete
+                      ? `Outing ${index + 1} complete`
+                      : `Outing ${index + 1} in progress`;
+                  const outingSubtitle = isUpcoming
+                    ? "Planned"
+                    : isComplete
+                      ? "Completed"
+                      : "Live now";
+                  const isSecond = index === 1;
+
+                  return (
+                    <View
+                      key={group.id || `outing-${index}`}
+                      style={[
+                        styles.outingSummary,
+                        isSecond && styles.outingSummarySecond,
+                        isUpcoming && styles.outingSummaryUpcoming,
+                        isComplete && styles.outingSummaryComplete,
+                      ]}
+                    >
+                      <View style={styles.outingSummaryInner}>
+                        <View
+                          style={[
+                            styles.outingSummaryIconBubble,
+                            isSecond && styles.outingSummaryIconBubbleSecond,
+                            isComplete &&
+                              styles.outingSummaryIconBubbleComplete,
+                          ]}
+                        >
+                          <Ionicons
+                            name="car-outline"
+                            size={22}
+                            color={
+                              isComplete
+                                ? "#166534"
+                                : isUpcoming
+                                  ? "#1D4ED8"
+                                  : isSecond
+                                    ? "#6D28D9"
+                                    : "#C05621"
+                            }
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.outingSummaryTitle,
+                              isSecond && styles.outingSummaryTitleSecond,
+                              isComplete && styles.outingSummaryTitleComplete,
+                            ]}
+                          >
+                            {outingTitle}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.outingSummaryLine,
+                              isSecond && styles.outingSummaryLineSecond,
+                              isComplete && styles.outingSummaryLineComplete,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {group.name || "Unnamed outing"}
+                            {timeRange ? ` · ${timeRange}` : ""}
+                            {` · ${outingSubtitle}`}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.outingSummaryLine,
+                              isSecond && styles.outingSummaryLineSecond,
+                              isComplete && styles.outingSummaryLineComplete,
+                            ]}
+                          >
+                            {staffCount} staff · {participantCount} participants
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                },
+              )}
             </View>
           )}
 
-          {/* Category cards */}
           <View style={styles.cardList}>
             {CARDS.map((card) => (
               <Pressable
@@ -319,13 +338,14 @@ export default function EditHubScreen() {
                 onPress={() => router.push(card.route)}
               >
                 <View
-                  style={[
-                    styles.iconBubble,
-                    { backgroundColor: card.iconBg },
-                  ]}
+                  style={[styles.iconBubble, { backgroundColor: card.iconBg }]}
                 >
-                  {card.key === 'floating' ? (
-                    <MaterialCommunityIcons name="account-clock" size={20} color="#4B5563" />
+                  {card.key === "floating" ? (
+                    <MaterialCommunityIcons
+                      name="account-clock"
+                      size={20}
+                      color="#4B5563"
+                    />
                   ) : (
                     <Ionicons name={card.icon} size={20} color="#4B5563" />
                   )}
@@ -349,45 +369,44 @@ export default function EditHubScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#fef5fb',
+    backgroundColor: "#fef5fb",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingVertical: 32,
-    alignItems: 'center',
-    paddingBottom: 200, // extra space so the last card clears the footer on mobile
+    alignItems: "center",
+    paddingBottom: 200,
   },
   inner: {
-    width: '100%',
+    width: "100%",
     maxWidth: MAX_WIDTH,
-    alignSelf: 'center',
+    alignSelf: "center",
     paddingHorizontal: 16,
   },
-  // Large washed-out background logo
   bgLogo: {
-    position: 'absolute',
+    position: "absolute",
     width: 1400,
     height: 1400,
     opacity: 0.1,
     left: -600,
     top: 10,
-    pointerEvents: 'none',
+    pointerEvents: "none",
   },
   cardList: {
     marginTop: 16,
-    width: '100%',
+    width: "100%",
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginBottom: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.03,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -399,69 +418,91 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
+    color: "#111827",
+    fontWeight: "500",
   },
   cardDescription: {
     marginTop: 2,
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   iconBubble: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
+  outingSummaryRow: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
   outingSummary: {
-    width: '100%',
+    width: "40%",
+    minWidth: 300,
+    flexGrow: 1,
     borderRadius: 16,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: "#FED7AA",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginTop: 12,
+  },
+  outingSummarySecond: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#DDD6FE",
   },
   outingSummaryUpcoming: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
   },
   outingSummaryComplete: {
-    backgroundColor: '#ECFDF3',
-    borderColor: '#BBF7D0',
+    backgroundColor: "#ECFDF3",
+    borderColor: "#BBF7D0",
   },
   outingSummaryInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   outingSummaryIconBubble: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FED7AA',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#FED7AA",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 10,
   },
+  outingSummaryIconBubbleSecond: {
+    backgroundColor: "#DDD6FE",
+  },
   outingSummaryIconBubbleComplete: {
-    backgroundColor: '#BBF7D0',
+    backgroundColor: "#BBF7D0",
   },
   outingSummaryTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#9A3412',
+    fontWeight: "600",
+    color: "#9A3412",
+  },
+  outingSummaryTitleSecond: {
+    color: "#5B21B6",
   },
   outingSummaryTitleComplete: {
-    color: '#166534',
+    color: "#166534",
   },
   outingSummaryLine: {
     fontSize: 12,
-    color: '#7C2D12',
+    color: "#7C2D12",
+  },
+  outingSummaryLineSecond: {
+    color: "#4C1D95",
   },
   outingSummaryLineComplete: {
-    color: '#166534',
+    color: "#166534",
   },
 });
