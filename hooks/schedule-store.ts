@@ -37,10 +37,7 @@ export type DropoffAssignment = {
   locationId: number | null;
 };
 
-export type FinalChecklist = {
-  isPrinted: boolean;
-  isSigned: boolean;
-};
+export type FinalChecklist = Record<ID, boolean>;
 
 export type ScheduleSnapshot = {
   // Base lists
@@ -75,6 +72,12 @@ export type ScheduleSnapshot = {
 
   // Locations still stored separately (for now)
   dropoffLocations: Record<ID, number | null>;
+
+  // End of shift checklist state.
+  // finalChecklist is itemId -> checked.
+  // finalChecklistStaff is the staff member selected as last to leave.
+  finalChecklist: FinalChecklist;
+  finalChecklistStaff: ID | null;
 
   // Primary outings model. The UI currently supports up to two outings.
   outingGroups: OutingGroup[];
@@ -159,6 +162,8 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     helperStaff: [],
     dropoffAssignments: {},
     dropoffLocations: {},
+    finalChecklist: {},
+    finalChecklistStaff: null,
     outingGroups: [],
     outingGroup: null,
     date: undefined,
@@ -651,9 +656,19 @@ export async function initialiseScheduleForTodayIfNeeded(
       ...(bannerType === "prefilled" ? { sourceDate: scheduleDate } : {}),
     };
 
+    // Daily operational completion state must not be carried forward when
+    // we prefill a new working day from an older schedule. Staff/participants
+    // may be reused, but the end-of-shift checklist should always start clear
+    // for the new schedule date.
+    const checklistReset =
+      bannerType === "prefilled"
+        ? { finalChecklist: {}, finalChecklistStaff: null }
+        : {};
+
     useSchedule.setState((s) => ({
       ...s,
       ...normalizedSnapshot,
+      ...checklistReset,
       banner,
       hasInitialisedToday: true,
       currentInitDate: todayKey,
