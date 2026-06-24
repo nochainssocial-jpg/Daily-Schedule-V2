@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import Footer from "@/components/Footer";
 import ScheduleBanner from "@/components/ScheduleBanner";
+import OutingSummaryBanner from "@/components/OutingSummaryBanner";
 import { initScheduleForToday, useSchedule } from "@/hooks/schedule-store";
 
 const MAX_WIDTH = 960;
@@ -107,6 +108,7 @@ type OutingGroup = {
   endTime?: string | null;
   staffIds?: (string | number)[];
   participantIds?: (string | number)[];
+  notes?: string | null;
 };
 
 type OutingPhase = "none" | "upcoming" | "active" | "complete";
@@ -189,8 +191,10 @@ function buildVisibleOutings(outingGroups: OutingGroup[] = []) {
 
 export default function EditHubScreen() {
   const router = useRouter();
-  const { outingGroups = [] } = useSchedule() as {
+  const { outingGroups = [], staff = [], participants = [] } = useSchedule() as {
     outingGroups?: OutingGroup[];
+    staff?: Array<{ id: string | number; name?: string | null }>;
+    participants?: Array<{ id: string | number; name?: string | null }>;
   };
 
   useEffect(() => {
@@ -238,91 +242,19 @@ export default function EditHubScreen() {
                   staffCount,
                   participantCount,
                   timeRange,
-                }) => {
-                  const isUpcoming = phase === "upcoming";
-                  const isActive = phase === "active";
-                  const isComplete = phase === "complete";
-                  const outingTitle = isUpcoming
-                    ? `Upcoming outing ${index + 1}`
-                    : isComplete
-                      ? `Outing ${index + 1} complete`
-                      : `Outing ${index + 1} in progress`;
-                  const outingSubtitle = isUpcoming
-                    ? "Planned"
-                    : isComplete
-                      ? "Completed"
-                      : "Live now";
-                  const isSecond = index === 1;
-
-                  return (
-                    <View
-                      key={group.id || `outing-${index}`}
-                      style={[
-                        styles.outingSummary,
-                        isSecond && styles.outingSummarySecond,
-                        isUpcoming && styles.outingSummaryUpcoming,
-                        isComplete && styles.outingSummaryComplete,
-                      ]}
-                    >
-                      <View style={styles.outingSummaryInner}>
-                        <View
-                          style={[
-                            styles.outingSummaryIconBubble,
-                            isSecond && styles.outingSummaryIconBubbleSecond,
-                            isComplete &&
-                              styles.outingSummaryIconBubbleComplete,
-                          ]}
-                        >
-                          <Ionicons
-                            name="car-outline"
-                            size={22}
-                            color={
-                              isComplete
-                                ? "#166534"
-                                : isUpcoming
-                                  ? "#1D4ED8"
-                                  : isSecond
-                                    ? "#6D28D9"
-                                    : "#C05621"
-                            }
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={[
-                              styles.outingSummaryTitle,
-                              isSecond && styles.outingSummaryTitleSecond,
-                              isComplete && styles.outingSummaryTitleComplete,
-                            ]}
-                          >
-                            {outingTitle}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.outingSummaryLine,
-                              isSecond && styles.outingSummaryLineSecond,
-                              isComplete && styles.outingSummaryLineComplete,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {group.name || "Unnamed outing"}
-                            {timeRange ? ` · ${timeRange}` : ""}
-                            {` · ${outingSubtitle}`}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.outingSummaryLine,
-                              isSecond && styles.outingSummaryLineSecond,
-                              isComplete && styles.outingSummaryLineComplete,
-                            ]}
-                          >
-                            {staffCount} staff · {participantCount} participants
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                },
+                }) => (
+                  <OutingSummaryBanner
+                    key={group.id || `outing-${index}`}
+                    outingGroup={group}
+                    outingIndex={index}
+                    phase={phase}
+                    staffCount={staffCount}
+                    participantCount={participantCount}
+                    timeRange={timeRange}
+                    staff={staff}
+                    participants={participants}
+                  />
+                ),
               )}
             </View>
           )}
