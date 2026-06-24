@@ -16,7 +16,6 @@ import {
 } from '@/lib/admin-report-engine';
 
 const DEFAULT_WEEK_OFFSET = -1;
-const PAGE_TITLE = 'Cleaning – Weekly Report';
 const PAGE_SUBTITLE = 'Previous-week report showing which cleaning duties were assigned to each real staff member.';
 const HEADER_TITLE = 'Cleaning Assignment – Weekly Report';
 
