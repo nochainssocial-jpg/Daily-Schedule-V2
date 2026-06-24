@@ -421,13 +421,19 @@ export default function DashboardScreen() {
     return (
       <View style={styles.panel}>
         <View style={styles.panelHeaderRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.panelEyebrow}>Close of day</Text>
             <Text style={styles.panelTitle}>End of Shift Checklist</Text>
+
+            <View style={styles.finalStaffLeftBlock}>
+              <Text style={styles.finalStaffLabel}>Last to leave</Text>
+              <View style={styles.finalStaffPill}>
+                <Text style={styles.finalStaffPillText}>{selectedFinalStaff}</Text>
+              </View>
+            </View>
           </View>
           <View style={styles.progressBlock}>
             <Text style={styles.progressText}>{completedChecklist} / {checklistRows.length} complete</Text>
-            <Text style={styles.finalStaffText}>Last to leave: {selectedFinalStaff}</Text>
           </View>
         </View>
 
@@ -830,11 +836,30 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111827',
   },
-  finalStaffText: {
-    marginTop: 4,
-    color: '#6B7280',
+  finalStaffLeftBlock: {
+    marginTop: 12,
+    alignItems: 'flex-start',
+  },
+  finalStaffLabel: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  finalStaffPill: {
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    backgroundColor: '#FDF2FB',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  finalStaffPillText: {
+    color: '#F54FA5',
+    fontSize: 18,
+    fontWeight: '900',
   },
   checklistProgressOuter: {
     height: 16,
