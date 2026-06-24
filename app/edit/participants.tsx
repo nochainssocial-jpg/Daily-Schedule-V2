@@ -330,27 +330,42 @@ export default function EditParticipantsScreen() {
   }, [outingGroups, outingGroup]);
 
   // Determine outing phase so that short outings revert back to onsite after end time.
-  // With two outings, a participant is offsite if they are in any currently active outing.
-  const activeOutingGroups = useMemo(
+  // Each active outing keeps its own colour: Outing 1 = orange, Outing 2 = purple.
+  const activeOutingEntries = useMemo(
     () =>
-      normalizedOutingGroups.filter((group) => {
-        const phase = getOutingPhase(group);
-        return phase === 'activeShort' || phase === 'activeLong';
-      }),
+      normalizedOutingGroups.slice(0, 2).map((group, index) => ({
+        group,
+        index,
+        phase: getOutingPhase(group),
+      })).filter(({ phase }) => phase === 'activeShort' || phase === 'activeLong'),
     [normalizedOutingGroups],
   );
 
-  const outingParticipantSet = useMemo(
+  const outing1ParticipantSet = useMemo(
     () =>
       new Set<string>(
-        activeOutingGroups.flatMap((group) =>
-          ((group.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
-        ),
+        activeOutingEntries
+          .filter(({ index }) => index === 0)
+          .flatMap(({ group }) =>
+            ((group.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
+          ),
       ),
-    [activeOutingGroups],
+    [activeOutingEntries],
   );
 
-  const outingIsActive = activeOutingGroups.length > 0;
+  const outing2ParticipantSet = useMemo(
+    () =>
+      new Set<string>(
+        activeOutingEntries
+          .filter(({ index }) => index === 1)
+          .flatMap(({ group }) =>
+            ((group.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
+          ),
+      ),
+    [activeOutingEntries],
+  );
+
+  const outingIsActive = activeOutingEntries.length > 0;
 
   const toggleParticipant = (id: ID) => {
     if (readOnly) {
@@ -402,10 +417,12 @@ export default function EditParticipantsScreen() {
           ) : (
             <View style={styles.attendingGrid}>
               {attendingList.map((p) => {
-                // Only show offsite outline during active phases.
-                const isOutOnOuting =
-                  outingIsActive && outingParticipantSet.has(p.id as ID);
-                const mode = isOutOnOuting ? 'offsite' : 'onsite';
+                // Only show outing colours during active phases.
+                const isOuting1 =
+                  outingIsActive && outing1ParticipantSet.has(p.id as ID);
+                const isOuting2 =
+                  outingIsActive && outing2ParticipantSet.has(p.id as ID);
+                const mode = isOuting1 ? 'outing1' : isOuting2 ? 'outing2' : 'onsite';
 
                 const nameKey = `name:${String(p.name || '').toLowerCase()}`;
                 const rating = ratingMap[nameKey];
@@ -448,9 +465,11 @@ export default function EditParticipantsScreen() {
                     onPress={() => toggleParticipant(p.id as ID)}
                     style={[
                       styles.attendingPill,
-                      mode === 'offsite'
-                        ? styles.attendingPillOffsite
-                        : styles.attendingPillOnsite,
+                      mode === 'outing1'
+                        ? styles.attendingPillOuting1
+                        : mode === 'outing2'
+                          ? styles.attendingPillOuting2
+                          : styles.attendingPillOnsite,
                     ]}
                   >
                     <View style={styles.attendingPillContent}>
@@ -458,7 +477,8 @@ export default function EditParticipantsScreen() {
                         <Text
                           style={[
                             styles.attendingName,
-                            mode === 'offsite' && styles.attendingNameOffsite,
+                            mode === 'outing1' && styles.attendingNameOuting1,
+                            mode === 'outing2' && styles.attendingNameOuting2,
                           ]}
                           numberOfLines={1}
                         >
@@ -521,8 +541,12 @@ export default function EditParticipantsScreen() {
                 <Text style={styles.legendLabel}>On-site</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendSwatch, styles.legendOffsite]} />
-                <Text style={styles.legendLabel}>On outing</Text>
+                <View style={[styles.legendSwatch, styles.legendOuting1]} />
+                <Text style={styles.legendLabel}>Outing 1</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendOuting2]} />
+                <Text style={styles.legendLabel}>Outing 2</Text>
               </View>
             </View>
 
@@ -703,6 +727,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
   },
+  attendingPillOuting1: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FB923C',
+  },
+  attendingPillOuting2: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#8B5CF6',
+  },
   attendingPillContent: {
     flex: 1,
     flexDirection: 'column',
@@ -727,6 +759,12 @@ const styles = StyleSheet.create({
   },
   attendingNameOffsite: {
     color: '#F54FA5',
+  },
+  attendingNameOuting1: {
+    color: '#C2410C',
+  },
+  attendingNameOuting2: {
+    color: '#6D28D9',
   },
 
   // Gradient behaviour meter inside pill
@@ -866,6 +904,14 @@ const styles = StyleSheet.create({
   legendOffsite: {
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
+  },
+  legendOuting1: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FB923C',
+  },
+  legendOuting2: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#8B5CF6',
   },
 
   legendSubheading: {

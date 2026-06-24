@@ -180,12 +180,25 @@ export default function EditDreamTeamScreen() {
     });
   }, [outingGroups, outingGroup]);
 
-  const outingStaffSet = useMemo(() => {
-    const ids = normalizedOutingGroups.flatMap((group: any) =>
-      ((group?.staffIds ?? []) as (string | number)[]).map((raw) => String(raw)),
-    );
-    return new Set<string>(ids);
-  }, [normalizedOutingGroups]);
+  const outing1StaffSet = useMemo(
+    () =>
+      new Set<string>(
+        (((normalizedOutingGroups[0] as any)?.staffIds ?? []) as (string | number)[]).map(
+          (raw) => String(raw),
+        ),
+      ),
+    [normalizedOutingGroups],
+  );
+
+  const outing2StaffSet = useMemo(
+    () =>
+      new Set<string>(
+        (((normalizedOutingGroups[1] as any)?.staffIds ?? []) as (string | number)[]).map(
+          (raw) => String(raw),
+        ),
+      ),
+    [normalizedOutingGroups],
+  );
 
   const toggleStaff = (id: ID) => {
     if (readOnly) {
@@ -230,8 +243,8 @@ export default function EditDreamTeamScreen() {
   const renderStaffChip = (s: any, inDreamTeam: boolean) => {
     const id = String(s.id);
 
-    // 🔸 Only treat as “off-site” when the outing is an all-day outing.
-   const isOutOnOuting = outingStaffSet.has(id);
+    const isOnOuting1 = outing1StaffSet.has(id);
+    const isOnOuting2 = outing2StaffSet.has(id);
     const isTraining = trainingSet.has(id);
 
     const nameKey = `name:${String(s.name || '').toLowerCase()}`;
@@ -245,8 +258,10 @@ export default function EditDreamTeamScreen() {
     const mode = (
       isTraining
         ? 'training'
-        : isOutOnOuting
-        ? 'offsite'
+        : isOnOuting1
+        ? 'outing1'
+        : isOnOuting2
+        ? 'outing2'
         : inDreamTeam
         ? 'onsite'
         : 'default'
@@ -349,8 +364,13 @@ export default function EditDreamTeamScreen() {
               </View>
 
               <View style={styles.legendItem}>
-                <View style={[styles.legendSwatch, styles.legendOffsite]} />
-                <Text style={styles.legendLabel}>On outing / off-site</Text>
+                <View style={[styles.legendSwatch, styles.legendOuting1]} />
+                <Text style={styles.legendLabel}>Outing 1</Text>
+              </View>
+
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendOuting2]} />
+                <Text style={styles.legendLabel}>Outing 2</Text>
               </View>
             </View>
 
@@ -517,6 +537,14 @@ const styles = StyleSheet.create({
   legendOffsite: {
     backgroundColor: '#FFFFFF',
     borderColor: '#F54FA5',
+  },
+  legendOuting1: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FB923C',
+  },
+  legendOuting2: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#8B5CF6',
   },
   legendLabel: {
     fontSize: 12,

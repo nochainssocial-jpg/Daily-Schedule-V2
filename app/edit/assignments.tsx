@@ -366,27 +366,44 @@ export default function EditAssignmentsScreen() {
   }, [outingGroups, outingGroup]);
 
   // Outing phase: only treat participants as offsite while their outing is active.
-  const activeOutingGroups = React.useMemo(
+  // Keep the original outing index so Outing 2 stays purple even if Outing 1 is inactive.
+  const activeOutingEntries = React.useMemo(
     () =>
-      normalizedOutingGroups.filter((group) => {
-        const phase = getOutingPhase(group);
-        return phase === 'activeShort' || phase === 'activeLong';
-      }),
+      normalizedOutingGroups.slice(0, 2).map((group, index) => ({
+        group,
+        index,
+        phase: getOutingPhase(group),
+      })).filter(({ phase }) => phase === 'activeShort' || phase === 'activeLong'),
     [normalizedOutingGroups],
   );
 
-  // Offsite participants from all active outing groups (IDs only)
-  const offsiteParticipantIds = React.useMemo(() => {
+  // Offsite participants from each active outing group (IDs only).
+  // Outing 1 = orange, Outing 2 = purple.
+  const outing1ParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
-    activeOutingGroups.forEach((group: any) => {
-      ((group?.participantIds ?? []) as (string | number)[]).forEach((id: any) => {
-        set.add(String(id) as ID);
+    activeOutingEntries
+      .filter(({ index }) => index === 0)
+      .forEach(({ group }) => {
+        ((group?.participantIds ?? []) as (string | number)[]).forEach((id: any) => {
+          set.add(String(id) as ID);
+        });
       });
-    });
     return set;
-  }, [activeOutingGroups]);
+  }, [activeOutingEntries]);
 
-  const outingIsActive = activeOutingGroups.length > 0;
+  const outing2ParticipantIds = React.useMemo(() => {
+    const set = new Set<ID>();
+    activeOutingEntries
+      .filter(({ index }) => index === 1)
+      .forEach(({ group }) => {
+        ((group?.participantIds ?? []) as (string | number)[]).forEach((id: any) => {
+          set.add(String(id) as ID);
+        });
+      });
+    return set;
+  }, [activeOutingEntries]);
+
+  const outingIsActive = activeOutingEntries.length > 0;
 
   // Ensure training staff do not keep participant assignments
   React.useEffect(() => {
@@ -837,9 +854,12 @@ export default function EditAssignmentsScreen() {
                         else if (behaviourRisk === 'medium') riskLetter = 'M';
                         else if (behaviourRisk === 'high') riskLetter = 'H';
 
-                        // Offsite only while outing is active (short or long)
-                        const isOffsite =
-                          outingIsActive && offsiteParticipantIds.has(pid);
+                        // Outing colours only while outing is active (short or long)
+                        const isOuting1 =
+                          outingIsActive && outing1ParticipantIds.has(pid);
+                        const isOuting2 =
+                          outingIsActive && outing2ParticipantIds.has(pid);
+                        const isOffsite = isOuting1 || isOuting2;
 
                         return (
                           <TouchableOpacity
@@ -875,8 +895,9 @@ export default function EditAssignmentsScreen() {
                                 partScore > 0 &&
                                 (partBand === 'high' || partBand === 'veryHigh') &&
                                 styles.chipHigh,
-                              // Offsite participants: white pill, keep border colour
-                              isOffsite && styles.chipOffsite,
+                              // Outing participants: orange for Outing 1, purple for Outing 2
+                              isOuting1 && styles.chipOuting1,
+                              isOuting2 && styles.chipOuting2,
                             ]}
                           >
                             {/* Name */}
@@ -884,7 +905,8 @@ export default function EditAssignmentsScreen() {
                               style={[
                                 styles.chipTxt,
                                 isAssigned && styles.chipTxtSel,
-                                isOffsite && styles.chipTxtOffsite,
+                                isOuting1 && styles.chipTxtOuting1,
+                                isOuting2 && styles.chipTxtOuting2,
                               ]}
                               numberOfLines={1}
                             >
