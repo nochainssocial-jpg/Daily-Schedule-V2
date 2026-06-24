@@ -1358,6 +1358,14 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
     borderColor: ACCENT,
   },
+  chipOuting1: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FB923C',
+  },
+  chipOuting2: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#8B5CF6',
+  },
   chipTxt: {
     fontSize: 16,
     fontWeight: '700',
@@ -1365,6 +1373,12 @@ const styles = StyleSheet.create({
   },
   chipTxtSel: {
     color: '#FFFFFF',
+  },
+  chipTxtOuting1: {
+    color: '#C2410C',
+  },
+  chipTxtOuting2: {
+    color: '#6D28D9',
   },
   chipTxtOffsite: {
     color: '#101828', // dark text when offsite (overrides white)
