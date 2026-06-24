@@ -1,4 +1,3 @@
-// app/admin/daily-assignments-tracker.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -18,11 +17,14 @@ type WeekDayLabel = (typeof WEEK_DAYS)[number];
 type SnapshotStaff = { id: string; name: string };
 type SnapshotParticipant = { id: string; name: string };
 
-type Snapshot = {
-  date?: string | null;
-  staff?: SnapshotStaff[];
-  participants?: SnapshotParticipant[];
-  assignments?: any;
+type ScheduleRow = {
+  id: string;
+  house: string;
+  snapshot: any;
+  created_at: string | null;
+  updated_at?: string | null;
+  seq_id: number | null;
+  schedule_date?: string | null;
 };
 
 type StaffRow = {
@@ -31,24 +33,12 @@ type StaffRow = {
   byDay: Record<WeekDayLabel, string[]>;
 };
 
-type ScheduleRow = {
-  id: string;
-  house: string;
-  snapshot: any;
-  created_at: string;
-  seq_id: number | null;
-};
-
-type WeekBucket = {
-  startKey: string;
-  start: Date;
-};
-
-type DayCandidate = {
-  snapshot: Snapshot;
-  created_at: string;
-  seq: number;
-  hasData: boolean;
+type Snapshot = {
+  date?: string | null;
+  staff?: SnapshotStaff[];
+  participants?: SnapshotParticipant[];
+  assignments?: any;
+  cleaningAssignments?: any;
 };
 
 function safeArray<T>(value: any): T[] {
@@ -59,78 +49,131 @@ function safeObject(value: any): Record<string, any> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-function toLocalDateKey(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
+function normaliseSnapshot(raw: any): Snapshot {
+  try {
+    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw || {};
+    return {
+      date: typeof snap.date === 'string' ? snap.date : null,
+      staff: safeArray<SnapshotStaff>(snap.staff),
+      participants: safeArray<SnapshotParticipant>(snap.participants),
+      assignments: safeObject(snap.assignments),
+      cleaningAssignments: safeObject(snap.cleaningAssignments),
+    };
+  } catch {
+    return {
+      date: null,
+      staff: [],
+      participants: [],
+      assignments: {},
+      cleaningAssignments: {},
+    };
+  }
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function toDateKey(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function parseDateKey(value?: string | null): Date | null {
   if (!value) return null;
-  const match = String(value).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const key = String(value).slice(0, 10);
+  const m = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function getDateKeyFromRow(row: ScheduleRow, snap: Snapshot): string | null {
-  if (typeof snap.date === 'string' && snap.date.trim()) {
-    const key = snap.date.slice(0, 10);
-    return parseDateKey(key) ? key : null;
-  }
+function sydneyTodayKey(): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
 
-  if (typeof row.created_at === 'string' && row.created_at) {
-    const created = new Date(row.created_at);
-    if (!Number.isNaN(created.getTime())) return toLocalDateKey(created);
-  }
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {}
 
-  return null;
+  return toDateKey(new Date());
 }
 
-function getWeekStartForDateKey(dateKey: string): Date | null {
-  const d = parseDateKey(dateKey);
-  if (!d) return null;
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function getWeekStart(date: Date): Date {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const diffToMonday = (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - diffToMonday);
   return start;
 }
 
-function getWeekStartKeyForDateKey(dateKey: string): string | null {
-  const start = getWeekStartForDateKey(dateKey);
-  return start ? toLocalDateKey(start) : null;
+function getWeekStartForOffset(weekOffset: number): Date {
+  const today = parseDateKey(sydneyTodayKey()) ?? new Date();
+  const start = getWeekStart(today);
+  start.setDate(start.getDate() + weekOffset * 7);
+  return start;
 }
 
-function getLabelFromDateKey(dateKey: string): WeekDayLabel | null {
+function addDays(d: Date, days: number): Date {
+  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+function formatWeekLabel(weekStart: Date): string {
+  const end = addDays(weekStart, 4);
+  const opts: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  };
+  return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString('en-AU', opts)}`;
+}
+
+function labelForDateKey(dateKey: string): WeekDayLabel | null {
   const d = parseDateKey(dateKey);
   if (!d) return null;
   const idx = (d.getDay() + 6) % 7;
   return idx >= 0 && idx < 5 ? WEEK_DAYS[idx] : null;
 }
 
-function formatWeekLabel(weekStart: Date | null): string {
-  if (!weekStart) return 'Week: No saved working week found';
-  const end = new Date(weekStart);
-  end.setDate(end.getDate() + 4);
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-  return `Week: ${weekStart.toLocaleDateString('en-AU', opts)} – ${end.toLocaleDateString('en-AU', opts)}`;
+function getRowDateKey(row: ScheduleRow, snapshot: Snapshot): string | null {
+  // Primary source: new database column. This is the business/working date.
+  if (typeof row.schedule_date === 'string' && parseDateKey(row.schedule_date)) {
+    return row.schedule_date.slice(0, 10);
+  }
+
+  // Backwards compatibility for older rows saved before schedule_date existed.
+  if (typeof snapshot.date === 'string' && parseDateKey(snapshot.date)) {
+    return snapshot.date.slice(0, 10);
+  }
+
+  // Last resort only: created_at converted by the user's browser/local runtime.
+  if (typeof row.created_at === 'string' && row.created_at) {
+    const d = new Date(row.created_at);
+    if (!Number.isNaN(d.getTime())) return toDateKey(d);
+  }
+
+  return null;
 }
 
-function normaliseSnapshot(raw: any): Snapshot | null {
-  if (!raw) return null;
-  try {
-    const snap = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return {
-      date: snap.date ?? null,
-      staff: safeArray<SnapshotStaff>(snap.staff),
-      participants: safeArray<SnapshotParticipant>(snap.participants),
-      assignments: safeObject(snap.assignments),
-    };
-  } catch {
-    return null;
-  }
+function compareLatest(a: ScheduleRow, b: ScheduleRow): number {
+  const seqA = typeof a.seq_id === 'number' ? a.seq_id : 0;
+  const seqB = typeof b.seq_id === 'number' ? b.seq_id : 0;
+  if (seqA !== seqB) return seqA - seqB;
+
+  const timeA = new Date(a.updated_at || a.created_at || 0).getTime() || 0;
+  const timeB = new Date(b.updated_at || b.created_at || 0).getTime() || 0;
+  return timeA - timeB;
+}
+
+function makeEmptyDays(): Record<WeekDayLabel, string[]> {
+  return { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [] };
 }
 
 function isPlainObject(v: any): v is Record<string, any> {
@@ -170,13 +213,12 @@ function normaliseAssignments(
   if (isPlainObject(raw)) {
     let sawArray = false;
     let sawScalar = false;
-
     for (const v of Object.values(raw)) {
       if (Array.isArray(v)) sawArray = true;
       else if (v != null) sawScalar = true;
     }
 
-    // staffId -> participantIds[]
+    // Shape A: staffId -> participantIds[]
     if (sawArray) {
       for (const [key, pids] of Object.entries(raw)) {
         const sid = resolveStaffIdFromKey(String(key), staffById, staffList);
@@ -187,7 +229,7 @@ function normaliseAssignments(
       return out;
     }
 
-    // participantId -> staffId, which is the current Edit Hub save shape.
+    // Shape B: participantId -> staffId, which is the current Edit Hub save shape.
     if (sawScalar) {
       for (const [participantIdRaw, staffKeyRaw] of Object.entries(raw)) {
         const participantId = String(participantIdRaw ?? '').trim();
@@ -205,6 +247,7 @@ function normaliseAssignments(
   if (Array.isArray(raw)) {
     for (const item of raw) {
       if (!item) continue;
+
       if (Array.isArray(item) && item.length >= 2) {
         const sid = resolveStaffIdFromKey(String(item[0]), staffById, staffList);
         if (!sid) continue;
@@ -219,8 +262,9 @@ function normaliseAssignments(
           staffById,
           staffList,
         );
+        if (!sid) continue;
         const arr = toStringArray(item.participantIds ?? item.participant_ids ?? item.participants ?? item.value);
-        if (sid && arr.length) out[sid] = (out[sid] ?? []).concat(arr);
+        if (arr.length) out[sid] = (out[sid] ?? []).concat(arr);
       }
     }
   }
@@ -228,43 +272,193 @@ function normaliseAssignments(
   return out;
 }
 
-function snapshotHasAssignmentData(snapshot: Snapshot): boolean {
-  const staffById: Record<string, string> = {};
-  safeArray<SnapshotStaff>(snapshot.staff).forEach((s) => {
-    if (s?.id && s?.name) staffById[String(s.id)] = s.name;
-  });
-  const assignments = normaliseAssignments(snapshot.assignments, staffById, safeArray<SnapshotStaff>(snapshot.staff));
-  return Object.values(assignments).some((ids) => Array.isArray(ids) && ids.length > 0);
+async function fetchLatestSchedulesForWeek(weekStart: Date): Promise<Array<{ row: ScheduleRow; snapshot: Snapshot; dateKey: string; label: WeekDayLabel }>> {
+  const startKey = toDateKey(weekStart);
+  const endKey = toDateKey(addDays(weekStart, 7));
+
+  // Primary query: schedule_date is the business date. It is stable across AEST/AEDT.
+  // We also fetch a fallback recent window for older records with schedule_date = null.
+  const { data, error } = await supabase
+    .from('schedules')
+    .select('id, house, snapshot, created_at, updated_at, seq_id, schedule_date')
+    .eq('house', HOUSE_ID)
+    .order('seq_id', { ascending: false })
+    .limit(1000);
+
+  if (error) throw error;
+
+  const latestByDate: Record<string, { row: ScheduleRow; snapshot: Snapshot; dateKey: string; label: WeekDayLabel }> = {};
+
+  for (const row of (data ?? []) as ScheduleRow[]) {
+    const snapshot = normaliseSnapshot(row.snapshot);
+    const dateKey = getRowDateKey(row, snapshot);
+    if (!dateKey || dateKey < startKey || dateKey >= endKey) continue;
+
+    const label = labelForDateKey(dateKey);
+    if (!label) continue;
+
+    const existing = latestByDate[dateKey];
+    if (!existing || compareLatest(existing.row, row) < 0) {
+      latestByDate[dateKey] = { row, snapshot, dateKey, label };
+    }
+  }
+
+  return Object.values(latestByDate).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }
 
-function isNewerCandidate(current: DayCandidate | undefined, candidate: DayCandidate): boolean {
-  if (!current) return true;
-
-  // Prefer a saved schedule that actually contains relevant report data.
-  // This prevents a later partial/blank save for the same day from wiping the report.
-  if (candidate.hasData !== current.hasData) return candidate.hasData;
-
-  if (candidate.seq !== current.seq) return candidate.seq > current.seq;
-  return String(candidate.created_at || '') > String(current.created_at || '');
+function getAdminMessage(isCleaning: boolean, isTracker: boolean): string {
+  if (isCleaning) {
+    return isTracker ? 'Could not load weekly cleaning tracker data.' : 'Could not load weekly cleaning data.';
+  }
+  return isTracker ? 'Could not load weekly assignment tracker data.' : 'Could not load weekly assignment data.';
 }
 
-function makeEmptyDays(): Record<WeekDayLabel, string[]> {
-  return { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [] };
-}
+const styles = StyleSheet.create({
+  scroll: {
+    flexGrow: 1,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    padding: 16,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: '#E0E7FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 1040,
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  navButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#CBD5F5',
+    marginLeft: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  navButtonText: {
+    fontSize: 13,
+    color: '#1F2933',
+  },
+  printButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    backgroundColor: '#FDF2FB',
+    marginLeft: 8,
+  },
+  printButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F54FA5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#332244',
+  },
+  subtitle: {
+    fontSize: 13,
+    opacity: 0.8,
+    color: '#5a486b',
+  },
+  helper: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#444',
+  },
+  actionsRow: {
+    marginTop: 12,
+    marginBottom: 4,
+    alignItems: 'flex-end',
+  },
+  table: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+  },
+  headerRowTable: {
+    backgroundColor: '#EFF3FF',
+  },
+  cell: {
+    padding: 8,
+    borderRightWidth: 1,
+    borderRightColor: '#EEE',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    flexShrink: 0,
+    flexGrow: 0,
+    overflow: 'hidden',
+  },
+  cellText: {
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#111827',
+  },
+  headerText: {
+    fontWeight: '700',
+  },
+  staffCellHeader: {
+    width: 150,
+  },
+  dayHeaderCell: {
+    width: 168,
+  },
+  staffCell: {
+    width: 150,
+    backgroundColor: '#F8F8F8',
+  },
+  staffName: {
+    fontWeight: '600',
+  },
+  dataCell: {
+    width: 168,
+    backgroundColor: '#FFFFFF',
+  },
+});
 
 export default function DailyAssignmentsTrackerScreen() {
+  
   const isAdmin = useIsAdmin();
-  const [weekIndex, setWeekIndex] = useState(0); // 0 = latest saved working week, 1 = previous saved working week
+  const [weekOffset, setWeekOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<StaffRow[]>([]);
-  const [weeks, setWeeks] = useState<WeekBucket[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<WeekBucket | null>(null);
 
-  const weekLabel = useMemo(() => formatWeekLabel(selectedWeek?.start ?? null), [selectedWeek]);
+  const weekStart = useMemo(() => getWeekStartForOffset(weekOffset), [weekOffset]);
+  const weekLabel = useMemo(() => formatWeekLabel(weekStart), [weekStart]);
 
   useEffect(() => {
     if (!isAdmin) return;
+
     let cancelled = false;
 
     async function load() {
@@ -273,77 +467,28 @@ export default function DailyAssignmentsTrackerScreen() {
       setRows([]);
 
       try {
-        const { data, error: supaError } = await supabase
-          .from('schedules')
-          .select('id, house, snapshot, created_at, seq_id')
-          .eq('house', HOUSE_ID)
-          .order('created_at', { ascending: false })
-          .limit(1000);
+        const days = await fetchLatestSchedulesForWeek(weekStart);
+        const summary: Record<string, StaffRow> = {};
 
-        if (supaError) throw supaError;
-
-        const rowsRaw = (data ?? []) as ScheduleRow[];
-        const parsed: Array<{ row: ScheduleRow; snapshot: Snapshot; dateKey: string; weekKey: string; weekStart: Date }> = [];
-        const weekMap: Record<string, WeekBucket> = {};
-
-        for (const row of rowsRaw) {
-          const snapshot = normaliseSnapshot(row.snapshot);
-          if (!snapshot) continue;
-          const dateKey = getDateKeyFromRow(row, snapshot);
-          if (!dateKey) continue;
-          if (!getLabelFromDateKey(dateKey)) continue; // only Mon-Fri working schedules
-          const weekStart = getWeekStartForDateKey(dateKey);
-          const weekKey = getWeekStartKeyForDateKey(dateKey);
-          if (!weekStart || !weekKey) continue;
-
-          parsed.push({ row, snapshot, dateKey, weekKey, weekStart });
-          if (!weekMap[weekKey]) weekMap[weekKey] = { startKey: weekKey, start: weekStart };
-        }
-
-        const sortedWeeks = Object.values(weekMap).sort((a, b) => b.startKey.localeCompare(a.startKey));
-        const safeWeekIndex = Math.min(Math.max(weekIndex, 0), Math.max(sortedWeeks.length - 1, 0));
-        const week = sortedWeeks[safeWeekIndex] ?? null;
-
-        const latestByDay: Record<string, DayCandidate> = {};
-        if (week) {
-          for (const item of parsed) {
-            if (item.weekKey !== week.startKey) continue;
-
-            const candidate: DayCandidate = {
-              snapshot: item.snapshot,
-              created_at: item.row.created_at,
-              seq: typeof item.row.seq_id === 'number' ? item.row.seq_id : 0,
-              hasData: snapshotHasAssignmentData(item.snapshot),
-            };
-
-            if (isNewerCandidate(latestByDay[item.dateKey], candidate)) {
-              latestByDay[item.dateKey] = candidate;
-            }
-          }
-        }
-
-        const summaryByStaff: Record<string, StaffRow> = {};
-
-        for (const [dateKey, { snapshot }] of Object.entries(latestByDay)) {
-          const label = getLabelFromDateKey(dateKey);
-          if (!label) continue;
-
+        for (const { snapshot, label } of days) {
           const staffById: Record<string, string> = {};
-          safeArray<SnapshotStaff>(snapshot.staff).forEach((s) => {
-            if (s?.id && s?.name) staffById[String(s.id)] = s.name;
+          (snapshot.staff ?? []).forEach((s) => {
+            if (s?.id && s?.name) staffById[String(s.id)] = String(s.name);
           });
 
+          
           const participantsById: Record<string, string> = {};
-          safeArray<SnapshotParticipant>(snapshot.participants).forEach((p) => {
-            if (p?.id && p?.name) participantsById[String(p.id)] = p.name;
+          (snapshot.participants ?? []).forEach((p) => {
+            if (p?.id && p?.name) participantsById[String(p.id)] = String(p.name);
           });
 
-          const assignments = normaliseAssignments(snapshot.assignments, staffById, safeArray<SnapshotStaff>(snapshot.staff));
+          const assignments = normaliseAssignments(snapshot.assignments, staffById, snapshot.staff ?? []);
 
           Object.entries(assignments).forEach(([staffId, participantIds]) => {
-            if (!staffId || !Array.isArray(participantIds)) return;
-            if (!summaryByStaff[staffId]) {
-              summaryByStaff[staffId] = {
+            if (!Array.isArray(participantIds)) return;
+
+            if (!summary[staffId]) {
+              summary[staffId] = {
                 staffId,
                 name: staffById[staffId] ?? staffId,
                 byDay: makeEmptyDays(),
@@ -352,21 +497,20 @@ export default function DailyAssignmentsTrackerScreen() {
 
             participantIds.forEach((pid) => {
               const participantName = participantsById[String(pid)];
-              if (participantName) summaryByStaff[staffId].byDay[label].push(participantName);
+              if (participantName) summary[staffId].byDay[label].push(participantName);
             });
           });
+
         }
 
-        const summaryArr = Object.values(summaryByStaff).sort((a, b) => a.name.localeCompare(b.name, 'en-AU'));
+        const result = Object.values(summary).sort((a, b) =>
+          a.name.localeCompare(b.name, 'en-AU'),
+        );
 
-        if (!cancelled) {
-          setWeeks(sortedWeeks);
-          setSelectedWeek(week);
-          setRows(summaryArr);
-        }
+        if (!cancelled) setRows(result);
       } catch (err) {
-        console.error('Error loading weekly assignment tracker', err);
-        if (!cancelled) setError('Could not load weekly assignment data.');
+        console.error('Team Daily Assignment – Weekly Tracker load error:', err);
+        if (!cancelled) setError(getAdminMessage(false, true));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -376,10 +520,12 @@ export default function DailyAssignmentsTrackerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, weekIndex]);
+  }, [isAdmin, weekStart]);
 
   const handlePrint = () => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.print) window.print();
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).print) {
+      (window as any).print();
+    }
   };
 
   if (!isAdmin) {
@@ -387,33 +533,31 @@ export default function DailyAssignmentsTrackerScreen() {
       <View style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
-          <Text style={styles.subtitle}>Admin Mode is required to view this report. Enable Admin Mode on the Share screen.</Text>
+          <Text style={styles.subtitle}>Admin Mode is required. Enable Admin Mode on the Share screen.</Text>
         </View>
       </View>
     );
   }
 
-  const canGoNewer = weekIndex > 0;
-  const canGoOlder = weekIndex < weeks.length - 1;
-
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       <View style={styles.card}>
+        
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.title}>Team Daily Assignment – Weekly Tracker</Text>
-            <Text style={styles.subtitle}>{weekLabel}</Text>
+            <Text style={styles.title}>TITLE</Text>
+            <Text style={styles.subtitle}>Live Mon–Fri view based on the saved Sydney schedule date.</Text>
+            <Text style={[styles.subtitle, { marginTop: 4 }]}>{weekLabel}</Text>
           </View>
-
           <View style={styles.headerButtons}>
-            <TouchableOpacity style={[styles.navButton, !canGoOlder && styles.navButtonDisabled]} disabled={!canGoOlder} onPress={() => setWeekIndex((prev) => prev + 1)}>
-              <Text style={styles.navButtonText}>{'‹'} Prev</Text>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev - 1)}>
+              <Text style={styles.navButtonText}>{'‹ Prev'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navButton} onPress={() => setWeekIndex(0)}>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset(0)}>
               <Text style={styles.navButtonText}>Current</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.navButton, !canGoNewer && styles.navButtonDisabled]} disabled={!canGoNewer} onPress={() => setWeekIndex((prev) => Math.max(0, prev - 1))}>
-              <Text style={styles.navButtonText}>Next {'›'}</Text>
+            <TouchableOpacity style={styles.navButton} onPress={() => setWeekOffset((prev) => prev + 1)}>
+              <Text style={styles.navButtonText}>{'Next ›'}</Text>
             </TouchableOpacity>
             {Platform.OS === 'web' && rows.length > 0 && (
               <TouchableOpacity style={styles.printButton} onPress={handlePrint}>
@@ -423,55 +567,42 @@ export default function DailyAssignmentsTrackerScreen() {
           </View>
         </View>
 
-        <View style={styles.tableWrapper} id="print-area">
-          {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
-          {error && <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>}
-          {!loading && !error && rows.length === 0 && <Text style={styles.helper}>No assignment data found for this saved working week.</Text>}
+        
 
-          {rows.length > 0 && (
-            <View style={styles.table}>
-              <View style={[styles.row, styles.headerRowTable]}>
-                <View style={[styles.cell, styles.staffHeaderCell]}><Text style={[styles.cellText, styles.headerCellText]}>Staff</Text></View>
-                {WEEK_DAYS.map((day) => <View key={day} style={[styles.cell, styles.dayHeaderCell]}><Text style={[styles.cellText, styles.headerCellText]}>{day}</Text></View>)}
+        {loading && <Text style={styles.helper}>Loading weekly data…</Text>}
+        {error && <Text style={[styles.helper, { color: '#B91C1C' }]}>{error}</Text>}
+        {!loading && !error && rows.length === 0 && (
+          <Text style={styles.helper}>No assignment data found for this week.</Text>
+        )}
+
+        {rows.length > 0 && (
+          <View style={styles.table}>
+            <View style={[styles.row, styles.headerRowTable]}>
+              <View style={[styles.cell, styles.staffCellHeader]}>
+                <Text style={[styles.cellText, styles.headerText]}>Staff</Text>
               </View>
-              {rows.map((row) => (
-                <View key={row.staffId} style={styles.row}>
-                  <View style={[styles.cell, styles.staffCell]}><Text style={[styles.cellText, styles.staffText]}>{row.name}</Text></View>
-                  {WEEK_DAYS.map((day) => <View key={day} style={[styles.cell, styles.dataCell]}><Text style={styles.cellText}>{(row.byDay[day] ?? []).join('\n')}</Text></View>)}
+              {WEEK_DAYS.map((day) => (
+                <View key={day} style={[styles.cell, styles.dayHeaderCell]}>
+                  <Text style={[styles.cellText, styles.headerText]}>{day}</Text>
                 </View>
               ))}
             </View>
-          )}
-        </View>
+
+            {rows.map((row) => (
+              <View key={row.staffId} style={styles.row}>
+                <View style={[styles.cell, styles.staffCell]}>
+                  <Text style={[styles.cellText, styles.staffName]}>{row.name}</Text>
+                </View>
+                {WEEK_DAYS.map((day) => (
+                  <View key={day} style={[styles.cell, styles.dataCell]}>
+                    <Text style={styles.cellText}>{(row.byDay[day] ?? []).join('\n')}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, backgroundColor: '#E0E7FF', alignItems: 'center', padding: 16 },
-  screen: { flex: 1, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  card: { width: '100%', maxWidth: 1040, backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 24, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  headerButtons: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
-  navButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#CBD5F5', marginLeft: 8, marginBottom: 6, backgroundColor: '#FFFFFF' },
-  navButtonDisabled: { opacity: 0.45 },
-  navButtonText: { fontSize: 13, color: '#1F2933' },
-  printButton: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#F54FA5', backgroundColor: '#FDF2FB', marginLeft: 8, marginBottom: 6 },
-  printButtonText: { fontSize: 13, fontWeight: '600', color: '#F54FA5', textTransform: 'uppercase', letterSpacing: 0.5 },
-  title: { fontSize: 18, fontWeight: '700', color: '#332244' },
-  subtitle: { fontSize: 13, opacity: 0.8, color: '#5a486b' },
-  tableWrapper: { marginTop: 8 },
-  helper: { fontSize: 13, color: '#4B5563' },
-  table: { marginTop: 12, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, overflow: 'hidden' },
-  row: { flexDirection: 'row' },
-  headerRowTable: { backgroundColor: '#EFF3FF' },
-  cell: { paddingHorizontal: 8, paddingVertical: 6, borderRightWidth: 1, borderRightColor: '#E5E7EB', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', justifyContent: 'flex-start', alignItems: 'flex-start', flexShrink: 0, flexGrow: 0, overflow: 'hidden' },
-  cellText: { fontSize: 15, lineHeight: 20, color: '#111827', textAlign: 'left', flexWrap: 'wrap' },
-  headerCellText: { fontWeight: '600', color: '#111827' },
-  staffHeaderCell: { width: 150 },
-  dayHeaderCell: { width: 168 },
-  staffCell: { backgroundColor: '#F9FAFB', width: 150 },
-  staffText: { fontWeight: '600' },
-  dataCell: { backgroundColor: '#FFFFFF', width: 168 },
-});
