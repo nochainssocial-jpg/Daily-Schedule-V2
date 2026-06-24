@@ -98,7 +98,6 @@ export default function AdminWeeklyReportScreen() {
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{PAGE_TITLE}</Text>
               <Text style={styles.subtitle}>{weekLabel}</Text>
               <Text style={styles.description}>{PAGE_SUBTITLE}</Text>
             </View>
