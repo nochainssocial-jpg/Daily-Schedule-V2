@@ -1,15 +1,13 @@
 import { supabase } from './supabase';
 import type { ScheduleSnapshot } from '@/hooks/schedule-store';
 
-// Single table for all schedules
 const TABLE = 'schedules';
+const SYDNEY_TIMEZONE = 'Australia/Sydney';
 
-// Simple 6-digit share code
 export function generateShareCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Local "YYYY-MM-DD"
 function toLocalDateKey(d: Date): string {
   return [
     d.getFullYear(),
@@ -18,31 +16,55 @@ function toLocalDateKey(d: Date): string {
   ].join('-');
 }
 
-/**
- * Insert a schedule into Supabase and return a share code + metadata.
- */
+function getSydneyDateKey(date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: SYDNEY_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {}
+
+  return toLocalDateKey(date);
+}
+
+function normaliseScheduleDate(snapshot: ScheduleSnapshot): string {
+  const snapshotDate = typeof snapshot.date === 'string' ? snapshot.date.slice(0, 10) : '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) return snapshotDate;
+  return getSydneyDateKey();
+}
+
 export async function saveScheduleToSupabase(
   house: string,
-  snapshot: ScheduleSnapshot
+  snapshot: ScheduleSnapshot,
 ) {
   const code = generateShareCode();
+  const scheduleDate = normaliseScheduleDate(snapshot);
 
-  // We still keep a base date, but it's always "today"
-  const baseDate = toLocalDateKey(new Date());
+  const snapshotWithDate: ScheduleSnapshot = {
+    ...snapshot,
+    date: scheduleDate,
+  };
 
   const payload = {
     house,
     code,
-    snapshot,
-    // Optional: if you have a dedicated schedule_date column, uncomment:
-    // schedule_date: baseDate,
+    snapshot: snapshotWithDate,
+    schedule_date: scheduleDate,
   };
 
   try {
     const { data, error } = await supabase
       .from(TABLE)
       .insert(payload)
-      .select('snapshot, code, created_at')
+      .select('snapshot, code, created_at, schedule_date')
       .single();
 
     if (error || !data) {
@@ -52,11 +74,11 @@ export async function saveScheduleToSupabase(
 
     const createdAt = data.created_at as string | null;
     const savedSnapshot = data.snapshot as ScheduleSnapshot;
-
-    // OPTION A: prefer the schedule's own local date if present
-    const snapshotDate = savedSnapshot.date;
-    const scheduleDate =
-      snapshotDate || (createdAt && createdAt.slice(0, 10)) || baseDate;
+    const savedScheduleDate =
+      (data.schedule_date as string | null) ||
+      savedSnapshot.date ||
+      (createdAt && createdAt.slice(0, 10)) ||
+      scheduleDate;
 
     return {
       ok: true,
@@ -64,7 +86,7 @@ export async function saveScheduleToSupabase(
         snapshot: savedSnapshot,
         code: data.code as string | null,
         createdAt,
-        scheduleDate, // "YYYY-MM-DD"
+        scheduleDate: savedScheduleDate,
       },
     };
   } catch (error) {
@@ -73,14 +95,11 @@ export async function saveScheduleToSupabase(
   }
 }
 
-/**
- * Fetch the most recent schedule for a given house.
- */
 export async function fetchLatestScheduleForHouse(house: string) {
   try {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('snapshot, code, created_at')
+      .select('snapshot, code, created_at, schedule_date')
       .eq('house', house)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -92,19 +111,16 @@ export async function fetchLatestScheduleForHouse(house: string) {
     }
 
     if (!data) {
-      // No schedule yet for this house
       return { ok: true, data: null };
     }
 
     const snapshot = data.snapshot as ScheduleSnapshot;
     const createdAt = data.created_at as string | null;
-
-    // OPTION A: use the schedule's own stored date if available
-    const snapshotDate = snapshot.date;
     const scheduleDate =
-      snapshotDate ||
+      (data.schedule_date as string | null) ||
+      snapshot.date ||
       (createdAt && createdAt.slice(0, 10)) ||
-      toLocalDateKey(new Date());
+      getSydneyDateKey();
 
     return {
       ok: true,
@@ -112,7 +128,7 @@ export async function fetchLatestScheduleForHouse(house: string) {
         snapshot,
         code: data.code as string | null,
         createdAt,
-        scheduleDate, // "YYYY-MM-DD"
+        scheduleDate,
       },
     };
   } catch (error) {
