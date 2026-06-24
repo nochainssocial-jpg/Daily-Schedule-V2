@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
+import { chores as STATIC_CHORES, checklistItems as STATIC_CHECKLIST_ITEMS, TIME_SLOTS } from '@/constants/data';
 
 type ID = string;
 type DashboardPage = 'floating' | 'outings' | 'cleaning' | 'checklist';
@@ -163,9 +164,28 @@ export default function DashboardScreen() {
   } = useSchedule() as any;
 
   useEffect(() => {
-    void initScheduleForToday(HOUSE_ID).catch((error) => {
-      console.error('[dashboard] failed to initialise schedule', error);
-    });
+    let cancelled = false;
+
+    async function initialiseDashboard() {
+      try {
+        await initScheduleForToday(HOUSE_ID);
+
+        // initScheduleForToday can merge the saved snapshot over the store.
+        // Re-load master data afterwards so dashboard-only pages still have
+        // chores, checklist items, and Supabase time slots available.
+        if (!cancelled) {
+          await useSchedule.getState().loadMasterData();
+        }
+      } catch (error) {
+        console.error('[dashboard] failed to initialise schedule', error);
+      }
+    }
+
+    void initialiseDashboard();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -212,8 +232,13 @@ export default function DashboardScreen() {
 
   const currentPage = pages[pageIndex] || 'floating';
 
+  const displayTimeSlots = (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [];
+  const displayChores = (chores && chores.length ? chores : STATIC_CHORES) || [];
+  const displayChecklistItems =
+    (checklistItems && checklistItems.length ? checklistItems : STATIC_CHECKLIST_ITEMS) || [];
+
   const cleaningRows = useMemo(() => {
-    return (chores || [])
+    return (displayChores || [])
       .slice()
       .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'en-AU'))
       .map((chore: any) => {
@@ -226,10 +251,10 @@ export default function DashboardScreen() {
           complete: Boolean(staffId),
         };
       });
-  }, [chores, cleaningAssignments, staffById]);
+  }, [displayChores, cleaningAssignments, staffById]);
 
   const checklistRows = useMemo(() => {
-    return (checklistItems || []).map((item: any) => {
+    return (displayChecklistItems || []).map((item: any) => {
       const id = String(item.id);
       return {
         id,
@@ -237,7 +262,7 @@ export default function DashboardScreen() {
         checked: Boolean(finalChecklist?.[id]),
       };
     });
-  }, [checklistItems, finalChecklist]);
+  }, [displayChecklistItems, finalChecklist]);
 
   const completedChecklist = checklistRows.filter((item) => item.checked).length;
   const selectedFinalStaff = finalChecklistStaff
@@ -269,7 +294,7 @@ export default function DashboardScreen() {
               ))}
             </View>
 
-            {(timeSlots || []).map((slot: any, index: number) => {
+            {(displayTimeSlots || []).map((slot: any, index: number) => {
               const slotId = String(slot.id ?? index);
               const row = floatingAssignments?.[slotId] || {};
               const current = isCurrentSlot(slot, tick);
