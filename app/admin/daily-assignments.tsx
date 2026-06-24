@@ -90,10 +90,6 @@ export default function AdminWeeklyReportScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.heroBar}>
-        <Text style={styles.heroTitle}>{HEADER_TITLE}</Text>
-      </View>
-
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.card}>
           <View style={styles.headerRow}>
