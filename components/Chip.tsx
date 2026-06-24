@@ -11,10 +11,16 @@ type Props = {
   disabled?: boolean;
   style?: ViewStyle;
   /** Visual mode used for outings etc. */
-  mode?: 'default' | 'onsite' | 'offsite' | 'training';
+  mode?: 'default' | 'onsite' | 'offsite' | 'training' | 'outing1' | 'outing2';
 };
 
 const PINK = '#F54FA5';
+const OUTING1_BG = '#FFF7ED';
+const OUTING1_BORDER = '#FB923C';
+const OUTING1_TEXT = '#C2410C';
+const OUTING2_BG = '#F5F3FF';
+const OUTING2_BORDER = '#8B5CF6';
+const OUTING2_TEXT = '#6D28D9';
 const TEXT_DARK = '#111827';
 const BORDER_DEFAULT = '#E5E7EB';
 
@@ -32,6 +38,8 @@ export default function Chip({
   const isOnsite = mode === 'onsite';
   const isOffsite = mode === 'offsite';
   const isTraining = mode === 'training';
+  const isOuting1 = mode === 'outing1';
+  const isOuting2 = mode === 'outing2';
 
   return (
     <TouchableOpacity
@@ -45,6 +53,8 @@ export default function Chip({
         isOnsite && styles.onsite,
         isOffsite && styles.offsite,
         isTraining && styles.training,
+        isOuting1 && styles.outing1,
+        isOuting2 && styles.outing2,
         selected && styles.selected,
         disabled && styles.disabled,
         style,
@@ -59,6 +69,8 @@ export default function Chip({
           isOnsite && styles.labelOnsite,
           isOffsite && styles.labelOffsite,
           isTraining && styles.labelTraining,
+          isOuting1 && styles.labelOuting1,
+          isOuting2 && styles.labelOuting2,
           selected && styles.labelSelected,
         ]}
         numberOfLines={1}
@@ -109,6 +121,26 @@ const styles = StyleSheet.create({
   },
   labelOffsite: {
     color: PINK,
+    fontWeight: '600',
+  },
+
+  // Outing 1 = light orange pill
+  outing1: {
+    backgroundColor: OUTING1_BG,
+    borderColor: OUTING1_BORDER,
+  },
+  labelOuting1: {
+    color: OUTING1_TEXT,
+    fontWeight: '600',
+  },
+
+  // Outing 2 = light purple pill
+  outing2: {
+    backgroundColor: OUTING2_BG,
+    borderColor: OUTING2_BORDER,
+  },
+  labelOuting2: {
+    color: OUTING2_TEXT,
     fontWeight: '600',
   },
 
