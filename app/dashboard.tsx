@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,41 +6,51 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
-} from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
-import { chores as STATIC_CHORES, checklistItems as STATIC_CHECKLIST_ITEMS, TIME_SLOTS } from '@/constants/data';
+} from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { initScheduleForToday, useSchedule } from "@/hooks/schedule-store";
+import {
+  chores as STATIC_CHORES,
+  checklistItems as STATIC_CHECKLIST_ITEMS,
+  TIME_SLOTS,
+} from "@/constants/data";
 
 type ID = string;
-type DashboardPage = 'floating' | 'outings' | 'cleaning' | 'checklist';
-type RoomKey = 'frontRoom' | 'scotty' | 'twins';
+type DashboardPage =
+  | "team"
+  | "floating"
+  | "outings"
+  | "cleaning"
+  | "checklist"
+  | "dropoffs";
+type RoomKey = "frontRoom" | "scotty" | "twins";
 
-const HOUSE_ID = 'B2';
+const HOUSE_ID = "B2";
 const ROTATE_MS = 15_000;
 const MAX_WIDTH = 1180;
-const ROOM_KEYS: RoomKey[] = ['frontRoom', 'scotty', 'twins'];
+const ROOM_KEYS: RoomKey[] = ["frontRoom", "scotty", "twins"];
 
 const ROOM_LABELS: Record<RoomKey, string> = {
-  frontRoom: 'Front Room',
-  scotty: 'Scotty',
-  twins: 'Twins / FSO',
+  frontRoom: "Front Room",
+  scotty: "Scotty",
+  twins: "Twins / FSO",
 };
 
 function pad2(n: number): string {
-  return String(n).padStart(2, '0');
+  return String(n).padStart(2, "0");
 }
 
 function formatDateKey(date?: string | null): string {
-  if (!date) return '';
-  const parts = String(date).slice(0, 10).split('-');
+  if (!date) return "";
+  const parts = String(date).slice(0, 10).split("-");
   if (parts.length !== 3) return String(date);
   const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(d.getTime())) return String(date);
-  return d.toLocaleDateString('en-AU', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
+  return d.toLocaleDateString("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   });
 }
 
@@ -49,8 +59,8 @@ function parseTimeToMinutes(value?: string | null): number | null {
   let raw = String(value).trim().toLowerCase();
   if (!raw) return null;
 
-  if (raw.includes('-')) raw = raw.split('-')[0].trim();
-  raw = raw.replace(/\s+/g, '').replace(/\./g, ':');
+  if (raw.includes("-")) raw = raw.split("-")[0].trim();
+  raw = raw.replace(/\s+/g, "").replace(/\./g, ":");
 
   const match = raw.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/);
   if (!match) return null;
@@ -62,9 +72,9 @@ function parseTimeToMinutes(value?: string | null): number | null {
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
   if (minute < 0 || minute > 59) return null;
 
-  if (suffix === 'am') {
+  if (suffix === "am") {
     if (hour === 12) hour = 0;
-  } else if (suffix === 'pm') {
+  } else if (suffix === "pm") {
     if (hour !== 12) hour += 12;
   } else if (hour <= 6) {
     // Match existing app behaviour for bare afternoon times such as 2:00.
@@ -78,8 +88,8 @@ function parseTimeToMinutes(value?: string | null): number | null {
 function slotWindow(slot: any): { start: number | null; end: number | null } {
   if (!slot) return { start: null, end: null };
 
-  const display = String(slot.displayTime || slot.display_time || '').trim();
-  const displayParts = display.includes('-') ? display.split('-') : [];
+  const display = String(slot.displayTime || slot.display_time || "").trim();
+  const displayParts = display.includes("-") ? display.split("-") : [];
 
   const start =
     parseTimeToMinutes(slot.startTime) ??
@@ -110,8 +120,8 @@ function isCurrentSlot(slot: any, tick: number): boolean {
 function slotLabel(slot: any): string {
   const display = slot?.displayTime || slot?.display_time;
   if (display) return String(display);
-  const start = slot?.startTime || slot?.start_time || '';
-  const end = slot?.endTime || slot?.end_time || '';
+  const start = slot?.startTime || slot?.start_time || "";
+  const end = slot?.endTime || slot?.end_time || "";
   return `${start} - ${end}`.trim();
 }
 
@@ -122,41 +132,44 @@ function isFsoSlot(slot: any): boolean {
   if (start === 11 * 60 && end === 11 * 60 + 30) return true;
   if (start === 13 * 60 && end === 13 * 60 + 30) return true;
 
-  const label = slotLabel(slot).replace(/\s+/g, '').toLowerCase();
+  const label = slotLabel(slot).replace(/\s+/g, "").toLowerCase();
   return (
-    label.includes('11:00am-11:30am') ||
-    label.includes('11:00-11:30') ||
-    label.includes('1:00pm-1:30pm') ||
-    label.includes('13:00-13:30')
+    label.includes("11:00am-11:30am") ||
+    label.includes("11:00-11:30") ||
+    label.includes("1:00pm-1:30pm") ||
+    label.includes("13:00-13:30")
   );
 }
 
 function hasOutingContent(outing: any): boolean {
   return Boolean(
-    String(outing?.name || '').trim() ||
-      String(outing?.startTime || '').trim() ||
-      String(outing?.endTime || '').trim() ||
-      String(outing?.notes || '').trim() ||
-      (outing?.staffIds?.length ?? 0) > 0 ||
-      (outing?.participantIds?.length ?? 0) > 0,
+    String(outing?.name || "").trim() ||
+    String(outing?.startTime || "").trim() ||
+    String(outing?.endTime || "").trim() ||
+    String(outing?.notes || "").trim() ||
+    (outing?.staffIds?.length ?? 0) > 0 ||
+    (outing?.participantIds?.length ?? 0) > 0,
   );
 }
 
-function namesFromIds(ids: any[] | undefined, peopleById: Map<string, any>): string[] {
+function namesFromIds(
+  ids: any[] | undefined,
+  peopleById: Map<string, any>,
+): string[] {
   return (ids || [])
     .map((id) => peopleById.get(String(id))?.name || String(id))
     .filter(Boolean);
 }
 
 function shortNames(names: string[]): string {
-  return names.length ? names.join(', ') : '—';
+  return names.length ? names.join(", ") : "—";
 }
 
 function timeNowLabel(tick: number): string {
   void tick;
-  return new Date().toLocaleTimeString('en-AU', {
-    hour: 'numeric',
-    minute: '2-digit',
+  return new Date().toLocaleTimeString("en-AU", {
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -168,13 +181,17 @@ export default function DashboardScreen() {
     date,
     staff = [],
     participants = [],
+    workingStaff = [],
     timeSlots = [],
     chores = [],
     checklistItems = [],
+    assignments = {},
     floatingAssignments = {},
     cleaningAssignments = {},
     finalChecklist = {},
     finalChecklistStaff = null,
+    dropoffAssignments = {},
+    dropoffLocations = {},
     outingGroups = [],
     outingGroup = null,
   } = useSchedule() as any;
@@ -193,7 +210,7 @@ export default function DashboardScreen() {
           await useSchedule.getState().loadMasterData();
         }
       } catch (error) {
-        console.error('[dashboard] failed to initialise schedule', error);
+        console.error("[dashboard] failed to initialise schedule", error);
       }
     }
 
@@ -210,12 +227,16 @@ export default function DashboardScreen() {
   }, []);
 
   const staffById = useMemo(
-    () => new Map((staff || []).map((person: any) => [String(person.id), person])),
+    () =>
+      new Map((staff || []).map((person: any) => [String(person.id), person])),
     [staff],
   );
 
   const participantsById = useMemo(
-    () => new Map((participants || []).map((person: any) => [String(person.id), person])),
+    () =>
+      new Map(
+        (participants || []).map((person: any) => [String(person.id), person]),
+      ),
     [participants],
   );
 
@@ -228,38 +249,206 @@ export default function DashboardScreen() {
     return groups.slice(0, 2).filter(hasOutingContent);
   }, [outingGroups, outingGroup]);
 
-  const pages = useMemo<DashboardPage[]>(() => {
-    const list: DashboardPage[] = ['floating'];
-    if (activeOutings.length > 0) list.push('outings');
-    list.push('cleaning', 'checklist');
-    return list;
-  }, [activeOutings.length]);
+  const outing1StaffIds = useMemo(
+    () =>
+      new Set<string>(
+        ((activeOutings[0]?.staffIds ?? []) as any[]).map(String),
+      ),
+    [activeOutings],
+  );
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
-    }, ROTATE_MS);
-    return () => clearInterval(timer);
-  }, [pages.length]);
+  const outing2StaffIds = useMemo(
+    () =>
+      new Set<string>(
+        ((activeOutings[1]?.staffIds ?? []) as any[]).map(String),
+      ),
+    [activeOutings],
+  );
 
-  useEffect(() => {
-    if (pageIndex >= pages.length) setPageIndex(0);
-  }, [pageIndex, pages.length]);
+  const outing1ParticipantIds = useMemo(
+    () =>
+      new Set<string>(
+        ((activeOutings[0]?.participantIds ?? []) as any[]).map(String),
+      ),
+    [activeOutings],
+  );
 
-  const currentPage = pages[pageIndex] || 'floating';
+  const outing2ParticipantIds = useMemo(
+    () =>
+      new Set<string>(
+        ((activeOutings[1]?.participantIds ?? []) as any[]).map(String),
+      ),
+    [activeOutings],
+  );
 
-  const displayTimeSlots = (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [];
-  const displayChores = (chores && chores.length ? chores : STATIC_CHORES) || [];
+  const getAssignmentTheme = (staffId: string, participantIds: string[]) => {
+    if (
+      outing1StaffIds.has(staffId) ||
+      participantIds.some((id) => outing1ParticipantIds.has(id))
+    ) {
+      return "outing1" as const;
+    }
+    if (
+      outing2StaffIds.has(staffId) ||
+      participantIds.some((id) => outing2ParticipantIds.has(id))
+    ) {
+      return "outing2" as const;
+    }
+    return "onsite" as const;
+  };
+
+  const teamAssignmentRows = useMemo(() => {
+    const byStaff = new Map<string, string[]>();
+
+    Object.entries(assignments || {}).forEach(
+      ([rawParticipantId, rawStaffId]) => {
+        if (Array.isArray(rawStaffId)) {
+          // Compatibility with older/reverse shapes: staffId -> participantIds[].
+          const staffId = String(rawParticipantId);
+          if (!staffById.has(staffId)) return;
+          rawStaffId.forEach((pid) => {
+            const participantId = String(pid);
+            if (!participantsById.has(participantId)) return;
+            const list = byStaff.get(staffId) || [];
+            if (!list.includes(participantId)) list.push(participantId);
+            byStaff.set(staffId, list);
+          });
+          return;
+        }
+
+        if (!rawStaffId) return;
+        const participantId = String(rawParticipantId);
+        const staffId = String(rawStaffId);
+        if (!staffById.has(staffId) || !participantsById.has(participantId))
+          return;
+
+        const list = byStaff.get(staffId) || [];
+        if (!list.includes(participantId)) list.push(participantId);
+        byStaff.set(staffId, list);
+      },
+    );
+
+    const workingSet = new Set((workingStaff || []).map(String));
+
+    return Array.from(byStaff.entries())
+      .map(([staffId, participantIds]) => {
+        const staffPerson = staffById.get(staffId);
+        const staffName = String(staffPerson?.name || staffId);
+        const filteredParticipantIds = participantIds.filter((id) => {
+          const name = String(participantsById.get(id)?.name || id)
+            .trim()
+            .toLowerCase();
+          return name !== "zara" && name !== "zoya";
+        });
+        const participantNames = filteredParticipantIds
+          .map((id) => String(participantsById.get(id)?.name || id))
+          .sort((a, b) => a.localeCompare(b, "en-AU"));
+
+        return {
+          staffId,
+          staffName,
+          participantIds: filteredParticipantIds,
+          participantNames,
+          theme: getAssignmentTheme(staffId, filteredParticipantIds),
+          isWorking: workingSet.size === 0 || workingSet.has(staffId),
+        };
+      })
+      .filter((row) => row.isWorking)
+      .filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
+      .filter((row) => row.participantNames.length > 0)
+      .sort((a, b) => a.staffName.localeCompare(b.staffName, "en-AU"));
+  }, [
+    assignments,
+    staffById,
+    participantsById,
+    workingStaff,
+    outing1StaffIds,
+    outing2StaffIds,
+    outing1ParticipantIds,
+    outing2ParticipantIds,
+  ]);
+
+  const dropoffRows = useMemo(() => {
+    const byStaff = new Map<
+      string,
+      { participantName: string; locationLabel: string }[]
+    >();
+
+    Object.entries(dropoffAssignments || {}).forEach(
+      ([participantIdRaw, assignmentRaw]) => {
+        if (!assignmentRaw) return;
+        const participantId = String(participantIdRaw);
+        const assignment: any = assignmentRaw;
+        const staffId =
+          typeof assignment === "string" ? assignment : assignment.staffId;
+        const locationId =
+          typeof assignment === "object"
+            ? assignment.locationId
+            : dropoffLocations?.[participantId];
+        if (!staffId || !staffById.has(String(staffId))) return;
+
+        const participantName = String(
+          participantsById.get(participantId)?.name || participantId,
+        );
+        const locationLabel =
+          locationId === null || locationId === undefined || locationId === ""
+            ? ""
+            : `Location ${locationId}`;
+
+        const list = byStaff.get(String(staffId)) || [];
+        list.push({ participantName, locationLabel });
+        byStaff.set(String(staffId), list);
+      },
+    );
+
+    return Array.from(byStaff.entries())
+      .map(([staffId, items]) => {
+        const staffName = String(staffById.get(staffId)?.name || staffId);
+        const participantIds = items.map((item) => {
+          const found = Array.from(participantsById.entries()).find(
+            ([, p]) => String(p?.name || "") === item.participantName,
+          );
+          return found?.[0] || "";
+        });
+        return {
+          staffId,
+          staffName,
+          items: items.sort((a, b) =>
+            a.participantName.localeCompare(b.participantName, "en-AU"),
+          ),
+          theme: getAssignmentTheme(staffId, participantIds.filter(Boolean)),
+        };
+      })
+      .filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
+      .sort((a, b) => a.staffName.localeCompare(b.staffName, "en-AU"));
+  }, [
+    dropoffAssignments,
+    dropoffLocations,
+    staffById,
+    participantsById,
+    getAssignmentTheme,
+  ]);
+
+  const displayTimeSlots =
+    (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [];
+  const displayChores =
+    (chores && chores.length ? chores : STATIC_CHORES) || [];
   const displayChecklistItems =
-    (checklistItems && checklistItems.length ? checklistItems : STATIC_CHECKLIST_ITEMS) || [];
+    (checklistItems && checklistItems.length
+      ? checklistItems
+      : STATIC_CHECKLIST_ITEMS) || [];
 
   const cleaningRows = useMemo(() => {
     return (displayChores || [])
       .slice()
-      .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'en-AU'))
+      .sort((a: any, b: any) =>
+        String(a.name).localeCompare(String(b.name), "en-AU"),
+      )
       .map((chore: any) => {
         const staffId = cleaningAssignments?.[String(chore.id)];
-        const assigned = staffId ? staffById.get(String(staffId))?.name || 'Assigned' : 'Not assigned';
+        const assigned = staffId
+          ? staffById.get(String(staffId))?.name || "Assigned"
+          : "Not assigned";
         return {
           id: String(chore.id),
           chore: chore.name || chore.label || String(chore.id),
@@ -280,13 +469,131 @@ export default function DashboardScreen() {
     });
   }, [displayChecklistItems, finalChecklist]);
 
-  const completedChecklist = checklistRows.filter((item) => item.checked).length;
+  const completedChecklist = checklistRows.filter(
+    (item) => item.checked,
+  ).length;
   const selectedFinalStaff = finalChecklistStaff
-    ? staffById.get(String(finalChecklistStaff))?.name || 'Selected'
-    : 'Not selected';
+    ? staffById.get(String(finalChecklistStaff))?.name || "Selected"
+    : "Not selected";
+
+  const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
+  const hasChecklistData =
+    Boolean(finalChecklistStaff) || checklistRows.some((row) => row.checked);
+  const hasDropoffAssignments = dropoffRows.length > 0;
+
+  const pages = useMemo<DashboardPage[]>(() => {
+    const list: DashboardPage[] = ["team", "floating"];
+    if (activeOutings.length > 0) list.push("outings");
+    if (hasCleaningAssignments) list.push("cleaning");
+    if (hasChecklistData) list.push("checklist");
+    if (hasDropoffAssignments) list.push("dropoffs");
+    return list;
+  }, [
+    activeOutings.length,
+    hasCleaningAssignments,
+    hasChecklistData,
+    hasDropoffAssignments,
+  ]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
+    }, ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [pages.length]);
+
+  useEffect(() => {
+    if (pageIndex >= pages.length) setPageIndex(0);
+  }, [pageIndex, pages.length]);
+
+  const currentPage = pages[pageIndex] || "floating";
 
   const renderPage = () => {
-    if (currentPage === 'floating') {
+    if (currentPage === "team") {
+      return (
+        <View style={styles.panel}>
+          <View style={styles.panelHeaderRow}>
+            <View>
+              <Text style={styles.panelEyebrow}>
+                Today's participant support
+              </Text>
+              <Text style={styles.panelTitle}>Team Daily Assignments</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendPill, styles.legendBlue]}>
+                <Text style={styles.legendText}>Onsite</Text>
+              </View>
+              <View style={[styles.legendPill, styles.legendOrange]}>
+                <Text style={styles.legendTextOrange}>Outing 1</Text>
+              </View>
+              <View style={[styles.legendPill, styles.legendPurple]}>
+                <Text style={styles.legendTextPurple}>Outing 2</Text>
+              </View>
+            </View>
+          </View>
+
+          {teamAssignmentRows.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons
+                name="account-group-outline"
+                size={44}
+                color="#9CA3AF"
+              />
+              <Text style={styles.emptyText}>
+                No team daily assignments saved yet.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.innerScroll}
+              contentContainerStyle={styles.assignmentGrid}
+            >
+              {teamAssignmentRows.map((row) => (
+                <View
+                  key={row.staffId}
+                  style={[
+                    styles.assignmentCard,
+                    row.theme === "outing1"
+                      ? styles.assignmentCardOuting1
+                      : row.theme === "outing2"
+                        ? styles.assignmentCardOuting2
+                        : styles.assignmentCardOnsite,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.assignmentStaffName,
+                      row.theme === "outing1"
+                        ? styles.assignmentTextOuting1
+                        : row.theme === "outing2"
+                          ? styles.assignmentTextOuting2
+                          : styles.assignmentTextOnsite,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {row.staffName}
+                  </Text>
+
+                  <View style={styles.assignmentParticipantList}>
+                    {row.participantNames.map((name) => (
+                      <Text
+                        key={name}
+                        style={styles.assignmentParticipantName}
+                        numberOfLines={1}
+                      >
+                        {name}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      );
+    }
+
+    if (currentPage === "floating") {
       return (
         <View style={styles.panel}>
           <View style={styles.panelHeaderRow}>
@@ -294,17 +601,32 @@ export default function DashboardScreen() {
               <Text style={styles.panelEyebrow}>Current operational view</Text>
               <Text style={styles.panelTitle}>Floating Assignments</Text>
             </View>
-            <View style={styles.badge}> 
-              <MaterialCommunityIcons name="account-clock" size={18} color="#6D28D9" />
+            <View style={styles.badge}>
+              <MaterialCommunityIcons
+                name="account-clock"
+                size={18}
+                color="#6D28D9"
+              />
               <Text style={styles.badgeText}>Current slot highlighted</Text>
             </View>
           </View>
 
           <View style={styles.floatingTable}>
             <View style={[styles.floatRow, styles.floatHeaderRow]}>
-              <Text style={[styles.floatCell, styles.floatTimeCell, styles.floatHeaderText]}>Time</Text>
+              <Text
+                style={[
+                  styles.floatCell,
+                  styles.floatTimeCell,
+                  styles.floatHeaderText,
+                ]}
+              >
+                Time
+              </Text>
               {ROOM_KEYS.map((room) => (
-                <Text key={room} style={[styles.floatCell, styles.floatHeaderText]}>
+                <Text
+                  key={room}
+                  style={[styles.floatCell, styles.floatHeaderText]}
+                >
                   {ROOM_LABELS[room]}
                 </Text>
               ))}
@@ -325,7 +647,12 @@ export default function DashboardScreen() {
                   ]}
                 >
                   <View style={[styles.floatCellBox, styles.floatTimeCellBox]}>
-                    <Text style={[styles.floatTimeText, current && styles.currentText]}>
+                    <Text
+                      style={[
+                        styles.floatTimeText,
+                        current && styles.currentText,
+                      ]}
+                    >
                       {slotLabel(slot)}
                     </Text>
                     {current && <Text style={styles.nowLabel}>NOW</Text>}
@@ -333,13 +660,24 @@ export default function DashboardScreen() {
 
                   {ROOM_KEYS.map((room) => {
                     const staffId = row?.[room];
-                    const name = staffId ? staffById.get(String(staffId))?.name || '—' : '—';
-                    const showFso = room === 'twins' && isFsoSlot(slot) && name !== '—';
+                    const name = staffId
+                      ? staffById.get(String(staffId))?.name || "—"
+                      : "—";
+                    const showFso =
+                      room === "twins" && isFsoSlot(slot) && name !== "—";
                     return (
                       <View key={room} style={styles.floatCellBox}>
-                        <Text style={[styles.floatNameText, current && styles.currentText]} numberOfLines={1}>
+                        <Text
+                          style={[
+                            styles.floatNameText,
+                            current && styles.currentText,
+                          ]}
+                          numberOfLines={1}
+                        >
                           {name}
-                          {showFso && <Text style={styles.fsoText}> (FSO)</Text>}
+                          {showFso && (
+                            <Text style={styles.fsoText}> (FSO)</Text>
+                          )}
                         </Text>
                       </View>
                     );
@@ -352,7 +690,7 @@ export default function DashboardScreen() {
       );
     }
 
-    if (currentPage === 'outings') {
+    if (currentPage === "outings") {
       return (
         <View style={styles.panel}>
           <Text style={styles.panelEyebrow}>Scheduled off-site activity</Text>
@@ -368,38 +706,75 @@ export default function DashboardScreen() {
               {activeOutings.map((outing: any, index: number) => {
                 const isSecond = index === 1;
                 const staffNames = namesFromIds(outing.staffIds, staffById);
-                const participantNames = namesFromIds(outing.participantIds, participantsById);
+                const participantNames = namesFromIds(
+                  outing.participantIds,
+                  participantsById,
+                );
                 return (
                   <View
                     key={outing.id || `outing-${index}`}
-                    style={[styles.outingCard, isSecond ? styles.outingCardPurple : styles.outingCardOrange]}
+                    style={[
+                      styles.outingCard,
+                      isSecond
+                        ? styles.outingCardPurple
+                        : styles.outingCardOrange,
+                    ]}
                   >
                     <View style={styles.outingTitleRow}>
-                      <View style={[styles.outingIcon, isSecond ? styles.outingIconPurple : styles.outingIconOrange]}>
-                        <Ionicons name="car-outline" size={26} color="#FFFFFF" />
+                      <View
+                        style={[
+                          styles.outingIcon,
+                          isSecond
+                            ? styles.outingIconPurple
+                            : styles.outingIconOrange,
+                        ]}
+                      >
+                        <Ionicons
+                          name="car-outline"
+                          size={26}
+                          color="#FFFFFF"
+                        />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.outingLabel, isSecond ? styles.purpleText : styles.orangeText]}>
-                          {isSecond ? 'Outing 2' : 'Outing 1'}
+                        <Text
+                          style={[
+                            styles.outingLabel,
+                            isSecond ? styles.purpleText : styles.orangeText,
+                          ]}
+                        >
+                          {isSecond ? "Outing 2" : "Outing 1"}
                         </Text>
-                        <Text style={styles.outingName}>{outing.name || 'Unnamed outing'}</Text>
+                        <Text style={styles.outingName}>
+                          {outing.name || "Unnamed outing"}
+                        </Text>
                         <Text style={styles.outingTime}>
-                          {(outing.startTime || '?') + ' – ' + (outing.endTime || '?')}
+                          {(outing.startTime || "?") +
+                            " – " +
+                            (outing.endTime || "?")}
                         </Text>
                       </View>
                     </View>
 
                     <View style={styles.outingSection}>
                       <Text style={styles.outingSectionTitle}>Staff</Text>
-                      <Text style={styles.outingSectionText}>{shortNames(staffNames)}</Text>
+                      <Text style={styles.outingSectionText}>
+                        {shortNames(staffNames)}
+                      </Text>
                     </View>
                     <View style={styles.outingSection}>
-                      <Text style={styles.outingSectionTitle}>Participants</Text>
-                      <Text style={styles.outingSectionText}>{shortNames(participantNames)}</Text>
+                      <Text style={styles.outingSectionTitle}>
+                        Participants
+                      </Text>
+                      <Text style={styles.outingSectionText}>
+                        {shortNames(participantNames)}
+                      </Text>
                     </View>
                     <View style={styles.outingSection}>
                       <Text style={styles.outingSectionTitle}>Notes</Text>
-                      <Text style={styles.outingSectionText}>{String(outing.notes || '').trim() || 'No notes entered.'}</Text>
+                      <Text style={styles.outingSectionText}>
+                        {String(outing.notes || "").trim() ||
+                          "No notes entered."}
+                      </Text>
                     </View>
                   </View>
                 );
@@ -410,7 +785,7 @@ export default function DashboardScreen() {
       );
     }
 
-    if (currentPage === 'cleaning') {
+    if (currentPage === "cleaning") {
       const assignedCount = cleaningRows.filter((row) => row.complete).length;
       return (
         <View style={styles.panel}>
@@ -419,19 +794,103 @@ export default function DashboardScreen() {
               <Text style={styles.panelEyebrow}>End of shift</Text>
               <Text style={styles.panelTitle}>Cleaning Assignments</Text>
             </View>
-            <Text style={styles.progressText}>{assignedCount} / {cleaningRows.length} assigned</Text>
+            <Text style={styles.progressText}>
+              {assignedCount} / {cleaningRows.length} assigned
+            </Text>
           </View>
 
-          <ScrollView style={styles.innerScroll} contentContainerStyle={styles.cleaningGrid}>
+          <ScrollView
+            style={styles.innerScroll}
+            contentContainerStyle={styles.cleaningGrid}
+          >
             {cleaningRows.map((row) => (
               <View key={row.id} style={styles.cleaningCard}>
                 <Text style={styles.cleaningTask}>{row.chore}</Text>
-                <Text style={row.complete ? styles.cleaningAssigned : styles.cleaningUnassigned}>
+                <Text
+                  style={
+                    row.complete
+                      ? styles.cleaningAssigned
+                      : styles.cleaningUnassigned
+                  }
+                >
                   {row.assigned}
                 </Text>
               </View>
             ))}
           </ScrollView>
+        </View>
+      );
+    }
+
+    if (currentPage === "dropoffs") {
+      return (
+        <View style={styles.panel}>
+          <View style={styles.panelHeaderRow}>
+            <View>
+              <Text style={styles.panelEyebrow}>Transport home</Text>
+              <Text style={styles.panelTitle}>Drop Offs</Text>
+            </View>
+            <Text style={styles.progressText}>
+              {dropoffRows.length} staff assigned
+            </Text>
+          </View>
+
+          {dropoffRows.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons
+                name="bus-clock"
+                size={44}
+                color="#9CA3AF"
+              />
+              <Text style={styles.emptyText}>No drop offs assigned yet.</Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.innerScroll}
+              contentContainerStyle={styles.assignmentGrid}
+            >
+              {dropoffRows.map((row) => (
+                <View
+                  key={row.staffId}
+                  style={[
+                    styles.assignmentCard,
+                    row.theme === "outing1"
+                      ? styles.assignmentCardOuting1
+                      : row.theme === "outing2"
+                        ? styles.assignmentCardOuting2
+                        : styles.assignmentCardOnsite,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.assignmentStaffName,
+                      row.theme === "outing1"
+                        ? styles.assignmentTextOuting1
+                        : row.theme === "outing2"
+                          ? styles.assignmentTextOuting2
+                          : styles.assignmentTextOnsite,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {row.staffName}
+                  </Text>
+                  <View style={styles.assignmentParticipantList}>
+                    {row.items.map((item) => (
+                      <Text
+                        key={`${row.staffId}-${item.participantName}`}
+                        style={styles.assignmentParticipantName}
+                        numberOfLines={1}
+                      >
+                        {item.locationLabel
+                          ? `${item.participantName} · ${item.locationLabel}`
+                          : item.participantName}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
       );
     }
@@ -446,12 +905,16 @@ export default function DashboardScreen() {
             <View style={styles.finalStaffLeftBlock}>
               <Text style={styles.finalStaffLabel}>Last to leave</Text>
               <View style={styles.finalStaffPill}>
-                <Text style={styles.finalStaffPillText}>{selectedFinalStaff}</Text>
+                <Text style={styles.finalStaffPillText}>
+                  {selectedFinalStaff}
+                </Text>
               </View>
             </View>
           </View>
           <View style={styles.progressBlock}>
-            <Text style={styles.progressText}>{completedChecklist} / {checklistRows.length} complete</Text>
+            <Text style={styles.progressText}>
+              {completedChecklist} / {checklistRows.length} complete
+            </Text>
           </View>
         </View>
 
@@ -462,21 +925,35 @@ export default function DashboardScreen() {
               {
                 width: checklistRows.length
                   ? `${Math.round((completedChecklist / checklistRows.length) * 100)}%`
-                  : '0%',
+                  : "0%",
               },
             ]}
           />
         </View>
 
-        <ScrollView style={styles.innerScroll} contentContainerStyle={styles.checklistList}>
+        <ScrollView
+          style={styles.innerScroll}
+          contentContainerStyle={styles.checklistList}
+        >
           {checklistRows.map((item) => (
-            <View key={item.id} style={[styles.checklistRow, item.checked && styles.checklistRowDone]}>
+            <View
+              key={item.id}
+              style={[
+                styles.checklistRow,
+                item.checked && styles.checklistRowDone,
+              ]}
+            >
               <Ionicons
-                name={item.checked ? 'checkmark-circle' : 'ellipse-outline'}
+                name={item.checked ? "checkmark-circle" : "ellipse-outline"}
                 size={28}
-                color={item.checked ? '#10B981' : '#9CA3AF'}
+                color={item.checked ? "#10B981" : "#9CA3AF"}
               />
-              <Text style={[styles.checklistText, item.checked && styles.checklistTextDone]}>
+              <Text
+                style={[
+                  styles.checklistText,
+                  item.checked && styles.checklistTextDone,
+                ]}
+              >
                 {item.label}
               </Text>
             </View>
@@ -492,11 +969,15 @@ export default function DashboardScreen() {
         <View style={styles.topBar}>
           <View>
             <Text style={styles.locationText}>No Chains Daily Dashboard</Text>
-            <Text style={styles.dateText}>{formatDateKey(date)} · {HOUSE_ID} Day Program</Text>
+            <Text style={styles.dateText}>
+              {formatDateKey(date)} · {HOUSE_ID} Day Program
+            </Text>
           </View>
           <View style={styles.clockBlock}>
             <Text style={styles.clockText}>{timeNowLabel(tick)}</Text>
-            <Text style={styles.rotateText}>Auto-rotates every {Math.round(ROTATE_MS / 1000)}s</Text>
+            <Text style={styles.rotateText}>
+              Auto-rotates every {Math.round(ROTATE_MS / 1000)}s
+            </Text>
           </View>
         </View>
 
@@ -506,16 +987,28 @@ export default function DashboardScreen() {
               key={page}
               onPress={() => setPageIndex(index)}
               activeOpacity={0.85}
-              style={[styles.pageTab, currentPage === page && styles.pageTabActive]}
+              style={[
+                styles.pageTab,
+                currentPage === page && styles.pageTabActive,
+              ]}
             >
-              <Text style={[styles.pageTabText, currentPage === page && styles.pageTabTextActive]}>
-                {page === 'floating'
-                  ? 'Floating'
-                  : page === 'outings'
-                    ? 'Outings'
-                    : page === 'cleaning'
-                      ? 'Cleaning'
-                      : 'Checklist'}
+              <Text
+                style={[
+                  styles.pageTabText,
+                  currentPage === page && styles.pageTabTextActive,
+                ]}
+              >
+                {page === "team"
+                  ? "Team Daily"
+                  : page === "floating"
+                    ? "Floating"
+                    : page === "outings"
+                      ? "Outings"
+                      : page === "cleaning"
+                        ? "Cleaning"
+                        : page === "checklist"
+                          ? "Checklist"
+                          : "Drop Offs"}
               </Text>
             </TouchableOpacity>
           ))}
@@ -530,77 +1023,77 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#111827",
+    alignItems: "center",
+    justifyContent: "center",
   },
   appFrame: {
-    width: '100%',
+    width: "100%",
     maxWidth: MAX_WIDTH,
-    height: Platform.OS === 'web' ? 780 : '100%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: Platform.OS === 'web' ? 22 : 0,
-    overflow: 'hidden',
+    height: Platform.OS === "web" ? 780 : "100%",
+    backgroundColor: "#F8FAFC",
+    borderRadius: Platform.OS === "web" ? 22 : 0,
+    overflow: "hidden",
   },
   topBar: {
     height: 92,
     paddingHorizontal: 28,
     paddingVertical: 18,
-    backgroundColor: '#F54FA5',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: "#F54FA5",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   locationText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 25,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   dateText: {
     marginTop: 4,
-    color: '#FFE4F4',
+    color: "#FFE4F4",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   clockBlock: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   clockText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 30,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   rotateText: {
-    color: '#FFE4F4',
+    color: "#FFE4F4",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   pageTabs: {
     height: 56,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    flexDirection: 'row',
+    borderBottomColor: "#E5E7EB",
+    flexDirection: "row",
     gap: 10,
   },
   pageTab: {
     paddingHorizontal: 18,
-    justifyContent: 'center',
+    justifyContent: "center",
     borderRadius: 999,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   pageTabActive: {
-    backgroundColor: '#111827',
+    backgroundColor: "#111827",
   },
   pageTabText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#4B5563',
+    fontWeight: "800",
+    color: "#4B5563",
   },
   pageTabTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   contentArea: {
     flex: 1,
@@ -608,77 +1101,168 @@ const styles = StyleSheet.create({
   },
   panel: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 22,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
   },
   panelHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 16,
     marginBottom: 14,
   },
   panelEyebrow: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 13,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    fontWeight: "800",
+    textTransform: "uppercase",
     letterSpacing: 0.7,
   },
   panelTitle: {
     marginTop: 2,
     fontSize: 30,
-    fontWeight: '900',
-    color: '#111827',
+    fontWeight: "900",
+    color: "#111827",
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    backgroundColor: '#F5F3FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: "#F5F3FF",
+    borderColor: "#DDD6FE",
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   badgeText: {
-    color: '#6D28D9',
-    fontWeight: '800',
+    color: "#6D28D9",
+    fontWeight: "800",
     fontSize: 12,
+  },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  legendPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  legendBlue: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#6F82F6",
+  },
+  legendOrange: {
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FB923C",
+  },
+  legendPurple: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#8B5CF6",
+  },
+  legendText: {
+    color: "#4F46E5",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  legendTextOrange: {
+    color: "#C2410C",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  legendTextPurple: {
+    color: "#6D28D9",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  assignmentGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingBottom: 8,
+  },
+  assignmentCard: {
+    width: "31.8%",
+    minHeight: 118,
+    borderRadius: 20,
+    borderWidth: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    justifyContent: "flex-start",
+  },
+  assignmentCardOnsite: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#6F82F6",
+  },
+  assignmentCardOuting1: {
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FB923C",
+  },
+  assignmentCardOuting2: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#8B5CF6",
+  },
+  assignmentStaffName: {
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "900",
+  },
+  assignmentTextOnsite: {
+    color: "#4F46E5",
+  },
+  assignmentTextOuting1: {
+    color: "#C2410C",
+  },
+  assignmentTextOuting2: {
+    color: "#6D28D9",
+  },
+  assignmentParticipantList: {
+    marginTop: 9,
+    gap: 4,
+  },
+  assignmentParticipantName: {
+    fontSize: 16,
+    lineHeight: 20,
+    color: "#111827",
+    fontWeight: "800",
   },
   floatingTable: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   floatRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     minHeight: 42,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   floatHeaderRow: {
     minHeight: 38,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: "#EEF2FF",
   },
   rowEven: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   rowOdd: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   currentFloatRow: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: "#DCFCE7",
     borderLeftWidth: 8,
-    borderLeftColor: '#10B981',
+    borderLeftColor: "#10B981",
   },
   floatCell: {
     flex: 1,
@@ -687,48 +1271,48 @@ const styles = StyleSheet.create({
   },
   floatHeaderText: {
     fontSize: 13,
-    color: '#111827',
-    fontWeight: '900',
+    color: "#111827",
+    fontWeight: "900",
   },
   floatTimeCell: {
     flex: 1.05,
   },
   floatCellBox: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 10,
     borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
+    borderRightColor: "#E5E7EB",
   },
   floatTimeCellBox: {
     flex: 1.05,
   },
   floatTimeText: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: "800",
+    color: "#111827",
   },
   floatNameText: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: "800",
+    color: "#1F2937",
   },
   fsoText: {
-    color: '#F54FA5',
-    fontWeight: '900',
+    color: "#F54FA5",
+    fontWeight: "900",
   },
   currentText: {
-    color: '#065F46',
+    color: "#065F46",
   },
   nowLabel: {
     marginTop: 2,
     fontSize: 10,
-    color: '#059669',
-    fontWeight: '900',
+    color: "#059669",
+    fontWeight: "900",
   },
   outingGrid: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
     marginTop: 12,
   },
@@ -739,16 +1323,16 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   outingCardOrange: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#FB923C',
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FB923C",
   },
   outingCardPurple: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#8B5CF6',
+    backgroundColor: "#F5F3FF",
+    borderColor: "#8B5CF6",
   },
   outingTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 14,
     marginBottom: 16,
   },
@@ -756,143 +1340,143 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   outingIconOrange: {
-    backgroundColor: '#F97316',
+    backgroundColor: "#F97316",
   },
   outingIconPurple: {
-    backgroundColor: '#7C3AED',
+    backgroundColor: "#7C3AED",
   },
   outingLabel: {
     fontSize: 13,
-    fontWeight: '900',
-    textTransform: 'uppercase',
+    fontWeight: "900",
+    textTransform: "uppercase",
     letterSpacing: 0.7,
   },
   orangeText: {
-    color: '#C2410C',
+    color: "#C2410C",
   },
   purpleText: {
-    color: '#6D28D9',
+    color: "#6D28D9",
   },
   outingName: {
     fontSize: 28,
-    fontWeight: '900',
-    color: '#111827',
+    fontWeight: "900",
+    color: "#111827",
   },
   outingTime: {
     fontSize: 16,
-    color: '#4B5563',
-    fontWeight: '800',
+    color: "#4B5563",
+    fontWeight: "800",
   },
   outingSection: {
     marginTop: 14,
   },
   outingSectionTitle: {
     fontSize: 13,
-    fontWeight: '900',
-    color: '#374151',
-    textTransform: 'uppercase',
+    fontWeight: "900",
+    color: "#374151",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   outingSectionText: {
     fontSize: 18,
     lineHeight: 25,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyText: {
     marginTop: 10,
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   innerScroll: {
     flex: 1,
   },
   cleaningGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     paddingBottom: 8,
   },
   cleaningCard: {
-    width: '31.8%',
+    width: "31.8%",
     minHeight: 86,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
     padding: 12,
   },
   cleaningTask: {
     fontSize: 15,
-    fontWeight: '900',
-    color: '#111827',
+    fontWeight: "900",
+    color: "#111827",
   },
   cleaningAssigned: {
     marginTop: 8,
     fontSize: 18,
-    fontWeight: '900',
-    color: '#F54FA5',
+    fontWeight: "900",
+    color: "#F54FA5",
   },
   cleaningUnassigned: {
     marginTop: 8,
     fontSize: 15,
-    fontWeight: '700',
-    color: '#9CA3AF',
+    fontWeight: "700",
+    color: "#9CA3AF",
   },
   progressBlock: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   progressText: {
     fontSize: 16,
-    fontWeight: '900',
-    color: '#111827',
+    fontWeight: "900",
+    color: "#111827",
   },
   finalStaffLeftBlock: {
     marginTop: 12,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   finalStaffLabel: {
     fontSize: 13,
-    fontWeight: '900',
-    color: '#374151',
-    textTransform: 'uppercase',
+    fontWeight: "900",
+    color: "#374151",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   finalStaffPill: {
     borderWidth: 1,
-    borderColor: '#F54FA5',
-    backgroundColor: '#FDF2FB',
+    borderColor: "#F54FA5",
+    backgroundColor: "#FDF2FB",
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
   finalStaffPillText: {
-    color: '#F54FA5',
+    color: "#F54FA5",
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   checklistProgressOuter: {
     height: 16,
     borderRadius: 999,
-    backgroundColor: '#E5E7EB',
-    overflow: 'hidden',
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
     marginBottom: 16,
   },
   checklistProgressInner: {
-    height: '100%',
-    backgroundColor: '#10B981',
+    height: "100%",
+    backgroundColor: "#10B981",
   },
   checklistList: {
     gap: 9,
@@ -902,23 +1486,23 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   checklistRowDone: {
-    backgroundColor: '#ECFDF3',
-    borderColor: '#A7F3D0',
+    backgroundColor: "#ECFDF3",
+    borderColor: "#A7F3D0",
   },
   checklistText: {
     fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: "800",
+    color: "#111827",
   },
   checklistTextDone: {
-    color: '#065F46',
+    color: "#065F46",
   },
 });
