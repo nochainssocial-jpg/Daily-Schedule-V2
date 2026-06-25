@@ -574,19 +574,30 @@ export default function DashboardScreen() {
                         : styles.assignmentCardOnsite,
                   ]}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.assignmentStaffName,
+                      styles.assignmentStaffPill,
                       row.theme === "outing1"
-                        ? styles.assignmentTextOuting1
+                        ? styles.assignmentStaffPillOuting1
                         : row.theme === "outing2"
-                          ? styles.assignmentTextOuting2
-                          : styles.assignmentTextOnsite,
+                          ? styles.assignmentStaffPillOuting2
+                          : styles.assignmentStaffPillOnsite,
                     ]}
-                    numberOfLines={1}
                   >
-                    {row.staffName}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.assignmentStaffName,
+                        row.theme === "outing1"
+                          ? styles.assignmentStaffNameOuting1
+                          : row.theme === "outing2"
+                            ? styles.assignmentStaffNameOuting2
+                            : styles.assignmentStaffNameOnsite,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {row.staffName}
+                    </Text>
+                  </View>
 
                   <View style={styles.assignmentParticipantList}>
                     {row.participantItems.map((participant: any) => (
@@ -893,19 +904,30 @@ export default function DashboardScreen() {
                         : styles.assignmentCardOnsite,
                   ]}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.assignmentStaffName,
+                      styles.assignmentStaffPill,
                       row.theme === "outing1"
-                        ? styles.assignmentTextOuting1
+                        ? styles.assignmentStaffPillOuting1
                         : row.theme === "outing2"
-                          ? styles.assignmentTextOuting2
-                          : styles.assignmentTextOnsite,
+                          ? styles.assignmentStaffPillOuting2
+                          : styles.assignmentStaffPillOnsite,
                     ]}
-                    numberOfLines={1}
                   >
-                    {row.staffName}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.assignmentStaffName,
+                        row.theme === "outing1"
+                          ? styles.assignmentStaffNameOuting1
+                          : row.theme === "outing2"
+                            ? styles.assignmentStaffNameOuting2
+                            : styles.assignmentStaffNameOnsite,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {row.staffName}
+                    </Text>
+                  </View>
                   <View style={styles.assignmentParticipantList}>
                     {row.items.map((item) => {
                       const label = item.locationLabel
@@ -1246,16 +1268,16 @@ const styles = StyleSheet.create({
   },
   assignmentCard: {
     width: "31.9%",
-    minHeight: 92,
+    minHeight: 78,
     borderRadius: 18,
     borderWidth: 2,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     justifyContent: "flex-start",
   },
   assignmentCardOnsite: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#6F82F6",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E5E7EB",
   },
   assignmentCardOuting1: {
     backgroundColor: "#FFF7ED",
@@ -1265,22 +1287,42 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F3FF",
     borderColor: "#8B5CF6",
   },
+  assignmentStaffPill: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    borderWidth: 1.5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    maxWidth: "100%",
+  },
+  assignmentStaffPillOnsite: {
+    backgroundColor: "#F54FA5",
+    borderColor: "#F54FA5",
+  },
+  assignmentStaffPillOuting1: {
+    backgroundColor: "#FFEDD5",
+    borderColor: "#FB923C",
+  },
+  assignmentStaffPillOuting2: {
+    backgroundColor: "#EDE9FE",
+    borderColor: "#8B5CF6",
+  },
   assignmentStaffName: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: "900",
   },
-  assignmentTextOnsite: {
-    color: "#4F46E5",
+  assignmentStaffNameOnsite: {
+    color: "#FFFFFF",
   },
-  assignmentTextOuting1: {
+  assignmentStaffNameOuting1: {
     color: "#C2410C",
   },
-  assignmentTextOuting2: {
+  assignmentStaffNameOuting2: {
     color: "#6D28D9",
   },
   assignmentParticipantList: {
-    marginTop: 8,
+    marginTop: 7,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
@@ -1288,8 +1330,8 @@ const styles = StyleSheet.create({
   assignmentParticipantChip: {
     borderRadius: 999,
     borderWidth: 1.5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     maxWidth: "100%",
   },
   assignmentParticipantChipOnsite: {
@@ -1305,8 +1347,8 @@ const styles = StyleSheet.create({
     borderColor: "#8B5CF6",
   },
   assignmentParticipantName: {
-    fontSize: 14,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "900",
   },
   assignmentParticipantNameOnsite: {
