@@ -1136,10 +1136,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   dateText: {
-    marginTop: 2,
+    marginTop: 4,
     color: "#FFE4F4",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
   },
   cycleText: {
     marginTop: 3,
