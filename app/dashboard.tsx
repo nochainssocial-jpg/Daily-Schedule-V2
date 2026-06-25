@@ -648,7 +648,7 @@ export default function DashboardScreen() {
               <MaterialCommunityIcons
                 name="account-clock"
                 size={18}
-                color="#6D28D9"
+                color="#059669"
               />
               <Text style={styles.badgeText}>Current slot highlighted</Text>
             </View>
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   badgeText: {
-    color: "#6D28D9",
+    color: "#059669",
     fontWeight: "800",
     fontSize: 12,
   },
