@@ -650,7 +650,7 @@ export default function DashboardScreen() {
                 size={18}
                 color="#059669"
               />
-              <Text style={styles.badgeText}>Current slot highlighted</Text>
+              <Text style={styles.badgeText}>Current Slot Highlighted</Text>
             </View>
           </View>
 
@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "#DCFCE7",
     borderColor: "#DDD6FE",
     borderWidth: 1,
     borderRadius: 999,
