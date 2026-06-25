@@ -1048,12 +1048,12 @@ export default function DashboardScreen() {
               Location: {HOUSE_ID} Day Program
             </Text>
             <Text style={styles.dateText}>{formatDateKey(date)}</Text>
-            <Text style={styles.cycleText}>
-              (Cycles through tabs every {Math.round(ROTATE_MS / 1000)} seconds)
-            </Text>
           </View>
           <View style={styles.clockBlock}>
             <Text style={styles.clockText}>{timeNowLabel(tick)}</Text>
+            <Text style={styles.cycleText}>
+              (Cycles through tabs every {Math.round(ROTATE_MS / 1000)} seconds)
+            </Text>
           </View>
         </View>
 
