@@ -115,6 +115,22 @@ function slotLabel(slot: any): string {
   return `${start} - ${end}`.trim();
 }
 
+function isFsoSlot(slot: any): boolean {
+  const { start, end } = slotWindow(slot);
+
+  // Twins FSO / nappy-change slots: 11:00–11:30 and 1:00–1:30.
+  if (start === 11 * 60 && end === 11 * 60 + 30) return true;
+  if (start === 13 * 60 && end === 13 * 60 + 30) return true;
+
+  const label = slotLabel(slot).replace(/\s+/g, '').toLowerCase();
+  return (
+    label.includes('11:00am-11:30am') ||
+    label.includes('11:00-11:30') ||
+    label.includes('1:00pm-1:30pm') ||
+    label.includes('13:00-13:30')
+  );
+}
+
 function hasOutingContent(outing: any): boolean {
   return Boolean(
     String(outing?.name || '').trim() ||
@@ -318,10 +334,12 @@ export default function DashboardScreen() {
                   {ROOM_KEYS.map((room) => {
                     const staffId = row?.[room];
                     const name = staffId ? staffById.get(String(staffId))?.name || '—' : '—';
+                    const showFso = room === 'twins' && isFsoSlot(slot) && name !== '—';
                     return (
                       <View key={room} style={styles.floatCellBox}>
                         <Text style={[styles.floatNameText, current && styles.currentText]} numberOfLines={1}>
                           {name}
+                          {showFso && <Text style={styles.fsoText}> (FSO)</Text>}
                         </Text>
                       </View>
                     );
@@ -694,6 +712,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#1F2937',
+  },
+  fsoText: {
+    color: '#F54FA5',
+    fontWeight: '900',
   },
   currentText: {
     color: '#065F46',
