@@ -281,17 +281,26 @@ export default function DashboardScreen() {
     [activeOutings],
   );
 
+  const getParticipantTheme = (participantId: string) => {
+    if (outing1ParticipantIds.has(participantId)) return "outing1" as const;
+    if (outing2ParticipantIds.has(participantId)) return "outing2" as const;
+    return "onsite" as const;
+  };
+
   const getAssignmentTheme = (staffId: string, participantIds: string[]) => {
-    if (
-      outing1StaffIds.has(staffId) ||
-      participantIds.some((id) => outing1ParticipantIds.has(id))
-    ) {
+    // Direct staff outing membership wins first. This keeps the dashboard aligned
+    // with the Edit Hub outing banners when staff have been explicitly placed on
+    // Outing 1 or Outing 2.
+    if (outing1StaffIds.has(staffId)) return "outing1" as const;
+    if (outing2StaffIds.has(staffId)) return "outing2" as const;
+
+    // If staff were not directly placed on an outing, infer the tile colour from
+    // their assigned participants. This covers the common operational case where
+    // the assigned staff member follows their participant onto the outing.
+    if (participantIds.some((id) => outing1ParticipantIds.has(id))) {
       return "outing1" as const;
     }
-    if (
-      outing2StaffIds.has(staffId) ||
-      participantIds.some((id) => outing2ParticipantIds.has(id))
-    ) {
+    if (participantIds.some((id) => outing2ParticipantIds.has(id))) {
       return "outing2" as const;
     }
     return "onsite" as const;
@@ -340,15 +349,20 @@ export default function DashboardScreen() {
             .toLowerCase();
           return name !== "zara" && name !== "zoya";
         });
-        const participantNames = filteredParticipantIds
-          .map((id) => String(participantsById.get(id)?.name || id))
-          .sort((a, b) => a.localeCompare(b, "en-AU"));
+        const participantItems = filteredParticipantIds
+          .map((id) => ({
+            id,
+            name: String(participantsById.get(id)?.name || id),
+            theme: getParticipantTheme(id),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name, "en-AU"));
 
         return {
           staffId,
           staffName,
           participantIds: filteredParticipantIds,
-          participantNames,
+          participantNames: participantItems.map((item) => item.name),
+          participantItems,
           theme: getAssignmentTheme(staffId, filteredParticipantIds),
           isWorking: workingSet.size === 0 || workingSet.has(staffId),
         };
@@ -575,14 +589,14 @@ export default function DashboardScreen() {
                   </Text>
 
                   <View style={styles.assignmentParticipantList}>
-                    {row.participantNames.map((name) => (
+                    {row.participantItems.map((participant: any) => (
                       <View
-                        key={name}
+                        key={participant.id}
                         style={[
                           styles.assignmentParticipantChip,
-                          row.theme === "outing1"
+                          participant.theme === "outing1"
                             ? styles.assignmentParticipantChipOuting1
-                            : row.theme === "outing2"
+                            : participant.theme === "outing2"
                               ? styles.assignmentParticipantChipOuting2
                               : styles.assignmentParticipantChipOnsite,
                         ]}
@@ -590,15 +604,15 @@ export default function DashboardScreen() {
                         <Text
                           style={[
                             styles.assignmentParticipantName,
-                            row.theme === "outing1"
+                            participant.theme === "outing1"
                               ? styles.assignmentParticipantNameOuting1
-                              : row.theme === "outing2"
+                              : participant.theme === "outing2"
                                 ? styles.assignmentParticipantNameOuting2
                                 : styles.assignmentParticipantNameOnsite,
                           ]}
                           numberOfLines={1}
                         >
-                          {name}
+                          {participant.name}
                         </Text>
                       </View>
                     ))}
