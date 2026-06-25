@@ -1042,17 +1042,18 @@ export default function DashboardScreen() {
     <View style={styles.screen}>
       <View style={styles.appFrame}>
         <View style={styles.topBar}>
-          <View>
+          <View style={styles.topLeftBlock}>
             <Text style={styles.locationText}>No Chains Daily Dashboard</Text>
-            <Text style={styles.dateText}>
-              {formatDateKey(date)} · {HOUSE_ID} Day Program
+            <Text style={styles.programText}>
+              Location: {HOUSE_ID} Day Program
+            </Text>
+            <Text style={styles.dateText}>{formatDateKey(date)}</Text>
+            <Text style={styles.cycleText}>
+              (Cycles through tabs every {Math.round(ROTATE_MS / 1000)} seconds)
             </Text>
           </View>
           <View style={styles.clockBlock}>
             <Text style={styles.clockText}>{timeNowLabel(tick)}</Text>
-            <Text style={styles.rotateText}>
-              Auto-rotates every {Math.round(ROTATE_MS / 1000)}s
-            </Text>
           </View>
         </View>
 
@@ -1074,7 +1075,7 @@ export default function DashboardScreen() {
                 ]}
               >
                 {page === "team"
-                  ? "Team Daily"
+                  ? "Daily Assignments"
                   : page === "floating"
                     ? "Floating"
                     : page === "outings"
@@ -1111,7 +1112,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   topBar: {
-    height: 92,
+    height: 126,
     paddingHorizontal: 28,
     paddingVertical: 18,
     backgroundColor: "#F54FA5",
@@ -1119,16 +1120,32 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  topLeftBlock: {
+    flex: 1,
+    paddingRight: 18,
+  },
   locationText: {
     color: "#FFFFFF",
     fontSize: 25,
     fontWeight: "900",
   },
-  dateText: {
+  programText: {
     marginTop: 4,
     color: "#FFE4F4",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  dateText: {
+    marginTop: 2,
+    color: "#FFE4F4",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  cycleText: {
+    marginTop: 3,
+    color: "#FFE4F4",
+    fontSize: 12,
+    fontWeight: "700",
   },
   clockBlock: {
     alignItems: "flex-end",
@@ -1137,11 +1154,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 30,
     fontWeight: "900",
-  },
-  rotateText: {
-    color: "#FFE4F4",
-    fontSize: 12,
-    fontWeight: "700",
   },
   pageTabs: {
     height: 56,
@@ -1234,8 +1246,8 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   legendBlue: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#6F82F6",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#D1D5DB",
   },
   legendOrange: {
     backgroundColor: "#FFF7ED",
@@ -1246,7 +1258,7 @@ const styles = StyleSheet.create({
     borderColor: "#8B5CF6",
   },
   legendText: {
-    color: "#4F46E5",
+    color: "#4B5563",
     fontSize: 12,
     fontWeight: "900",
   },
