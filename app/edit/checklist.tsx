@@ -1,7 +1,7 @@
-// CHECKLIST.TSX — FULLY PATCHED VERSION
+// CHECKLIST.TSX — STAFF CHECKBOX AUTO-SAVE PATCH
 // --------------------------------------------------
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
@@ -10,22 +10,97 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
-import { checklistItems, masterStaff as STATIC_STAFF } from '@/constants/data';
+import type { ScheduleSnapshot, OutingGroup } from '@/hooks/schedule-store';
+import { masterStaff as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
+import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type ID = string;
+type ChecklistSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const MAX_WIDTH = 880;
+const HOUSE_ID = 'B2';
+
+function hasOutingContent(outing: OutingGroup | null | undefined): outing is OutingGroup {
+  if (!outing) return false;
+
+  return Boolean(
+    (outing.name || '').trim() ||
+      (outing.startTime || '').trim() ||
+      (outing.endTime || '').trim() ||
+      ((outing as any).notes || '').trim?.() ||
+      (outing.staffIds?.length ?? 0) > 0 ||
+      (outing.participantIds?.length ?? 0) > 0,
+  );
+}
+
+function normaliseOutingsForSave(schedule: any): OutingGroup[] {
+  const rawOutings = Array.isArray(schedule.outingGroups)
+    ? schedule.outingGroups
+    : schedule.outingGroup
+      ? [schedule.outingGroup]
+      : [];
+
+  return rawOutings
+    .slice(0, 2)
+    .map((outing: any, index: number) => ({
+      id: String(outing?.id || `outing-${index + 1}`),
+      name: String(outing?.name || ''),
+      staffIds: Array.isArray(outing?.staffIds) ? outing.staffIds.map(String) : [],
+      participantIds: Array.isArray(outing?.participantIds)
+        ? outing.participantIds.map(String)
+        : [],
+      startTime: outing?.startTime ? String(outing.startTime) : '',
+      endTime: outing?.endTime ? String(outing.endTime) : '',
+      notes: outing?.notes ? String(outing.notes) : '',
+    }))
+    .filter(hasOutingContent);
+}
+
+function buildSnapshotForSave(schedule: any): ScheduleSnapshot {
+  const outingGroups = normaliseOutingsForSave(schedule);
+
+  return {
+    staff: schedule.staff || [],
+    participants: schedule.participants || [],
+    workingStaff: schedule.workingStaff || [],
+    attendingParticipants: schedule.attendingParticipants || [],
+
+    trainingStaffToday: schedule.trainingStaffToday || [],
+
+    assignments: schedule.assignments || {},
+    floatingAssignments: schedule.floatingAssignments || {
+      frontRoom: null,
+      scotty: null,
+      twins: null,
+    },
+    cleaningAssignments: schedule.cleaningAssignments || {},
+    cleaningBinsVariant: schedule.cleaningBinsVariant ?? 0,
+
+    finalChecklist: schedule.finalChecklist || {},
+    finalChecklistStaff: schedule.finalChecklistStaff ?? null,
+
+    pickupParticipants: schedule.pickupParticipants || [],
+    helperStaff: schedule.helperStaff || [],
+    helperPickupStaff: schedule.helperPickupStaff || [],
+
+    dropoffAssignments: schedule.dropoffAssignments || {},
+    dropoffLocations: schedule.dropoffLocations || {},
+
+    outingGroups,
+    outingGroup: outingGroups[0] ?? null,
+
+    date: schedule.date,
+    meta: schedule.meta ?? {},
+  } as ScheduleSnapshot;
+}
 
 export default function EditChecklistScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
-
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
@@ -33,16 +108,21 @@ export default function EditChecklistScreen() {
       width < 900 ||
       height < 700);
 
+  const schedule = useSchedule();
   const {
     staff: scheduleStaff,
     workingStaff,
     finalChecklist,
     finalChecklistStaff,
     updateSchedule,
-  } = useSchedule();
+    checklistItems,
+  } = schedule;
+
   const { push } = useNotifications();
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
+  const [checklistSaveStatus, setChecklistSaveStatus] =
+    useState<ChecklistSaveStatus>('idle');
 
   // Prefer schedule staff, fallback to static
   const staff = (scheduleStaff && scheduleStaff.length
@@ -64,6 +144,30 @@ export default function EditChecklistScreen() {
   const blockReadOnly = () =>
     push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
 
+  const saveChecklistImmediately = async (nextChecklist: Record<string, boolean>) => {
+    setChecklistSaveStatus('saving');
+
+    try {
+      const latestScheduleState = useSchedule.getState();
+      const snapshot = buildSnapshotForSave({
+        ...latestScheduleState,
+        finalChecklist: nextChecklist,
+      });
+
+      const result = await saveScheduleToSupabase(HOUSE_ID, snapshot);
+
+      if (!result?.ok) {
+        throw result?.error || new Error('Checklist save failed');
+      }
+
+      setChecklistSaveStatus('saved');
+    } catch (error) {
+      console.error('Checklist auto-save failed:', error);
+      setChecklistSaveStatus('error');
+      push('Checklist could not be saved. Please try again.', 'checklist');
+    }
+  };
+
   const handleSelectStaff = (id: ID) => {
     if (readOnly) return blockReadOnly();
     updateSchedule({ finalChecklistStaff: id });
@@ -71,14 +175,27 @@ export default function EditChecklistScreen() {
   };
 
   const handleToggleItem = (itemId: ID | number) => {
-    // Checkboxes ALWAYS allowed
+    // Staff are allowed to tick/untick checklist items even when Save & Exit is admin-only.
     const key = String(itemId);
     const next = { ...(finalChecklist || {}) };
     next[key] = !next[key];
 
+    // Immediate local update so the UI responds instantly.
     updateSchedule({ finalChecklist: next });
-    push('Final checklist updated', 'checklist');
+
+    // Independent persistence path. This prevents checklist changes being lost
+    // when a staff user closes/reopens the schedule without admin Save & Exit.
+    void saveChecklistImmediately(next);
   };
+
+  const saveStatusText =
+    checklistSaveStatus === 'saving'
+      ? 'Saving checklist…'
+      : checklistSaveStatus === 'saved'
+        ? 'Checklist saved automatically.'
+        : checklistSaveStatus === 'error'
+          ? 'Checklist save failed. Try ticking the item again.'
+          : 'Checklist ticks save automatically — no Save & Exit required.';
 
   return (
     <View style={styles.screen}>
@@ -91,6 +208,14 @@ export default function EditChecklistScreen() {
             <Text style={styles.subtitle}>
               Tick each item as it&apos;s completed and confirm who is last to
               leave and responsible for closing tasks.
+            </Text>
+            <Text
+              style={[
+                styles.saveStatus,
+                checklistSaveStatus === 'error' ? styles.saveStatusError : null,
+              ]}
+            >
+              {saveStatusText}
             </Text>
 
             {/* masterStaff SELECTOR */}
@@ -121,20 +246,14 @@ export default function EditChecklistScreen() {
             <Text style={styles.sectionTitle}>Last to leave</Text>
             <View style={styles.chipRow}>
               {selectedStaff ? (
-                <Chip
-                  label={selectedStaff.name}
-                  selected
-                  mode="onsite"
-                />
+                <Chip label={selectedStaff.name} selected mode="onsite" />
               ) : (
                 <Text style={styles.helperText}>Not yet selected</Text>
               )}
             </View>
 
             {/* CHECKLIST */}
-            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-              Checklist items
-            </Text>
+            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Checklist items</Text>
 
             {checklistItems.map((item) => {
               const key = String(item.id);
@@ -195,8 +314,24 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     opacity: 0.75,
-    marginBottom: 16,
+    marginBottom: 8,
     color: '#5a486b',
+  },
+  saveStatus: {
+    fontSize: 12,
+    color: '#166534',
+    backgroundColor: '#ECFDF3',
+    borderColor: '#BBF7D0',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: 16,
+  },
+  saveStatusError: {
+    color: '#991B1B',
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
   },
   sectionTitle: {
     fontSize: 16,
