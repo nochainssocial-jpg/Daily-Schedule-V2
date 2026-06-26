@@ -8,7 +8,7 @@ ScrollView,
 Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { initScheduleForToday, useSchedule } from "@/hooks/schedule-store";
+import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
 chores as STATIC_CHORES,
 checklistItems as STATIC_CHECKLIST_ITEMS,
@@ -37,6 +37,7 @@ const NoChainsRoundLogo = require("@/assets/images/nochains-round.png");
 
 const HOUSE_ID = "B2";
 const ROTATE_MS = 15_000;
+const DASHBOARD_REFRESH_MS = 120_000;
 const MAX_WIDTH = 1180;
 const ROOM_KEYS: RoomKey[] = ["frontRoom", "scotty", "twins"];
 
@@ -269,9 +270,17 @@ minute: "2-digit",
 });
 }
 
+function timeLabel(date: Date): string {
+return date.toLocaleTimeString("en-AU", {
+hour: "numeric",
+minute: "2-digit",
+});
+}
+
 export default function DashboardScreen() {
 const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
+const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 
 const {
 date,
@@ -304,6 +313,7 @@ await initScheduleForToday(HOUSE_ID);
 // chores, checklist items, and Supabase time slots available.
 if (!cancelled) {
 await useSchedule.getState().loadMasterData();
+setLastDashboardRefresh(new Date());
 }
 } catch (error) {
 console.error("[dashboard] failed to initialise schedule", error);
@@ -320,6 +330,28 @@ cancelled = true;
 useEffect(() => {
 const timer = setInterval(() => setTick((value) => value + 1), 30_000);
 return () => clearInterval(timer);
+}, []);
+
+useEffect(() => {
+let cancelled = false;
+
+const refreshDashboard = async () => {
+try {
+await refreshScheduleFromSupabase(HOUSE_ID);
+if (!cancelled) setLastDashboardRefresh(new Date());
+} catch (error) {
+console.error("[dashboard] failed to refresh schedule", error);
+}
+};
+
+const timer = setInterval(() => {
+void refreshDashboard();
+}, DASHBOARD_REFRESH_MS);
+
+return () => {
+cancelled = true;
+clearInterval(timer);
+};
 }, []);
 
 const staffById = useMemo(
@@ -1084,7 +1116,7 @@ resizeMode="contain"
 <View style={styles.reminderIconCircle}>
 <MaterialCommunityIcons
 name={reminder.icon as any}
-size={34}
+size={28}
 color="#F54FA5"
 />
 </View>
@@ -1102,7 +1134,7 @@ contentContainerStyle={styles.reminderBody}
 {reminder.points.map((point) => (
 <View key={point} style={styles.reminderPointRow}>
 <View style={styles.reminderBullet}>
-<Ionicons name="checkmark" size={18} color="#FFFFFF" />
+<Ionicons name="checkmark" size={16} color="#FFFFFF" />
 </View>
 <Text style={styles.reminderPointText}>{point}</Text>
 </View>
@@ -1112,7 +1144,7 @@ contentContainerStyle={styles.reminderBody}
 <View style={styles.reminderFooterBanner}>
 <MaterialCommunityIcons
 name="alert-circle-outline"
-size={24}
+size={21}
 color="#BE185D"
 />
 <Text style={styles.reminderFooterText}>{reminder.footer}</Text>
@@ -1206,6 +1238,12 @@ Location: {HOUSE_ID} Day Program
 <Text style={styles.cycleText}>
 (Cycles through tabs every {Math.round(ROTATE_MS / 1000)} seconds)
 </Text>
+<Text style={styles.cycleText}>
+Soft refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)} seconds
+</Text>
+<Text style={styles.cycleText}>
+Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
+</Text>
 </View>
 </View>
 
@@ -1242,9 +1280,9 @@ borderRadius: Platform.OS === "web" ? 22 : 0,
 overflow: "hidden",
 },
 topBar: {
-height: 126,
-paddingHorizontal: 28,
-paddingVertical: 18,
+height: 112,
+paddingHorizontal: 26,
+paddingVertical: 14,
 backgroundColor: "#F54FA5",
 flexDirection: "row",
 justifyContent: "space-between",
@@ -1266,13 +1304,10 @@ fontSize: 15,
 fontWeight: "800",
 },
 dateText: {
-    marginTop: 2,
-    marginTop: 4,
+marginTop: 3,
 color: "#FFE4F4",
-    fontSize: 14,
-    fontWeight: "700",
-    fontSize: 16,
-    fontWeight: "800",
+fontSize: 14,
+fontWeight: "800",
 },
 cycleText: {
 marginTop: 3,
@@ -1285,11 +1320,11 @@ alignItems: "flex-end",
 },
 clockText: {
 color: "#FFFFFF",
-fontSize: 30,
+fontSize: 28,
 fontWeight: "900",
 },
 currentPanelBar: {
-height: 52,
+height: 48,
 backgroundColor: "#FFFFFF",
 borderBottomWidth: 1,
 borderBottomColor: "#E5E7EB",
@@ -1320,13 +1355,13 @@ color: "#6B7280",
 },
 contentArea: {
 flex: 1,
-padding: 20,
+padding: 16,
 },
 panel: {
 flex: 1,
 backgroundColor: "#FFFFFF",
-borderRadius: 22,
-padding: 20,
+borderRadius: 20,
+padding: 16,
 shadowColor: "#000",
 shadowOpacity: 0.06,
 shadowRadius: 10,
@@ -1336,8 +1371,8 @@ panelHeaderRow: {
 flexDirection: "row",
 justifyContent: "space-between",
 alignItems: "flex-start",
-gap: 16,
-marginBottom: 14,
+gap: 14,
+marginBottom: 10,
 },
 panelEyebrow: {
 color: "#6B7280",
@@ -1348,7 +1383,7 @@ letterSpacing: 0.7,
 },
 panelTitle: {
 marginTop: 2,
-fontSize: 30,
+fontSize: 28,
 fontWeight: "900",
 color: "#111827",
 },
@@ -1760,7 +1795,7 @@ borderRadius: 14,
 borderWidth: 1,
 borderColor: "#E5E7EB",
 backgroundColor: "#F9FAFB",
-paddingHorizontal: 14,
+paddingHorizontal: 12,
 flexDirection: "row",
 alignItems: "center",
 gap: 12,
@@ -1778,25 +1813,25 @@ checklistTextDone: {
 color: "#065F46",
 },
 reminderPanel: {
-padding: 24,
+padding: 16,
 },
 reminderHeaderRow: {
 flexDirection: "row",
 alignItems: "center",
-gap: 16,
-marginBottom: 16,
+gap: 12,
+marginBottom: 10,
 },
 reminderLogo: {
-width: 76,
-height: 76,
+width: 62,
+height: 62,
 borderRadius: 999,
 },
 reminderHeaderText: {
 flex: 1,
 },
 reminderIconCircle: {
-width: 64,
-height: 64,
+width: 54,
+height: 54,
 borderRadius: 999,
 backgroundColor: "#FDF2FB",
 borderWidth: 1,
@@ -1805,40 +1840,40 @@ alignItems: "center",
 justifyContent: "center",
 },
 reminderBody: {
-gap: 14,
-paddingBottom: 8,
+gap: 9,
+paddingBottom: 2,
 },
 reminderLeadBox: {
-borderRadius: 18,
+borderRadius: 16,
 backgroundColor: "#FDF2FB",
 borderWidth: 1,
 borderColor: "#F9A8D4",
-paddingHorizontal: 18,
-paddingVertical: 16,
+paddingHorizontal: 14,
+paddingVertical: 10,
 },
 reminderLeadText: {
-fontSize: 21,
-lineHeight: 29,
+fontSize: 18,
+lineHeight: 24,
 fontWeight: "900",
 color: "#111827",
 },
 reminderPointList: {
-gap: 10,
+gap: 7,
 },
 reminderPointRow: {
-minHeight: 56,
-borderRadius: 16,
+minHeight: 46,
+borderRadius: 14,
 borderWidth: 1,
 borderColor: "#E5E7EB",
 backgroundColor: "#FFFFFF",
-paddingHorizontal: 14,
+paddingHorizontal: 12,
 flexDirection: "row",
 alignItems: "center",
 gap: 12,
 },
 reminderBullet: {
-width: 30,
-height: 30,
+width: 26,
+height: 26,
 borderRadius: 999,
 backgroundColor: "#F54FA5",
 alignItems: "center",
@@ -1846,27 +1881,27 @@ justifyContent: "center",
 },
 reminderPointText: {
 flex: 1,
-fontSize: 18,
-lineHeight: 24,
+fontSize: 16,
+lineHeight: 21,
 fontWeight: "800",
 color: "#111827",
 },
 reminderFooterBanner: {
-marginTop: 4,
-borderRadius: 18,
+marginTop: 2,
+borderRadius: 16,
 backgroundColor: "#FCE7F3",
 borderWidth: 1,
 borderColor: "#F9A8D4",
-paddingHorizontal: 16,
-paddingVertical: 14,
+paddingHorizontal: 14,
+paddingVertical: 10,
 flexDirection: "row",
 alignItems: "center",
 gap: 10,
 },
 reminderFooterText: {
 flex: 1,
-fontSize: 18,
-lineHeight: 24,
+fontSize: 16,
+lineHeight: 21,
 fontWeight: "900",
 color: "#BE185D",
 },
