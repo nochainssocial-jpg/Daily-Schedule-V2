@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
 View,
 Text,
+Image,
 StyleSheet,
 ScrollView,
 TouchableOpacity,
@@ -15,6 +16,7 @@ checklistItems as STATIC_CHECKLIST_ITEMS,
 TIME_SLOTS,
 } from "@/constants/data";
 
+// Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms.
 type ID = string;
 type DashboardPage =
 | "team"
@@ -22,8 +24,17 @@ type DashboardPage =
 | "outings"
 | "cleaning"
 | "checklist"
-| "dropoffs";
+| "dropoffs"
+| "incidentReports"
+| "behaviourObservations"
+| "communicationForms";
 type RoomKey = "frontRoom" | "scotty" | "twins";
+type ReminderPage =
+| "incidentReports"
+| "behaviourObservations"
+| "communicationForms";
+
+const NoChainsRoundLogo = require("@/assets/images/nochains-round.png");
 
 const HOUSE_ID = "B2";
 const ROTATE_MS = 15_000;
@@ -35,6 +46,92 @@ frontRoom: "Front Room",
 scotty: "Scotty",
 twins: "Twins / FSO",
 };
+
+const REMINDER_CONTENT: Record<
+ReminderPage,
+{
+eyebrow: string;
+title: string;
+icon: string;
+lead: string;
+points: string[];
+footer: string;
+}
+> = {
+incidentReports: {
+eyebrow: "Staff reminder",
+title: "Incident Reports",
+icon: "clipboard-alert-outline",
+lead:
+"Incident reports must be completed as soon as the incident is over and everyone is safe.",
+points: [
+"Harm or risk of harm to the participant",
+"Harm or risk of harm to another participant",
+"Harm or risk of harm to staff",
+"Damage to property",
+],
+footer: "Do not leave incident reports until the end of the day.",
+},
+behaviourObservations: {
+eyebrow: "Staff reminder",
+title: "Behaviour Observations",
+icon: "account-alert-outline",
+lead:
+"Behaviour observations should be recorded as soon as possible after the behaviour occurs.",
+points: [
+"Participants are rude or not cooperative",
+"Participants display outbursts",
+"Obnoxious or disruptive behaviour is observed",
+"Disrespect is shown toward other participants",
+"Disrespect is shown toward staff",
+],
+footer: "Fresh notes are more accurate and more useful.",
+},
+communicationForms: {
+eyebrow: "End of shift reminder",
+title: "Participant Communication Forms",
+icon: "file-document-edit-outline",
+lead:
+"Participant Communication Forms must be submitted at the end of each shift.",
+points: [
+"Forms help keep communication clear between staff, families, support coordinators, and management",
+"End of shift submission is the expectation",
+"If forms cannot be submitted by the end of shift, they must be submitted no later than 10:00pm on the same day",
+],
+footer: "End of shift is the expectation. 10:00pm is the final deadline.",
+},
+};
+
+function isReminderPage(page: DashboardPage): page is ReminderPage {
+return page === "incidentReports" ||
+page === "behaviourObservations" ||
+page === "communicationForms";
+}
+
+function pageLabel(page: DashboardPage): string {
+switch (page) {
+case "team":
+return "Daily Assignments";
+case "floating":
+return "Floating";
+case "outings":
+return "Outings";
+case "cleaning":
+return "Cleaning";
+case "checklist":
+return "Checklist";
+case "dropoffs":
+return "Drop Offs";
+case "incidentReports":
+return "Incident Reports";
+case "behaviourObservations":
+return "Behaviour Observations";
+case "communicationForms":
+return "Participant Communication Forms";
+default:
+return "Dashboard";
+}
+}
 
 function pad2(n: number): string {
 return String(n).padStart(2, "0");
@@ -501,6 +598,7 @@ if (activeOutings.length > 0) list.push("outings");
 if (hasCleaningAssignments) list.push("cleaning");
 if (hasChecklistData) list.push("checklist");
 if (hasDropoffAssignments) list.push("dropoffs");
+list.push("incidentReports", "behaviourObservations", "communicationForms");
 return list;
 }, [
 activeOutings.length,
@@ -970,6 +1068,61 @@ numberOfLines={1}
 );
 }
 
+if (isReminderPage(currentPage)) {
+const reminder = REMINDER_CONTENT[currentPage];
+return (
+<View style={[styles.panel, styles.reminderPanel]}>
+<View style={styles.reminderHeaderRow}>
+<Image
+source={NoChainsRoundLogo}
+style={styles.reminderLogo}
+resizeMode="contain"
+/>
+<View style={styles.reminderHeaderText}>
+<Text style={styles.panelEyebrow}>{reminder.eyebrow}</Text>
+<Text style={styles.panelTitle}>{reminder.title}</Text>
+</View>
+<View style={styles.reminderIconCircle}>
+<MaterialCommunityIcons
+name={reminder.icon as any}
+size={34}
+color="#F54FA5"
+/>
+</View>
+</View>
+
+<ScrollView
+style={styles.innerScroll}
+contentContainerStyle={styles.reminderBody}
+>
+<View style={styles.reminderLeadBox}>
+<Text style={styles.reminderLeadText}>{reminder.lead}</Text>
+</View>
+
+<View style={styles.reminderPointList}>
+{reminder.points.map((point) => (
+<View key={point} style={styles.reminderPointRow}>
+<View style={styles.reminderBullet}>
+<Ionicons name="checkmark" size={18} color="#FFFFFF" />
+</View>
+<Text style={styles.reminderPointText}>{point}</Text>
+</View>
+))}
+</View>
+
+<View style={styles.reminderFooterBanner}>
+<MaterialCommunityIcons
+name="alert-circle-outline"
+size={24}
+color="#BE185D"
+/>
+<Text style={styles.reminderFooterText}>{reminder.footer}</Text>
+</View>
+</ScrollView>
+</View>
+);
+}
+
 return (
 <View style={styles.panel}>
 <View style={styles.panelHeaderRow}>
@@ -1057,7 +1210,12 @@ Location: {HOUSE_ID} Day Program
 </View>
 </View>
 
-<View style={styles.pageTabs}>
+<ScrollView
+horizontal
+showsHorizontalScrollIndicator={false}
+style={styles.pageTabs}
+contentContainerStyle={styles.pageTabsContent}
+>
 {pages.map((page, index) => (
 <TouchableOpacity
 key={page}
@@ -1074,21 +1232,11 @@ styles.pageTabText,
 currentPage === page && styles.pageTabTextActive,
 ]}
 >
-{page === "team"
-? "Daily Assignments"
-: page === "floating"
-? "Floating"
-: page === "outings"
-? "Outings"
-: page === "cleaning"
-? "Cleaning"
-: page === "checklist"
-? "Checklist"
-: "Drop Offs"}
+{pageLabel(page)}
 </Text>
 </TouchableOpacity>
 ))}
-</View>
+</ScrollView>
 
 <View style={styles.contentArea}>{renderPage()}</View>
 </View>
@@ -1160,13 +1308,16 @@ fontWeight: "900",
 },
 pageTabs: {
 height: 56,
-paddingHorizontal: 24,
-paddingVertical: 10,
 backgroundColor: "#FFFFFF",
 borderBottomWidth: 1,
 borderBottomColor: "#E5E7EB",
+},
+pageTabsContent: {
+paddingHorizontal: 24,
+paddingVertical: 10,
 flexDirection: "row",
 gap: 10,
+alignItems: "center",
 },
 pageTab: {
 paddingHorizontal: 18,
@@ -1643,5 +1794,98 @@ color: "#111827",
 },
 checklistTextDone: {
 color: "#065F46",
+},
+reminderPanel: {
+padding: 24,
+},
+reminderHeaderRow: {
+flexDirection: "row",
+alignItems: "center",
+gap: 16,
+marginBottom: 16,
+},
+reminderLogo: {
+width: 76,
+height: 76,
+borderRadius: 999,
+},
+reminderHeaderText: {
+flex: 1,
+},
+reminderIconCircle: {
+width: 64,
+height: 64,
+borderRadius: 999,
+backgroundColor: "#FDF2FB",
+borderWidth: 1,
+borderColor: "#F9A8D4",
+alignItems: "center",
+justifyContent: "center",
+},
+reminderBody: {
+gap: 14,
+paddingBottom: 8,
+},
+reminderLeadBox: {
+borderRadius: 18,
+backgroundColor: "#FDF2FB",
+borderWidth: 1,
+borderColor: "#F9A8D4",
+paddingHorizontal: 18,
+paddingVertical: 16,
+},
+reminderLeadText: {
+fontSize: 21,
+lineHeight: 29,
+fontWeight: "900",
+color: "#111827",
+},
+reminderPointList: {
+gap: 10,
+},
+reminderPointRow: {
+minHeight: 56,
+borderRadius: 16,
+borderWidth: 1,
+borderColor: "#E5E7EB",
+backgroundColor: "#FFFFFF",
+paddingHorizontal: 14,
+flexDirection: "row",
+alignItems: "center",
+gap: 12,
+},
+reminderBullet: {
+width: 30,
+height: 30,
+borderRadius: 999,
+backgroundColor: "#F54FA5",
+alignItems: "center",
+justifyContent: "center",
+},
+reminderPointText: {
+flex: 1,
+fontSize: 18,
+lineHeight: 24,
+fontWeight: "800",
+color: "#111827",
+},
+reminderFooterBanner: {
+marginTop: 4,
+borderRadius: 18,
+backgroundColor: "#FCE7F3",
+borderWidth: 1,
+borderColor: "#F9A8D4",
+paddingHorizontal: 16,
+paddingVertical: 14,
+flexDirection: "row",
+alignItems: "center",
+gap: 10,
+},
+reminderFooterText: {
+flex: 1,
+fontSize: 18,
+lineHeight: 24,
+fontWeight: "900",
+color: "#BE185D",
 },
 });
