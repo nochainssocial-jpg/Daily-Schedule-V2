@@ -648,9 +648,9 @@ export default function DashboardScreen() {
               <MaterialCommunityIcons
                 name="account-clock"
                 size={18}
-                color="#059669"
+                color="#6D28D9"
               />
-              <Text style={styles.badgeText}>Current Slot Highlighted</Text>
+              <Text style={styles.badgeText}>Current slot highlighted</Text>
             </View>
           </View>
 
@@ -1048,12 +1048,12 @@ export default function DashboardScreen() {
               Location: {HOUSE_ID} Day Program
             </Text>
             <Text style={styles.dateText}>{formatDateKey(date)}</Text>
-          </View>
-          <View style={styles.clockBlock}>
-            <Text style={styles.clockText}>{timeNowLabel(tick)}</Text>
             <Text style={styles.cycleText}>
               (Cycles through tabs every {Math.round(ROTATE_MS / 1000)} seconds)
             </Text>
+          </View>
+          <View style={styles.clockBlock}>
+            <Text style={styles.clockText}>{timeNowLabel(tick)}</Text>
           </View>
         </View>
 
@@ -1075,7 +1075,7 @@ export default function DashboardScreen() {
                 ]}
               >
                 {page === "team"
-                  ? "Daily Assignments"
+                  ? "Team Daily"
                   : page === "floating"
                     ? "Floating"
                     : page === "outings"
@@ -1136,10 +1136,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   dateText: {
-    marginTop: 4,
+    marginTop: 2,
     color: "#FFE4F4",
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: 14,
+    fontWeight: "700",
   },
   cycleText: {
     marginTop: 3,
@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#DCFCE7",
+    backgroundColor: "#F5F3FF",
     borderColor: "#DDD6FE",
     borderWidth: 1,
     borderRadius: 999,
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   badgeText: {
-    color: "#059669",
+    color: "#6D28D9",
     fontWeight: "800",
     fontSize: 12,
   },
