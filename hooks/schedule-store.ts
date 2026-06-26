@@ -276,6 +276,31 @@ function normalizeDropoffAssignments(
   return result;
 }
 
+function toTodayKey(): string {
+  const now = new Date();
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function normaliseSnapshotForStore(snapshot: any): ScheduleSnapshot {
+  const normalizedDropoffs = normalizeDropoffAssignments(
+    (snapshot as any).dropoffAssignments,
+  );
+
+  const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot);
+
+  return syncOutingCompatibility({
+    ...makeInitialSnapshot(),
+    ...(snapshot as ScheduleSnapshot),
+    dropoffAssignments: normalizedDropoffs,
+    outingGroups: normalizedOutingGroups,
+    outingGroup: normalizedOutingGroups[0] ?? null,
+  } as ScheduleSnapshot);
+}
+
 // ----------------------------------------------------------------------------------
 // Store
 // ----------------------------------------------------------------------------------
@@ -549,14 +574,7 @@ export function useAttendingParticipants() {
  * Initialise schedule for today if we haven't already.
  */
 export async function initScheduleForToday(houseId: string) {
-  const now = new Date();
-  const todayKey = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("-");
-
-  return initialiseScheduleForTodayIfNeeded(houseId, todayKey);
+  return initialiseScheduleForTodayIfNeeded(houseId, toTodayKey());
 }
 
 /**
@@ -626,25 +644,8 @@ export async function initialiseScheduleForTodayIfNeeded(
       return;
     }
 
-    // Normalise dropoffs and merge snapshot
-    const normalizedDropoffs = normalizeDropoffAssignments(
-      (snapshot as any).dropoffAssignments,
-    );
-
-    const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot);
-
-    const normalizedSnapshot: ScheduleSnapshot = syncOutingCompatibility({
-      ...makeInitialSnapshot(),
-      chores: [],
-      checklistItems: [],
-      timeSlots: TIME_SLOTS,
-      masterDataLoaded: false,
-      masterDataLoading: false,
-      ...(snapshot as ScheduleSnapshot),
-      dropoffAssignments: normalizedDropoffs,
-      outingGroups: normalizedOutingGroups,
-      outingGroup: normalizedOutingGroups[0] ?? null,
-    } as ScheduleSnapshot);
+    // Normalise dropoffs/outings and merge snapshot
+    const normalizedSnapshot = normaliseSnapshotForStore(snapshot);
 
     // Decide banner type
     const bannerType: ScheduleBannerType =
@@ -693,3 +694,51 @@ export async function initialiseScheduleForTodayIfNeeded(
     }));
   }
 }
+
+/**
+ * Soft-refreshes the currently displayed schedule from Supabase.
+ * Unlike initScheduleForToday(), this intentionally does not return early after
+ * the dashboard has already initialised. It is designed for TV/dashboard polling.
+ */
+export async function refreshScheduleFromSupabase(houseId: string) {
+  const todayKey = toTodayKey();
+  const state = useSchedule.getState();
+
+  try {
+    await state.loadMasterData();
+  } catch {}
+
+  try {
+    const result = await fetchLatestScheduleForHouse(houseId);
+
+    if (!result.ok || !result.data?.snapshot) {
+      return result;
+    }
+
+    const { snapshot, scheduleDate } = result.data;
+    const normalizedSnapshot = normaliseSnapshotForStore(snapshot);
+    const isTodaySchedule = scheduleDate === todayKey;
+
+    // If the latest saved schedule is an older prefill source, keep daily
+    // completion state clear for today's dashboard until today's schedule is saved.
+    const checklistReset = isTodaySchedule
+      ? {}
+      : { finalChecklist: {}, finalChecklistStaff: null };
+
+    useSchedule.setState((current) => ({
+      ...current,
+      ...normalizedSnapshot,
+      ...checklistReset,
+      date: isTodaySchedule ? normalizedSnapshot.date : todayKey,
+      banner: current.banner,
+      hasInitialisedToday: true,
+      currentInitDate: todayKey,
+    }));
+
+    return result;
+  } catch (error) {
+    console.error("Error refreshing schedule from Supabase:", error);
+    return { ok: false, error };
+  }
+}
+
