@@ -5,7 +5,6 @@ Text,
 Image,
 StyleSheet,
 ScrollView,
-TouchableOpacity,
 Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -1210,33 +1209,16 @@ Location: {HOUSE_ID} Day Program
 </View>
 </View>
 
-<ScrollView
-horizontal
-showsHorizontalScrollIndicator={false}
-style={styles.pageTabs}
-contentContainerStyle={styles.pageTabsContent}
->
-{pages.map((page, index) => (
-<TouchableOpacity
-key={page}
-onPress={() => setPageIndex(index)}
-activeOpacity={0.85}
-style={[
-styles.pageTab,
-currentPage === page && styles.pageTabActive,
-]}
->
-<Text
-style={[
-styles.pageTabText,
-currentPage === page && styles.pageTabTextActive,
-]}
->
-{pageLabel(page)}
+<View style={styles.currentPanelBar}>
+<View style={styles.currentPanelPill}>
+<Text style={styles.currentPanelLabel}>
+Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
 </Text>
-</TouchableOpacity>
-))}
-</ScrollView>
+</View>
+<Text style={styles.currentPanelCount}>
+Panel {pageIndex + 1} of {pages.length}
+</Text>
+</View>
 
 <View style={styles.contentArea}>{renderPage()}</View>
 </View>
@@ -1306,35 +1288,35 @@ color: "#FFFFFF",
 fontSize: 30,
 fontWeight: "900",
 },
-pageTabs: {
-height: 56,
+currentPanelBar: {
+height: 52,
 backgroundColor: "#FFFFFF",
 borderBottomWidth: 1,
 borderBottomColor: "#E5E7EB",
-},
-pageTabsContent: {
 paddingHorizontal: 24,
-paddingVertical: 10,
 flexDirection: "row",
-gap: 10,
 alignItems: "center",
+justifyContent: "space-between",
 },
-pageTab: {
+currentPanelPill: {
 paddingHorizontal: 18,
-justifyContent: "center",
+paddingVertical: 8,
 borderRadius: 999,
-backgroundColor: "#F3F4F6",
-},
-pageTabActive: {
 backgroundColor: "#111827",
 },
-pageTabText: {
+currentPanelLabel: {
 fontSize: 13,
 fontWeight: "800",
-color: "#4B5563",
-},
-pageTabTextActive: {
 color: "#FFFFFF",
+},
+currentPanelValue: {
+fontWeight: "900",
+color: "#FFFFFF",
+},
+currentPanelCount: {
+fontSize: 12,
+fontWeight: "800",
+color: "#6B7280",
 },
 contentArea: {
 flex: 1,
