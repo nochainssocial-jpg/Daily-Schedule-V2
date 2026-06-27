@@ -56,6 +56,15 @@ const CARDS: CardConfig[] = [
     route: "/edit/outings",
   },
   {
+    key: "events-meetings-visits",
+    title: "Events | Meetings | Visits",
+    description:
+      "Add centre events, meetings and external visits for the dashboard.",
+    icon: "calendar-outline",
+    iconBg: "#FEF3C7",
+    route: "/edit/events-meetings-visits",
+  },
+  {
     key: "assignments",
     title: "Team Daily Assignments",
     description: "Assign participants to staff for the day.",
