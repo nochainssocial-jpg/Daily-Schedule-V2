@@ -8,6 +8,7 @@ ScrollView,
 Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { supabase } from "@/lib/supabase";
 import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
 chores as STATIC_CHORES,
@@ -21,6 +22,7 @@ type DashboardPage =
 | "team"
 | "floating"
 | "outings"
+| "eventsMeetingsVisits"
 | "cleaning"
 | "checklist"
 | "dropoffs"
@@ -32,6 +34,28 @@ type ReminderPage =
 | "incidentReports"
 | "behaviourObservations"
 | "communicationForms";
+
+type EventMeetingVisitRecord = {
+id: string;
+house: string;
+title: string;
+main_category: "Event" | "Meeting" | "Visit";
+event_type: string | null;
+event_date: string;
+start_time: string | null;
+end_time: string | null;
+all_day: boolean;
+display_from: string | null;
+display_until: string | null;
+visitor_name: string | null;
+organisation: string | null;
+responsible_staff: string | null;
+location: string | null;
+dashboard_visible: boolean;
+auto_archive: boolean;
+status: "Scheduled" | "Active" | "Completed" | "Cancelled" | "Archived";
+notes: string | null;
+};
 
 const NoChainsRoundLogo = require("@/assets/images/nochains-round.png");
 
@@ -116,6 +140,8 @@ case "floating":
 return "Floating";
 case "outings":
 return "Outings";
+case "eventsMeetingsVisits":
+return "Events | Meetings | Visits";
 case "cleaning":
 return "Cleaning";
 case "checklist":
@@ -277,10 +303,68 @@ minute: "2-digit",
 });
 }
 
+function todayISODate(): string {
+const d = new Date();
+return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function shortDateAU(dateString?: string | null): string {
+if (!dateString) return "";
+const parts = String(dateString).slice(0, 10).split("-");
+if (parts.length !== 3) return String(dateString);
+return `${parts[2]}-${parts[1]}-${parts[0]}`;
+}
+
+function eventRelativeLabel(dateString: string): string {
+const [year, month, day] = String(dateString).slice(0, 10).split("-").map(Number);
+const eventDate = new Date(year, month - 1, day);
+const today = new Date();
+const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+const diffDays = Math.round((eventDate.getTime() - todayStart.getTime()) / 86400000);
+
+if (diffDays === 0) return "Today";
+if (diffDays === 1) return "Tomorrow";
+if (diffDays > 1) return `In ${diffDays} days`;
+if (diffDays === -1) return "Yesterday";
+return `${Math.abs(diffDays)} days ago`;
+}
+
+function eventTimeRange(item: EventMeetingVisitRecord): string {
+if (item.all_day) return "All day";
+const start = item.start_time ? item.start_time.slice(0, 5) : "";
+const end = item.end_time ? item.end_time.slice(0, 5) : "";
+if (start && end) return `${start} – ${end}`;
+return start || end || "Time not set";
+}
+
+function isEventDashboardVisible(item: EventMeetingVisitRecord, tick: number): boolean {
+void tick;
+if (!item.dashboard_visible) return false;
+if (item.status === "Cancelled" || item.status === "Archived") return false;
+
+const now = Date.now();
+const from = item.display_from ? new Date(item.display_from).getTime() : null;
+const until = item.display_until ? new Date(item.display_until).getTime() : null;
+
+if (from != null && Number.isFinite(from) && now < from) return false;
+if (until != null && Number.isFinite(until) && now > until) return false;
+return true;
+}
+
+function sortEventsMeetingsVisits(
+a: EventMeetingVisitRecord,
+b: EventMeetingVisitRecord,
+): number {
+const dateCompare = String(a.event_date).localeCompare(String(b.event_date));
+if (dateCompare !== 0) return dateCompare;
+return String(a.start_time || "23:59").localeCompare(String(b.start_time || "23:59"));
+}
+
 export default function DashboardScreen() {
 const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
+const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
 
 const {
 date,
@@ -301,6 +385,27 @@ outingGroups = [],
 outingGroup = null,
 } = useSchedule() as any;
 
+const fetchEventsMeetingsVisits = async () => {
+try {
+const { data, error } = await supabase
+.from("events_meetings_visits")
+.select("*")
+.eq("house", HOUSE_ID)
+.eq("dashboard_visible", true)
+.order("event_date", { ascending: true })
+.order("start_time", { ascending: true });
+
+if (error) {
+console.error("[dashboard] failed to load events, meetings and visits", error);
+return;
+}
+
+setEventsMeetingsVisits((data || []) as EventMeetingVisitRecord[]);
+} catch (error) {
+console.error("[dashboard] failed to load events, meetings and visits", error);
+}
+};
+
 useEffect(() => {
 let cancelled = false;
 
@@ -313,6 +418,7 @@ await initScheduleForToday(HOUSE_ID);
 // chores, checklist items, and Supabase time slots available.
 if (!cancelled) {
 await useSchedule.getState().loadMasterData();
+await fetchEventsMeetingsVisits();
 setLastDashboardRefresh(new Date());
 }
 } catch (error) {
@@ -338,6 +444,7 @@ let cancelled = false;
 const refreshDashboard = async () => {
 try {
 await refreshScheduleFromSupabase(HOUSE_ID);
+await fetchEventsMeetingsVisits();
 if (!cancelled) setLastDashboardRefresh(new Date());
 } catch (error) {
 console.error("[dashboard] failed to refresh schedule", error);
@@ -623,9 +730,32 @@ const hasChecklistData =
 Boolean(finalChecklistStaff) || checklistRows.some((row) => row.checked);
 const hasDropoffAssignments = dropoffRows.length > 0;
 
+const visibleEventsMeetingsVisits = useMemo(() => {
+return (eventsMeetingsVisits || [])
+.filter((item) => isEventDashboardVisible(item, tick))
+.sort(sortEventsMeetingsVisits);
+}, [eventsMeetingsVisits, tick]);
+
+const todayEventsMeetingsVisits = useMemo(() => {
+const today = todayISODate();
+return visibleEventsMeetingsVisits.filter(
+(item) => String(item.event_date).slice(0, 10) === today,
+);
+}, [visibleEventsMeetingsVisits]);
+
+const upcomingEventsMeetingsVisits = useMemo(() => {
+const today = todayISODate();
+return visibleEventsMeetingsVisits
+.filter((item) => String(item.event_date).slice(0, 10) > today)
+.slice(0, 6);
+}, [visibleEventsMeetingsVisits]);
+
+const hasEventsMeetingsVisits = visibleEventsMeetingsVisits.length > 0;
+
 const pages = useMemo<DashboardPage[]>(() => {
 const list: DashboardPage[] = ["team", "floating"];
 if (activeOutings.length > 0) list.push("outings");
+if (hasEventsMeetingsVisits) list.push("eventsMeetingsVisits");
 if (hasCleaningAssignments) list.push("cleaning");
 if (hasChecklistData) list.push("checklist");
 if (hasDropoffAssignments) list.push("dropoffs");
@@ -636,6 +766,7 @@ activeOutings.length,
 hasCleaningAssignments,
 hasChecklistData,
 hasDropoffAssignments,
+hasEventsMeetingsVisits,
 ]);
 
 useEffect(() => {
@@ -953,6 +1084,110 @@ Participants
 })}
 </View>
 )}
+</View>
+);
+}
+
+if (currentPage === "eventsMeetingsVisits") {
+const renderEventCard = (item: EventMeetingVisitRecord, highlight = false) => {
+const detailRows = [
+item.responsible_staff ? `Host: ${item.responsible_staff}` : "",
+item.visitor_name ? `Visitor: ${item.visitor_name}` : "",
+item.organisation ? `Organisation: ${item.organisation}` : "",
+item.location ? `Location: ${item.location}` : "",
+].filter(Boolean);
+
+const safeNote = item.main_category === "Event" ? String(item.notes || "").trim() : "";
+
+return (
+<View
+key={item.id}
+style={[styles.eventCard, highlight && styles.eventCardToday]}
+>
+<View style={styles.eventCardHeader}>
+<View style={{ flex: 1 }}>
+<Text style={styles.eventRelativeLabel}>
+{eventRelativeLabel(item.event_date)} · {shortDateAU(item.event_date)}
+</Text>
+<Text style={styles.eventTitle} numberOfLines={2}>
+{item.title}
+</Text>
+</View>
+<View style={styles.eventCategoryPill}>
+<Text style={styles.eventCategoryText}>{item.main_category}</Text>
+</View>
+</View>
+
+<View style={styles.eventMetaRow}>
+<MaterialCommunityIcons
+name={item.all_day ? "calendar-star" : "clock-outline"}
+size={19}
+color="#F54FA5"
+/>
+<Text style={styles.eventTime}>{eventTimeRange(item)}</Text>
+</View>
+
+{item.event_type ? (
+<Text style={styles.eventTypeText}>{item.event_type}</Text>
+) : null}
+
+{detailRows.map((detail) => (
+<Text key={detail} style={styles.eventDetailText} numberOfLines={1}>
+{detail}
+</Text>
+))}
+
+{safeNote ? (
+<Text style={styles.eventNoteText} numberOfLines={2}>
+Reminder: {safeNote}
+</Text>
+) : null}
+</View>
+);
+};
+
+return (
+<View style={styles.panel}>
+<View style={styles.panelHeaderRow}>
+<View>
+<Text style={styles.panelEyebrow}>Centre operations</Text>
+<Text style={styles.panelTitle}>Events | Meetings | Visits</Text>
+</View>
+<View style={styles.eventSummaryBadge}>
+<MaterialCommunityIcons name="calendar-clock" size={18} color="#BE185D" />
+<Text style={styles.eventSummaryBadgeText}>
+{visibleEventsMeetingsVisits.length} active
+</Text>
+</View>
+</View>
+
+<View style={styles.eventsGrid}>
+<View style={styles.eventsColumn}>
+<Text style={styles.eventsSectionTitle}>Today’s Events | Meetings | Visits</Text>
+{todayEventsMeetingsVisits.length === 0 ? (
+<View style={styles.eventEmptyBox}>
+<Text style={styles.eventEmptyText}>Nothing scheduled for today.</Text>
+</View>
+) : (
+<ScrollView style={styles.innerScroll} contentContainerStyle={styles.eventsList}>
+{todayEventsMeetingsVisits.map((item) => renderEventCard(item, true))}
+</ScrollView>
+)}
+</View>
+
+<View style={styles.eventsColumn}>
+<Text style={styles.eventsSectionTitle}>Upcoming Events | Meetings | Visits</Text>
+{upcomingEventsMeetingsVisits.length === 0 ? (
+<View style={styles.eventEmptyBox}>
+<Text style={styles.eventEmptyText}>No upcoming items in the display window.</Text>
+</View>
+) : (
+<ScrollView style={styles.innerScroll} contentContainerStyle={styles.eventsList}>
+{upcomingEventsMeetingsVisits.map((item) => renderEventCard(item))}
+</ScrollView>
+)}
+</View>
+</View>
 </View>
 );
 }
@@ -1694,6 +1929,133 @@ fontSize: 18,
 lineHeight: 25,
 fontWeight: "700",
 color: "#111827",
+},
+eventsGrid: {
+flex: 1,
+flexDirection: "row",
+gap: 14,
+marginTop: 8,
+},
+eventsColumn: {
+flex: 1,
+borderRadius: 18,
+borderWidth: 1,
+borderColor: "#E5E7EB",
+backgroundColor: "#F9FAFB",
+padding: 12,
+},
+eventsSectionTitle: {
+fontSize: 16,
+fontWeight: "900",
+color: "#111827",
+marginBottom: 10,
+},
+eventsList: {
+gap: 10,
+paddingBottom: 4,
+},
+eventCard: {
+borderRadius: 18,
+borderWidth: 1.5,
+borderColor: "#E5E7EB",
+backgroundColor: "#FFFFFF",
+padding: 13,
+},
+eventCardToday: {
+borderColor: "#F54FA5",
+backgroundColor: "#FDF2FB",
+},
+eventCardHeader: {
+flexDirection: "row",
+alignItems: "flex-start",
+gap: 10,
+},
+eventRelativeLabel: {
+fontSize: 12,
+fontWeight: "900",
+color: "#BE185D",
+textTransform: "uppercase",
+letterSpacing: 0.4,
+},
+eventTitle: {
+marginTop: 3,
+fontSize: 20,
+lineHeight: 24,
+fontWeight: "900",
+color: "#111827",
+},
+eventCategoryPill: {
+borderRadius: 999,
+backgroundColor: "#111827",
+paddingHorizontal: 10,
+paddingVertical: 5,
+},
+eventCategoryText: {
+fontSize: 11,
+fontWeight: "900",
+color: "#FFFFFF",
+},
+eventMetaRow: {
+marginTop: 9,
+flexDirection: "row",
+alignItems: "center",
+gap: 7,
+},
+eventTime: {
+fontSize: 17,
+fontWeight: "900",
+color: "#111827",
+},
+eventTypeText: {
+marginTop: 6,
+fontSize: 14,
+fontWeight: "900",
+color: "#4B5563",
+},
+eventDetailText: {
+marginTop: 4,
+fontSize: 14,
+fontWeight: "700",
+color: "#374151",
+},
+eventNoteText: {
+marginTop: 8,
+fontSize: 14,
+lineHeight: 19,
+fontWeight: "800",
+color: "#BE185D",
+},
+eventSummaryBadge: {
+flexDirection: "row",
+alignItems: "center",
+gap: 8,
+backgroundColor: "#FCE7F3",
+borderColor: "#F9A8D4",
+borderWidth: 1,
+borderRadius: 999,
+paddingHorizontal: 14,
+paddingVertical: 8,
+},
+eventSummaryBadgeText: {
+color: "#BE185D",
+fontWeight: "900",
+fontSize: 12,
+},
+eventEmptyBox: {
+flex: 1,
+borderRadius: 16,
+borderWidth: 1,
+borderColor: "#E5E7EB",
+backgroundColor: "#FFFFFF",
+alignItems: "center",
+justifyContent: "center",
+padding: 16,
+},
+eventEmptyText: {
+fontSize: 15,
+fontWeight: "800",
+color: "#6B7280",
+textAlign: "center",
 },
 emptyState: {
 flex: 1,
