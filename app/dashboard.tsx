@@ -65,6 +65,61 @@ const DASHBOARD_REFRESH_MS = 120_000;
 const MAX_WIDTH = 1180;
 const ROOM_KEYS: RoomKey[] = ["frontRoom", "scotty", "twins"];
 
+const STAFF_FEMALE_COLOR = "#FF6FB3";
+const STAFF_MALE_COLOR = "#4A90E2";
+const STAFF_OTHER_COLOR = "#9B9B9B";
+
+const DASHBOARD_PAGE_THEMES: Record<DashboardPage, { background: string; accent: string }> = {
+team: { background: "#E9DEFF", accent: "#7C6BF2" },
+floating: { background: "#FFF1FF", accent: "#C084FC" },
+outings: { background: "#FFF7ED", accent: "#F97316" },
+eventsMeetingsVisits: { background: "#FFF4FA", accent: "#F54FA5" },
+cleaning: { background: "#DCFCE7", accent: "#22C55E" },
+checklist: { background: "#E5ECFF", accent: "#6366F1" },
+dropoffs: { background: "#FFD0B5", accent: "#FB7185" },
+incidentReports: { background: "#FFF4FA", accent: "#F54FA5" },
+behaviourObservations: { background: "#FFF4FA", accent: "#F54FA5" },
+communicationForms: { background: "#FFF4FA", accent: "#F54FA5" },
+};
+
+function normaliseHexColor(value?: string | null, fallback = STAFF_OTHER_COLOR): string {
+const raw = String(value || "").trim();
+return /^#[0-9a-f]{6}$/i.test(raw) ? raw : fallback;
+}
+
+function colorForStaff(person?: any): string {
+const gender = String(person?.gender || "").trim().toLowerCase();
+const fallback =
+gender === "male"
+? STAFF_MALE_COLOR
+: gender === "female"
+? STAFF_FEMALE_COLOR
+: STAFF_OTHER_COLOR;
+return normaliseHexColor(person?.color, fallback);
+}
+
+function readableTextColor(backgroundColor: string): string {
+const hex = normaliseHexColor(backgroundColor, STAFF_OTHER_COLOR).replace("#", "");
+const r = parseInt(hex.slice(0, 2), 16);
+const g = parseInt(hex.slice(2, 4), 16);
+const b = parseInt(hex.slice(4, 6), 16);
+const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+return brightness > 160 ? "#111827" : "#FFFFFF";
+}
+
+function eventCategoryColor(category?: string | null): string {
+switch (String(category || "").toLowerCase()) {
+case "event":
+return "#F97316";
+case "meeting":
+return "#6366F1";
+case "visit":
+return "#6D28D9";
+default:
+return "#F54FA5";
+}
+}
+
 const ROOM_LABELS: Record<RoomKey, string> = {
 frontRoom: "Front Room",
 scotty: "Scotty",
@@ -578,6 +633,7 @@ return Array.from(byStaff.entries())
 .map(([staffId, participantIds]) => {
 const staffPerson = staffById.get(staffId);
 const staffName = String(staffPerson?.name || staffId);
+const staffColor = colorForStaff(staffPerson);
 const filteredParticipantIds = participantIds.filter((id) => {
 const name = String(participantsById.get(id)?.name || id)
 .trim()
@@ -595,6 +651,8 @@ theme: getParticipantTheme(id),
 return {
 staffId,
 staffName,
+staffColor,
+staffTextColor: readableTextColor(staffColor),
 participantIds: filteredParticipantIds,
 participantNames: participantItems.map((item) => item.name),
 participantItems,
@@ -652,7 +710,9 @@ byStaff.set(String(staffId), list);
 
 return Array.from(byStaff.entries())
 .map(([staffId, items]) => {
-const staffName = String(staffById.get(staffId)?.name || staffId);
+const staffPerson = staffById.get(staffId);
+const staffName = String(staffPerson?.name || staffId);
+const staffColor = colorForStaff(staffPerson);
 const participantIds = items.map((item) => {
 const found = Array.from(participantsById.entries()).find(
 ([, p]) => String(p?.name || "") === item.participantName,
@@ -662,6 +722,8 @@ return found?.[0] || "";
 return {
 staffId,
 staffName,
+staffColor,
+staffTextColor: readableTextColor(staffColor),
 items: items.sort((a, b) =>
 a.participantName.localeCompare(b.participantName, "en-AU"),
 ),
@@ -695,13 +757,17 @@ String(a.name).localeCompare(String(b.name), "en-AU"),
 )
 .map((chore: any) => {
 const staffId = cleaningAssignments?.[String(chore.id)];
+const staffPerson = staffId ? staffById.get(String(staffId)) : null;
+const staffColor = staffPerson ? colorForStaff(staffPerson) : STAFF_OTHER_COLOR;
 const assigned = staffId
-? staffById.get(String(staffId))?.name || "Assigned"
+? staffPerson?.name || "Assigned"
 : "Not assigned";
 return {
 id: String(chore.id),
 chore: chore.name || chore.label || String(chore.id),
 assigned,
+staffColor,
+staffTextColor: readableTextColor(staffColor),
 complete: Boolean(staffId),
 };
 });
@@ -721,9 +787,18 @@ checked: Boolean(finalChecklist?.[id]),
 const completedChecklist = checklistRows.filter(
 (item) => item.checked,
 ).length;
+const selectedFinalStaffPerson = finalChecklistStaff
+? staffById.get(String(finalChecklistStaff))
+: null;
 const selectedFinalStaff = finalChecklistStaff
-? staffById.get(String(finalChecklistStaff))?.name || "Selected"
+? selectedFinalStaffPerson?.name || "Selected"
 : "Not selected";
+const selectedFinalStaffColor = selectedFinalStaffPerson
+? colorForStaff(selectedFinalStaffPerson)
+: "#E5E7EB";
+const selectedFinalStaffTextColor = selectedFinalStaffPerson
+? readableTextColor(selectedFinalStaffColor)
+: "#6B7280";
 
 const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
 const hasChecklistData =
@@ -781,6 +856,7 @@ if (pageIndex >= pages.length) setPageIndex(0);
 }, [pageIndex, pages.length]);
 
 const currentPage = pages[pageIndex] || "floating";
+const pageTheme = DASHBOARD_PAGE_THEMES[currentPage] || DASHBOARD_PAGE_THEMES.team;
 
 const renderPage = () => {
 if (currentPage === "team") {
@@ -837,21 +913,16 @@ row.theme === "outing1"
 <View
 style={[
 styles.assignmentStaffPill,
-row.theme === "outing1"
-? styles.assignmentStaffPillOuting1
-: row.theme === "outing2"
-? styles.assignmentStaffPillOuting2
-: styles.assignmentStaffPillOnsite,
+{
+backgroundColor: row.staffColor,
+borderColor: row.staffColor,
+},
 ]}
 >
 <Text
 style={[
 styles.assignmentStaffName,
-row.theme === "outing1"
-? styles.assignmentStaffNameOuting1
-: row.theme === "outing2"
-? styles.assignmentStaffNameOuting2
-: styles.assignmentStaffNameOnsite,
+{ color: row.staffTextColor },
 ]}
 numberOfLines={1}
 >
@@ -963,25 +1034,36 @@ current && styles.currentText,
 
 {ROOM_KEYS.map((room) => {
 const staffId = row?.[room];
-const name = staffId
-? staffById.get(String(staffId))?.name || "—"
-: "—";
+const staffPerson = staffId ? staffById.get(String(staffId)) : null;
+const name = staffPerson?.name || "—";
+const staffColor = staffPerson ? colorForStaff(staffPerson) : "#E5E7EB";
 const showFso =
 room === "twins" && isFsoSlot(slot) && name !== "—";
 return (
 <View key={room} style={styles.floatCellBox}>
+{name === "—" ? (
+<Text style={styles.floatEmptyText}>—</Text>
+) : (
+<View
+style={[
+styles.floatStaffPill,
+{
+backgroundColor: staffColor,
+borderColor: staffColor,
+},
+]}
+>
 <Text
 style={[
 styles.floatNameText,
-current && styles.currentText,
+{ color: readableTextColor(staffColor) },
 ]}
 numberOfLines={1}
 >
-{name}
-{showFso && (
-<Text style={styles.fsoText}> (FSO)</Text>
-)}
+{name}{showFso ? " (FSO)" : ""}
 </Text>
+</View>
+)}
 </View>
 );
 })}
@@ -1098,6 +1180,7 @@ item.location ? `Location: ${item.location}` : "",
 ].filter(Boolean);
 
 const safeNote = item.main_category === "Event" ? String(item.notes || "").trim() : "";
+const categoryColor = eventCategoryColor(item.main_category);
 
 return (
 <View
@@ -1113,8 +1196,20 @@ style={[styles.eventCard, highlight && styles.eventCardToday]}
 {item.title}
 </Text>
 </View>
-<View style={styles.eventCategoryPill}>
-<Text style={styles.eventCategoryText}>{item.main_category}</Text>
+<View
+style={[
+styles.eventCategoryPill,
+{ backgroundColor: categoryColor },
+]}
+>
+<Text
+style={[
+styles.eventCategoryText,
+{ color: readableTextColor(categoryColor) },
+]}
+>
+{item.main_category}
+</Text>
 </View>
 </View>
 
@@ -1213,15 +1308,29 @@ contentContainerStyle={styles.cleaningGrid}
 {cleaningRows.map((row) => (
 <View key={row.id} style={styles.cleaningCard}>
 <Text style={styles.cleaningTask}>{row.chore}</Text>
+{row.complete ? (
+<View
+style={[
+styles.cleaningAssignedPill,
+{
+backgroundColor: row.staffColor,
+borderColor: row.staffColor,
+},
+]}
+>
 <Text
-style={
-row.complete
-? styles.cleaningAssigned
-: styles.cleaningUnassigned
-}
+style={[
+styles.cleaningAssignedText,
+{ color: row.staffTextColor },
+]}
+numberOfLines={1}
 >
 {row.assigned}
 </Text>
+</View>
+) : (
+<Text style={styles.cleaningUnassigned}>{row.assigned}</Text>
+)}
 </View>
 ))}
 </ScrollView>
@@ -1271,21 +1380,16 @@ row.theme === "outing1"
 <View
 style={[
 styles.assignmentStaffPill,
-row.theme === "outing1"
-? styles.assignmentStaffPillOuting1
-: row.theme === "outing2"
-? styles.assignmentStaffPillOuting2
-: styles.assignmentStaffPillOnsite,
+{
+backgroundColor: row.staffColor,
+borderColor: row.staffColor,
+},
 ]}
 >
 <Text
 style={[
 styles.assignmentStaffName,
-row.theme === "outing1"
-? styles.assignmentStaffNameOuting1
-: row.theme === "outing2"
-? styles.assignmentStaffNameOuting2
-: styles.assignmentStaffNameOnsite,
+{ color: row.staffTextColor },
 ]}
 numberOfLines={1}
 >
@@ -1398,8 +1502,21 @@ return (
 
 <View style={styles.finalStaffLeftBlock}>
 <Text style={styles.finalStaffLabel}>Last to leave</Text>
-<View style={styles.finalStaffPill}>
-<Text style={styles.finalStaffPillText}>
+<View
+style={[
+styles.finalStaffPill,
+{
+backgroundColor: selectedFinalStaffColor,
+borderColor: selectedFinalStaffColor,
+},
+]}
+>
+<Text
+style={[
+styles.finalStaffPillText,
+{ color: selectedFinalStaffTextColor },
+]}
+>
 {selectedFinalStaff}
 </Text>
 </View>
@@ -1483,7 +1600,7 @@ Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading
 </View>
 
 <View style={styles.currentPanelBar}>
-<View style={styles.currentPanelPill}>
+<View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}>
 <Text style={styles.currentPanelLabel}>
 Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
 </Text>
@@ -1493,7 +1610,7 @@ Panel {pageIndex + 1} of {pages.length}
 </Text>
 </View>
 
-<View style={styles.contentArea}>{renderPage()}</View>
+<View style={[styles.contentArea, { backgroundColor: pageTheme.background }]}>{renderPage()}</View>
 </View>
 </View>
 );
@@ -1837,7 +1954,19 @@ color: "#111827",
 floatNameText: {
 fontSize: 16,
 fontWeight: "800",
-color: "#1F2937",
+},
+floatStaffPill: {
+alignSelf: "flex-start",
+borderWidth: 1,
+borderRadius: 999,
+paddingHorizontal: 10,
+paddingVertical: 5,
+maxWidth: "100%",
+},
+floatEmptyText: {
+fontSize: 16,
+fontWeight: "800",
+color: "#9CA3AF",
 },
 fsoText: {
 color: "#F54FA5",
@@ -2090,6 +2219,19 @@ cleaningTask: {
 fontSize: 15,
 fontWeight: "900",
 color: "#111827",
+},
+cleaningAssignedPill: {
+alignSelf: "flex-start",
+marginTop: 8,
+borderWidth: 1,
+borderRadius: 999,
+paddingHorizontal: 11,
+paddingVertical: 5,
+maxWidth: "100%",
+},
+cleaningAssignedText: {
+fontSize: 16,
+fontWeight: "900",
 },
 cleaningAssigned: {
 marginTop: 8,
