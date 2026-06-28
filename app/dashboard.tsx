@@ -652,7 +652,7 @@ return {
 staffId,
 staffName,
 staffColor,
-staffTextColor: "#FFFFFF",
+staffTextColor: readableTextColor(staffColor),
 participantIds: filteredParticipantIds,
 participantNames: participantItems.map((item) => item.name),
 participantItems,
@@ -723,7 +723,7 @@ return {
 staffId,
 staffName,
 staffColor,
-staffTextColor: "#FFFFFF",
+staffTextColor: readableTextColor(staffColor),
 items: items.sort((a, b) =>
 a.participantName.localeCompare(b.participantName, "en-AU"),
 ),
@@ -767,7 +767,7 @@ id: String(chore.id),
 chore: chore.name || chore.label || String(chore.id),
 assigned,
 staffColor,
-staffTextColor: "#FFFFFF",
+staffTextColor: readableTextColor(staffColor),
 complete: Boolean(staffId),
 };
 });
@@ -797,7 +797,7 @@ const selectedFinalStaffColor = selectedFinalStaffPerson
 ? colorForStaff(selectedFinalStaffPerson)
 : "#E5E7EB";
 const selectedFinalStaffTextColor = selectedFinalStaffPerson
-? "#FFFFFF"
+? readableTextColor(selectedFinalStaffColor)
 : "#6B7280";
 
 const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
@@ -1036,6 +1036,7 @@ current && styles.currentText,
 const staffId = row?.[room];
 const staffPerson = staffId ? staffById.get(String(staffId)) : null;
 const name = staffPerson?.name || "—";
+const staffColor = staffPerson ? colorForStaff(staffPerson) : "#E5E7EB";
 const showFso =
 room === "twins" && isFsoSlot(slot) && name !== "—";
 return (
@@ -1043,12 +1044,25 @@ return (
 {name === "—" ? (
 <Text style={styles.floatEmptyText}>—</Text>
 ) : (
+<View
+style={[
+styles.floatStaffPill,
+{
+backgroundColor: staffColor,
+borderColor: staffColor,
+},
+]}
+>
 <Text
-style={styles.floatNameText}
+style={[
+styles.floatNameText,
+{ color: readableTextColor(staffColor) },
+]}
 numberOfLines={1}
 >
 {name}{showFso ? " (FSO)" : ""}
 </Text>
+</View>
 )}
 </View>
 );
@@ -1940,7 +1954,14 @@ color: "#111827",
 floatNameText: {
 fontSize: 16,
 fontWeight: "800",
-color: "#111827",
+},
+floatStaffPill: {
+alignSelf: "flex-start",
+borderWidth: 1,
+borderRadius: 999,
+paddingHorizontal: 10,
+paddingVertical: 5,
+maxWidth: "100%",
 },
 floatEmptyText: {
 fontSize: 16,
