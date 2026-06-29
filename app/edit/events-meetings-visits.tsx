@@ -23,7 +23,10 @@ const MAX_WIDTH = 960;
 const HOUSE = "B2";
 
 type MainCategory = "Event" | "Meeting" | "Visit";
-type EventStatus = "Scheduled" | "Active" | "Completed" | "Cancelled" | "Archived";
+type EventStatus =
+  "Scheduled" | "Active" | "Completed" | "Cancelled" | "Archived";
+type RecurrenceFrequency = "weekly" | "fortnightly" | "monthly";
+type WeekdayKey = "SU" | "MO" | "TU" | "WE" | "TH" | "FR" | "SA";
 
 type EventsMeetingsVisitsRecord = {
   id: string;
@@ -70,12 +73,17 @@ type FormState = {
   autoArchive: boolean;
   status: EventStatus;
   notes: string;
+  recurring: boolean;
+  recurrenceFrequency: RecurrenceFrequency;
+  recurrenceDays: WeekdayKey[];
+  recurrenceEndAU: string;
+  recurrenceCount: string;
 };
 
 const blankForm: FormState = {
   title: "",
   mainCategory: "Visit",
-  eventType: "BSP",
+  eventType: "Behaviour Support",
   eventDateAU: "",
   startTime: "",
   endTime: "",
@@ -91,6 +99,11 @@ const blankForm: FormState = {
   autoArchive: true,
   status: "Scheduled",
   notes: "",
+  recurring: false,
+  recurrenceFrequency: "weekly",
+  recurrenceDays: [],
+  recurrenceEndAU: "",
+  recurrenceCount: "",
 };
 
 const categoryOptions: MainCategory[] = ["Event", "Meeting", "Visit"];
@@ -102,16 +115,42 @@ const statusOptions: EventStatus[] = [
   "Archived",
 ];
 
-const eventTypeSuggestions = [
-  "BSP",
-  "Therapy",
-  "Family Meeting",
-  "Provider Meeting",
-  "Site Tour",
+const eventTypeOptions = [
+  "Behaviour Support",
+  "Speech Pathologist",
+  "Physiotherapy",
+  "Podiatrist",
+  "Doctor's Appointment",
+  "Training",
+  "New Client Site Visit",
   "Special Event",
-  "Party / Celebration",
+  "Staff Meeting",
   "Maintenance",
   "Other",
+];
+
+const recurrenceFrequencyOptions: {
+  label: string;
+  value: RecurrenceFrequency;
+}[] = [
+  { label: "Weekly", value: "weekly" },
+  { label: "Fortnightly", value: "fortnightly" },
+  { label: "Monthly", value: "monthly" },
+];
+
+const weekdayOptions: {
+  label: string;
+  shortLabel: string;
+  value: WeekdayKey;
+  dateIndex: number;
+}[] = [
+  { label: "Sunday", shortLabel: "Sun", value: "SU", dateIndex: 0 },
+  { label: "Monday", shortLabel: "Mon", value: "MO", dateIndex: 1 },
+  { label: "Tuesday", shortLabel: "Tue", value: "TU", dateIndex: 2 },
+  { label: "Wednesday", shortLabel: "Wed", value: "WE", dateIndex: 3 },
+  { label: "Thursday", shortLabel: "Thu", value: "TH", dateIndex: 4 },
+  { label: "Friday", shortLabel: "Fri", value: "FR", dateIndex: 5 },
+  { label: "Saturday", shortLabel: "Sat", value: "SA", dateIndex: 6 },
 ];
 
 function formatDateAU(dateString?: string | null) {
@@ -144,6 +183,129 @@ function auDateToISO(value: string) {
   }
 
   return `${year}-${month}-${day}`;
+}
+
+function isoDateToLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function localDateToISODate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isoDateToAU(value: string) {
+  return formatDateAU(value);
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonthsClamped(date: Date, months: number) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + months;
+  const day = date.getDate();
+  const lastDayOfTargetMonth = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(day, lastDayOfTargetMonth));
+}
+
+function diffDays(fromISO: string, toISO: string) {
+  const from = isoDateToLocalDate(fromISO);
+  const to = isoDateToLocalDate(toISO);
+  return Math.round((from.getTime() - to.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function startOfWeek(date: Date) {
+  const start = new Date(date);
+  start.setDate(start.getDate() - start.getDay());
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function weekdayKeyFromDate(date: Date): WeekdayKey {
+  return (
+    weekdayOptions.find((day) => day.dateIndex === date.getDay())?.value || "MO"
+  );
+}
+
+function parsePositiveInteger(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function generateRecurringDates(
+  startISO: string,
+  form: FormState,
+  recurrenceEndISO: string | null,
+  occurrenceLimit: number | null,
+) {
+  if (!form.recurring) return [startISO];
+
+  const startDate = isoDateToLocalDate(startISO);
+  const endDate = recurrenceEndISO
+    ? isoDateToLocalDate(recurrenceEndISO)
+    : null;
+  const maxItems = Math.min(occurrenceLimit || (endDate ? 160 : 12), 160);
+  const dates: string[] = [];
+
+  if (form.recurrenceFrequency === "monthly") {
+    let monthOffset = 0;
+    while (dates.length < maxItems && monthOffset < 160) {
+      const candidate = addMonthsClamped(startDate, monthOffset);
+      if (!endDate || candidate <= endDate) {
+        dates.push(localDateToISODate(candidate));
+      } else {
+        break;
+      }
+      monthOffset += 1;
+    }
+    return dates;
+  }
+
+  const selectedDayKeys = form.recurrenceDays.length
+    ? form.recurrenceDays
+    : [weekdayKeyFromDate(startDate)];
+  const selectedDayIndexes = new Set(
+    selectedDayKeys
+      .map((key) => weekdayOptions.find((day) => day.value === key)?.dateIndex)
+      .filter((value): value is number => typeof value === "number"),
+  );
+  const intervalWeeks = form.recurrenceFrequency === "fortnightly" ? 2 : 1;
+  const firstWeekStart = startOfWeek(startDate);
+  let cursor = new Date(startDate);
+  let safetyDays = 0;
+
+  while (dates.length < maxItems && safetyDays < 1200) {
+    if (endDate && cursor > endDate) break;
+
+    const cursorWeekStart = startOfWeek(cursor);
+    const weeksSinceStart = Math.floor(
+      (cursorWeekStart.getTime() - firstWeekStart.getTime()) /
+        (1000 * 60 * 60 * 24 * 7),
+    );
+
+    if (
+      weeksSinceStart >= 0 &&
+      weeksSinceStart % intervalWeeks === 0 &&
+      selectedDayIndexes.has(cursor.getDay())
+    ) {
+      dates.push(localDateToISODate(cursor));
+    }
+
+    cursor = addDays(cursor, 1);
+    safetyDays += 1;
+  }
+
+  return dates;
 }
 
 function normaliseTime(value: string) {
@@ -205,6 +367,7 @@ export default function EventsMeetingsVisitsScreen() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
 
   const activeItems = useMemo(
     () => items.filter((item) => item.status !== "Archived"),
@@ -267,12 +430,31 @@ export default function EventsMeetingsVisitsScreen() {
       autoArchive: item.auto_archive,
       status: item.status || "Scheduled",
       notes: item.notes || "",
+      recurring: false,
+      recurrenceFrequency: "weekly",
+      recurrenceDays: [],
+      recurrenceEndAU: "",
+      recurrenceCount: "",
     });
+    setTypeMenuOpen(false);
   }
 
   function handleCancelEdit() {
     setEditingId(null);
     setForm(blankForm);
+    setTypeMenuOpen(false);
+  }
+
+  function toggleRecurrenceDay(day: WeekdayKey) {
+    setForm((current) => {
+      const alreadySelected = current.recurrenceDays.includes(day);
+      return {
+        ...current,
+        recurrenceDays: alreadySelected
+          ? current.recurrenceDays.filter((value) => value !== day)
+          : [...current.recurrenceDays, day],
+      };
+    });
   }
 
   async function handleSave() {
@@ -292,46 +474,144 @@ export default function EventsMeetingsVisitsScreen() {
     }
 
     if (!form.allDay && form.startTime.trim() && !startTime) {
-      Alert.alert("Check start time", "Please use 24-hour time, for example 10:30.");
+      Alert.alert(
+        "Check start time",
+        "Please use 24-hour time, for example 10:30.",
+      );
       return;
     }
 
     if (!form.allDay && form.endTime.trim() && !endTime) {
-      Alert.alert("Check end time", "Please use 24-hour time, for example 11:30.");
+      Alert.alert(
+        "Check end time",
+        "Please use 24-hour time, for example 11:30.",
+      );
       return;
     }
 
-    const displayFrom = form.displayFromAU.trim()
-      ? auDateToDeviceLocalISOString(form.displayFromAU, "00:00")
-      : new Date().toISOString();
+    const recurrenceEnd =
+      form.recurring && form.recurrenceEndAU.trim()
+        ? auDateToISO(form.recurrenceEndAU)
+        : null;
 
-    const displayUntil = form.displayUntilAU.trim()
-      ? auDateToDeviceLocalISOString(form.displayUntilAU, "23:59")
-      : auDateToDeviceLocalISOString(form.eventDateAU, "23:59");
-
-    if (!displayFrom || !displayUntil) {
+    if (form.recurring && form.recurrenceEndAU.trim() && !recurrenceEnd) {
       Alert.alert(
-        "Check display dates",
-        "Display from/until dates must use DD-MM-YYYY.",
+        "Check recurring end date",
+        "Recurring end date must use DD-MM-YYYY.",
       );
       return;
+    }
+
+    const occurrenceLimit = form.recurring
+      ? parsePositiveInteger(form.recurrenceCount) || null
+      : null;
+
+    if (form.recurring && form.recurrenceCount.trim() && !occurrenceLimit) {
+      Alert.alert(
+        "Check number of visits",
+        "Please enter a whole number, for example 12.",
+      );
+      return;
+    }
+
+    const recurringEventDates = generateRecurringDates(
+      eventDate,
+      form,
+      recurrenceEnd,
+      occurrenceLimit,
+    );
+
+    if (form.recurring && recurringEventDates.length === 0) {
+      Alert.alert(
+        "No recurring dates",
+        "Please check the start date, selected days and recurring end date.",
+      );
+      return;
+    }
+
+    if (form.recurring && recurringEventDates.length >= 160) {
+      Alert.alert(
+        "Too many visits",
+        "Please reduce the date range or number of visits. The current safety limit is 160 generated items.",
+      );
+      return;
+    }
+
+    const baseDisplayFrom = form.displayFromAU.trim()
+      ? auDateToISO(form.displayFromAU)
+      : null;
+    const baseDisplayUntil = form.displayUntilAU.trim()
+      ? auDateToISO(form.displayUntilAU)
+      : null;
+
+    if (form.displayFromAU.trim() && !baseDisplayFrom) {
+      Alert.alert("Check display from", "Display from must use DD-MM-YYYY.");
+      return;
+    }
+
+    if (form.displayUntilAU.trim() && !baseDisplayUntil) {
+      Alert.alert("Check display until", "Display until must use DD-MM-YYYY.");
+      return;
+    }
+
+    const displayFromOffset = baseDisplayFrom
+      ? diffDays(baseDisplayFrom, eventDate)
+      : null;
+    const displayUntilOffset = baseDisplayUntil
+      ? diffDays(baseDisplayUntil, eventDate)
+      : null;
+
+    function displayFromForEvent(eventDateISO: string) {
+      if (displayFromOffset !== null) {
+        return auDateToDeviceLocalISOString(
+          isoDateToAU(
+            localDateToISODate(
+              addDays(isoDateToLocalDate(eventDateISO), displayFromOffset),
+            ),
+          ),
+          "00:00",
+        );
+      }
+
+      if (form.recurring) {
+        return auDateToDeviceLocalISOString(
+          isoDateToAU(
+            localDateToISODate(addDays(isoDateToLocalDate(eventDateISO), -7)),
+          ),
+          "00:00",
+        );
+      }
+
+      return new Date().toISOString();
+    }
+
+    function displayUntilForEvent(eventDateISO: string) {
+      if (displayUntilOffset !== null) {
+        return auDateToDeviceLocalISOString(
+          isoDateToAU(
+            localDateToISODate(
+              addDays(isoDateToLocalDate(eventDateISO), displayUntilOffset),
+            ),
+          ),
+          "23:59",
+        );
+      }
+
+      return auDateToDeviceLocalISOString(isoDateToAU(eventDateISO), "23:59");
     }
 
     setSaving(true);
 
     const { data: userData } = await supabase.auth.getUser();
 
-    const payload = {
+    const basePayload = {
       house: HOUSE,
       title,
       main_category: form.mainCategory,
       event_type: form.eventType.trim() || null,
-      event_date: eventDate,
       start_time: startTime,
       end_time: endTime,
       all_day: form.allDay,
-      display_from: displayFrom,
-      display_until: displayUntil,
       visitor_name: form.visitorName.trim() || null,
       organisation: form.organisation.trim() || null,
       related_participant: form.relatedParticipant.trim() || null,
@@ -346,14 +626,22 @@ export default function EventsMeetingsVisitsScreen() {
     const { error } = editingId
       ? await supabase
           .from("events_meetings_visits")
-          .update(payload)
+          .update({
+            ...basePayload,
+            event_date: eventDate,
+            display_from: displayFromForEvent(eventDate),
+            display_until: displayUntilForEvent(eventDate),
+          })
           .eq("id", editingId)
-      : await supabase
-          .from("events_meetings_visits")
-          .insert({
-            ...payload,
+      : await supabase.from("events_meetings_visits").insert(
+          recurringEventDates.map((dateForItem) => ({
+            ...basePayload,
+            event_date: dateForItem,
+            display_from: displayFromForEvent(dateForItem),
+            display_until: displayUntilForEvent(dateForItem),
             created_by: userData.user?.id || null,
-          });
+          })),
+        );
 
     setSaving(false);
 
@@ -432,7 +720,10 @@ export default function EventsMeetingsVisitsScreen() {
         <View style={styles.inner}>
           <ScheduleBanner />
 
-          <Pressable style={styles.backButton} onPress={() => router.push("/edit")}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.push("/edit")}
+          >
             <Ionicons name="chevron-back" size={16} color="#6B7280" />
             <Text style={styles.backButtonText}>Back to Edit Hub</Text>
           </Pressable>
@@ -445,7 +736,8 @@ export default function EventsMeetingsVisitsScreen() {
               <Text style={styles.nowEditing}>Now Editing</Text>
               <Text style={styles.title}>Events | Meetings | Visits</Text>
               <Text style={styles.subtitle}>
-                Add centre events, meetings and external visits for dashboard visibility.
+                Add centre events, meetings and external visits for dashboard
+                visibility.
               </Text>
             </View>
           </View>
@@ -458,12 +750,16 @@ export default function EventsMeetingsVisitsScreen() {
                 </Text>
                 {editingId ? (
                   <Text style={styles.editingNotice}>
-                    Editing existing item. Save changes or cancel to return to a blank form.
+                    Editing existing item. Save changes or cancel to return to a
+                    blank form.
                   </Text>
                 ) : null}
               </View>
               {editingId ? (
-                <Pressable style={styles.cancelEditButton} onPress={handleCancelEdit}>
+                <Pressable
+                  style={styles.cancelEditButton}
+                  onPress={handleCancelEdit}
+                >
                   <Text style={styles.cancelEditButtonText}>Cancel Edit</Text>
                 </Pressable>
               ) : null}
@@ -501,22 +797,53 @@ export default function EventsMeetingsVisitsScreen() {
             </View>
 
             <Label text="Type" />
-            <TextInput
-              value={form.eventType}
-              onChangeText={(value) => updateForm("eventType", value)}
-              placeholder="BSP, Therapy, Family Meeting, Jersey Day..."
-              style={styles.input}
-            />
-            <View style={styles.suggestionRow}>
-              {eventTypeSuggestions.map((type) => (
-                <Pressable
-                  key={type}
-                  style={styles.suggestionChip}
-                  onPress={() => updateForm("eventType", type)}
+            <View style={styles.dropdownWrap}>
+              <Pressable
+                style={styles.dropdownButton}
+                onPress={() => setTypeMenuOpen((value) => !value)}
+              >
+                <Text
+                  style={[
+                    styles.dropdownButtonText,
+                    !form.eventType && styles.dropdownPlaceholder,
+                  ]}
                 >
-                  <Text style={styles.suggestionChipText}>{type}</Text>
-                </Pressable>
-              ))}
+                  {form.eventType || "Select type"}
+                </Text>
+                <Ionicons
+                  name={typeMenuOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color="#6B7280"
+                />
+              </Pressable>
+
+              {typeMenuOpen ? (
+                <View style={styles.dropdownList}>
+                  {eventTypeOptions.map((type) => (
+                    <Pressable
+                      key={type}
+                      style={[
+                        styles.dropdownOption,
+                        form.eventType === type && styles.dropdownOptionActive,
+                      ]}
+                      onPress={() => {
+                        updateForm("eventType", type);
+                        setTypeMenuOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownOptionText,
+                          form.eventType === type &&
+                            styles.dropdownOptionTextActive,
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.twoColumnRow}>
@@ -560,6 +887,113 @@ export default function EventsMeetingsVisitsScreen() {
                 </View>
               </View>
             )}
+
+            {!editingId ? (
+              <View style={styles.recurrencePanel}>
+                <View style={styles.toggleRowNoBorder}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleText}>Recurring event</Text>
+                    <Text style={styles.recurrenceHint}>
+                      Creates each future visit as a normal dashboard item.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={form.recurring}
+                    onValueChange={(value) => updateForm("recurring", value)}
+                  />
+                </View>
+
+                {form.recurring ? (
+                  <View>
+                    <Text style={styles.miniLabel}>Repeat</Text>
+                    <View style={styles.chipRow}>
+                      {recurrenceFrequencyOptions.map((option) => (
+                        <Pressable
+                          key={option.value}
+                          onPress={() =>
+                            updateForm("recurrenceFrequency", option.value)
+                          }
+                          style={[
+                            styles.chip,
+                            form.recurrenceFrequency === option.value &&
+                              styles.chipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              form.recurrenceFrequency === option.value &&
+                                styles.chipTextActive,
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    {form.recurrenceFrequency !== "monthly" ? (
+                      <>
+                        <Text style={styles.miniLabel}>Days of week</Text>
+                        <View style={styles.chipRow}>
+                          {weekdayOptions.map((day) => (
+                            <Pressable
+                              key={day.value}
+                              onPress={() => toggleRecurrenceDay(day.value)}
+                              style={[
+                                styles.dayChip,
+                                form.recurrenceDays.includes(day.value) &&
+                                  styles.chipActive,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  form.recurrenceDays.includes(day.value) &&
+                                    styles.chipTextActive,
+                                ]}
+                              >
+                                {day.shortLabel}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </>
+                    ) : null}
+
+                    <View style={styles.twoColumnRow}>
+                      <View style={styles.column}>
+                        <Label text="Number of visits to create" />
+                        <TextInput
+                          value={form.recurrenceCount}
+                          onChangeText={(value) =>
+                            updateForm("recurrenceCount", value)
+                          }
+                          placeholder="12"
+                          keyboardType="numeric"
+                          style={styles.input}
+                        />
+                      </View>
+                      <View style={styles.column}>
+                        <Label text="Or end recurring on" />
+                        <TextInput
+                          value={form.recurrenceEndAU}
+                          onChangeText={(value) =>
+                            updateForm("recurrenceEndAU", value)
+                          }
+                          placeholder="31-12-2026"
+                          style={styles.input}
+                        />
+                      </View>
+                    </View>
+                    <Text style={styles.recurrenceHint}>
+                      Use either a visit count or an end date. If both are
+                      blank, the app creates the next 12 visits.
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
 
             <View style={styles.twoColumnRow}>
               <View style={styles.column}>
@@ -608,7 +1042,9 @@ export default function EventsMeetingsVisitsScreen() {
                 <Label text="Responsible staff" />
                 <TextInput
                   value={form.responsibleStaff}
-                  onChangeText={(value) => updateForm("responsibleStaff", value)}
+                  onChangeText={(value) =>
+                    updateForm("responsibleStaff", value)
+                  }
                   placeholder="Bruno"
                   style={styles.input}
                 />
@@ -694,7 +1130,11 @@ export default function EventsMeetingsVisitsScreen() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.saveButtonText}>
-                  {editingId ? "Save Changes" : "Save Item"}
+                  {editingId
+                    ? "Save Changes"
+                    : form.recurring
+                      ? "Save Recurring Items"
+                      : "Save Item"}
                 </Text>
               )}
             </Pressable>
@@ -703,7 +1143,10 @@ export default function EventsMeetingsVisitsScreen() {
           <View style={styles.panel}>
             <View style={styles.listHeaderRow}>
               <Text style={styles.panelTitle}>Current Items</Text>
-              <Pressable style={styles.refreshButton} onPress={() => void fetchItems()}>
+              <Pressable
+                style={styles.refreshButton}
+                onPress={() => void fetchItems()}
+              >
                 <Ionicons name="refresh" size={16} color="#6B7280" />
                 <Text style={styles.refreshButtonText}>Refresh</Text>
               </Pressable>
@@ -716,7 +1159,9 @@ export default function EventsMeetingsVisitsScreen() {
               </View>
             )}
 
-            {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+            {errorMessage && (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            )}
 
             {!loading && activeItems.length === 0 && (
               <Text style={styles.emptyText}>
@@ -784,7 +1229,9 @@ function EventCard({
     <View style={[styles.eventCard, compact && styles.eventCardMuted]}>
       <View style={styles.eventCardTopRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.relativeLabel}>{getRelativeLabel(item.event_date)}</Text>
+          <Text style={styles.relativeLabel}>
+            {getRelativeLabel(item.event_date)}
+          </Text>
           <Text style={styles.eventTitle}>{item.title}</Text>
           <Text style={styles.eventMeta}>
             {item.main_category}
@@ -792,7 +1239,9 @@ function EventCard({
           </Text>
         </View>
         <View style={styles.dateBadge}>
-          <Text style={styles.dateBadgeText}>{formatDateAU(item.event_date)}</Text>
+          <Text style={styles.dateBadgeText}>
+            {formatDateAU(item.event_date)}
+          </Text>
         </View>
       </View>
 
@@ -809,7 +1258,9 @@ function EventCard({
           <Text style={styles.eventLine}>Visitor: {item.visitor_name}</Text>
         ) : null}
         {item.organisation ? (
-          <Text style={styles.eventLine}>Organisation: {item.organisation}</Text>
+          <Text style={styles.eventLine}>
+            Organisation: {item.organisation}
+          </Text>
         ) : null}
         {item.location ? (
           <Text style={styles.eventLine}>Location: {item.location}</Text>
@@ -820,7 +1271,9 @@ function EventCard({
         </Text>
       </View>
 
-      {!compact && item.notes ? <Text style={styles.notesText}>{item.notes}</Text> : null}
+      {!compact && item.notes ? (
+        <Text style={styles.notesText}>{item.notes}</Text>
+      ) : null}
 
       <View style={styles.cardActionRow}>
         <Pressable style={styles.editButton} onPress={onEdit}>
@@ -987,6 +1440,57 @@ const styles = StyleSheet.create({
   notesInput: {
     minHeight: 90,
   },
+  dropdownWrap: {
+    position: "relative",
+    zIndex: 20,
+  },
+  dropdownButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dropdownButtonText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "600",
+  },
+  dropdownPlaceholder: {
+    color: "#9CA3AF",
+  },
+  dropdownList: {
+    marginTop: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  dropdownOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  dropdownOptionActive: {
+    backgroundColor: "#F5EAF8",
+  },
+  dropdownOptionText: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "700",
+  },
+  dropdownOptionTextActive: {
+    color: "#562C61",
+  },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1056,6 +1560,46 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+  },
+  toggleRowNoBorder: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  recurrencePanel: {
+    marginTop: 14,
+    marginBottom: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    backgroundColor: "#FFFBEB",
+    padding: 12,
+  },
+  recurrenceHint: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#92400E",
+    fontWeight: "600",
+  },
+  miniLabel: {
+    fontSize: 11,
+    color: "#374151",
+    fontWeight: "800",
+    marginTop: 10,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  dayChip: {
+    minWidth: 48,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: "center",
   },
   toggleText: {
     fontSize: 13,
