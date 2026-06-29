@@ -158,7 +158,7 @@ function formatDateAU(dateString?: string | null) {
   const cleanDate = dateString.slice(0, 10);
   const [year, month, day] = cleanDate.split("-");
   if (!year || !month || !day) return dateString;
-  return `${day}-${month}-${year}`;
+  return `${day}/${month}/${year}`;
 }
 
 function formatTimestampDateAU(value?: string | null) {
@@ -168,10 +168,12 @@ function formatTimestampDateAU(value?: string | null) {
 
 function auDateToISO(value: string) {
   const trimmed = value.trim();
-  const match = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  const match = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
   if (!match) return null;
 
-  const [, day, month, year] = match;
+  const [, rawDay, rawMonth, year] = match;
+  const day = rawDay.padStart(2, "0");
+  const month = rawMonth.padStart(2, "0");
   const date = new Date(Number(year), Number(month) - 1, Number(day));
 
   if (
@@ -184,6 +186,16 @@ function auDateToISO(value: string) {
 
   return `${year}-${month}-${day}`;
 }
+
+function formatDateInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 
 function isoDateToLocalDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -312,13 +324,28 @@ function normaliseTime(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const compact = trimmed.replace(".", ":");
-  const match = compact.match(/^(\d{1,2}):(\d{2})$/);
+  // Accepts 24-hour time like 09:00 / 14:00 and AM/PM time like 9:00am / 2pm.
+  const compact = trimmed
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(".", ":");
+
+  const match = compact.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/);
   if (!match) return null;
 
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  let hours = Number(match[1]);
+  const minutes = match[2] ? Number(match[2]) : 0;
+  const meridiem = match[3];
+
+  if (minutes < 0 || minutes > 59) return null;
+
+  if (meridiem) {
+    if (hours < 1 || hours > 12) return null;
+    if (meridiem === "am" && hours === 12) hours = 0;
+    if (meridiem === "pm" && hours !== 12) hours += 12;
+  } else if (hours < 0 || hours > 23) {
+    return null;
+  }
 
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
@@ -469,7 +496,7 @@ export default function EventsMeetingsVisitsScreen() {
     }
 
     if (!eventDate) {
-      Alert.alert("Check date", "Please enter the event date as DD-MM-YYYY.");
+      Alert.alert("Check date", "Please enter the event date as DD/MM/YYYY.");
       return;
     }
 
@@ -497,7 +524,7 @@ export default function EventsMeetingsVisitsScreen() {
     if (form.recurring && form.recurrenceEndAU.trim() && !recurrenceEnd) {
       Alert.alert(
         "Check recurring end date",
-        "Recurring end date must use DD-MM-YYYY.",
+        "Recurring end date must use DD/MM/YYYY.",
       );
       return;
     }
@@ -545,12 +572,12 @@ export default function EventsMeetingsVisitsScreen() {
       : null;
 
     if (form.displayFromAU.trim() && !baseDisplayFrom) {
-      Alert.alert("Check display from", "Display from must use DD-MM-YYYY.");
+      Alert.alert("Check display from", "Display from must use DD/MM/YYYY.");
       return;
     }
 
     if (form.displayUntilAU.trim() && !baseDisplayUntil) {
-      Alert.alert("Check display until", "Display until must use DD-MM-YYYY.");
+      Alert.alert("Check display until", "Display until must use DD/MM/YYYY.");
       return;
     }
 
@@ -851,8 +878,12 @@ export default function EventsMeetingsVisitsScreen() {
                 <Label text="Event date" />
                 <TextInput
                   value={form.eventDateAU}
-                  onChangeText={(value) => updateForm("eventDateAU", value)}
-                  placeholder="30-06-2026"
+                  onChangeText={(value) =>
+                    updateForm("eventDateAU", formatDateInput(value))
+                  }
+                  placeholder="30/06/2026"
+                  keyboardType="number-pad"
+                  maxLength={10}
                   style={styles.input}
                 />
               </View>
@@ -979,9 +1010,11 @@ export default function EventsMeetingsVisitsScreen() {
                         <TextInput
                           value={form.recurrenceEndAU}
                           onChangeText={(value) =>
-                            updateForm("recurrenceEndAU", value)
+                            updateForm("recurrenceEndAU", formatDateInput(value))
                           }
-                          placeholder="31-12-2026"
+                          placeholder="31/12/2026"
+                          keyboardType="number-pad"
+                          maxLength={10}
                           style={styles.input}
                         />
                       </View>
@@ -1000,8 +1033,12 @@ export default function EventsMeetingsVisitsScreen() {
                 <Label text="Display from" />
                 <TextInput
                   value={form.displayFromAU}
-                  onChangeText={(value) => updateForm("displayFromAU", value)}
+                  onChangeText={(value) =>
+                    updateForm("displayFromAU", formatDateInput(value))
+                  }
                   placeholder="Leave blank for today"
+                  keyboardType="number-pad"
+                  maxLength={10}
                   style={styles.input}
                 />
               </View>
@@ -1009,8 +1046,12 @@ export default function EventsMeetingsVisitsScreen() {
                 <Label text="Display until" />
                 <TextInput
                   value={form.displayUntilAU}
-                  onChangeText={(value) => updateForm("displayUntilAU", value)}
+                  onChangeText={(value) =>
+                    updateForm("displayUntilAU", formatDateInput(value))
+                  }
                   placeholder="Leave blank for event day"
+                  keyboardType="number-pad"
+                  maxLength={10}
                   style={styles.input}
                 />
               </View>
