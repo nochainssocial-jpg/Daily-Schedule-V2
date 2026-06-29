@@ -10,14 +10,16 @@ export type DashboardPage =
   | "dropoffs"
   | "incidentReports"
   | "behaviourObservations"
-  | "communicationForms";
+  | "communicationForms"
+  | "phoneUsage";
 
 export type RoomKey = "frontRoom" | "scotty" | "twins";
 
 export type ReminderPage =
   | "incidentReports"
   | "behaviourObservations"
-  | "communicationForms";
+  | "communicationForms"
+  | "phoneUsage";
 
 export type EventMeetingVisitRecord = {
   id: string;

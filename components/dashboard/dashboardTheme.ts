@@ -21,6 +21,7 @@ export const DASHBOARD_PAGE_THEMES: Record<DashboardPage, { background: string; 
   incidentReports: { background: "#FFF4FA", accent: "#F54FA5" },
   behaviourObservations: { background: "#FFF4FA", accent: "#F54FA5" },
   communicationForms: { background: "#FFF4FA", accent: "#F54FA5" },
+  phoneUsage: { background: "#FFF4FA", accent: "#F54FA5" },
 };
 
 export const EVENT_CARD_THEMES = {
@@ -109,13 +110,29 @@ export const REMINDER_CONTENT: Record<
     ],
     footer: "End of shift is the expectation. 10:00pm is the final deadline.",
   },
+  phoneUsage: {
+    eyebrow: "Staff reminder",
+    title: "Phone Usage While on Shift",
+    icon: "cellphone-off",
+    lead:
+      "Personal phone use is not permitted while on shift. Staff must remain focused on participants and daily support duties.",
+    points: [
+      "Phones may be used to log required forms and shift documentation",
+      "Phones may be used to take appropriate photos of participants during activities",
+      "Phones may be used during outings when needed for participant support or safety",
+      "Phones may be used to post required updates to the WhatsApp group",
+      "The main responsibility is to interact with participants and spend meaningful time with them",
+    ],
+    footer: "Phones are work tools during shift, not for personal use.",
+  },
 };
 
 export function isReminderPage(page: DashboardPage): page is ReminderPage {
   return (
     page === "incidentReports" ||
     page === "behaviourObservations" ||
-    page === "communicationForms"
+    page === "communicationForms" ||
+    page === "phoneUsage"
   );
 }
 
@@ -132,7 +149,7 @@ export function pageLabel(page: DashboardPage): string {
     case "cleaning":
       return "Cleaning";
     case "checklist":
-      return "Checklist";
+      return "End of Shift Checklist";
     case "dropoffs":
       return "Drop Offs";
     case "incidentReports":
@@ -141,6 +158,8 @@ export function pageLabel(page: DashboardPage): string {
       return "Behaviour Observations";
     case "communicationForms":
       return "Participant Communication Forms";
+    case "phoneUsage":
+      return "Phone Usage";
     default:
       return "Dashboard";
   }
