@@ -1,5 +1,5 @@
 // app/edit/index.tsx
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import {
   ScrollView,
@@ -120,62 +120,88 @@ type OutingGroup = {
   notes?: string | null;
 };
 
-type OutingPhase = "none" | "upcoming" | "active" | "complete";
+type OutingPhase = "none" | "upcoming" | "startingSoon" | "active" | "complete";
+
+const STARTING_SOON_WINDOW_MINUTES = 15;
+const COMPLETE_VISIBLE_WINDOW_MINUTES = 5;
 
 function parseTimeToMinutes(value?: string | null): number | null {
   if (!value) return null;
-  const trimmed = value.trim();
+  const trimmed = value.trim().toLowerCase();
   if (!trimmed) return null;
 
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
   if (!match) return null;
 
-  const hours = Number(match[1]);
+  let hours = Number(match[1]);
   const minutes = Number(match[2]);
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
+  const meridiem = match[3];
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  if (minutes < 0 || minutes > 59) return null;
+
+  if (meridiem) {
+    if (hours < 1 || hours > 12) return null;
+    if (meridiem === "pm" && hours !== 12) hours += 12;
+    if (meridiem === "am" && hours === 12) hours = 0;
+  } else if (hours < 0 || hours > 23) {
     return null;
   }
+
   return hours * 60 + minutes;
+}
+
+function getNowMinutes() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+function hasOutingPeople(outingGroup: OutingGroup | null | undefined) {
+  const staffCount = outingGroup?.staffIds?.length ?? 0;
+  const participantCount = outingGroup?.participantIds?.length ?? 0;
+  return staffCount > 0 || participantCount > 0;
 }
 
 function getOutingPhase(
   outingGroup: OutingGroup | null | undefined,
+  currentMinutes: number,
 ): OutingPhase {
-  if (!outingGroup) return "none";
-
-  const staffCount = outingGroup.staffIds?.length ?? 0;
-  const participantCount = outingGroup.participantIds?.length ?? 0;
-  if (staffCount === 0 && participantCount === 0) return "none";
+  if (!outingGroup || !hasOutingPeople(outingGroup)) return "none";
 
   const startMinutes = parseTimeToMinutes(outingGroup.startTime);
   const endMinutes = parseTimeToMinutes(outingGroup.endTime);
 
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  // If no usable time has been entered, keep the banner as a general planned
+  // reminder instead of calling it active forever.
+  if (startMinutes === null && endMinutes === null) return "upcoming";
 
-  if (startMinutes !== null && nowMinutes < startMinutes) return "upcoming";
-  if (endMinutes === null) return "active";
-
-  if (startMinutes !== null) {
-    if (nowMinutes >= startMinutes && nowMinutes <= endMinutes) return "active";
-    if (nowMinutes > endMinutes) return "complete";
+  if (startMinutes !== null && currentMinutes < startMinutes) {
+    return startMinutes - currentMinutes <= STARTING_SOON_WINDOW_MINUTES
+      ? "startingSoon"
+      : "upcoming";
   }
 
-  if (nowMinutes <= endMinutes) return "active";
-  return "complete";
+  // Once the start time has passed, show the outing as in progress until the
+  // end time. If no end time exists, we cannot safely mark it complete.
+  if (endMinutes === null) return "active";
+
+  if (currentMinutes <= endMinutes) return "active";
+
+  // Show "complete" briefly after the outing ends, then hide it from Edit Hub.
+  if (currentMinutes - endMinutes <= COMPLETE_VISIBLE_WINDOW_MINUTES) {
+    return "complete";
+  }
+
+  return "none";
 }
 
-function buildVisibleOutings(outingGroups: OutingGroup[] = []) {
+function buildVisibleOutings(
+  outingGroups: OutingGroup[] = [],
+  currentMinutes = getNowMinutes(),
+) {
   return outingGroups
     .map((group, index) => {
-      const phase = getOutingPhase(group);
+      const phase = getOutingPhase(group, currentMinutes);
       const staffCount = group.staffIds?.length ?? 0;
       const participantCount = group.participantIds?.length ?? 0;
       const hasTime =
@@ -206,16 +232,23 @@ export default function EditHubScreen() {
     participants?: Array<{ id: string | number; name?: string | null }>;
   };
 
+  const [clockTick, setClockTick] = useState(0);
+
   useEffect(() => {
     void initScheduleForToday("B2").catch((e) => {
       console.error("initScheduleForToday failed (edit hub):", e);
     });
   }, []);
 
-  const visibleOutings = useMemo(
-    () => buildVisibleOutings(outingGroups),
-    [outingGroups],
-  );
+  useEffect(() => {
+    const timer = setInterval(() => setClockTick((value) => value + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const visibleOutings = useMemo(() => {
+    void clockTick;
+    return buildVisibleOutings(outingGroups);
+  }, [outingGroups, clockTick]);
 
   return (
     <View style={styles.screen}>
