@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   ScrollView,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -118,13 +119,30 @@ function getParticipantScoreLevel(total: number): "low" | "medium" | "high" {
 function mergeDefaultOutings(
   outingGroups: Partial<OutingGroup>[] | null | undefined,
 ): OutingGroup[] {
-  return DEFAULT_OUTINGS.map((fallback, index) => ({
-    ...fallback,
-    ...(outingGroups?.[index] || {}),
-    id: outingGroups?.[index]?.id || fallback.id,
-    staffIds: outingGroups?.[index]?.staffIds || [],
-    participantIds: outingGroups?.[index]?.participantIds || [],
-  }));
+  const groups = outingGroups || [];
+  const groupsById = new Map(
+    groups
+      .filter((outing) => outing?.id)
+      .map((outing) => [String(outing.id), outing]),
+  );
+
+  return DEFAULT_OUTINGS.map((fallback, index) => {
+    const source = (groupsById.get(fallback.id) ||
+      groups[index] ||
+      {}) as Partial<OutingGroup>;
+
+    return {
+      ...fallback,
+      ...source,
+      id: source.id || fallback.id,
+      name: source.name || "",
+      startTime: source.startTime || "",
+      endTime: source.endTime || "",
+      notes: source.notes || "",
+      staffIds: source.staffIds || [],
+      participantIds: source.participantIds || [],
+    };
+  });
 }
 
 function hasOutingContent(outing: OutingGroup): boolean {
@@ -145,13 +163,27 @@ export default function OutingsScreen() {
     workingStaff = [],
     attendingParticipants = [],
     outingGroups = [],
+    outingAutoResetEnabled = true,
     updateSchedule,
+    resetOutings,
+    maybeAutoResetOutings,
+    setOutingAutoResetEnabled,
   } = useSchedule() as any;
 
   const { push } = useNotifications();
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
   const { width } = useWindowDimensions();
+
+  useEffect(() => {
+    void maybeAutoResetOutings?.();
+
+    const timer = setInterval(() => {
+      void maybeAutoResetOutings?.();
+    }, 30_000);
+
+    return () => clearInterval(timer);
+  }, [maybeAutoResetOutings]);
 
   const staffSource = (
     staff && staff.length ? staff : masterStaff
@@ -238,6 +270,31 @@ export default function OutingsScreen() {
     });
   };
 
+  const handleClearAllOutings = () => {
+    if (readOnly) {
+      push?.("B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)", "general");
+      return;
+    }
+
+    void resetOutings?.({ persist: false, reason: "manual" });
+    push?.("All outings cleared", "outings");
+  };
+
+  const handleToggleAutoReset = (enabled: boolean) => {
+    if (readOnly) {
+      push?.("B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)", "general");
+      return;
+    }
+
+    setOutingAutoResetEnabled?.(enabled);
+    push?.(
+      enabled
+        ? "Outings will auto-reset at 5:00pm"
+        : "Outings auto-reset disabled",
+      "outings",
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <SaveExit touchKey="Drive / Outings" />
@@ -264,6 +321,32 @@ export default function OutingsScreen() {
             the same time. Staff and participants selected in one outing are
             disabled in the other outing.
           </Text>
+
+          <View style={styles.autoResetCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.autoResetTitle}>Auto reset outings</Text>
+              <Text style={styles.autoResetText}>
+                Clears outings only at 5:00pm. The daily schedule, staff,
+                participants and assignments are left untouched.
+              </Text>
+            </View>
+
+            <Switch
+              value={outingAutoResetEnabled !== false}
+              onValueChange={handleToggleAutoReset}
+              disabled={readOnly}
+            />
+
+            <TouchableOpacity
+              onPress={handleClearAllOutings}
+              activeOpacity={0.9}
+              disabled={readOnly}
+              style={[styles.clearAllBtn, readOnly && styles.clearAllBtnDisabled]}
+            >
+              <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.clearAllText}>Clear all now</Text>
+            </TouchableOpacity>
+          </View>
 
           {outings.map((outing, index) => {
             const staffOnOuting = new Set<string>(outing.staffIds ?? []);
@@ -531,6 +614,37 @@ const styles = StyleSheet.create({
   },
   heading: { fontSize: 24, fontWeight: "700", color: "#36144F" },
   subheading: { fontSize: 14, color: "#000", marginBottom: 16 },
+  autoResetCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.78)",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  autoResetTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#36144F",
+  },
+  autoResetText: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#4B5563",
+  },
+  clearAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#B45309",
+    gap: 6,
+  },
+  clearAllBtnDisabled: { opacity: 0.45 },
+  clearAllText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
   outingCard: {
     marginTop: 16,
     padding: 14,
