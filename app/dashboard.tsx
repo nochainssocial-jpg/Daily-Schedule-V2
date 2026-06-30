@@ -28,6 +28,7 @@ import {
 } from "@/components/dashboard/dashboardTheme";
 import {
   colorForStaff,
+  getOutingPhase,
   hasOutingContent,
   isEventDashboardVisible,
   nowMinutes,
@@ -166,6 +167,25 @@ const groups = Array.isArray(outingGroups)
 return groups.slice(0, 2).filter(hasOutingContent);
 }, [outingGroups, outingGroup]);
 
+const visibleOutings = useMemo(() => {
+void tick;
+const currentMinutes = nowMinutes();
+
+// Dashboard Outings tab is time-based. It shows scheduled/upcoming outings,
+// switches to in progress during the outing, briefly shows complete, then hides.
+return activeOutings
+.map((outing: any, index: number) => {
+const phase = getOutingPhase(outing, currentMinutes);
+if (phase === "none") return null;
+return {
+...outing,
+dashboardIndex: index,
+dashboardPhase: phase,
+};
+})
+.filter(Boolean);
+}, [activeOutings, tick]);
+
 const assignmentThemeOutings = useMemo(() => {
 void tick;
 const currentMinutes = nowMinutes();
@@ -173,7 +193,7 @@ const currentMinutes = nowMinutes();
 // Outing colours are useful while an outing is still pending or active.
 // Once its end time has passed, the Team Assignment tiles should return
 // to the normal onsite/default styling even though the outing can remain
-// visible on the Outings screen for reference.
+// hidden/complete elsewhere.
 return activeOutings.map((outing: any) => {
 const endMinutes = parseTimeToMinutes(outing?.endTime);
 return endMinutes == null || currentMinutes < endMinutes ? outing : null;
@@ -472,7 +492,7 @@ const hasStaffCelebrations = staffCelebrationItems.length > 0;
 
 const pages = useMemo<DashboardPage[]>(() => {
 const list: DashboardPage[] = ["team", "floating"];
-if (activeOutings.length > 0) list.push("outings");
+if (visibleOutings.length > 0) list.push("outings");
 if (hasEventsMeetingsVisits) list.push("eventsMeetingsVisits");
 if (hasStaffCelebrations) list.push("staffCelebrations");
 if (hasCleaningAssignments) list.push("cleaning");
@@ -481,7 +501,7 @@ if (hasDropoffAssignments) list.push("dropoffs");
 list.push("incidentReports", "behaviourObservations", "communicationForms", "phoneUsage");
 return list;
 }, [
-activeOutings.length,
+visibleOutings.length,
 hasCleaningAssignments,
 hasChecklistData,
 hasDropoffAssignments,
@@ -522,7 +542,7 @@ return (
 if (currentPage === "outings") {
 return (
 <OutingsPanel
-  activeOutings={activeOutings}
+  activeOutings={visibleOutings}
   staffById={staffById}
   participantsById={participantsById}
 />
