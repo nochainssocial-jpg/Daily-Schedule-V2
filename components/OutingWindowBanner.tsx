@@ -79,15 +79,22 @@ function getActiveOutingStatus(outingGroup: OutingGroup, index: number) {
 }
 
 export default function OutingWindowBanner() {
-  const { outingGroups = [] } = useSchedule((s: any) => ({
+  const { outingGroups = [], maybeAutoResetOutings } = useSchedule((s: any) => ({
     outingGroups: s.outingGroups || (s.outingGroup ? [s.outingGroup] : []),
+    maybeAutoResetOutings: s.maybeAutoResetOutings,
   }));
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 30_000);
+    void maybeAutoResetOutings?.();
+
+    const t = setInterval(() => {
+      setTick((x) => x + 1);
+      void maybeAutoResetOutings?.();
+    }, 30_000);
+
     return () => clearInterval(t);
-  }, []);
+  }, [maybeAutoResetOutings]);
 
   const activeOutings = useMemo(() => {
     void tick;
