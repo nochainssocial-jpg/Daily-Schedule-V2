@@ -23,7 +23,7 @@ type OutingGroup = {
   notes?: string | null;
 };
 
-type OutingPhase = "none" | "upcoming" | "active" | "complete";
+type OutingPhase = "none" | "upcoming" | "startingSoon" | "active" | "complete";
 
 type Props = {
   outingGroup: OutingGroup;
@@ -63,20 +63,25 @@ export default function OutingSummaryBanner({
   const [expanded, setExpanded] = useState(false);
 
   const isUpcoming = phase === "upcoming";
+  const isStartingSoon = phase === "startingSoon";
   const isComplete = phase === "complete";
   const isSecond = outingIndex === 1;
 
-  const outingTitle = isUpcoming
-    ? `Upcoming outing ${outingIndex + 1}`
-    : isComplete
-      ? `Outing ${outingIndex + 1} complete`
-      : `Outing ${outingIndex + 1} in progress`;
+  const outingTitle = isStartingSoon
+    ? `Outing ${outingIndex + 1} starting soon`
+    : isUpcoming
+      ? `Upcoming outing ${outingIndex + 1}`
+      : isComplete
+        ? `Outing ${outingIndex + 1} complete`
+        : `Outing ${outingIndex + 1} in progress`;
 
-  const outingSubtitle = isUpcoming
-    ? "Planned"
-    : isComplete
-      ? "Completed"
-      : "Live now";
+  const outingSubtitle = isStartingSoon
+    ? "Starting soon"
+    : isUpcoming
+      ? "Planned"
+      : isComplete
+        ? "Completed"
+        : "Live now";
 
   const staffNames = useMemo(
     () => namesFromIds(outingGroup.staffIds, staff),
@@ -99,6 +104,7 @@ export default function OutingSummaryBanner({
         styles.outingSummary,
         isSecond && styles.outingSummarySecond,
         isUpcoming && styles.outingSummaryUpcoming,
+        isStartingSoon && styles.outingSummaryStartingSoon,
         isComplete && styles.outingSummaryComplete,
         pressed && styles.outingSummaryPressed,
         Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null,
@@ -109,6 +115,7 @@ export default function OutingSummaryBanner({
           style={[
             styles.outingSummaryIconBubble,
             isSecond && styles.outingSummaryIconBubbleSecond,
+            isStartingSoon && styles.outingSummaryIconBubbleStartingSoon,
             isComplete && styles.outingSummaryIconBubbleComplete,
           ]}
         >
@@ -118,7 +125,7 @@ export default function OutingSummaryBanner({
             color={
               isComplete
                 ? "#166534"
-                : isUpcoming
+                : isUpcoming || isStartingSoon
                   ? "#1D4ED8"
                   : isSecond
                     ? "#6D28D9"
@@ -133,6 +140,7 @@ export default function OutingSummaryBanner({
               style={[
                 styles.outingSummaryTitle,
                 isSecond && styles.outingSummaryTitleSecond,
+                (isUpcoming || isStartingSoon) && styles.outingSummaryTitleUpcoming,
                 isComplete && styles.outingSummaryTitleComplete,
               ]}
             >
@@ -142,7 +150,15 @@ export default function OutingSummaryBanner({
             <Ionicons
               name={expanded ? "chevron-up" : "chevron-down"}
               size={16}
-              color={isSecond ? "#5B21B6" : "#9A3412"}
+              color={
+                isComplete
+                  ? "#166534"
+                  : isUpcoming || isStartingSoon
+                    ? "#1D4ED8"
+                    : isSecond
+                      ? "#5B21B6"
+                      : "#9A3412"
+              }
             />
           </View>
 
@@ -150,6 +166,7 @@ export default function OutingSummaryBanner({
             style={[
               styles.outingSummaryLine,
               isSecond && styles.outingSummaryLineSecond,
+              (isUpcoming || isStartingSoon) && styles.outingSummaryLineUpcoming,
               isComplete && styles.outingSummaryLineComplete,
             ]}
             numberOfLines={expanded ? undefined : 1}
@@ -163,6 +180,7 @@ export default function OutingSummaryBanner({
             style={[
               styles.outingSummaryLine,
               isSecond && styles.outingSummaryLineSecond,
+              (isUpcoming || isStartingSoon) && styles.outingSummaryLineUpcoming,
               isComplete && styles.outingSummaryLineComplete,
             ]}
           >
@@ -221,6 +239,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderColor: "#BFDBFE",
   },
+  outingSummaryStartingSoon: {
+    backgroundColor: "#DBEAFE",
+    borderColor: "#93C5FD",
+  },
   outingSummaryComplete: {
     backgroundColor: "#ECFDF3",
     borderColor: "#BBF7D0",
@@ -242,6 +264,9 @@ const styles = StyleSheet.create({
   outingSummaryIconBubbleSecond: {
     backgroundColor: "#DDD6FE",
   },
+  outingSummaryIconBubbleStartingSoon: {
+    backgroundColor: "#BFDBFE",
+  },
   outingSummaryIconBubbleComplete: {
     backgroundColor: "#BBF7D0",
   },
@@ -259,6 +284,9 @@ const styles = StyleSheet.create({
   outingSummaryTitleSecond: {
     color: "#5B21B6",
   },
+  outingSummaryTitleUpcoming: {
+    color: "#1D4ED8",
+  },
   outingSummaryTitleComplete: {
     color: "#166534",
   },
@@ -268,6 +296,9 @@ const styles = StyleSheet.create({
   },
   outingSummaryLineSecond: {
     color: "#4C1D95",
+  },
+  outingSummaryLineUpcoming: {
+    color: "#1E40AF",
   },
   outingSummaryLineComplete: {
     color: "#166534",
