@@ -142,6 +142,53 @@ export function hasOutingContent(outing: any): boolean {
   );
 }
 
+
+export type OutingPhase = "none" | "upcoming" | "startingSoon" | "active" | "complete";
+
+export const OUTING_STARTING_SOON_WINDOW_MINUTES = 15;
+export const OUTING_COMPLETE_VISIBLE_WINDOW_MINUTES = 5;
+
+export function getOutingPhase(
+  outing: any,
+  currentMinutes = nowMinutes(),
+): OutingPhase {
+  if (!outing || !hasOutingContent(outing)) return "none";
+
+  const startMinutes = parseTimeToMinutes(outing.startTime);
+  const endMinutes = parseTimeToMinutes(outing.endTime);
+
+  // If a basic outing has been entered but no usable times exist, keep it as
+  // upcoming rather than treating it as permanently active.
+  if (startMinutes === null && endMinutes === null) return "upcoming";
+
+  if (startMinutes !== null && currentMinutes < startMinutes) {
+    return startMinutes - currentMinutes <= OUTING_STARTING_SOON_WINDOW_MINUTES
+      ? "startingSoon"
+      : "upcoming";
+  }
+
+  // Once started, keep it visible until the end time. If no end time exists,
+  // there is no safe way to auto-hide it, so keep it active.
+  if (endMinutes === null) return "active";
+
+  if (currentMinutes <= endMinutes) return "active";
+
+  // Give staff a very brief completed state, then remove it from the dashboard.
+  if (currentMinutes - endMinutes <= OUTING_COMPLETE_VISIBLE_WINDOW_MINUTES) {
+    return "complete";
+  }
+
+  return "none";
+}
+
+export function outingPhaseLabel(phase: OutingPhase): string {
+  if (phase === "startingSoon") return "Starting soon";
+  if (phase === "active") return "In progress";
+  if (phase === "complete") return "Complete";
+  if (phase === "upcoming") return "Upcoming";
+  return "";
+}
+
 export function namesFromIds(
   ids: any[] | undefined,
   peopleById: Map<string, any>,
