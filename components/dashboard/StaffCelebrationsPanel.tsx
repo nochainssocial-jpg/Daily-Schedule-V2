@@ -122,8 +122,6 @@ export function StaffCelebrationsPanel({
 
   return (
     <View style={[styles.panel, styles.celebrationPanel]}>
-      <Image source={celebrationLightImage} style={styles.celebrationLightWatermark} resizeMode="cover" />
-
       <View style={styles.panelHeaderRow}>
         <View>
           <Text style={styles.panelEyebrow}>People & culture</Text>
@@ -144,9 +142,16 @@ export function StaffCelebrationsPanel({
 
           {todayCelebrations.length === 0 ? (
             <View style={styles.celebrationEmptyTodayBox}>
-              <MaterialCommunityIcons name="calendar-heart" size={34} color="#7C3AED" />
-              <Text style={styles.celebrationEmptyTitle}>No staff celebration today.</Text>
-              <Text style={styles.celebrationEmptyText}>Upcoming birthdays and anniversaries are shown on the right.</Text>
+              <Image
+                source={celebrationLightImage}
+                style={styles.celebrationEmptyWatermark}
+                resizeMode="contain"
+              />
+              <View style={styles.celebrationEmptyContent}>
+                <MaterialCommunityIcons name="calendar-heart" size={34} color="#7C3AED" />
+                <Text style={styles.celebrationEmptyTitle}>No staff celebration today.</Text>
+                <Text style={styles.celebrationEmptyText}>Upcoming birthdays and anniversaries are shown on the right.</Text>
+              </View>
             </View>
           ) : (
             <ScrollView style={styles.innerScroll} contentContainerStyle={styles.celebrationTodayGrid}>
