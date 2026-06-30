@@ -24,14 +24,7 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
           {dropoffRows.map((row) => (
             <View
               key={row.staffId}
-              style={[
-                styles.assignmentCard,
-                row.theme === "outing1"
-                  ? styles.assignmentCardOuting1
-                  : row.theme === "outing2"
-                    ? styles.assignmentCardOuting2
-                    : styles.assignmentCardOnsite,
-              ]}
+              style={[styles.assignmentCard, styles.assignmentCardOnsite]}
             >
               <View
                 style={[
@@ -59,21 +52,13 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
                       key={`${row.staffId}-${item.participantName}`}
                       style={[
                         styles.assignmentParticipantChip,
-                        row.theme === "outing1"
-                          ? styles.assignmentParticipantChipOuting1
-                          : row.theme === "outing2"
-                            ? styles.assignmentParticipantChipOuting2
-                            : styles.assignmentParticipantChipOnsite,
+                        styles.assignmentParticipantChipOnsite,
                       ]}
                     >
                       <Text
                         style={[
                           styles.assignmentParticipantName,
-                          row.theme === "outing1"
-                            ? styles.assignmentParticipantNameOuting1
-                            : row.theme === "outing2"
-                              ? styles.assignmentParticipantNameOuting2
-                              : styles.assignmentParticipantNameOnsite,
+                          styles.assignmentParticipantNameOnsite,
                         ]}
                         numberOfLines={1}
                       >
