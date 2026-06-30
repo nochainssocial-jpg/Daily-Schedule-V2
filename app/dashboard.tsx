@@ -538,6 +538,9 @@ return (
   displayTimeSlots={displayTimeSlots}
   floatingAssignments={floatingAssignments}
   staffById={staffById}
+  participantsById={participantsById}
+  attendingParticipants={attendingParticipants}
+  activeOutings={activeOutings}
   tick={tick}
 />
 );
