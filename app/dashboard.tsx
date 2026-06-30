@@ -95,6 +95,7 @@ let cancelled = false;
 async function initialiseDashboard() {
 try {
 await initScheduleForToday(HOUSE_ID);
+await useSchedule.getState().maybeAutoResetOutings?.();
 
 // initScheduleForToday can merge the saved snapshot over the store.
 // Re-load master data afterwards so dashboard-only pages still have
@@ -117,7 +118,10 @@ cancelled = true;
 }, []);
 
 useEffect(() => {
-const timer = setInterval(() => setTick((value) => value + 1), 30_000);
+const timer = setInterval(() => {
+setTick((value) => value + 1);
+void useSchedule.getState().maybeAutoResetOutings?.();
+}, 30_000);
 return () => clearInterval(timer);
 }, []);
 
