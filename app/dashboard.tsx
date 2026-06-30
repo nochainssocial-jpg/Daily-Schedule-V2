@@ -15,6 +15,7 @@ import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetings
 import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
 import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
 import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
+import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
 import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
 import {
@@ -32,6 +33,10 @@ import {
   sortEventsMeetingsVisits,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
+import {
+  buildStaffCelebrationItems,
+  splitStaffCelebrations,
+} from "@/components/dashboard/staffCelebrationData";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
 
@@ -447,10 +452,20 @@ return visibleEventsMeetingsVisits
 
 const hasEventsMeetingsVisits = visibleEventsMeetingsVisits.length > 0;
 
+const staffCelebrationItems = useMemo(() => {
+return buildStaffCelebrationItems(staff, tick);
+}, [staff, tick]);
+
+const { today: todayStaffCelebrations, upcoming: upcomingStaffCelebrations } =
+useMemo(() => splitStaffCelebrations(staffCelebrationItems), [staffCelebrationItems]);
+
+const hasStaffCelebrations = staffCelebrationItems.length > 0;
+
 const pages = useMemo<DashboardPage[]>(() => {
 const list: DashboardPage[] = ["team", "floating"];
 if (activeOutings.length > 0) list.push("outings");
 if (hasEventsMeetingsVisits) list.push("eventsMeetingsVisits");
+if (hasStaffCelebrations) list.push("staffCelebrations");
 if (hasCleaningAssignments) list.push("cleaning");
 if (hasChecklistData) list.push("checklist");
 if (hasDropoffAssignments) list.push("dropoffs");
@@ -462,6 +477,7 @@ hasCleaningAssignments,
 hasChecklistData,
 hasDropoffAssignments,
 hasEventsMeetingsVisits,
+hasStaffCelebrations,
 ]);
 
 useEffect(() => {
@@ -510,6 +526,15 @@ return (
   visibleEventsMeetingsVisits={visibleEventsMeetingsVisits}
   todayEventsMeetingsVisits={todayEventsMeetingsVisits}
   upcomingEventsMeetingsVisits={upcomingEventsMeetingsVisits}
+/>
+);
+}
+
+if (currentPage === "staffCelebrations") {
+return (
+<StaffCelebrationsPanel
+  todayCelebrations={todayStaffCelebrations}
+  upcomingCelebrations={upcomingStaffCelebrations}
 />
 );
 }
