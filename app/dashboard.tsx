@@ -30,6 +30,8 @@ import {
   colorForStaff,
   hasOutingContent,
   isEventDashboardVisible,
+  nowMinutes,
+  parseTimeToMinutes,
   sortEventsMeetingsVisits,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
@@ -164,36 +166,50 @@ const groups = Array.isArray(outingGroups)
 return groups.slice(0, 2).filter(hasOutingContent);
 }, [outingGroups, outingGroup]);
 
+const assignmentThemeOutings = useMemo(() => {
+void tick;
+const currentMinutes = nowMinutes();
+
+// Outing colours are useful while an outing is still pending or active.
+// Once its end time has passed, the Team Assignment tiles should return
+// to the normal onsite/default styling even though the outing can remain
+// visible on the Outings screen for reference.
+return activeOutings.map((outing: any) => {
+const endMinutes = parseTimeToMinutes(outing?.endTime);
+return endMinutes == null || currentMinutes < endMinutes ? outing : null;
+});
+}, [activeOutings, tick]);
+
 const outing1StaffIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[0]?.staffIds ?? []) as any[]).map(String),
+((assignmentThemeOutings[0]?.staffIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[assignmentThemeOutings],
 );
 
 const outing2StaffIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[1]?.staffIds ?? []) as any[]).map(String),
+((assignmentThemeOutings[1]?.staffIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[assignmentThemeOutings],
 );
 
 const outing1ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[0]?.participantIds ?? []) as any[]).map(String),
+((assignmentThemeOutings[0]?.participantIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[assignmentThemeOutings],
 );
 
 const outing2ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[1]?.participantIds ?? []) as any[]).map(String),
+((assignmentThemeOutings[1]?.participantIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[assignmentThemeOutings],
 );
 
 const getParticipantTheme = (participantId: string) => {
@@ -338,12 +354,6 @@ return Array.from(byStaff.entries())
 const staffPerson = staffById.get(staffId);
 const staffName = String(staffPerson?.name || staffId);
 const staffColor = colorForStaff(staffPerson);
-const participantIds = items.map((item) => {
-const found = Array.from(participantsById.entries()).find(
-([, p]) => String(p?.name || "") === item.participantName,
-);
-return found?.[0] || "";
-});
 return {
 staffId,
 staffName,
@@ -352,7 +362,7 @@ staffTextColor: "#FFFFFF",
 items: items.sort((a, b) =>
 a.participantName.localeCompare(b.participantName, "en-AU"),
 ),
-theme: getAssignmentTheme(staffId, participantIds.filter(Boolean)),
+theme: "onsite" as const,
 };
 })
 .filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
@@ -362,7 +372,6 @@ dropoffAssignments,
 dropoffLocations,
 staffById,
 participantsById,
-getAssignmentTheme,
 ]);
 
 const displayTimeSlots =
