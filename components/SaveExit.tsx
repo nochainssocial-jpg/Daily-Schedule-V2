@@ -104,6 +104,10 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       // Legacy compatibility for any older screens or saved schedule readers.
       outingGroup: outingGroups[0] ?? null,
 
+      // Outings can be managed/reset independently of the daily schedule.
+      outingAutoResetEnabled: (schedule as any).outingAutoResetEnabled !== false,
+      outingLastAutoResetDate: (schedule as any).outingLastAutoResetDate,
+
       date: schedule.date,
       meta: schedule.meta ?? {},
     } as ScheduleSnapshot;
