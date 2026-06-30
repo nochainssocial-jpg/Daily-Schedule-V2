@@ -9,7 +9,7 @@ import type {
   TimeSlot,
 } from "@/constants/data";
 import { TIME_SLOTS } from "@/constants/data";
-import { fetchLatestScheduleForHouse } from "@/lib/saveSchedule";
+import { fetchLatestScheduleForHouse, saveScheduleToSupabase } from "@/lib/saveSchedule";
 import { supabase } from "@/lib/supabase";
 
 export type ID = string;
@@ -86,6 +86,11 @@ export type ScheduleSnapshot = {
   // New code should use outingGroups.
   outingGroup?: OutingGroup | null;
 
+  // Outings are operational/day-only data and can be reset independently of
+  // the daily schedule. Auto reset runs at 5:00pm local time.
+  outingAutoResetEnabled?: boolean;
+  outingLastAutoResetDate?: string;
+
   // Schedule date as YYYY-MM-DD (local calendar date)
   date?: string;
 
@@ -128,6 +133,11 @@ export type ScheduleState = ScheduleSnapshot & {
   patchSchedule: (patch: Partial<ScheduleSnapshot>) => void;
   updateSchedule: (patch: Partial<ScheduleSnapshot>) => void;
 
+  // outing helpers
+  resetOutings: (options?: { persist?: boolean; reason?: "manual" | "auto" }) => Promise<void>;
+  maybeAutoResetOutings: (now?: Date) => Promise<boolean>;
+  setOutingAutoResetEnabled: (enabled: boolean) => void;
+
   // wizard helpers
   setScheduleStep: (step: number) => void;
   setSelectedDate: (date?: string) => void;
@@ -143,6 +153,13 @@ export type ScheduleState = ScheduleSnapshot & {
 // ----------------------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------------------
+
+const DEFAULT_HOUSE_ID = "B2";
+const OUTING_AUTO_RESET_MINUTES = 17 * 60;
+
+function minutesSinceMidnight(date = new Date()): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
 
 function makeInitialSnapshot(): ScheduleSnapshot {
   return {
@@ -166,6 +183,8 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     finalChecklistStaff: null,
     outingGroups: [],
     outingGroup: null,
+    outingAutoResetEnabled: true,
+    outingLastAutoResetDate: undefined,
     date: undefined,
     meta: undefined,
   };
@@ -276,8 +295,8 @@ function normalizeDropoffAssignments(
   return result;
 }
 
-function toTodayKey(): string {
-  const now = new Date();
+function toTodayKey(date = new Date()): string {
+  const now = date;
   return [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
@@ -298,7 +317,74 @@ function normaliseSnapshotForStore(snapshot: any): ScheduleSnapshot {
     dropoffAssignments: normalizedDropoffs,
     outingGroups: normalizedOutingGroups,
     outingGroup: normalizedOutingGroups[0] ?? null,
+    outingAutoResetEnabled: (snapshot as any).outingAutoResetEnabled !== false,
+    outingLastAutoResetDate: (snapshot as any).outingLastAutoResetDate,
   } as ScheduleSnapshot);
+}
+
+function clearOutingsFromSnapshot<T extends Partial<ScheduleSnapshot>>(
+  snapshot: T,
+  resetDateKey?: string,
+): T {
+  const next = { ...(snapshot as any) };
+  next.outingGroups = [];
+  next.outingGroup = null;
+  if (resetDateKey) next.outingLastAutoResetDate = resetDateKey;
+  return syncOutingCompatibility(next) as T;
+}
+
+function shouldAutoResetOutings(
+  snapshot: Partial<ScheduleSnapshot>,
+  now = new Date(),
+): boolean {
+  const anySnapshot = snapshot as any;
+  if (anySnapshot.outingAutoResetEnabled === false) return false;
+
+  const todayKey = toTodayKey(now);
+  if (anySnapshot.outingLastAutoResetDate === todayKey) return false;
+  if (minutesSinceMidnight(now) < OUTING_AUTO_RESET_MINUTES) return false;
+
+  return normalizeOutingGroupsFromSnapshot(anySnapshot).length > 0;
+}
+
+function buildPersistableSnapshotFromState(
+  schedule: ScheduleState,
+  dateKey = toTodayKey(),
+): ScheduleSnapshot {
+  const outingGroups = normalizeOutingGroupsFromSnapshot(schedule);
+
+  return {
+    staff: schedule.staff,
+    participants: schedule.participants,
+    workingStaff: schedule.workingStaff,
+    attendingParticipants: schedule.attendingParticipants,
+
+    trainingStaffToday: schedule.trainingStaffToday,
+
+    assignments: schedule.assignments,
+    floatingAssignments: schedule.floatingAssignments,
+    cleaningAssignments: schedule.cleaningAssignments,
+    cleaningBinsVariant: schedule.cleaningBinsVariant ?? 0,
+
+    finalChecklist: schedule.finalChecklist,
+    finalChecklistStaff: schedule.finalChecklistStaff,
+
+    // Kept for compatibility with existing saved snapshots/screens.
+    pickupParticipants: (schedule as any).pickupParticipants,
+    helperStaff: schedule.helperStaff,
+    helperPickupStaff: (schedule as any).helperPickupStaff || [],
+
+    dropoffAssignments: schedule.dropoffAssignments,
+    dropoffLocations: schedule.dropoffLocations || {},
+
+    outingGroups,
+    outingGroup: outingGroups[0] ?? null,
+    outingAutoResetEnabled: schedule.outingAutoResetEnabled !== false,
+    outingLastAutoResetDate: schedule.outingLastAutoResetDate,
+
+    date: dateKey,
+    meta: schedule.meta ?? {},
+  } as ScheduleSnapshot;
 }
 
 // ----------------------------------------------------------------------------------
@@ -505,6 +591,68 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
     });
   },
 
+  resetOutings: async (options = {}) => {
+    const resetDateKey = toTodayKey();
+    const isAuto = options.reason === "auto";
+
+    set((state) => {
+      const next = clearOutingsFromSnapshot(
+        {
+          ...state,
+          meta: {
+            ...(state.meta || {}),
+            from: state.meta?.from || "create-wizard",
+          },
+        } as ScheduleState,
+        isAuto ? resetDateKey : undefined,
+      ) as ScheduleState;
+
+      return next;
+    });
+
+    if (options.persist) {
+      try {
+        const snapshot = buildPersistableSnapshotFromState(
+          get(),
+          resetDateKey,
+        );
+        await saveScheduleToSupabase(DEFAULT_HOUSE_ID, snapshot);
+      } catch (error) {
+        console.error("[outings] failed to persist outing reset", error);
+      }
+    }
+  },
+
+  maybeAutoResetOutings: async (now = new Date()) => {
+    const state = get();
+    if (state.outingAutoResetEnabled === false) return false;
+
+    const resetDateKey = toTodayKey(now);
+    if (state.outingLastAutoResetDate === resetDateKey) return false;
+    if (minutesSinceMidnight(now) < OUTING_AUTO_RESET_MINUTES) return false;
+
+    if (!shouldAutoResetOutings(state, now)) {
+      set((current) => ({
+        ...current,
+        outingLastAutoResetDate: resetDateKey,
+      }));
+      return false;
+    }
+
+    await get().resetOutings({ persist: true, reason: "auto" });
+    return true;
+  },
+
+  setOutingAutoResetEnabled: (enabled: boolean) =>
+    set((state) => ({
+      ...state,
+      outingAutoResetEnabled: enabled,
+      meta: {
+        ...(state.meta || {}),
+        from: state.meta?.from || "create-wizard",
+      },
+    })),
+
   setScheduleStep: (step: number) =>
     set((state) => ({
       ...state,
@@ -651,6 +799,13 @@ export async function initialiseScheduleForTodayIfNeeded(
     const bannerType: ScheduleBannerType =
       scheduleDate === todayKey ? "loaded" : "prefilled";
 
+    // Outings are day-only operational data. They should not be carried
+    // forward when today's schedule is prefilled from an older schedule.
+    const outingReset =
+      bannerType === "prefilled"
+        ? clearOutingsFromSnapshot(normalizedSnapshot)
+        : normalizedSnapshot;
+
     const banner: ScheduleBanner = {
       type: bannerType,
       scheduleDate: todayKey,
@@ -668,12 +823,15 @@ export async function initialiseScheduleForTodayIfNeeded(
 
     useSchedule.setState((s) => ({
       ...s,
-      ...normalizedSnapshot,
+      ...outingReset,
       ...checklistReset,
+      date: todayKey,
       banner,
       hasInitialisedToday: true,
       currentInitDate: todayKey,
     }));
+
+    await useSchedule.getState().maybeAutoResetOutings();
   } catch (error) {
     console.error("Error initialising schedule for today:", error);
     useSchedule.setState((s) => ({
@@ -718,6 +876,9 @@ export async function refreshScheduleFromSupabase(houseId: string) {
     const { snapshot, scheduleDate } = result.data;
     const normalizedSnapshot = normaliseSnapshotForStore(snapshot);
     const isTodaySchedule = scheduleDate === todayKey;
+    const outingReset = isTodaySchedule
+      ? normalizedSnapshot
+      : clearOutingsFromSnapshot(normalizedSnapshot);
 
     // If the latest saved schedule is an older prefill source, keep daily
     // completion state clear for today's dashboard until today's schedule is saved.
@@ -727,13 +888,15 @@ export async function refreshScheduleFromSupabase(houseId: string) {
 
     useSchedule.setState((current) => ({
       ...current,
-      ...normalizedSnapshot,
+      ...outingReset,
       ...checklistReset,
-      date: isTodaySchedule ? normalizedSnapshot.date : todayKey,
+      date: todayKey,
       banner: current.banner,
       hasInitialisedToday: true,
       currentInitDate: todayKey,
     }));
+
+    await useSchedule.getState().maybeAutoResetOutings();
 
     return result;
   } catch (error) {
