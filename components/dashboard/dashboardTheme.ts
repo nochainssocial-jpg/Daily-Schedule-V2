@@ -2,7 +2,7 @@ import type { DashboardPage, ReminderPage, RoomKey } from "./dashboardTypes";
 
 export const HOUSE_ID = "B2";
 export const ROTATE_MS = 15_000;
-export const DASHBOARD_REFRESH_MS = 150_000;
+export const DASHBOARD_REFRESH_MS = 180_000;
 export const MAX_WIDTH = 1180;
 export const ROOM_KEYS: RoomKey[] = ["frontRoom", "scotty", "twins"];
 
