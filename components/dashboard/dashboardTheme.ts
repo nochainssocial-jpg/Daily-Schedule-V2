@@ -15,6 +15,7 @@ export const DASHBOARD_PAGE_THEMES: Record<DashboardPage, { background: string; 
   floating: { background: "#FFF1FF", accent: "#C084FC" },
   outings: { background: "#FFF7ED", accent: "#F97316" },
   eventsMeetingsVisits: { background: "#FFF4FA", accent: "#F54FA5" },
+  staffCelebrations: { background: "#F8F1FF", accent: "#7C3AED" },
   cleaning: { background: "#DCFCE7", accent: "#22C55E" },
   checklist: { background: "#E5ECFF", accent: "#6366F1" },
   dropoffs: { background: "#FFD0B5", accent: "#FB7185" },
@@ -146,6 +147,8 @@ export function pageLabel(page: DashboardPage): string {
       return "Outings";
     case "eventsMeetingsVisits":
       return "Events | Meetings | Visits";
+    case "staffCelebrations":
+      return "Staff Birthdays & Milestones";
     case "cleaning":
       return "Cleaning";
     case "checklist":

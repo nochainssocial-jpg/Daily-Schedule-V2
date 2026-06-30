@@ -5,6 +5,7 @@ export type DashboardPage =
   | "floating"
   | "outings"
   | "eventsMeetingsVisits"
+  | "staffCelebrations"
   | "cleaning"
   | "checklist"
   | "dropoffs"
