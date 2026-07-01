@@ -153,11 +153,24 @@ export function FloatingAssignmentsPanel({
     return getOutingIdsForSlot(slot, activeOutings, "staffIds").has(String(staffId));
   };
 
+  const slotHasOuting = (slot: any): boolean => {
+    const window = slotWindow(slot);
+
+    return (activeOutings || []).some((outing) => {
+      const outingWindow = getOutingWindowMinutes(outing);
+
+      // If no valid outing time is entered, treat it as all-day offsite.
+      if (outingWindow.start == null || outingWindow.end == null) return true;
+
+      return timesOverlap(window.start, window.end, outingWindow.start, outingWindow.end);
+    });
+  };
+
   const getCellState = (room: RoomKey, slot: any, row: any): CellState => {
     const fso = room === "twins" && isFsoSlot(slot);
 
     if (isRoomOffsiteForSlot(room, slot)) {
-      return { label: "Outing (offsite)", variant: "offsite", showFso: false };
+      return { label: "On Outing (Offsite)", variant: "offsite", showFso: false };
     }
 
     if (roomNotAttending[room]) {
@@ -165,9 +178,17 @@ export function FloatingAssignmentsPanel({
     }
 
     const staffId = row?.[room] ? String(row[room]) : null;
-    const staffPerson =
-      staffId && !isStaffOffsiteForSlot(slot, staffId) ? staffById.get(staffId) : null;
+
+    if (staffId && isStaffOffsiteForSlot(slot, staffId)) {
+      return { label: "On Outing (Offsite)", variant: "offsite", showFso: false };
+    }
+
+    const staffPerson = staffId ? staffById.get(staffId) : null;
     const name = staffPerson?.name ? String(staffPerson.name) : "—";
+
+    if (name === "—" && slotHasOuting(slot)) {
+      return { label: "On Outing (Offsite)", variant: "offsite", showFso: false };
+    }
 
     return {
       label: name,
