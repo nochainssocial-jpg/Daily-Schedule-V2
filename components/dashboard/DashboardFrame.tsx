@@ -31,7 +31,7 @@ export function DashboardFrame({
       <View style={styles.appFrame}>
         <View style={styles.topBar}>
           <View style={styles.topLeftBlock}>
-            <Text style={styles.locationText}>No Chains Daily Dashboard</Text>
+            <Text style={styles.locationText}>Daily Operations Dashboard</Text>
             <Text style={styles.programText}>Location: {HOUSE_ID} Day Program</Text>
             <Text style={styles.dateText}>{formatDateKey(date)}</Text>
           </View>
