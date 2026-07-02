@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { Platform, View, Text, useWindowDimensions } from "react-native";
 import { styles } from "./dashboardStyles";
 import { DASHBOARD_REFRESH_MS, HOUSE_ID, ROTATE_MS, pageLabel } from "./dashboardTheme";
 import type { DashboardPage } from "./dashboardTypes";
@@ -26,12 +26,40 @@ export function DashboardFrame({
   pageTheme,
   children,
 }: Props) {
+  const { width, height } = useWindowDimensions();
+
+  const displayOverride = (() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return null;
+    try {
+      const value = new URLSearchParams(window.location.search).get("display");
+      return value === "tv" || value === "laptop" ? value : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // 55" TV target: most Google TV devices output the browser at a 16:9
+  // viewport such as 1920 x 1080. Laptop remains the default profile; TV mode
+  // is enabled automatically on large screens or manually with ?display=tv.
+  const isLargeScreen = Platform.OS === "web" && (width >= 1500 || height >= 900);
+  const isTvDisplay = displayOverride === "tv" || (displayOverride !== "laptop" && isLargeScreen);
+  const dashboardScale = isTvDisplay
+    ? Math.min(width / 1220, height / 820, width >= 2500 ? 2.2 : 1.42)
+    : 1;
+  const displayModeLabel = isTvDisplay ? '55\" TV mode' : "Laptop mode";
+
   return (
     <View style={styles.screen}>
-      <View style={styles.appFrame}>
+      <View
+        style={[
+          styles.appFrame,
+          isTvDisplay && styles.appFrameTv,
+          isTvDisplay && { transform: [{ scale: dashboardScale }] },
+        ]}
+      >
         <View style={styles.topBar}>
           <View style={styles.topLeftBlock}>
-            <Text style={styles.locationText}>Daily Operations Dashboard</Text>
+            <Text style={styles.locationText}>No Chains Daily Dashboard</Text>
             <Text style={styles.programText}>Location: {HOUSE_ID} Day Program</Text>
             <Text style={styles.dateText}>{formatDateKey(date)}</Text>
           </View>
@@ -46,6 +74,7 @@ export function DashboardFrame({
             <Text style={styles.cycleText}>
               Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
             </Text>
+            <Text style={styles.cycleText}>Display: {displayModeLabel}</Text>
           </View>
         </View>
 
