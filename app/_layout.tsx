@@ -70,6 +70,10 @@ export default function RootLayout() {
         {/* Edit hub has its own /app/edit/_layout.tsx stack */}
         <Stack.Screen name="edit" options={{ headerShown: false }} />
 
+
+        {/* Dashboard / TV display uses its own full-screen layout */}
+        <Stack.Screen name="dashboard" options={{ headerShown: false }} />
+
         {/* Share schedule */}
         <Stack.Screen
           name="share-schedule"
