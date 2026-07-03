@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, ScrollView, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { styles } from "./dashboardStyles";
@@ -7,6 +7,65 @@ import { celebrationDateLabel, type StaffCelebrationItem } from "./staffCelebrat
 import { STAFF_PHOTO_ASSETS } from "./staffPhotoAssets";
 
 const celebrationLightImage = require("../../assets/images/celebrations-light.png");
+
+const localStyles = StyleSheet.create({
+  emptyPreviewBox: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: "#DDD6FE",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    position: "relative",
+    minHeight: 300,
+  },
+  emptyWatermarkImage: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    top: 12,
+    bottom: 12,
+    width: "96%",
+    height: "96%",
+    opacity: 0.24,
+  },
+  emptySoftWash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.28)",
+  },
+  emptyMessageBadge: {
+    position: "absolute",
+    left: 18,
+    right: 18,
+    bottom: 18,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.86)",
+    borderWidth: 1,
+    borderColor: "#E9D5FF",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyMessageTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  emptyMessageTitle: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "900",
+    color: "#3B0764",
+  },
+  emptyMessageText: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    color: "#6B21A8",
+  },
+});
 
 function initialsFor(name: string): string {
   return String(name || "?")
@@ -141,16 +200,19 @@ export function StaffCelebrationsPanel({
           </View>
 
           {todayCelebrations.length === 0 ? (
-            <View style={styles.celebrationEmptyTodayBox}>
+            <View style={localStyles.emptyPreviewBox}>
               <Image
                 source={celebrationLightImage}
-                style={styles.celebrationEmptyWatermark}
+                style={localStyles.emptyWatermarkImage}
                 resizeMode="contain"
               />
-              <View style={styles.celebrationEmptyContent}>
-                <MaterialCommunityIcons name="calendar-heart" size={34} color="#7C3AED" />
-                <Text style={styles.celebrationEmptyTitle}>No staff celebration today.</Text>
-                <Text style={styles.celebrationEmptyText}>Upcoming birthdays and anniversaries are shown on the right.</Text>
+              <View style={localStyles.emptySoftWash} />
+              <View style={localStyles.emptyMessageBadge}>
+                <MaterialCommunityIcons name="calendar-heart" size={28} color="#7C3AED" />
+                <View style={localStyles.emptyMessageTextBlock}>
+                  <Text style={localStyles.emptyMessageTitle}>No staff celebration today</Text>
+                  <Text style={localStyles.emptyMessageText}>The faded preview shows where birthday and milestone cards will appear.</Text>
+                </View>
               </View>
             </View>
           ) : (
