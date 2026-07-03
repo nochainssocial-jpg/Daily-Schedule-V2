@@ -27,6 +27,8 @@ type EventStatus =
   "Scheduled" | "Active" | "Completed" | "Cancelled" | "Archived";
 type RecurrenceFrequency = "weekly" | "fortnightly" | "monthly";
 type WeekdayKey = "SU" | "MO" | "TU" | "WE" | "TH" | "FR" | "SA";
+type FilterStatus = "Inbox" | "All" | EventStatus;
+type FilterCategory = "All" | MainCategory;
 
 type EventsMeetingsVisitsRecord = {
   id: string;
@@ -127,6 +129,23 @@ const statusOptions: EventStatus[] = [
   "Completed",
   "Cancelled",
   "Archived",
+];
+
+const statusFilterOptions: { label: string; value: FilterStatus }[] = [
+  { label: "Inbox", value: "Inbox" },
+  { label: "All", value: "All" },
+  { label: "Scheduled", value: "Scheduled" },
+  { label: "Active", value: "Active" },
+  { label: "Completed", value: "Completed" },
+  { label: "Cancelled", value: "Cancelled" },
+  { label: "Archived", value: "Archived" },
+];
+
+const categoryFilterOptions: { label: string; value: FilterCategory }[] = [
+  { label: "All", value: "All" },
+  { label: "Event", value: "Event" },
+  { label: "Meeting", value: "Meeting" },
+  { label: "Visit", value: "Visit" },
 ];
 
 const eventTypeOptions = [
@@ -400,6 +419,7 @@ function getRelativeLabel(dateString: string) {
   return `${Math.abs(diffDays)} days ago`;
 }
 
+
 function generateUuid() {
   const cryptoObject = (globalThis as any).crypto;
   if (cryptoObject?.randomUUID) {
@@ -478,7 +498,11 @@ function recurrenceFrequencyLabel(value?: string | null) {
 
 function recurrenceDaysLabel(item: EventsMeetingsVisitsRecord) {
   if (!item.recurrence_days || item.recurrence_days.length === 0) {
-    return weekdayOptions.find((day) => day.value === weekdayKeyFromDate(isoDateToLocalDate(item.event_date)))?.shortLabel || "";
+    return (
+      weekdayOptions.find(
+        (day) => day.value === weekdayKeyFromDate(isoDateToLocalDate(item.event_date)),
+      )?.shortLabel || ""
+    );
   }
 
   return item.recurrence_days
@@ -498,24 +522,64 @@ export default function EventsMeetingsVisitsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
 
-  const activeItems = useMemo(
-    () => items.filter((item) => item.status !== "Archived"),
-    [items],
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>("Inbox");
+  const [categoryFilter, setCategoryFilter] = useState<FilterCategory>("All");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const listItems = useMemo(() => buildGroupedListItems(items), [items]);
+
+  const filteredItems = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return listItems.filter((listItem) => {
+      const item = listItem.representative;
+
+      if (statusFilter === "Inbox" && item.status === "Archived") return false;
+      if (statusFilter !== "Inbox" && statusFilter !== "All" && item.status !== statusFilter) {
+        return false;
+      }
+      if (categoryFilter !== "All" && item.main_category !== categoryFilter) {
+        return false;
+      }
+
+      if (!query) return true;
+
+      const searchable = listItem.items
+        .map((record) =>
+          [
+            record.title,
+            record.main_category,
+            record.event_type,
+            record.event_date,
+            record.visitor_name,
+            record.organisation,
+            record.responsible_staff,
+            record.location,
+            record.status,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        )
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [listItems, searchQuery, statusFilter, categoryFilter]);
+
+  const selectedCount = selectedIds.size;
+
+  const visibleIds = useMemo(
+    () => filteredItems.map((listItem) => listItem.key),
+    [filteredItems],
   );
 
-  const archivedItems = useMemo(
-    () => items.filter((item) => item.status === "Archived"),
-    [items],
-  );
-
-  const activeListItems = useMemo(
-    () => buildGroupedListItems(activeItems),
-    [activeItems],
-  );
-
-  const archivedListItems = useMemo(
-    () => buildGroupedListItems(archivedItems),
-    [archivedItems],
+  const allVisibleSelected = useMemo(
+    () =>
+      visibleIds.length > 0 &&
+      visibleIds.every((id) => selectedIds.has(id)),
+    [selectedIds, visibleIds],
   );
 
   const fetchItems = useCallback(async () => {
@@ -544,6 +608,14 @@ export default function EventsMeetingsVisitsScreen() {
     void fetchItems();
   }, [fetchItems]);
 
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const validIds = new Set(buildGroupedListItems(items).map((listItem) => listItem.key));
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [items]);
+
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -564,6 +636,7 @@ export default function EventsMeetingsVisitsScreen() {
             ),
           );
 
+    setSelectedIds(new Set());
     setEditingId(isSeries ? null : sourceItem.id);
     setEditingGroupId(isSeries ? listItem.recurrenceGroupId || null : null);
     setForm({
@@ -891,15 +964,19 @@ export default function EventsMeetingsVisitsScreen() {
     await fetchItems();
   }
 
+
+
+  function recordIdsForListKeys(keys: string[]) {
+    const keySet = new Set(keys);
+    return filteredItems
+      .filter((listItem) => keySet.has(listItem.key))
+      .flatMap((listItem) => listItem.items.map((item) => item.id));
+  }
+
   async function updateListItemStatus(
     listItem: EventsMeetingsVisitsListItem,
     status: EventStatus,
   ) {
-    if (listItem.kind === "single") {
-      await updateStatus(listItem.representative.id, status);
-      return;
-    }
-
     const ids = listItem.items.map((item) => item.id);
     const { error } = await supabase
       .from("events_meetings_visits")
@@ -907,8 +984,8 @@ export default function EventsMeetingsVisitsScreen() {
       .in("id", ids);
 
     if (error) {
-      console.error("Error updating recurring series status:", error);
-      Alert.alert("Update failed", "The recurring series could not be updated.");
+      console.error("Error updating item status:", error);
+      Alert.alert("Update failed", "The selected item could not be updated.");
       return;
     }
 
@@ -955,7 +1032,6 @@ export default function EventsMeetingsVisitsScreen() {
       { text: "Delete", style: "destructive", onPress: runDelete },
     ]);
   }
-
   async function deleteItem(id: string) {
     const runDelete = async () => {
       const { error } = await supabase
@@ -987,6 +1063,103 @@ export default function EventsMeetingsVisitsScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: runDelete },
     ]);
+  }
+
+
+  function toggleItemSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+
+      if (allVisibleSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+
+      return next;
+    });
+  }
+
+  async function bulkUpdateStatus(status: EventStatus) {
+    const selectedKeys = Array.from(selectedIds);
+    const ids = recordIdsForListKeys(selectedKeys);
+
+    if (ids.length === 0) {
+      Alert.alert("No items selected", "Select one or more items first.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("events_meetings_visits")
+      .update({ status })
+      .in("id", ids);
+
+    if (error) {
+      console.error("Error updating selected items:", error);
+      Alert.alert("Update failed", "The selected items could not be updated.");
+      return;
+    }
+
+    setSelectedIds(new Set());
+    await fetchItems();
+  }
+
+  async function deleteSelectedItems() {
+    const selectedKeys = Array.from(selectedIds);
+    const ids = recordIdsForListKeys(selectedKeys);
+
+    if (ids.length === 0) {
+      Alert.alert("No items selected", "Select one or more items first.");
+      return;
+    }
+
+    const runDelete = async () => {
+      const { error } = await supabase
+        .from("events_meetings_visits")
+        .delete()
+        .in("id", ids);
+
+      if (error) {
+        console.error("Error deleting selected items:", error);
+        Alert.alert("Delete failed", "The selected items could not be deleted.");
+        return;
+      }
+
+      setSelectedIds(new Set());
+      await fetchItems();
+    };
+
+    if (Platform.OS === "web") {
+      const confirmed = (globalThis as any).confirm
+        ? (globalThis as any).confirm(`Delete ${ids.length} selected item${ids.length === 1 ? "" : "s"} permanently?`)
+        : true;
+
+      if (confirmed) {
+        await runDelete();
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Delete selected items?",
+      `This permanently deletes ${ids.length} selected item${ids.length === 1 ? "" : "s"}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: runDelete },
+      ],
+    );
   }
 
   return (
@@ -1032,11 +1205,7 @@ export default function EventsMeetingsVisitsScreen() {
             <View style={styles.formHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.panelTitle}>
-                  {editingGroupId
-                    ? "Edit Recurring Series"
-                    : editingId
-                      ? "Edit Item"
-                      : "Add New Item"}
+                  {editingGroupId ? "Edit Recurring Series" : editingId ? "Edit Item" : "Add New Item"}
                 </Text>
                 {editingId || editingGroupId ? (
                   <Text style={styles.editingNotice}>
@@ -1189,7 +1358,9 @@ export default function EventsMeetingsVisitsScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.toggleText}>Recurring event</Text>
                     <Text style={styles.recurrenceHint}>
-                      Creates each future visit as a normal dashboard item.
+                      {editingGroupId
+                        ? "Editing this whole recurring series as one item."
+                        : "Creates each future visit as a normal dashboard item."}
                     </Text>
                   </View>
                   <Switch
@@ -1450,7 +1621,12 @@ export default function EventsMeetingsVisitsScreen() {
 
           <View style={styles.panel}>
             <View style={styles.listHeaderRow}>
-              <Text style={styles.panelTitle}>Current Items</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.panelTitle}>Events Inbox</Text>
+                <Text style={styles.inboxSubtitle}>
+                  Search, filter, select and manage events like a calendar/mailbox.
+                </Text>
+              </View>
               <Pressable
                 style={styles.refreshButton}
                 onPress={() => void fetchItems()}
@@ -1458,6 +1634,109 @@ export default function EventsMeetingsVisitsScreen() {
                 <Ionicons name="refresh" size={16} color="#6B7280" />
                 <Text style={styles.refreshButtonText}>Refresh</Text>
               </Pressable>
+            </View>
+
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search title, visitor, organisation, host or location"
+              style={styles.searchInput}
+            />
+
+            <Text style={styles.filterLabel}>Status</Text>
+            <View style={styles.chipRow}>
+              {statusFilterOptions.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setStatusFilter(option.value)}
+                  style={[
+                    styles.filterChip,
+                    statusFilter === option.value && styles.chipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      statusFilter === option.value && styles.chipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.filterLabel}>Category</Text>
+            <View style={styles.chipRow}>
+              {categoryFilterOptions.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setCategoryFilter(option.value)}
+                  style={[
+                    styles.filterChip,
+                    categoryFilter === option.value && styles.chipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      categoryFilter === option.value && styles.chipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.mailToolbar}>
+              <Pressable
+                style={styles.selectVisibleButton}
+                onPress={toggleSelectAllVisible}
+                disabled={filteredItems.length === 0}
+              >
+                <Ionicons
+                  name={allVisibleSelected ? "checkbox" : "square-outline"}
+                  size={18}
+                  color={filteredItems.length === 0 ? "#9CA3AF" : "#562C61"}
+                />
+                <Text style={styles.selectVisibleText}>
+                  {allVisibleSelected ? "Clear visible" : "Select visible"}
+                </Text>
+              </Pressable>
+
+              <Text style={styles.selectionCount}>
+                {selectedCount} selected · {filteredItems.length} shown
+              </Text>
+
+              {selectedCount > 0 ? (
+                <View style={styles.bulkActionRow}>
+                  <Pressable
+                    style={styles.bulkButton}
+                    onPress={() => void bulkUpdateStatus("Completed")}
+                  >
+                    <Text style={styles.bulkButtonText}>Complete</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.bulkButton}
+                    onPress={() => void bulkUpdateStatus("Archived")}
+                  >
+                    <Text style={styles.bulkButtonText}>Archive</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.bulkButton}
+                    onPress={() => void bulkUpdateStatus("Scheduled")}
+                  >
+                    <Text style={styles.bulkButtonText}>Restore</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.bulkDeleteButton}
+                    onPress={() => void deleteSelectedItems()}
+                  >
+                    <Text style={styles.bulkDeleteButtonText}>Delete</Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
 
             {loading && (
@@ -1471,41 +1750,34 @@ export default function EventsMeetingsVisitsScreen() {
               <Text style={styles.errorText}>{errorMessage}</Text>
             )}
 
-            {!loading && activeListItems.length === 0 && (
+            {!loading && filteredItems.length === 0 && (
               <Text style={styles.emptyText}>
-                No events, meetings or visits added yet.
+                No events, meetings or visits match the current filters.
               </Text>
             )}
 
-            {!loading &&
-              activeListItems.map((listItem) => (
-                <EventCard
-                  key={listItem.key}
-                  listItem={listItem}
-                  onEdit={() => handleEdit(listItem)}
-                  onArchive={() => updateListItemStatus(listItem, "Archived")}
-                  onComplete={() => updateListItemStatus(listItem, "Completed")}
-                  onDelete={() => deleteListItem(listItem)}
-                />
-              ))}
+            {!loading && filteredItems.length > 0 ? (
+              <View style={styles.mailList}>
+                {filteredItems.map((listItem) => (
+                  <InboxRow
+                    key={listItem.key}
+                    listItem={listItem}
+                    selected={selectedIds.has(listItem.key)}
+                    onToggleSelected={() => toggleItemSelected(listItem.key)}
+                    onEdit={() => handleEdit(listItem)}
+                    onArchive={() =>
+                      updateListItemStatus(
+                        listItem,
+                        listItem.representative.status === "Archived" ? "Scheduled" : "Archived",
+                      )
+                    }
+                    onComplete={() => updateListItemStatus(listItem, "Completed")}
+                    onDelete={() => deleteListItem(listItem)}
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
-
-          {archivedListItems.length > 0 && (
-            <View style={styles.panelMuted}>
-              <Text style={styles.panelTitle}>Archived</Text>
-              {archivedListItems.map((listItem) => (
-                <EventCard
-                  key={listItem.key}
-                  listItem={listItem}
-                  compact
-                  onEdit={() => handleEdit(listItem)}
-                  onArchive={() => updateListItemStatus(listItem, "Scheduled")}
-                  onComplete={() => updateListItemStatus(listItem, "Completed")}
-                  onDelete={() => deleteListItem(listItem)}
-                />
-              ))}
-            </View>
-          )}
         </View>
       </ScrollView>
 
@@ -1518,16 +1790,18 @@ function Label({ text }: { text: string }) {
   return <Text style={styles.label}>{text}</Text>;
 }
 
-function EventCard({
+function InboxRow({
   listItem,
-  compact = false,
+  selected,
+  onToggleSelected,
   onEdit,
   onArchive,
   onComplete,
   onDelete,
 }: {
   listItem: EventsMeetingsVisitsListItem;
-  compact?: boolean;
+  selected: boolean;
+  onToggleSelected: () => void;
   onEdit: () => void;
   onArchive: () => void;
   onComplete: () => void;
@@ -1535,106 +1809,91 @@ function EventCard({
 }) {
   const item = listItem.representative;
   const isSeries = listItem.kind === "series";
-  const firstItem = listItem.items[0] || item;
-  const finalItem = listItem.items[listItem.items.length - 1] || item;
+  const firstItem = [...listItem.items].sort(compareEventsByDateTime)[0] || item;
+  const lastItem = [...listItem.items].sort(compareEventsByDateTime)[listItem.items.length - 1] || item;
+  const timeLabel = item.all_day
+    ? "All day"
+    : `${formatTime(item.start_time) || "?"} – ${formatTime(item.end_time) || "?"}`;
+
   const seriesLabel = isSeries
-    ? `${recurrenceFrequencyLabel(item.recurrence_frequency)}${
-        recurrenceDaysLabel(item) ? ` · ${recurrenceDaysLabel(item)}` : ""
-      } · ${listItem.items.length} visit${listItem.items.length === 1 ? "" : "s"}`
-    : "";
+    ? `${recurrenceFrequencyLabel(item.recurrence_frequency)}${recurrenceDaysLabel(item) ? ` · ${recurrenceDaysLabel(item)}` : ""} · ${listItem.items.length} visits`
+    : null;
+
+  const dateLabel = isSeries
+    ? `${formatDateAU(firstItem.event_date)} – ${formatDateAU(lastItem.event_date)}`
+    : formatDateAU(item.event_date);
+
+  const detailParts = [
+    item.event_type,
+    item.responsible_staff ? `Host: ${item.responsible_staff}` : null,
+    item.visitor_name ? `Visitor: ${item.visitor_name}` : null,
+    item.location,
+  ].filter(Boolean);
 
   return (
-    <View style={[styles.eventCard, compact && styles.eventCardMuted]}>
-      <View style={styles.eventCardTopRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.relativeLabel}>
-            {isSeries ? "Recurring series" : getRelativeLabel(item.event_date)}
-          </Text>
-          <Text style={styles.eventTitle}>{item.title}</Text>
-          <Text style={styles.eventMeta}>
-            {item.main_category}
-            {item.event_type ? ` · ${item.event_type}` : ""}
-          </Text>
-          {isSeries ? <Text style={styles.seriesText}>{seriesLabel}</Text> : null}
-        </View>
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateBadgeText}>
-            {isSeries ? `${listItem.items.length} visits` : formatDateAU(item.event_date)}
-          </Text>
-        </View>
+    <View style={[styles.inboxRow, selected && styles.inboxRowSelected]}>
+      <Pressable style={styles.checkboxCell} onPress={onToggleSelected}>
+        <Ionicons
+          name={selected ? "checkbox" : "square-outline"}
+          size={22}
+          color={selected ? "#562C61" : "#9CA3AF"}
+        />
+      </Pressable>
+
+      <View style={styles.dateCell}>
+        <Text style={styles.relativeLabel}>
+          {isSeries ? "Recurring series" : getRelativeLabel(item.event_date)}
+        </Text>
+        <Text style={styles.dateCellText}>{dateLabel}</Text>
+        <Text style={styles.timeCellText}>{timeLabel}</Text>
       </View>
 
-      <View style={styles.eventDetails}>
-        {isSeries ? (
-          <>
-            <Text style={styles.eventLine}>
-              First visit: {formatDateAU(firstItem.event_date)}
-            </Text>
-            <Text style={styles.eventLine}>
-              Next visit: {formatDateAU(item.event_date)}
-            </Text>
-            <Text style={styles.eventLine}>
-              Final visit: {formatDateAU(finalItem.event_date)}
-            </Text>
-          </>
+      <View style={styles.messageCell}>
+        <Text style={styles.eventTitle}>{item.title}</Text>
+        <Text style={styles.eventMeta}>{item.main_category}</Text>
+        {seriesLabel ? <Text style={styles.seriesText}>{seriesLabel}</Text> : null}
+        {detailParts.length > 0 ? (
+          <Text style={styles.inboxDetailLine}>{detailParts.join(" · ")}</Text>
         ) : null}
-        <Text style={styles.eventLine}>
-          {item.all_day
-            ? "All day"
-            : `${formatTime(item.start_time) || "?"} – ${formatTime(item.end_time) || "?"}`}
-        </Text>
-        {item.responsible_staff ? (
-          <Text style={styles.eventLine}>Host: {item.responsible_staff}</Text>
-        ) : null}
-        {item.visitor_name ? (
-          <Text style={styles.eventLine}>Visitor: {item.visitor_name}</Text>
-        ) : null}
-        {item.organisation ? (
-          <Text style={styles.eventLine}>
-            Organisation: {item.organisation}
+        {item.notes ? (
+          <Text style={styles.inboxNotesLine} numberOfLines={1}>
+            {item.notes}
           </Text>
         ) : null}
-        {item.location ? (
-          <Text style={styles.eventLine}>Location: {item.location}</Text>
-        ) : null}
-        <Text style={styles.eventLine}>Status: {item.status}</Text>
-        <Text style={styles.eventLine}>
-          Dashboard: {item.dashboard_visible ? "Visible" : "Hidden"}
+      </View>
+
+      <View style={styles.statusCell}>
+        <View
+          style={[
+            styles.statusPill,
+            item.status === "Archived" && styles.statusPillArchived,
+            item.status === "Completed" && styles.statusPillCompleted,
+            item.status === "Cancelled" && styles.statusPillCancelled,
+          ]}
+        >
+          <Text style={styles.statusPillText}>{item.status}</Text>
+        </View>
+        <Text style={styles.dashboardMiniText}>
+          {item.dashboard_visible ? "Dashboard visible" : "Dashboard hidden"}
         </Text>
       </View>
 
-      {!compact && item.notes ? (
-        <Text style={styles.notesText}>{item.notes}</Text>
-      ) : null}
-
-      <View style={styles.cardActionRow}>
+      <View style={styles.rowActionCell}>
         <Pressable style={styles.editButton} onPress={onEdit}>
-          <Text style={styles.editButtonText}>
-            {isSeries ? "Edit Series" : "Edit"}
-          </Text>
+          <Text style={styles.editButtonText}>{isSeries ? "Edit Series" : "Edit"}</Text>
         </Pressable>
         {item.status !== "Completed" && item.status !== "Archived" ? (
           <Pressable style={styles.secondaryButton} onPress={onComplete}>
-            <Text style={styles.secondaryButtonText}>
-              {isSeries ? "Complete Series" : "Complete"}
-            </Text>
+            <Text style={styles.secondaryButtonText}>Complete</Text>
           </Pressable>
         ) : null}
         <Pressable style={styles.secondaryButton} onPress={onArchive}>
           <Text style={styles.secondaryButtonText}>
-            {item.status === "Archived"
-              ? isSeries
-                ? "Restore Series"
-                : "Restore"
-              : isSeries
-                ? "Archive Series"
-                : "Archive"}
+            {item.status === "Archived" ? "Restore" : "Archive"}
           </Text>
         </Pressable>
         <Pressable style={styles.deleteButton} onPress={onDelete}>
-          <Text style={styles.deleteButtonText}>
-            {isSeries ? "Delete Series" : "Delete"}
-          </Text>
+          <Text style={styles.deleteButtonText}>Delete</Text>
         </Pressable>
       </View>
     </View>
@@ -1990,6 +2249,212 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontWeight: "700",
   },
+  inboxSubtitle: {
+    marginTop: -6,
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  searchInput: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  filterLabel: {
+    marginTop: 8,
+    marginBottom: 6,
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  filterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  filterChipText: {
+    fontSize: 11,
+    color: "#4B5563",
+    fontWeight: "800",
+  },
+  mailToolbar: {
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 10,
+    gap: 8,
+  },
+  selectVisibleButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  selectVisibleText: {
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "800",
+  },
+  selectionCount: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "700",
+  },
+  bulkActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  bulkButton: {
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bulkButtonText: {
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "800",
+  },
+  bulkDeleteButton: {
+    borderRadius: 999,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bulkDeleteButtonText: {
+    fontSize: 12,
+    color: "#B91C1C",
+    fontWeight: "800",
+  },
+  mailList: {
+    marginTop: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  inboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  inboxRowSelected: {
+    backgroundColor: "#F5EAF8",
+  },
+  checkboxCell: {
+    width: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateCell: {
+    width: 116,
+    gap: 2,
+  },
+  dateCellText: {
+    fontSize: 12,
+    color: "#111827",
+    fontWeight: "800",
+  },
+  timeCellText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "700",
+  },
+  messageCell: {
+    flex: 1,
+    minWidth: 180,
+  },
+  seriesText: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "800",
+  },
+  inboxDetailLine: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: "600",
+  },
+  inboxNotesLine: {
+    marginTop: 3,
+    fontSize: 11,
+    color: "#6B7280",
+  },
+  statusCell: {
+    width: 120,
+    gap: 4,
+    alignItems: "flex-start",
+  },
+  statusPill: {
+    borderRadius: 999,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusPillArchived: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#D1D5DB",
+  },
+  statusPillCompleted: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  statusPillCancelled: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  statusPillText: {
+    fontSize: 11,
+    color: "#374151",
+    fontWeight: "800",
+  },
+  dashboardMiniText: {
+    fontSize: 10,
+    color: "#6B7280",
+    fontWeight: "700",
+  },
+  rowActionCell: {
+    width: 220,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    gap: 6,
+  },
   loadingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2045,12 +2510,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     fontWeight: "600",
-  },
-  seriesText: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "#92400E",
-    fontWeight: "800",
   },
   dateBadge: {
     borderRadius: 999,
