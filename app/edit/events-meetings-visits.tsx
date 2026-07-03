@@ -934,8 +934,9 @@ export default function EventsMeetingsVisitsScreen() {
         };
 
     if (editingGroupId || editingSeriesIds.length > 0) {
-      // Save the whole recurring series without relying on delete permissions.
-      // Existing rows are updated in-place, new rows are inserted, and surplus future rows are archived.
+      // SAFE SERIES SAVE:
+      // Never delete or archive existing visits automatically.
+      // Update existing rows in-place, and only insert extra rows when the visit count is increased.
       const existingSeriesRecords = editingGroupId
         ? items
             .filter((record) => record.recurrence_group_id === editingGroupId)
@@ -949,12 +950,21 @@ export default function EventsMeetingsVisitsScreen() {
 
       if (existingSeriesIds.length === 0) {
         saveError = new Error("No existing series records were found to update.");
+      } else if (recurringEventDates.length < existingSeriesIds.length) {
+        setSaving(false);
+        Alert.alert(
+          "Visit count is lower",
+          `This series currently has ${existingSeriesIds.length} visit records, but the form is set to ${recurringEventDates.length}. To avoid accidentally removing visits, no records were changed. For now, archive/delete surplus visits separately, then edit the series again.`,
+        );
+        return;
       } else {
         const seriesPayloads = recurringEventDates.map((dateForItem, index) => ({
           ...basePayload,
-          ...recurrencePayload,
           is_recurring: true,
           recurrence_group_id: seriesGroupId,
+          recurrence_frequency: form.recurrenceFrequency,
+          recurrence_days:
+            form.recurrenceFrequency === "monthly" ? [] : form.recurrenceDays,
           recurrence_count: recurringEventDates.length,
           event_date: dateForItem,
           display_from: displayFromForEvent(dateForItem),
@@ -989,23 +999,6 @@ export default function EventsMeetingsVisitsScreen() {
             .insert(extraPayloads);
 
           saveError = insertSeriesError;
-        }
-
-        if (!saveError && existingSeriesIds.length > seriesPayloads.length) {
-          const surplusIds = existingSeriesIds.slice(seriesPayloads.length);
-
-          const { error: archiveSurplusError } = await supabase
-            .from("events_meetings_visits")
-            .update({
-              status: "Archived",
-              dashboard_visible: false,
-              is_recurring: true,
-              recurrence_group_id: seriesGroupId,
-              recurrence_count: recurringEventDates.length,
-            })
-            .in("id", surplusIds);
-
-          saveError = archiveSurplusError;
         }
       }
     } else if (editingId) {
@@ -1042,7 +1035,12 @@ export default function EventsMeetingsVisitsScreen() {
 
     if (saveError) {
       console.error("Error saving event, meeting or visit:", saveError);
-      Alert.alert("Save failed", "The item could not be saved.");
+      const message =
+        saveError?.message ||
+        saveError?.details ||
+        saveError?.hint ||
+        "The item could not be saved.";
+      Alert.alert("Save failed", String(message));
       return;
     }
 
