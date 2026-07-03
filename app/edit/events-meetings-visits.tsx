@@ -559,6 +559,38 @@ function recurrenceDaysLabel(item: EventsMeetingsVisitsRecord) {
     .join(" / ");
 }
 
+
+function stripRecurrenceMetadata<T extends Record<string, any>>(payload: T) {
+  const {
+    is_recurring,
+    recurrence_group_id,
+    recurrence_frequency,
+    recurrence_days,
+    recurrence_count,
+    recurrence_index,
+    ...rest
+  } = payload;
+  return rest;
+}
+
+function looksLikeMissingRecurrenceColumns(error: any) {
+  const message = [error?.message, error?.details, error?.hint, error?.code]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    message.includes("schema cache") ||
+    message.includes("could not find") ||
+    message.includes("is_recurring") ||
+    message.includes("recurrence_group_id") ||
+    message.includes("recurrence_frequency") ||
+    message.includes("recurrence_days") ||
+    message.includes("recurrence_count") ||
+    message.includes("recurrence_index")
+  );
+}
+
 export default function EventsMeetingsVisitsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<EventsMeetingsVisitsRecord[]>([]);
@@ -914,6 +946,46 @@ export default function EventsMeetingsVisitsScreen() {
       notes: form.notes.trim() || null,
     };
 
+    let usedRecurrenceColumnFallback = false;
+
+    async function updateEventRecord(id: string, payload: Record<string, any>) {
+      const { error } = await supabase
+        .from("events_meetings_visits")
+        .update(payload)
+        .eq("id", id)
+        .select("id");
+
+      if (error && looksLikeMissingRecurrenceColumns(error)) {
+        usedRecurrenceColumnFallback = true;
+        const { error: fallbackError } = await supabase
+          .from("events_meetings_visits")
+          .update(stripRecurrenceMetadata(payload))
+          .eq("id", id)
+          .select("id");
+        return fallbackError;
+      }
+
+      return error;
+    }
+
+    async function insertEventRecords(payloads: Record<string, any>[]) {
+      const { data, error } = await supabase
+        .from("events_meetings_visits")
+        .insert(payloads)
+        .select("id");
+
+      if (error && looksLikeMissingRecurrenceColumns(error)) {
+        usedRecurrenceColumnFallback = true;
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("events_meetings_visits")
+          .insert(payloads.map(stripRecurrenceMetadata))
+          .select("id");
+        return { data: fallbackData, error: fallbackError };
+      }
+
+      return { data, error };
+    }
+
     let saveError: any = null;
     const recurrenceGroupId = editingGroupId || (editingSeriesIds.length > 0 ? generateUuid() : shouldGenerateRecurringItems ? generateUuid() : null);
     const recurrencePayload = shouldGenerateRecurringItems
@@ -975,10 +1047,10 @@ export default function EventsMeetingsVisitsScreen() {
         const updateCount = Math.min(existingSeriesIds.length, seriesPayloads.length);
 
         for (let index = 0; index < updateCount; index += 1) {
-          const { error: updateSeriesError } = await supabase
-            .from("events_meetings_visits")
-            .update(seriesPayloads[index])
-            .eq("id", existingSeriesIds[index]);
+          const updateSeriesError = await updateEventRecord(
+            existingSeriesIds[index],
+            seriesPayloads[index],
+          );
 
           if (updateSeriesError) {
             saveError = updateSeriesError;
@@ -994,40 +1066,33 @@ export default function EventsMeetingsVisitsScreen() {
               created_by: userData.user?.id || null,
             }));
 
-          const { error: insertSeriesError } = await supabase
-            .from("events_meetings_visits")
-            .insert(extraPayloads);
+          const { error: insertSeriesError } = await insertEventRecords(extraPayloads);
 
           saveError = insertSeriesError;
         }
       }
     } else if (editingId) {
-      const { error: updateError } = await supabase
-        .from("events_meetings_visits")
-        .update({
-          ...basePayload,
-          ...recurrencePayload,
-          event_date: eventDate,
-          display_from: displayFromForEvent(eventDate),
-          display_until: displayUntilForEvent(eventDate),
-          recurrence_index: null,
-        })
-        .eq("id", editingId);
+      const updateError = await updateEventRecord(editingId, {
+        ...basePayload,
+        ...recurrencePayload,
+        event_date: eventDate,
+        display_from: displayFromForEvent(eventDate),
+        display_until: displayUntilForEvent(eventDate),
+        recurrence_index: null,
+      });
       saveError = updateError;
     } else {
-      const { error: insertError } = await supabase
-        .from("events_meetings_visits")
-        .insert(
-          recurringEventDates.map((dateForItem, index) => ({
-            ...basePayload,
-            ...recurrencePayload,
-            event_date: dateForItem,
-            display_from: displayFromForEvent(dateForItem),
-            display_until: displayUntilForEvent(dateForItem),
-            recurrence_index: shouldGenerateRecurringItems ? index + 1 : null,
-            created_by: userData.user?.id || null,
-          })),
-        );
+      const { error: insertError } = await insertEventRecords(
+        recurringEventDates.map((dateForItem, index) => ({
+          ...basePayload,
+          ...recurrencePayload,
+          event_date: dateForItem,
+          display_from: displayFromForEvent(dateForItem),
+          display_until: displayUntilForEvent(dateForItem),
+          recurrence_index: shouldGenerateRecurringItems ? index + 1 : null,
+          created_by: userData.user?.id || null,
+        })),
+      );
       saveError = insertError;
     }
 
@@ -1044,8 +1109,18 @@ export default function EventsMeetingsVisitsScreen() {
       return;
     }
 
+    setSearchQuery("");
+    setStatusFilter("Inbox");
+    setCategoryFilter("All");
     handleCancelEdit();
     await fetchItems();
+
+    if (usedRecurrenceColumnFallback) {
+      Alert.alert(
+        "Saved",
+        "Saved successfully, but the Supabase recurring columns appear to be missing. Run the recurring SQL update when convenient so series metadata can be stored properly.",
+      );
+    }
   }
 
   async function updateStatus(id: string, status: EventStatus) {
