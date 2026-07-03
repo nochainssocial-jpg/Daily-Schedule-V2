@@ -62,7 +62,7 @@ function TodayCelebrationCard({ item, wide }: { item: StaffCelebrationItem; wide
       </View>
 
       <View style={styles.celebrationTodayCardInner}>
-        <StaffPhoto item={item} size={96} />
+        <StaffPhoto item={item} size={84} />
 
         <View style={styles.celebrationTodayTextBlock}>
           <View style={[styles.celebrationTypePill, isBirthday ? styles.celebrationBirthdayPill : styles.celebrationMilestonePill]}>
@@ -97,7 +97,7 @@ function UpcomingCelebrationRow({ item }: { item: StaffCelebrationItem }) {
   const isBirthday = item.kind === "birthday";
   return (
     <View style={styles.celebrationUpcomingRow}>
-      <StaffPhoto item={item} size={50} />
+      <StaffPhoto item={item} size={46} />
       <View style={styles.celebrationUpcomingTextBlock}>
         <Text style={styles.celebrationUpcomingName} numberOfLines={1}>{item.firstName}</Text>
         <Text style={[styles.celebrationUpcomingLabel, isBirthday ? styles.celebrationBirthdayText : styles.celebrationMilestoneText]} numberOfLines={1}>
@@ -116,9 +116,9 @@ export function StaffCelebrationsPanel({
   todayCelebrations: StaffCelebrationItem[];
   upcomingCelebrations: StaffCelebrationItem[];
 }) {
-  const visibleUpcoming = upcomingCelebrations.slice(0, 5);
+  const visibleUpcoming = upcomingCelebrations.slice(0, 4);
   const todayCount = todayCelebrations.length;
-  const wideCards = todayCount <= 1;
+  const wideCards = true;
 
   return (
     <View style={[styles.panel, styles.celebrationPanel]}>
@@ -133,11 +133,11 @@ export function StaffCelebrationsPanel({
         </View>
       </View>
 
-      <View style={styles.celebrationLayout}>
-        <View style={styles.celebrationMainColumn}>
+      <View style={[styles.celebrationLayout, { gap: 12 }]}>
+        <View style={[styles.celebrationMainColumn, { flex: 2.45, minWidth: 0 }]}>
           <View style={styles.celebrationSectionTitleRow}>
             <MaterialCommunityIcons name="sparkles" size={22} color="#7C3AED" />
-            <Text style={styles.celebrationSectionTitle}>Today’s Celebrations</Text>
+            <Text style={styles.celebrationSectionTitle} numberOfLines={1}>Today’s Celebrations</Text>
           </View>
 
           {todayCelebrations.length === 0 ? (
@@ -154,24 +154,24 @@ export function StaffCelebrationsPanel({
               </View>
             </View>
           ) : (
-            <ScrollView style={styles.innerScroll} contentContainerStyle={styles.celebrationTodayGrid}>
+            <ScrollView style={styles.innerScroll} contentContainerStyle={[styles.celebrationTodayGrid, { flexDirection: "column", flexWrap: "nowrap", gap: 10, paddingRight: 2 }]}>
               {todayCelebrations.map((item) => (
                 <TodayCelebrationCard key={item.id} item={item} wide={wideCards} />
               ))}
             </ScrollView>
           )}
 
-          <View style={styles.celebrationFooterBanner}>
+          <View style={[styles.celebrationFooterBanner, { marginTop: 10, paddingVertical: 10 }]}>
             <MaterialCommunityIcons name="heart-outline" size={24} color="#7C3AED" />
             <Text style={styles.celebrationFooterText}>Great people make a great team. Today, we celebrate you!</Text>
             <MaterialCommunityIcons name="heart" size={22} color="#7C3AED" />
           </View>
         </View>
 
-        <View style={styles.celebrationSideColumn}>
+        <View style={[styles.celebrationSideColumn, { flex: 0.95, minWidth: 260 }]}>
           <View style={styles.celebrationUpcomingHeader}>
             <MaterialCommunityIcons name="calendar-star" size={22} color="#6D28D9" />
-            <Text style={styles.celebrationUpcomingTitle}>Upcoming Celebrations</Text>
+            <Text style={styles.celebrationUpcomingTitle} numberOfLines={1}>Upcoming Celebrations</Text>
           </View>
 
           {visibleUpcoming.length === 0 ? (
