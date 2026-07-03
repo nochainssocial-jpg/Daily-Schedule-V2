@@ -1,3 +1,4 @@
+// FINAL INBOX SERIES MANAGER - shows Search/filter/select visible/bulk actions/Edit Series
 // app/edit/events-meetings-visits.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -1116,6 +1117,82 @@ export default function EventsMeetingsVisitsScreen() {
     await fetchItems();
   }
 
+  async function groupSelectedAsRecurringSeries() {
+    const selectedKeySet = new Set(Array.from(selectedIds));
+    const selectedRecords = filteredItems
+      .filter((listItem) => selectedKeySet.has(listItem.key))
+      .flatMap((listItem) => listItem.items)
+      .sort(compareEventsByDateTime);
+
+    if (selectedRecords.length < 2) {
+      Alert.alert(
+        "Select more visits",
+        "Select two or more related visits first, then group them as one recurring series.",
+      );
+      return;
+    }
+
+    const first = selectedRecords[0];
+    const groupId = generateUuid();
+    const recurrenceDays = Array.from(
+      new Set(
+        selectedRecords.map((record) =>
+          weekdayKeyFromDate(isoDateToLocalDate(record.event_date)),
+        ),
+      ),
+    ).sort(
+      (a, b) =>
+        weekdayOptions.findIndex((day) => day.value === a) -
+        weekdayOptions.findIndex((day) => day.value === b),
+    );
+
+    const runGroup = async () => {
+      const results = await Promise.all(
+        selectedRecords.map((record, index) =>
+          supabase
+            .from("events_meetings_visits")
+            .update({
+              is_recurring: true,
+              recurrence_group_id: groupId,
+              recurrence_frequency: first.recurrence_frequency || "weekly",
+              recurrence_days: recurrenceDays,
+              recurrence_count: selectedRecords.length,
+              recurrence_index: index + 1,
+            })
+            .eq("id", record.id),
+        ),
+      );
+
+      const failed = results.find((result) => result.error);
+      if (failed?.error) {
+        console.error("Error grouping recurring series:", failed.error);
+        Alert.alert("Group failed", "The selected visits could not be grouped into a series.");
+        return;
+      }
+
+      setSelectedIds(new Set([groupId]));
+      await fetchItems();
+    };
+
+    const message = `Group ${selectedRecords.length} selected visits into one recurring series? After this, they will show as one row with an Edit Series button.`;
+
+    if (Platform.OS === "web") {
+      const confirmed = (globalThis as any).confirm
+        ? (globalThis as any).confirm(message)
+        : true;
+
+      if (confirmed) {
+        await runGroup();
+      }
+      return;
+    }
+
+    Alert.alert("Group as recurring series?", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Group Series", onPress: runGroup },
+    ]);
+  }
+
   async function deleteSelectedItems() {
     const selectedKeys = Array.from(selectedIds);
     const ids = recordIdsForListKeys(selectedKeys);
@@ -1729,6 +1806,14 @@ export default function EventsMeetingsVisitsScreen() {
                   >
                     <Text style={styles.bulkButtonText}>Restore</Text>
                   </Pressable>
+                  {selectedCount > 1 ? (
+                    <Pressable
+                      style={styles.bulkButton}
+                      onPress={() => void groupSelectedAsRecurringSeries()}
+                    >
+                      <Text style={styles.bulkButtonText}>Group Series</Text>
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     style={styles.bulkDeleteButton}
                     onPress={() => void deleteSelectedItems()}
