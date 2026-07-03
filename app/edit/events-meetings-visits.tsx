@@ -1,4 +1,4 @@
-// FINAL AUTO-GROUP INBOX SERIES MANAGER - inferred series collapse and Edit Series works
+// FINAL AUTO-GROUP INBOX SERIES MANAGER - series save fix: update/insert/archive
 // app/edit/events-meetings-visits.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -934,29 +934,79 @@ export default function EventsMeetingsVisitsScreen() {
         };
 
     if (editingGroupId || editingSeriesIds.length > 0) {
-      // Regenerate the whole series so changed dates, times or number of visits are applied cleanly.
-      const deleteQuery = supabase.from("events_meetings_visits").delete();
-      const { error: deleteSeriesError } = editingGroupId
-        ? await deleteQuery.eq("recurrence_group_id", editingGroupId)
-        : await deleteQuery.in("id", editingSeriesIds);
+      // Save the whole recurring series without relying on delete permissions.
+      // Existing rows are updated in-place, new rows are inserted, and surplus future rows are archived.
+      const existingSeriesRecords = editingGroupId
+        ? items
+            .filter((record) => record.recurrence_group_id === editingGroupId)
+            .sort(compareEventsByDateTime)
+        : items
+            .filter((record) => editingSeriesIds.includes(record.id))
+            .sort(compareEventsByDateTime);
 
-      if (deleteSeriesError) {
-        saveError = deleteSeriesError;
+      const existingSeriesIds = existingSeriesRecords.map((record) => record.id);
+      const seriesGroupId = editingGroupId || recurrenceGroupId || generateUuid();
+
+      if (existingSeriesIds.length === 0) {
+        saveError = new Error("No existing series records were found to update.");
       } else {
-        const { error: insertSeriesError } = await supabase
-          .from("events_meetings_visits")
-          .insert(
-            recurringEventDates.map((dateForItem, index) => ({
-              ...basePayload,
-              ...recurrencePayload,
-              event_date: dateForItem,
-              display_from: displayFromForEvent(dateForItem),
-              display_until: displayUntilForEvent(dateForItem),
-              recurrence_index: index + 1,
+        const seriesPayloads = recurringEventDates.map((dateForItem, index) => ({
+          ...basePayload,
+          ...recurrencePayload,
+          is_recurring: true,
+          recurrence_group_id: seriesGroupId,
+          recurrence_count: recurringEventDates.length,
+          event_date: dateForItem,
+          display_from: displayFromForEvent(dateForItem),
+          display_until: displayUntilForEvent(dateForItem),
+          recurrence_index: index + 1,
+        }));
+
+        const updateCount = Math.min(existingSeriesIds.length, seriesPayloads.length);
+
+        for (let index = 0; index < updateCount; index += 1) {
+          const { error: updateSeriesError } = await supabase
+            .from("events_meetings_visits")
+            .update(seriesPayloads[index])
+            .eq("id", existingSeriesIds[index]);
+
+          if (updateSeriesError) {
+            saveError = updateSeriesError;
+            break;
+          }
+        }
+
+        if (!saveError && seriesPayloads.length > existingSeriesIds.length) {
+          const extraPayloads = seriesPayloads
+            .slice(existingSeriesIds.length)
+            .map((payload) => ({
+              ...payload,
               created_by: userData.user?.id || null,
-            })),
-          );
-        saveError = insertSeriesError;
+            }));
+
+          const { error: insertSeriesError } = await supabase
+            .from("events_meetings_visits")
+            .insert(extraPayloads);
+
+          saveError = insertSeriesError;
+        }
+
+        if (!saveError && existingSeriesIds.length > seriesPayloads.length) {
+          const surplusIds = existingSeriesIds.slice(seriesPayloads.length);
+
+          const { error: archiveSurplusError } = await supabase
+            .from("events_meetings_visits")
+            .update({
+              status: "Archived",
+              dashboard_visible: false,
+              is_recurring: true,
+              recurrence_group_id: seriesGroupId,
+              recurrence_count: recurringEventDates.length,
+            })
+            .in("id", surplusIds);
+
+          saveError = archiveSurplusError;
+        }
       }
     } else if (editingId) {
       const { error: updateError } = await supabase
