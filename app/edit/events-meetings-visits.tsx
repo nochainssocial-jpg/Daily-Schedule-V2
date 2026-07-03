@@ -1,4 +1,4 @@
-// FINAL INBOX SERIES MANAGER - shows Search/filter/select visible/bulk actions/Edit Series
+// FINAL AUTO-GROUP INBOX SERIES MANAGER - inferred series collapse and Edit Series works
 // app/edit/events-meetings-visits.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -477,11 +477,10 @@ function seriesSignature(record: EventsMeetingsVisitsRecord) {
 
 function buildGroupedListItems(records: EventsMeetingsVisitsRecord[]) {
   const recurringGroups = new Map<string, EventsMeetingsVisitsRecord[]>();
-  const singles: EventsMeetingsVisitsListItem[] = [];
+  const ungroupedBySignature = new Map<string, EventsMeetingsVisitsRecord[]>();
 
   records.forEach((record) => {
-    // Once records have a recurrence_group_id, always collapse them into one row.
-    // This avoids relying only on is_recurring, which may be false/null on older rows.
+    // Real recurring records collapse by their saved Supabase group id.
     if (record.recurrence_group_id) {
       const current = recurringGroups.get(record.recurrence_group_id) || [];
       current.push(record);
@@ -489,29 +488,52 @@ function buildGroupedListItems(records: EventsMeetingsVisitsRecord[]) {
       return;
     }
 
-    singles.push({
-      key: record.id,
+    // Older/generated rows may not have recurrence_group_id yet. Infer a series
+    // when multiple rows have the same visit details but different dates.
+    const signature = seriesSignature(record);
+    const current = ungroupedBySignature.get(signature) || [];
+    current.push(record);
+    ungroupedBySignature.set(signature, current);
+  });
+
+  const listItems: EventsMeetingsVisitsListItem[] = [];
+
+  Array.from(recurringGroups.entries()).forEach(([groupId, groupRecords]) => {
+    const sorted = [...groupRecords].sort(compareEventsByDateTime);
+    listItems.push({
+      key: groupId,
+      kind: "series",
+      representative: getRepresentativeRecord(sorted),
+      items: sorted,
+      recurrenceGroupId: groupId,
+    });
+  });
+
+  Array.from(ungroupedBySignature.entries()).forEach(([signature, signatureRecords]) => {
+    const sorted = [...signatureRecords].sort(compareEventsByDateTime);
+
+    if (sorted.length >= 2) {
+      listItems.push({
+        key: `inferred-series-${signature}`,
+        kind: "series",
+        representative: getRepresentativeRecord(sorted),
+        items: sorted,
+        recurrenceGroupId: null,
+      });
+      return;
+    }
+
+    const single = sorted[0];
+    listItems.push({
+      key: single.id,
       kind: "single",
-      representative: record,
-      items: [record],
+      representative: single,
+      items: [single],
       recurrenceGroupId: null,
     });
   });
 
-  const groupedSeries = Array.from(recurringGroups.entries()).map(
-    ([groupId, groupRecords]) => {
-      const sorted = [...groupRecords].sort(compareEventsByDateTime);
-      return {
-        key: groupId,
-        kind: "series" as const,
-        representative: getRepresentativeRecord(sorted),
-        items: sorted,
-        recurrenceGroupId: groupId,
-      };
-    },
-  );
-
-  return [...singles, ...groupedSeries].sort((first, second) =>
+  return listItems.sort((first, second) =>
     compareEventsByDateTime(first.representative, second.representative),
   );
 }
@@ -545,6 +567,7 @@ export default function EventsMeetingsVisitsScreen() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingSeriesIds, setEditingSeriesIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
 
@@ -650,7 +673,7 @@ export default function EventsMeetingsVisitsScreen() {
     const sortedGroupItems = [...listItem.items].sort(compareEventsByDateTime);
     const sourceItem = sortedGroupItems[0] || listItem.representative;
     const finalItem = sortedGroupItems[sortedGroupItems.length - 1] || sourceItem;
-    const isSeries = listItem.kind === "series" && !!listItem.recurrenceGroupId;
+    const isSeries = listItem.kind === "series";
     const recurrenceDays =
       sourceItem.recurrence_days && sourceItem.recurrence_days.length > 0
         ? sourceItem.recurrence_days
@@ -664,7 +687,8 @@ export default function EventsMeetingsVisitsScreen() {
 
     setSelectedIds(new Set());
     setEditingId(isSeries ? null : sourceItem.id);
-    setEditingGroupId(isSeries ? listItem.recurrenceGroupId || null : null);
+    setEditingGroupId(isSeries && listItem.recurrenceGroupId ? listItem.recurrenceGroupId : null);
+    setEditingSeriesIds(isSeries && !listItem.recurrenceGroupId ? sortedGroupItems.map((item) => item.id) : []);
     setForm({
       title: sourceItem.title || "",
       mainCategory: sourceItem.main_category || "Visit",
@@ -702,6 +726,7 @@ export default function EventsMeetingsVisitsScreen() {
   function handleCancelEdit() {
     setEditingId(null);
     setEditingGroupId(null);
+    setEditingSeriesIds([]);
     setForm(blankForm);
     setTypeMenuOpen(false);
   }
@@ -750,7 +775,7 @@ export default function EventsMeetingsVisitsScreen() {
       return;
     }
 
-    const isEditingSeries = Boolean(editingGroupId);
+    const isEditingSeries = Boolean(editingGroupId) || editingSeriesIds.length > 0;
     const shouldGenerateRecurringItems = form.recurring || isEditingSeries;
 
     const recurrenceEnd =
@@ -890,7 +915,7 @@ export default function EventsMeetingsVisitsScreen() {
     };
 
     let saveError: any = null;
-    const recurrenceGroupId = editingGroupId || (shouldGenerateRecurringItems ? generateUuid() : null);
+    const recurrenceGroupId = editingGroupId || (editingSeriesIds.length > 0 ? generateUuid() : shouldGenerateRecurringItems ? generateUuid() : null);
     const recurrencePayload = shouldGenerateRecurringItems
       ? {
           is_recurring: true,
@@ -908,12 +933,12 @@ export default function EventsMeetingsVisitsScreen() {
           recurrence_count: null,
         };
 
-    if (editingGroupId) {
+    if (editingGroupId || editingSeriesIds.length > 0) {
       // Regenerate the whole series so changed dates, times or number of visits are applied cleanly.
-      const { error: deleteSeriesError } = await supabase
-        .from("events_meetings_visits")
-        .delete()
-        .eq("recurrence_group_id", editingGroupId);
+      const deleteQuery = supabase.from("events_meetings_visits").delete();
+      const { error: deleteSeriesError } = editingGroupId
+        ? await deleteQuery.eq("recurrence_group_id", editingGroupId)
+        : await deleteQuery.in("id", editingSeriesIds);
 
       if (deleteSeriesError) {
         saveError = deleteSeriesError;
@@ -1119,7 +1144,7 @@ export default function EventsMeetingsVisitsScreen() {
   }
 
   async function bulkUpdateStatus(status: EventStatus) {
-    const selectedKeys = Array.from(selectedIds);
+    const selectedKeys = Array.from(selectedIds) as string[];
     const ids = recordIdsForListKeys(selectedKeys);
 
     if (ids.length === 0) {
@@ -1143,7 +1168,7 @@ export default function EventsMeetingsVisitsScreen() {
   }
 
   async function groupSelectedAsRecurringSeries() {
-    const selectedKeySet = new Set(Array.from(selectedIds));
+    const selectedKeySet = new Set(Array.from(selectedIds) as string[]);
     const selectedRecords = filteredItems
       .filter((listItem) => selectedKeySet.has(listItem.key))
       .flatMap((listItem) => listItem.items)
@@ -1270,7 +1295,7 @@ export default function EventsMeetingsVisitsScreen() {
   }
 
   async function deleteSelectedItems() {
-    const selectedKeys = Array.from(selectedIds);
+    const selectedKeys = Array.from(selectedIds) as string[];
     const ids = recordIdsForListKeys(selectedKeys);
 
     if (ids.length === 0) {
@@ -1358,17 +1383,17 @@ export default function EventsMeetingsVisitsScreen() {
             <View style={styles.formHeaderRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.panelTitle}>
-                  {editingGroupId ? "Edit Recurring Series" : editingId ? "Edit Item" : "Add New Item"}
+                  {editingGroupId || editingSeriesIds.length > 0 ? "Edit Recurring Series" : editingId ? "Edit Item" : "Add New Item"}
                 </Text>
-                {editingId || editingGroupId ? (
+                {editingId || editingGroupId || editingSeriesIds.length > 0 ? (
                   <Text style={styles.editingNotice}>
-                    {editingGroupId
+                    {editingGroupId || editingSeriesIds.length > 0
                       ? "Editing the whole recurring series. Save changes to regenerate all visits in this series."
                       : "Editing existing item. Save changes or cancel to return to a blank form."}
                   </Text>
                 ) : null}
               </View>
-              {editingId || editingGroupId ? (
+              {editingId || editingGroupId || editingSeriesIds.length > 0 ? (
                 <Pressable
                   style={styles.cancelEditButton}
                   onPress={handleCancelEdit}
@@ -1505,13 +1530,13 @@ export default function EventsMeetingsVisitsScreen() {
               </View>
             )}
 
-            {(!editingId || editingGroupId) ? (
+            {(!editingId || editingGroupId || editingSeriesIds.length > 0) ? (
               <View style={styles.recurrencePanel}>
                 <View style={styles.toggleRowNoBorder}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.toggleText}>Recurring event</Text>
                     <Text style={styles.recurrenceHint}>
-                      {editingGroupId
+                      {editingGroupId || editingSeriesIds.length > 0
                         ? "Editing this whole recurring series as one item."
                         : "Creates each future visit as a normal dashboard item."}
                     </Text>
@@ -1519,7 +1544,7 @@ export default function EventsMeetingsVisitsScreen() {
                   <Switch
                     value={form.recurring}
                     onValueChange={(value) => updateForm("recurring", value)}
-                    disabled={Boolean(editingGroupId)}
+                    disabled={Boolean(editingGroupId) || editingSeriesIds.length > 0}
                   />
                 </View>
 
@@ -1760,7 +1785,7 @@ export default function EventsMeetingsVisitsScreen() {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.saveButtonText}>
-                  {editingGroupId
+                  {editingGroupId || editingSeriesIds.length > 0
                     ? "Save Series Changes"
                     : editingId
                       ? "Save Changes"
