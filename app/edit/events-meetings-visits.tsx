@@ -452,12 +452,37 @@ function getRepresentativeRecord(records: EventsMeetingsVisitsRecord[]) {
   );
 }
 
+function normaliseSeriesValue(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function seriesSignature(record: EventsMeetingsVisitsRecord) {
+  return [
+    record.title,
+    record.main_category,
+    record.event_type,
+    record.all_day ? "all-day" : record.start_time,
+    record.all_day ? "all-day" : record.end_time,
+    record.visitor_name,
+    record.organisation,
+    record.responsible_staff,
+    record.location,
+  ]
+    .map(normaliseSeriesValue)
+    .join("|");
+}
+
 function buildGroupedListItems(records: EventsMeetingsVisitsRecord[]) {
   const recurringGroups = new Map<string, EventsMeetingsVisitsRecord[]>();
   const singles: EventsMeetingsVisitsListItem[] = [];
 
   records.forEach((record) => {
-    if (record.is_recurring && record.recurrence_group_id) {
+    // Once records have a recurrence_group_id, always collapse them into one row.
+    // This avoids relying only on is_recurring, which may be false/null on older rows.
+    if (record.recurrence_group_id) {
       const current = recurringGroups.get(record.recurrence_group_id) || [];
       current.push(record);
       recurringGroups.set(record.recurrence_group_id, current);
@@ -1132,49 +1157,100 @@ export default function EventsMeetingsVisitsScreen() {
       return;
     }
 
-    const first = selectedRecords[0];
-    const groupId = generateUuid();
-    const recurrenceDays = Array.from(
-      new Set(
-        selectedRecords.map((record) =>
-          weekdayKeyFromDate(isoDateToLocalDate(record.event_date)),
-        ),
-      ),
-    ).sort(
-      (a, b) =>
-        weekdayOptions.findIndex((day) => day.value === a) -
-        weekdayOptions.findIndex((day) => day.value === b),
-    );
+    const recordsBySeries = new Map<string, EventsMeetingsVisitsRecord[]>();
+    selectedRecords.forEach((record) => {
+      const key = seriesSignature(record);
+      const current = recordsBySeries.get(key) || [];
+      current.push(record);
+      recordsBySeries.set(key, current);
+    });
+
+    const groupsToCreate = Array.from(recordsBySeries.values())
+      .map((records) => [...records].sort(compareEventsByDateTime))
+      .filter((records) => records.length >= 2);
+
+    if (groupsToCreate.length === 0) {
+      Alert.alert(
+        "No matching series found",
+        "The selected items do not appear to be matching recurring visits. Use search first, then select matching visits with the same title, time, visitor and location.",
+      );
+      return;
+    }
 
     const runGroup = async () => {
-      const results = await Promise.all(
-        selectedRecords.map((record, index) =>
-          supabase
-            .from("events_meetings_visits")
-            .update({
-              is_recurring: true,
-              recurrence_group_id: groupId,
-              recurrence_frequency: first.recurrence_frequency || "weekly",
-              recurrence_days: recurrenceDays,
-              recurrence_count: selectedRecords.length,
-              recurrence_index: index + 1,
-            })
-            .eq("id", record.id),
-        ),
-      );
+      const createdGroupIds: string[] = [];
+      let updatedRows = 0;
+      let expectedRows = 0;
 
-      const failed = results.find((result) => result.error);
-      if (failed?.error) {
-        console.error("Error grouping recurring series:", failed.error);
-        Alert.alert("Group failed", "The selected visits could not be grouped into a series.");
+      for (const groupRecords of groupsToCreate) {
+        const first = groupRecords[0];
+        const groupId = generateUuid();
+        createdGroupIds.push(groupId);
+        expectedRows += groupRecords.length;
+
+        const recurrenceDays = Array.from(
+          new Set(
+            groupRecords.map((record) =>
+              weekdayKeyFromDate(isoDateToLocalDate(record.event_date)),
+            ),
+          ),
+        ).sort(
+          (a, b) =>
+            weekdayOptions.findIndex((day) => day.value === a) -
+            weekdayOptions.findIndex((day) => day.value === b),
+        );
+
+        const { data, error } = await supabase
+          .from("events_meetings_visits")
+          .update({
+            is_recurring: true,
+            recurrence_group_id: groupId,
+            recurrence_frequency: first.recurrence_frequency || "weekly",
+            recurrence_days: recurrenceDays,
+            recurrence_count: groupRecords.length,
+            recurrence_index: null,
+          })
+          .in(
+            "id",
+            groupRecords.map((record) => record.id),
+          )
+          .select("id");
+
+        if (error) {
+          console.error("Error grouping recurring series:", error);
+          Alert.alert(
+            "Group failed",
+            `Supabase rejected the update: ${error.message || "Unknown error"}`,
+          );
+          return;
+        }
+
+        updatedRows += data?.length || 0;
+      }
+
+      if (updatedRows !== expectedRows) {
+        Alert.alert(
+          "Group incomplete",
+          `Expected to update ${expectedRows} visits, but Supabase reported ${updatedRows}. Check Row Level Security update/select policies and the recurrence columns.`,
+        );
+        await fetchItems();
         return;
       }
 
-      setSelectedIds(new Set([groupId]));
+      setSelectedIds(new Set(createdGroupIds));
       await fetchItems();
+      Alert.alert(
+        "Series grouped",
+        groupsToCreate.length === 1
+          ? `Grouped ${updatedRows} visits into one recurring series.`
+          : `Grouped ${updatedRows} visits into ${groupsToCreate.length} recurring series.`,
+      );
     };
 
-    const message = `Group ${selectedRecords.length} selected visits into one recurring series? After this, they will show as one row with an Edit Series button.`;
+    const message =
+      groupsToCreate.length === 1
+        ? `Group ${groupsToCreate[0].length} selected visits into one recurring series? After this, they will show as one row with an Edit Series button.`
+        : `Group ${selectedRecords.length} selected visits into ${groupsToCreate.length} recurring series? Matching items will be grouped separately by title, time, visitor and location.`;
 
     if (Platform.OS === "web") {
       const confirmed = (globalThis as any).confirm
@@ -1786,41 +1862,83 @@ export default function EventsMeetingsVisitsScreen() {
                 {selectedCount} selected · {filteredItems.length} shown
               </Text>
 
-              {selectedCount > 0 ? (
-                <View style={styles.bulkActionRow}>
-                  <Pressable
-                    style={styles.bulkButton}
-                    onPress={() => void bulkUpdateStatus("Completed")}
+              <View style={styles.bulkActionRow}>
+                <Pressable
+                  style={[styles.bulkButton, selectedCount === 0 && styles.bulkButtonDisabled]}
+                  onPress={() => void bulkUpdateStatus("Completed")}
+                  disabled={selectedCount === 0}
+                >
+                  <Text
+                    style={[
+                      styles.bulkButtonText,
+                      selectedCount === 0 && styles.bulkButtonTextDisabled,
+                    ]}
                   >
-                    <Text style={styles.bulkButtonText}>Complete</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.bulkButton}
-                    onPress={() => void bulkUpdateStatus("Archived")}
+                    Complete
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkButton, selectedCount === 0 && styles.bulkButtonDisabled]}
+                  onPress={() => void bulkUpdateStatus("Archived")}
+                  disabled={selectedCount === 0}
+                >
+                  <Text
+                    style={[
+                      styles.bulkButtonText,
+                      selectedCount === 0 && styles.bulkButtonTextDisabled,
+                    ]}
                   >
-                    <Text style={styles.bulkButtonText}>Archive</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.bulkButton}
-                    onPress={() => void bulkUpdateStatus("Scheduled")}
+                    Archive
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkButton, selectedCount === 0 && styles.bulkButtonDisabled]}
+                  onPress={() => void bulkUpdateStatus("Scheduled")}
+                  disabled={selectedCount === 0}
+                >
+                  <Text
+                    style={[
+                      styles.bulkButtonText,
+                      selectedCount === 0 && styles.bulkButtonTextDisabled,
+                    ]}
                   >
-                    <Text style={styles.bulkButtonText}>Restore</Text>
-                  </Pressable>
-                  {selectedCount > 1 ? (
-                    <Pressable
-                      style={styles.bulkButton}
-                      onPress={() => void groupSelectedAsRecurringSeries()}
-                    >
-                      <Text style={styles.bulkButtonText}>Group Series</Text>
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    style={styles.bulkDeleteButton}
-                    onPress={() => void deleteSelectedItems()}
+                    Restore
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkButton, selectedCount < 2 && styles.bulkButtonDisabled]}
+                  onPress={() => void groupSelectedAsRecurringSeries()}
+                  disabled={selectedCount < 2}
+                >
+                  <Text
+                    style={[
+                      styles.bulkButtonText,
+                      selectedCount < 2 && styles.bulkButtonTextDisabled,
+                    ]}
                   >
-                    <Text style={styles.bulkDeleteButtonText}>Delete</Text>
-                  </Pressable>
-                </View>
+                    Group Series
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bulkDeleteButton, selectedCount === 0 && styles.bulkDeleteButtonDisabled]}
+                  onPress={() => void deleteSelectedItems()}
+                  disabled={selectedCount === 0}
+                >
+                  <Text
+                    style={[
+                      styles.bulkDeleteButtonText,
+                      selectedCount === 0 && styles.bulkButtonTextDisabled,
+                    ]}
+                  >
+                    Delete
+                  </Text>
+                </Pressable>
+              </View>
+
+              {selectedCount < 2 ? (
+                <Text style={styles.seriesHintText}>
+                  Select two or more matching visits to enable Group Series. Use search first, then Select visible.
+                </Text>
               ) : null}
             </View>
 
@@ -2424,6 +2542,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#374151",
     fontWeight: "800",
+  },
+  bulkButtonDisabled: {
+    opacity: 0.45,
+  },
+  bulkButtonTextDisabled: {
+    color: "#9CA3AF",
+  },
+  bulkDeleteButtonDisabled: {
+    opacity: 0.45,
+  },
+  seriesHintText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
   },
   bulkDeleteButton: {
     borderRadius: 999,
