@@ -10,6 +10,7 @@ import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/sche
 // Master data now loaded from Supabase via schedule-store
 
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
+import { DEFAULT_LOCATION_ID, LOCATIONS, getLocationLabel, type LocationId } from '@/lib/locations';
 
 type ID = string;
 
@@ -20,7 +21,7 @@ const isEveryone = (name?: string) => nm(name) === 'everyone';
 const isAntoinette = (name?: string) => nm(name) === 'antoinette';
 
 // how many steps in the wizard
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 export default function CreateScheduleScreen() {
   const { staff: masterStaff, participants: masterParticipants, loadMasterData, masterDataLoaded } = baseSchedule();
@@ -83,6 +84,9 @@ export default function CreateScheduleScreen() {
   const [helperStaff, setHelperStaff] = useState<string[]>([]);
   const [dropoffAssignments, setDropoffAssignments] = useState<Record<string, string[]>>({});
   const [finalChecklistStaff, setFinalChecklistStaff] = useState<string>('');
+  const [selectedLocationId, setSelectedLocationId] = useState<LocationId>(DEFAULT_LOCATION_ID);
+
+  const selectedLocationLabel = getLocationLabel(selectedLocationId);
 
   // ---- date ----------------------------------------------------------------
   const dateLabel = useMemo(() => {
@@ -190,8 +194,46 @@ export default function CreateScheduleScreen() {
     });
   };
 
-  // ---- Step 1: Working staff -----------------------------------------------
+  // ---- Step 1: Choose location -----------------------------------------------
   const Step1 = () => {
+    return (
+      <View style={styles.section}>
+        <Text style={styles.title}>Choose Location</Text>
+        <Text style={styles.subTitle}>
+          Select which location this schedule belongs to. Day Program and Social Hub share the
+          same staff and participant pool, but each location keeps its own schedule.
+        </Text>
+
+        <View style={styles.locationGrid}>
+          {LOCATIONS.map(location => {
+            const selected = selectedLocationId === location.id;
+
+            return (
+              <TouchableOpacity
+                key={location.id}
+                onPress={() => setSelectedLocationId(location.id)}
+                style={[styles.locationCard, selected && styles.locationCardSel]}
+                activeOpacity={0.88}
+              >
+                <Text style={[styles.locationTitle, selected && styles.locationTitleSel]}>
+                  {location.label}
+                </Text>
+                <Text style={styles.locationSub}>
+                  {location.id === 'day_program'
+                    ? 'Current day program location'
+                    : 'Future Social Hub location'}
+                </Text>
+                {selected && <Text style={styles.locationSelected}>Selected</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  // ---- Step 2: Working staff -----------------------------------------------
+  const Step2 = () => {
     const validStaff = staffSource.filter(s => !isEveryone(s.name)); // keep Everyone out of bottom list
     const selected = new Set(workingStaff);
 
@@ -202,9 +244,9 @@ export default function CreateScheduleScreen() {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.title}>Dream Team (Working @ B2)</Text>
+        <Text style={styles.title}>Dream Team</Text>
         <Text style={styles.subTitle}>
-          Select who is working @ B2 today. &quot;Everyone&quot; lets you quickly include the whole
+          Select who is working at {selectedLocationLabel} today. &quot;Everyone&quot; lets you quickly include the whole
           team, but you can still toggle individuals on or off.
         </Text>
 
@@ -242,7 +284,7 @@ export default function CreateScheduleScreen() {
             </View>
           ) : (
             <Text style={styles.emptyHint}>
-              Select at least one staff member working @ B2 today.
+              Select at least one staff member working at {selectedLocationLabel} today.
             </Text>
           )}
         </View>
@@ -278,8 +320,8 @@ export default function CreateScheduleScreen() {
     );
   };
 
-  // ---- Step 2: Attending participants --------------------------------------
-  const Step2 = () => {
+  // ---- Step 3: Attending participants --------------------------------------
+  const Step3 = () => {
     const selected = new Set(attendingParticipants);
 
     return (
@@ -341,8 +383,8 @@ export default function CreateScheduleScreen() {
     );
   };
 
-  // ---- Step 3: Team Daily Assignments --------------------------------------
-  const Step3 = () => {
+  // ---- Step 4: Team Daily Assignments --------------------------------------
+  const Step4 = () => {
     // Exclude Antoinette from assignment rows
     const rows = (assignments || []).filter(a => {
       const st = staffSource.find(s => s.id === a.staffId);
@@ -443,8 +485,8 @@ export default function CreateScheduleScreen() {
     );
   };
 
-  // ---- Step 4: Pickups & dropoffs ------------------------------------------
-  const Step4 = () => {
+  // ---- Step 5: Pickups & dropoffs ------------------------------------------
+  const Step5 = () => {
     const pickupSet = new Set(pickupParticipants || []);
     const helperSet = new Set(helperStaff || []);
 
@@ -723,8 +765,8 @@ export default function CreateScheduleScreen() {
     );
   };
 
-  // ---- Step 5: Auto-Assignments message -----------------------------------
-  const Step5 = () => (
+  // ---- Step 6: Auto-Assignments message -----------------------------------
+  const Step6 = () => (
     <View style={styles.section}>
       <Text style={styles.title}>Automatic Floating & Cleaning Assignments</Text>
       <Text style={styles.subTitle}>
@@ -737,8 +779,8 @@ export default function CreateScheduleScreen() {
     </View>
   );
 
-  // ---- Step 6: Final checklist staff ---------------------------------------
-  const Step6 = () => {
+  // ---- Step 7: Final checklist staff ---------------------------------------
+  const Step7 = () => {
     // Only real working staff (exclude "Everyone") and de-duplicate
     const workingReal = (workingStaff || []).filter(id => {
       const st = staffSource.find(s => s.id === id);
@@ -804,7 +846,7 @@ export default function CreateScheduleScreen() {
     if (!workingStaff || workingStaff.length === 0) {
       Alert.alert(
         'Dream Team',
-        'Please select at least one staff member working @ B2 today.',
+        `Please select at least one staff member working at ${selectedLocationLabel} today.`,
       );
       return;
     }
@@ -956,6 +998,8 @@ snapshot = {
         meta: {
           ...(state.meta || {}),
           from: (state.meta && state.meta.from) || 'create-wizard',
+          locationId: selectedLocationId,
+          locationLabel: selectedLocationLabel,
         },
       };
     } catch (err) {
@@ -978,13 +1022,13 @@ snapshot = {
         dropoffLocations: {},
         outingGroup: null,
         date: selectedDate,
-        meta: { from: 'create-wizard' },
+        meta: { from: 'create-wizard', locationId: selectedLocationId, locationLabel: selectedLocationLabel },
       };
     }
 
     /** 🔥 Save to Supabase */
     try {
-      const result = await saveScheduleToSupabase('B2', snapshot);
+      const result = await saveScheduleToSupabase(selectedLocationId, snapshot);
 
       if (!result.ok) {
         console.warn('Supabase save error:', result.error);
@@ -1074,8 +1118,13 @@ snapshot = {
                 />
               </View>
 
-              <View style={styles.datePill}>
-                <Text style={styles.dateTxt}>{dateLabel}</Text>
+              <View style={styles.headerPills}>
+                <View style={styles.datePill}>
+                  <Text style={styles.dateTxt}>{dateLabel}</Text>
+                </View>
+                <View style={styles.locationPill}>
+                  <Text style={styles.locationPillTxt}>{selectedLocationLabel}</Text>
+                </View>
               </View>
             </View>
           ),
@@ -1105,6 +1154,7 @@ snapshot = {
             {step === 4 && <Step4 />}
             {step === 5 && <Step5 />}
             {step === 6 && <Step6 />}
+            {step === 7 && <Step7 />}
           </View>
         </ScrollView>
 
@@ -1161,8 +1211,14 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: '#175CD3',
   },
-  datePill: {
+  headerPills: {
     marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  datePill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -1170,11 +1226,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF4FF',
   },
   dateTxt: { fontSize: 12, color: '#175CD3', fontWeight: '600' },
+  locationPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: PILL,
+    backgroundColor: '#ECFDF3',
+  },
+  locationPillTxt: { fontSize: 12, color: '#027A48', fontWeight: '700' },
 
   section: { marginTop: 16, paddingBottom: 24 },
   title: { fontSize: 18, fontWeight: '800', color: '#101828', marginBottom: 8 },
   subTitle: { fontSize: 13, color: '#667085', marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#101828', marginBottom: 6 },
+
+  locationGrid: {
+    marginTop: 12,
+    gap: 12,
+  },
+  locationCard: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5ECF5',
+    borderRadius: 16,
+    padding: 16,
+  },
+  locationCardSel: {
+    backgroundColor: '#EEF4FF',
+    borderColor: '#175CD3',
+  },
+  locationTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#101828',
+  },
+  locationTitleSel: { color: '#175CD3' },
+  locationSub: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#667085',
+  },
+  locationSelected: {
+    marginTop: 10,
+    fontSize: 12,
+    color: '#175CD3',
+    fontWeight: '800',
+  },
 
   workingWrap: {
     minHeight: 120,
