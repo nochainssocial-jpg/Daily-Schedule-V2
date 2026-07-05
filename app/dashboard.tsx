@@ -1,4 +1,6 @@
+import { normalizeLocationId, getLocationLabel } from "../lib/locations";
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
@@ -20,7 +22,6 @@ import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashbo
 import {
   DASHBOARD_PAGE_THEMES,
   DASHBOARD_REFRESH_MS,
-  HOUSE_ID,
   ROTATE_MS,
   STAFF_OTHER_COLOR,
   isReminderPage,
@@ -40,6 +41,10 @@ const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
+const params = useLocalSearchParams<{ locationId?: string }>();
+const requestedLocationId = Array.isArray(params.locationId) ? params.locationId[0] : params.locationId;
+const activeLocationId = normalizeLocationId(requestedLocationId);
+const activeLocationLabel = getLocationLabel(activeLocationId);
 
 const {
 date,
@@ -86,7 +91,7 @@ let cancelled = false;
 
 async function initialiseDashboard() {
 try {
-await initScheduleForToday(HOUSE_ID);
+await initScheduleForToday(activeLocationId);
 
 // initScheduleForToday can merge the saved snapshot over the store.
 // Re-load master data afterwards so dashboard-only pages still have
@@ -118,7 +123,7 @@ let cancelled = false;
 
 const refreshDashboard = async () => {
 try {
-await refreshScheduleFromSupabase(HOUSE_ID);
+await refreshScheduleFromSupabase(activeLocationId);
 await fetchEventsMeetingsVisits();
 if (!cancelled) setLastDashboardRefresh(new Date());
 } catch (error) {
@@ -134,7 +139,7 @@ return () => {
 cancelled = true;
 clearInterval(timer);
 };
-}, []);
+}, [activeLocationId]);
 
 const staffById = useMemo(
 () =>
@@ -546,6 +551,7 @@ return (
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
+  locationLabel={activeLocationLabel}
 >
   {renderCurrentPanel()}
 </DashboardFrame>

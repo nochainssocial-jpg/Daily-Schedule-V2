@@ -20,11 +20,39 @@ export const LOCATIONS: LocationOption[] = [
 ];
 
 export const DEFAULT_LOCATION_ID: LocationId = 'day_program';
+export const LEGACY_DAY_PROGRAM_HOUSE_ID = 'B2';
 
-export function getLocationLabel(locationId?: string) {
-  return LOCATIONS.find(location => location.id === locationId)?.label ?? 'Day Program';
+export const LOCATION_PINS: Record<LocationId, string> = {
+  day_program: '1935',
+  social_hub: '5391',
+};
+
+export function normalizeLocationId(value?: string | null): LocationId {
+  if (value === 'social_hub') return 'social_hub';
+  return 'day_program';
+}
+
+export function getLocationLabel(locationId?: string | null) {
+  const normalisedLocationId = normalizeLocationId(locationId);
+  return LOCATIONS.find(location => location.id === normalisedLocationId)?.label ?? 'Day Program';
 }
 
 export function isLocationId(value: string): value is LocationId {
   return value === 'day_program' || value === 'social_hub';
+}
+
+export function getLocationForPin(pin?: string | null): LocationOption | null {
+  const trimmedPin = String(pin || '').trim();
+  const locationId = LOCATIONS.find(location => LOCATION_PINS[location.id] === trimmedPin)?.id;
+  if (!locationId) return null;
+  return LOCATIONS.find(location => location.id === locationId) ?? null;
+}
+
+export function getScheduleLocationId(snapshotOrState?: any): LocationId {
+  return normalizeLocationId(
+    snapshotOrState?.currentLocationId ??
+      snapshotOrState?.meta?.locationId ??
+      snapshotOrState?.meta?.house ??
+      snapshotOrState?.house,
+  );
 }

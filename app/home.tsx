@@ -104,6 +104,14 @@ useEffect(() => {
 
             <TouchableOpacity
               style={styles.secondaryButton}
+              onPress={() => router.push(ROUTES.LOCATION_ACCESS)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryLabel}>Open Location Dashboard</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
               onPress={() => router.push(ROUTES.EDIT)}
               activeOpacity={0.85}
             >

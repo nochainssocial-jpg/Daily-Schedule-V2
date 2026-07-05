@@ -8,6 +8,7 @@ import {
   Share2 as Share2Icon,
   Settings as SettingsIcon,
   Handshake as HandshakeIcon,
+  MapPin as MapPinIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
 
