@@ -28,7 +28,7 @@ export default function CreateScheduleScreen() {
 
 
   useEffect(() => {
-    loadMasterData();
+    loadMasterData({ force: true });
   }, [loadMasterData]);
   // ---- safe hook access ----------------------------------------------------
   let hook: any = {};
