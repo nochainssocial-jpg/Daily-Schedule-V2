@@ -15,6 +15,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
+import { useSchedule as scheduleStore } from '@/hooks/schedule-store';
 import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import Footer from '@/components/Footer';
 
@@ -68,6 +69,14 @@ export default function ParticipantsSettingsScreen() {
 
   const showWebBranding = Platform.OS === 'web';
 
+  async function refreshScheduleMasterData() {
+    try {
+      await scheduleStore.getState().loadMasterData({ force: true });
+    } catch (error) {
+      console.warn('[settings/participants] failed to refresh schedule master data:', error);
+    }
+  }
+
   async function loadParticipants() {
     setLoading(true);
     const { data } = await supabase
@@ -92,27 +101,30 @@ export default function ParticipantsSettingsScreen() {
     setParticipants(prev =>
       prev.map(p => (p.id === id ? { ...p, [field]: value } : p)),
     );
+    await refreshScheduleMasterData();
   }
 
   async function addParticipant() {
     const name = newName.trim();
     if (!name || !newGender || !newColor) return;
 
-    
-const maxLegacy = participants.reduce((m, p) => {
-  const v = typeof (p as any).legacy_id === 'number' ? (p as any).legacy_id : null;
-  return v !== null && !Number.isNaN(v) ? Math.max(m, v) : m;
-}, 0);
-const nextLegacy = maxLegacy + 1;
+    const maxLegacy = participants.reduce((m, p) => {
+      const raw = (p as any).legacy_id;
+      const v = raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+      return Number.isFinite(v) ? Math.max(m, v) : m;
+    }, 0);
+    const nextLegacy = maxLegacy + 1;
+    const colorHex = newColor === 'blue' ? '#60a5fa' : '#f973b7';
+    const genderValue = newGender.toLowerCase();
 
-setSavingNew(true);
+    setSavingNew(true);
     const { data, error } = await supabase
       .from('participants')
       .insert({
         name,
         is_active: true,
-        gender: newGender,
-        color: newColor,
+        gender: genderValue,
+        color: colorHex,
         legacy_id: nextLegacy,
       })
       .select()
@@ -121,6 +133,7 @@ setSavingNew(true);
     setSavingNew(false);
 
     if (!error && data) {
+      await refreshScheduleMasterData();
       setParticipants(prev =>
         [...prev, data as ParticipantRow].sort((a, b) =>
           a.name.localeCompare(b.name),
@@ -144,6 +157,7 @@ setSavingNew(true);
           onPress: async () => {
             await supabase.from('participants').delete().eq('id', p.id);
             setParticipants(prev => prev.filter(x => x.id !== p.id));
+            await refreshScheduleMasterData();
           },
         },
       ],

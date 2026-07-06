@@ -14,6 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
+import { useSchedule as scheduleStore } from '@/hooks/schedule-store';
 import Footer from '@/components/Footer';
 
 const MAX_WIDTH = 880;
@@ -60,6 +61,14 @@ export default function StaffSettingsScreen() {
 
   const showWebBranding = Platform.OS === 'web';
 
+  async function refreshScheduleMasterData() {
+    try {
+      await scheduleStore.getState().loadMasterData({ force: true });
+    } catch (error) {
+      console.warn('[settings/staff] failed to refresh schedule master data:', error);
+    }
+  }
+
   async function loadStaff() {
     setLoading(true);
     const { data } = await supabase
@@ -80,6 +89,7 @@ export default function StaffSettingsScreen() {
     setStaff(prev =>
       prev.map(s => (s.id === id ? { ...s, [field]: value } : s)),
     );
+    await refreshScheduleMasterData();
   }
 
   async function addStaff() {
@@ -113,6 +123,7 @@ export default function StaffSettingsScreen() {
     setSavingNew(false);
 
     if (!error && data) {
+      await refreshScheduleMasterData();
       setStaff(prev =>
         [...prev, data as StaffRow].sort((a, b) =>
           a.name.localeCompare(b.name),
@@ -133,6 +144,7 @@ export default function StaffSettingsScreen() {
         return;
       }
       setStaff(prev => prev.filter(s => s.id !== member.id));
+      await refreshScheduleMasterData();
     };
 
     const title = 'Remove staff member';
@@ -185,6 +197,7 @@ export default function StaffSettingsScreen() {
       ),
     );
 
+    await refreshScheduleMasterData();
     setEditingId(null);
   }
 
