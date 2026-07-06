@@ -116,7 +116,7 @@ export type ScheduleState = ScheduleSnapshot & {
   timeSlots: TimeSlot[];
   masterDataLoaded: boolean;
   masterDataLoading: boolean;
-  loadMasterData: () => Promise<void>;
+  loadMasterData: (options?: { force?: boolean }) => Promise<void>;
 
   scheduleStep: number;
   selectedDate?: string;
@@ -231,6 +231,177 @@ function normalizeOutingGroupsFromSnapshot(snapshot: any): OutingGroup[] {
       normalizeOutingGroup(outing, `outing-${index + 1}`),
     )
     .filter(isOutingMeaningful);
+}
+
+function normaliseSupabaseColour(value: any): string | undefined {
+  const colour = String(value ?? "").trim();
+  if (!colour) return undefined;
+
+  const lower = colour.toLowerCase();
+  if (lower === "blue") return "#60a5fa";
+  if (lower === "pink") return "#f973b7";
+
+  return colour;
+}
+
+function mapStaffRow(r: any): Staff {
+  return {
+    ...(r as any),
+    id: String(r.id),
+    name: r.name,
+    phone: r.phone ?? undefined,
+    color: normaliseSupabaseColour(r.color),
+    gender: r.gender ?? undefined,
+    isTeamLeader: r.is_team_leader ?? r.isTeamLeader ?? false,
+  } as Staff;
+}
+
+function mapParticipantRow(r: any): Participant {
+  const legacyRaw =
+    (r as any).legacy_id ??
+    (r as any).legacyId ??
+    (r as any).legacy ??
+    null;
+  const legacy =
+    legacyRaw === null || legacyRaw === undefined || legacyRaw === ""
+      ? null
+      : Number(legacyRaw);
+  const scheduleId =
+    legacy !== null && !Number.isNaN(legacy) ? String(legacy) : String(r.id);
+
+  return {
+    ...(r as any),
+    id: scheduleId, // used in schedules/attending/outing etc.
+    dbId: String(r.id), // Supabase UUID PK
+    legacyId: legacy !== null && !Number.isNaN(legacy) ? legacy : undefined,
+    name: r.name,
+    color: normaliseSupabaseColour(r.color),
+  } as Participant;
+}
+
+function isPlainRecord(value: any): value is Record<string, any> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function buildParticipantIdMap(participants: any[]): Map<string, string> {
+  const map = new Map<string, string>();
+
+  (participants || []).forEach((p: any) => {
+    const scheduleId = String(p?.id ?? "");
+    if (!scheduleId) return;
+
+    map.set(scheduleId, scheduleId);
+
+    const possibleIds = [
+      p?.dbId,
+      p?.db_id,
+      p?.legacyId,
+      p?.legacy_id,
+      p?.legacy,
+    ];
+
+    possibleIds.forEach((value) => {
+      if (value !== null && value !== undefined && String(value).trim() !== "") {
+        map.set(String(value), scheduleId);
+      }
+    });
+  });
+
+  return map;
+}
+
+function mapParticipantId(value: any, idMap: Map<string, string>): string {
+  const key = String(value ?? "");
+  return idMap.get(key) ?? key;
+}
+
+function mapParticipantIdArray(value: any, idMap: Map<string, string>): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((id) => mapParticipantId(id, idMap));
+}
+
+function remapParticipantKeyedRecord<T = any>(
+  rec: Record<string, T> | null | undefined,
+  idMap: Map<string, string>,
+): Record<string, T> {
+  const out: Record<string, T> = {};
+  Object.entries(rec || {}).forEach(([key, value]) => {
+    out[mapParticipantId(key, idMap)] = value as T;
+  });
+  return out;
+}
+
+function remapAssignmentsRecord(assignments: any, idMap: Map<string, string>): any {
+  if (!isPlainRecord(assignments)) return {};
+
+  const out: Record<string, any> = {};
+
+  Object.entries(assignments).forEach(([key, value]) => {
+    // Current saved shape is staffId -> participantId[]. Keep the staff key,
+    // but remap any participant IDs inside the array.
+    if (Array.isArray(value)) {
+      out[key] = mapParticipantIdArray(value, idMap);
+      return;
+    }
+
+    // Older/fallback shape may be participantId -> staffId|null.
+    out[mapParticipantId(key, idMap)] = value;
+  });
+
+  return out;
+}
+
+function applyLiveMasterDataToSnapshot<T extends Partial<ScheduleSnapshot>>(
+  snapshot: T,
+  liveStaff: Staff[],
+  liveParticipants: Participant[],
+): T {
+  const masterStaff =
+    Array.isArray(liveStaff) && liveStaff.length
+      ? liveStaff
+      : (((snapshot as any).staff || []) as Staff[]);
+  const masterParticipants =
+    Array.isArray(liveParticipants) && liveParticipants.length
+      ? liveParticipants
+      : (((snapshot as any).participants || []) as Participant[]);
+
+  const idMap = buildParticipantIdMap(masterParticipants as any[]);
+  const normalisedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot).map(
+    (outing) => ({
+      ...outing,
+      participantIds: mapParticipantIdArray(outing.participantIds, idMap),
+    }),
+  );
+
+  const next: any = {
+    ...(snapshot as any),
+    staff: masterStaff,
+    participants: masterParticipants,
+    attendingParticipants: mapParticipantIdArray(
+      (snapshot as any).attendingParticipants,
+      idMap,
+    ),
+    assignments: remapAssignmentsRecord((snapshot as any).assignments, idMap),
+    dropoffAssignments: remapParticipantKeyedRecord(
+      (snapshot as any).dropoffAssignments as any,
+      idMap,
+    ),
+    dropoffLocations: remapParticipantKeyedRecord(
+      (snapshot as any).dropoffLocations as any,
+      idMap,
+    ),
+    outingGroups: normalisedOutingGroups,
+    outingGroup: normalisedOutingGroups[0] ?? null,
+  };
+
+  if (Array.isArray((snapshot as any).pickupParticipants)) {
+    next.pickupParticipants = mapParticipantIdArray(
+      (snapshot as any).pickupParticipants,
+      idMap,
+    );
+  }
+
+  return syncOutingCompatibility(next) as T;
 }
 
 function syncOutingCompatibility<T extends Partial<ScheduleSnapshot>>(
@@ -408,9 +579,10 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
   recentCleaningSnapshots: [],
 
-  loadMasterData: async () => {
+  loadMasterData: async (options = {}) => {
     const state = get();
-    if (state.masterDataLoading || state.masterDataLoaded) return;
+    if (state.masterDataLoading) return;
+    if (state.masterDataLoaded && !options.force) return;
 
     set({ masterDataLoading: true });
 
@@ -444,79 +616,16 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
       // Map DB rows into app types (keep unknown fields for now; screens use what they need)
       set((s) => {
-        const mappedStaff = staff.map((r) => ({
-          id: String(r.id),
-          name: r.name,
-          phone: r.phone ?? undefined,
-          color: r.color ?? undefined,
-          gender: r.gender ?? undefined,
-          isTeamLeader: r.is_team_leader ?? r.isTeamLeader ?? false,
-        }));
-
-        const mappedParticipants = participants.map((r) => {
-          const legacyRaw =
-            (r as any).legacy_id ??
-            (r as any).legacyId ??
-            (r as any).legacy ??
-            null;
-          const legacy =
-            legacyRaw === null || legacyRaw === undefined || legacyRaw === ""
-              ? null
-              : Number(legacyRaw);
-          const scheduleId =
-            legacy !== null && !Number.isNaN(legacy)
-              ? String(legacy)
-              : String(r.id);
-
-          return {
-            ...(r as any),
-            id: scheduleId, // used in schedules/attending/outing etc.
-            dbId: String(r.id), // Supabase UUID PK
-            legacyId:
-              legacy !== null && !Number.isNaN(legacy) ? legacy : undefined,
-            name: r.name,
-          };
-        });
-
-        // Normalise any existing schedule snapshot IDs that may still be UUIDs
-        // (e.g. schedules created before legacy_id rollout)
-        const pIdMap = new Map<string, string>();
-        mappedParticipants.forEach((p: any) => {
-          if (p?.dbId) pIdMap.set(String(p.dbId), String(p.id));
-        });
-        const mapPid = (pid: any): string => {
-          const key = String(pid ?? "");
-          return pIdMap.get(key) ?? key;
-        };
-        const remapRecordKeys = <T>(
-          rec: Record<string, T> | null | undefined,
-        ): Record<string, T> => {
-          const out: Record<string, T> = {};
-          Object.entries(rec || {}).forEach(([k, v]) => {
-            out[mapPid(k)] = v as T;
-          });
-          return out;
-        };
-
-        const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(s).map(
-          (outing) => ({
-            ...outing,
-            participantIds: (outing.participantIds || []).map(mapPid),
-          }),
+        const mappedStaff = staff.map(mapStaffRow);
+        const mappedParticipants = participants.map(mapParticipantRow);
+        const currentWithLivePeople = applyLiveMasterDataToSnapshot(
+          s,
+          mappedStaff,
+          mappedParticipants,
         );
 
         return {
-          ...s,
-          staff: mappedStaff,
-          participants: mappedParticipants,
-
-          // normalize schedule fields that key by participant id
-          attendingParticipants: (s.attendingParticipants || []).map(mapPid),
-          assignments: remapRecordKeys<ID | null>(s.assignments),
-          dropoffAssignments: remapRecordKeys<any>(s.dropoffAssignments as any),
-          dropoffLocations: remapRecordKeys<any>(s.dropoffLocations as any),
-          outingGroups: normalizedOutingGroups,
-          outingGroup: normalizedOutingGroups[0] ?? null,
+          ...currentWithLivePeople,
 
           chores: chores.map((r) => ({ id: String(r.id), name: r.name })),
           checklistItems: checklistItems.map((r) => ({
@@ -737,7 +846,7 @@ export async function initialiseScheduleForTodayIfNeeded(
 
   // Ensure master data is loaded (staff, participants, chores, checklist)
   try {
-    await state.loadMasterData();
+    await state.loadMasterData({ force: true });
   } catch {}
 
   // If we've already initialised for this date, do nothing
@@ -753,10 +862,12 @@ export async function initialiseScheduleForTodayIfNeeded(
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
-        chores: [],
-        checklistItems: [],
-        timeSlots: TIME_SLOTS,
-        masterDataLoaded: false,
+        staff: s.staff,
+        participants: s.participants,
+        chores: s.chores,
+        checklistItems: s.checklistItems,
+        timeSlots: s.timeSlots.length ? s.timeSlots : TIME_SLOTS,
+        masterDataLoaded: s.masterDataLoaded,
         masterDataLoading: false,
         date: todayKey,
         banner: {
@@ -776,10 +887,12 @@ export async function initialiseScheduleForTodayIfNeeded(
       useSchedule.setState((s) => ({
         ...s,
         ...makeInitialSnapshot(),
-        chores: [],
-        checklistItems: [],
-        timeSlots: TIME_SLOTS,
-        masterDataLoaded: false,
+        staff: s.staff,
+        participants: s.participants,
+        chores: s.chores,
+        checklistItems: s.checklistItems,
+        timeSlots: s.timeSlots.length ? s.timeSlots : TIME_SLOTS,
+        masterDataLoaded: s.masterDataLoaded,
         masterDataLoading: false,
         date: todayKey,
         banner: {
@@ -823,7 +936,7 @@ export async function initialiseScheduleForTodayIfNeeded(
 
     useSchedule.setState((s) => ({
       ...s,
-      ...outingReset,
+      ...applyLiveMasterDataToSnapshot(outingReset, s.staff, s.participants),
       ...checklistReset,
       date: todayKey,
       banner,
@@ -837,10 +950,12 @@ export async function initialiseScheduleForTodayIfNeeded(
     useSchedule.setState((s) => ({
       ...s,
       ...makeInitialSnapshot(),
-      chores: [],
-      checklistItems: [],
-      timeSlots: TIME_SLOTS,
-      masterDataLoaded: false,
+      staff: s.staff,
+      participants: s.participants,
+      chores: s.chores,
+      checklistItems: s.checklistItems,
+      timeSlots: s.timeSlots.length ? s.timeSlots : TIME_SLOTS,
+      masterDataLoaded: s.masterDataLoaded,
       masterDataLoading: false,
       date: todayKey,
       banner: {
@@ -888,7 +1003,11 @@ export async function refreshScheduleFromSupabase(houseId: string) {
 
     useSchedule.setState((current) => ({
       ...current,
-      ...outingReset,
+      ...applyLiveMasterDataToSnapshot(
+        outingReset,
+        current.staff,
+        current.participants,
+      ),
       ...checklistReset,
       date: todayKey,
       banner: current.banner,
