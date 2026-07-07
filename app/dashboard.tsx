@@ -22,17 +22,15 @@ import {
   DASHBOARD_PAGE_THEMES,
   DASHBOARD_REFRESH_MS,
   HOUSE_ID,
+  REMINDER_PAGE_ORDER,
   ROTATE_MS,
   STAFF_OTHER_COLOR,
   isReminderPage,
 } from "@/components/dashboard/dashboardTheme";
 import {
   colorForStaff,
-  getOutingPhase,
   hasOutingContent,
   isEventDashboardVisible,
-  nowMinutes,
-  parseTimeToMinutes,
   sortEventsMeetingsVisits,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
@@ -54,7 +52,6 @@ date,
 staff = [],
 participants = [],
 workingStaff = [],
-attendingParticipants = [],
 timeSlots = [],
 chores = [],
 checklistItems = [],
@@ -96,7 +93,6 @@ let cancelled = false;
 async function initialiseDashboard() {
 try {
 await initScheduleForToday(HOUSE_ID);
-await useSchedule.getState().maybeAutoResetOutings?.();
 
 // initScheduleForToday can merge the saved snapshot over the store.
 // Re-load master data afterwards so dashboard-only pages still have
@@ -119,10 +115,7 @@ cancelled = true;
 }, []);
 
 useEffect(() => {
-const timer = setInterval(() => {
-setTick((value) => value + 1);
-void useSchedule.getState().maybeAutoResetOutings?.();
-}, 30_000);
+const timer = setInterval(() => setTick((value) => value + 1), 30_000);
 return () => clearInterval(timer);
 }, []);
 
@@ -172,69 +165,36 @@ const groups = Array.isArray(outingGroups)
 return groups.slice(0, 2).filter(hasOutingContent);
 }, [outingGroups, outingGroup]);
 
-const visibleOutings = useMemo(() => {
-void tick;
-const currentMinutes = nowMinutes();
-
-// Dashboard Outings tab is time-based. It shows scheduled/upcoming outings,
-// switches to in progress during the outing, briefly shows complete, then hides.
-return activeOutings
-.map((outing: any, index: number) => {
-const phase = getOutingPhase(outing, currentMinutes);
-if (phase === "none") return null;
-return {
-...outing,
-dashboardIndex: index,
-dashboardPhase: phase,
-};
-})
-.filter(Boolean);
-}, [activeOutings, tick]);
-
-const assignmentThemeOutings = useMemo(() => {
-void tick;
-const currentMinutes = nowMinutes();
-
-// Outing colours are useful while an outing is still pending or active.
-// Once its end time has passed, the Team Assignment tiles should return
-// to the normal onsite/default styling even though the outing can remain
-// hidden/complete elsewhere.
-return activeOutings.map((outing: any) => {
-const endMinutes = parseTimeToMinutes(outing?.endTime);
-return endMinutes == null || currentMinutes < endMinutes ? outing : null;
-});
-}, [activeOutings, tick]);
-
 const outing1StaffIds = useMemo(
 () =>
 new Set<string>(
-((assignmentThemeOutings[0]?.staffIds ?? []) as any[]).map(String),
+((activeOutings[0]?.staffIds ?? []) as any[]).map(String),
 ),
-[assignmentThemeOutings],
+[activeOutings],
 );
 
 const outing2StaffIds = useMemo(
 () =>
 new Set<string>(
-((assignmentThemeOutings[1]?.staffIds ?? []) as any[]).map(String),
+((activeOutings[1]?.staffIds ?? []) as any[]).map(String),
 ),
-[assignmentThemeOutings],
+[activeOutings],
 );
 
 const outing1ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((assignmentThemeOutings[0]?.participantIds ?? []) as any[]).map(String),
+((activeOutings[0]?.participantIds ?? []) as any[]).map(String),
 ),
-[assignmentThemeOutings],
+[activeOutings],
 );
 
 const outing2ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((assignmentThemeOutings[1]?.participantIds ?? []) as any[]).map(String),
+((activeOutings[1]?.participantIds ?? []) as any[]).map(String),
 ),
-[assignmentThemeOutings],
+[activeOutings],
 );
 
 const getParticipantTheme = (participantId: string) => {
@@ -379,6 +339,12 @@ return Array.from(byStaff.entries())
 const staffPerson = staffById.get(staffId);
 const staffName = String(staffPerson?.name || staffId);
 const staffColor = colorForStaff(staffPerson);
+const participantIds = items.map((item) => {
+const found = Array.from(participantsById.entries()).find(
+([, p]) => String(p?.name || "") === item.participantName,
+);
+return found?.[0] || "";
+});
 return {
 staffId,
 staffName,
@@ -387,7 +353,7 @@ staffTextColor: "#FFFFFF",
 items: items.sort((a, b) =>
 a.participantName.localeCompare(b.participantName, "en-AU"),
 ),
-theme: "onsite" as const,
+theme: getAssignmentTheme(staffId, participantIds.filter(Boolean)),
 };
 })
 .filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
@@ -397,6 +363,7 @@ dropoffAssignments,
 dropoffLocations,
 staffById,
 participantsById,
+getAssignmentTheme,
 ]);
 
 const displayTimeSlots =
@@ -497,16 +464,16 @@ const hasStaffCelebrations = staffCelebrationItems.length > 0;
 
 const pages = useMemo<DashboardPage[]>(() => {
 const list: DashboardPage[] = ["team", "floating"];
-if (visibleOutings.length > 0) list.push("outings");
+if (activeOutings.length > 0) list.push("outings");
 if (hasEventsMeetingsVisits) list.push("eventsMeetingsVisits");
 if (hasStaffCelebrations) list.push("staffCelebrations");
 if (hasCleaningAssignments) list.push("cleaning");
 if (hasChecklistData) list.push("checklist");
 if (hasDropoffAssignments) list.push("dropoffs");
-list.push("incidentReports", "behaviourObservations", "communicationForms", "phoneUsage");
+list.push(...REMINDER_PAGE_ORDER);
 return list;
 }, [
-visibleOutings.length,
+activeOutings.length,
 hasCleaningAssignments,
 hasChecklistData,
 hasDropoffAssignments,
@@ -539,9 +506,6 @@ return (
   displayTimeSlots={displayTimeSlots}
   floatingAssignments={floatingAssignments}
   staffById={staffById}
-  participantsById={participantsById}
-  attendingParticipants={attendingParticipants}
-  activeOutings={activeOutings}
   tick={tick}
 />
 );
@@ -550,7 +514,7 @@ return (
 if (currentPage === "outings") {
 return (
 <OutingsPanel
-  activeOutings={visibleOutings}
+  activeOutings={activeOutings}
   staffById={staffById}
   participantsById={participantsById}
 />
