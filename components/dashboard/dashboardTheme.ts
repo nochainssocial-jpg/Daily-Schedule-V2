@@ -58,6 +58,13 @@ export const ROOM_LABELS: Record<RoomKey, string> = {
   twins: "Twins / FSO",
 };
 
+export const REMINDER_PAGE_ORDER: ReminderPage[] = [
+  "phoneUsage",
+  "incidentReports",
+  "behaviourObservations",
+  "communicationForms",
+];
+
 export const REMINDER_CONTENT: Record<
   ReminderPage,
   {
@@ -70,17 +77,17 @@ export const REMINDER_CONTENT: Record<
   }
 > = {
   phoneUsage: {
-  eyebrow: "Staff reminder",
-  title: "Phone Usage While on Shift",
-  icon: "cellphone-off",
-  lead:
-     "Personal phone use is not permitted while on shift. Staff must remain focused on participants and daily support duties.",
-  points: [
-     "Phones may be used to log required forms and shift documentation",
-     "Phones may be used to take appropriate photos of participants during activities",
-     "Phones may be used during outings when needed for participant support or safety",
-     "Phones may be used to post required updates to the WhatsApp group",
-     "The main responsibility is to interact with participants and spend meaningful time with them",
+    eyebrow: "Staff reminder",
+    title: "Phone Usage While on Shift",
+    icon: "cellphone-off",
+    lead:
+      "Personal phone use is not permitted while on shift. Staff must remain focused on participants and daily support duties.",
+    points: [
+      "Phones may be used to log required forms and shift documentation",
+      "Phones may be used to take appropriate photos of participants during activities",
+      "Phones may be used during outings when needed for participant support or safety",
+      "Phones may be used to post required updates to the WhatsApp group",
+      "The main responsibility is to interact with participants and spend meaningful time with them",
     ],
     footer: "Phones are work tools during shift, not for personal use.",
   },
@@ -129,12 +136,7 @@ export const REMINDER_CONTENT: Record<
 };
 
 export function isReminderPage(page: DashboardPage): page is ReminderPage {
-  return (
-    page === "incidentReports" ||
-    page === "behaviourObservations" ||
-    page === "communicationForms" ||
-    page === "phoneUsage"
-  );
+  return REMINDER_PAGE_ORDER.includes(page as ReminderPage);
 }
 
 export function pageLabel(page: DashboardPage): string {

@@ -17,10 +17,10 @@ export type DashboardPage =
 export type RoomKey = "frontRoom" | "scotty" | "twins";
 
 export type ReminderPage =
+  | "phoneUsage"
   | "incidentReports"
   | "behaviourObservations"
-  | "communicationForms"
-  | "phoneUsage";
+  | "communicationForms";
 
 export type EventMeetingVisitRecord = {
   id: string;
