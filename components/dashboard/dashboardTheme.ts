@@ -69,6 +69,21 @@ export const REMINDER_CONTENT: Record<
     footer: string;
   }
 > = {
+  phoneUsage: {
+  eyebrow: "Staff reminder",
+  title: "Phone Usage While on Shift",
+  icon: "cellphone-off",
+  lead:
+     "Personal phone use is not permitted while on shift. Staff must remain focused on participants and daily support duties.",
+  points: [
+     "Phones may be used to log required forms and shift documentation",
+     "Phones may be used to take appropriate photos of participants during activities",
+     "Phones may be used during outings when needed for participant support or safety",
+     "Phones may be used to post required updates to the WhatsApp group",
+     "The main responsibility is to interact with participants and spend meaningful time with them",
+    ],
+    footer: "Phones are work tools during shift, not for personal use.",
+  },
   incidentReports: {
     eyebrow: "Staff reminder",
     title: "Incident Reports",
@@ -105,26 +120,11 @@ export const REMINDER_CONTENT: Record<
     lead:
       "Participant Communication Forms must be submitted at the end of each shift.",
     points: [
-      "Forms help keep communication clear between staff, families, support coordinators, and management",
+      "Forms help keep communication clear between staff, families and management",
       "End of shift submission is the expectation",
       "If forms cannot be submitted by the end of shift, they must be submitted no later than 10:00pm on the same day",
     ],
     footer: "End of shift is the expectation. 10:00pm is the final deadline.",
-  },
-  phoneUsage: {
-    eyebrow: "Staff reminder",
-    title: "Phone Usage While on Shift",
-    icon: "cellphone-off",
-    lead:
-      "Personal phone use is not permitted while on shift. Staff must remain focused on participants and daily support duties.",
-    points: [
-      "Phones may be used to log required forms and shift documentation",
-      "Phones may be used to take appropriate photos of participants during activities",
-      "Phones may be used during outings when needed for participant support or safety",
-      "Phones may be used to post required updates to the WhatsApp group",
-      "The main responsibility is to interact with participants and spend meaningful time with them",
-    ],
-    footer: "Phones are work tools during shift, not for personal use.",
   },
 };
 
