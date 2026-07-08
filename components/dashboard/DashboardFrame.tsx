@@ -56,10 +56,10 @@ export function DashboardFrame({
         position: "fixed",
         // Small inset protects the dashboard from TV overscan/cast cropping
         // while still keeping it visually full-screen.
-        top: 12,
-        right: 28,
-        bottom: 12,
-        left: 28,
+        top: 8,
+        right: 24,
+        bottom: 8,
+        left: 24,
         width: "auto",
         height: "auto",
         maxWidth: "none",
