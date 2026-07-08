@@ -56,10 +56,10 @@ export function DashboardFrame({
         position: "fixed",
         // Small inset protects the dashboard from TV overscan/cast cropping
         // while still keeping it visually full-screen.
-        top: 10,
-        right: 18,
-        bottom: 14,
-        left: 18,
+        top: 12,
+        right: 28,
+        bottom: 12,
+        left: 28,
         width: "auto",
         height: "auto",
         maxWidth: "none",
@@ -94,7 +94,7 @@ export function DashboardFrame({
               Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
             </Text>
             <Text style={styles.cycleText}>Display: {displayModeLabel}</Text>
-            {voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
+            {!isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
               <Pressable
                 onPress={onToggleVoiceAnnouncements}
                 style={[
@@ -113,10 +113,25 @@ export function DashboardFrame({
         </View>
 
         <View style={[styles.currentPanelBar, isTvDisplay && styles.currentPanelBarTv]}>
-          <View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}>
-            <Text style={styles.currentPanelLabel}>
-              Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
-            </Text>
+          <View style={styles.currentPanelLeft}>
+            <View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}>
+              <Text style={styles.currentPanelLabel}>
+                Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
+              </Text>
+            </View>
+            {isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
+              <Pressable
+                onPress={onToggleVoiceAnnouncements}
+                style={[
+                  styles.voiceToggleBar,
+                  voiceAnnouncementsEnabled && styles.voiceToggleBarEnabled,
+                ]}
+              >
+                <Text style={styles.voiceToggleBarText}>
+                  {voiceAnnouncementsEnabled ? "Voice on" : "Enable voice"}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
           <Text style={styles.currentPanelCount}>
             Panel {pageIndex + 1} of {pageCount}
