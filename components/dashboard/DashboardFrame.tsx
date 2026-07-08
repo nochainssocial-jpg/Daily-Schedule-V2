@@ -72,9 +72,15 @@ export function DashboardFrame({
         <View style={styles.clockBlock}>
           <Text style={[styles.clockText, isTvDisplay && styles.clockTextTv]}>{timeNowLabel(tick)}</Text>
           {isTvDisplay ? (
-            <Text style={styles.cycleInlineTextTv}>
-              (Cycles every {Math.round(ROTATE_MS / 1000)}s   |   Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s)
-            </Text>
+            <>
+              <Text style={styles.cycleInlineTextTv}>
+                (Cycles every {Math.round(ROTATE_MS / 1000)}s   |   Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s)
+              </Text>
+              <Text style={styles.cycleTextTv}>
+                Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
+              </Text>
+              <Text style={styles.cycleTextTv}>Display: {displayModeLabel}</Text>
+            </>
           ) : (
             <>
               <Text style={styles.cycleText}>
