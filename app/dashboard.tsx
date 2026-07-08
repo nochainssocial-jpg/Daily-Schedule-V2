@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
@@ -38,6 +38,11 @@ import {
   buildStaffCelebrationItems,
   splitStaffCelebrations,
 } from "@/components/dashboard/staffCelebrationData";
+import {
+  buildUpcomingFloatingRotationAnnouncement,
+  isDashboardSpeechSupported,
+  speakDashboardAnnouncement,
+} from "@/components/dashboard/dashboardVoice";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
 
@@ -46,6 +51,8 @@ const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
+const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false);
+const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
 
 const {
 date,
@@ -62,6 +69,7 @@ finalChecklist = {},
 finalChecklistStaff = null,
 dropoffAssignments = {},
 dropoffLocations = {},
+attendingParticipants = [],
 outingGroups = [],
 outingGroup = null,
 } = useSchedule() as any;
@@ -368,6 +376,49 @@ getAssignmentTheme,
 
 const displayTimeSlots =
 (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [];
+
+const upcomingFloatingRotationAnnouncement = useMemo(
+() =>
+buildUpcomingFloatingRotationAnnouncement({
+  date,
+  displayTimeSlots,
+  floatingAssignments,
+  staffById,
+  tick,
+  noticeMinutes: 1,
+}),
+[date, displayTimeSlots, floatingAssignments, staffById, tick],
+);
+
+useEffect(() => {
+if (!voiceAnnouncementsEnabled) return;
+if (!upcomingFloatingRotationAnnouncement) return;
+if (!isDashboardSpeechSupported()) return;
+
+const { key, message } = upcomingFloatingRotationAnnouncement;
+if (spokenFloatingRotationKeysRef.current.has(key)) return;
+
+const spoken = speakDashboardAnnouncement(message);
+if (spoken) {
+spokenFloatingRotationKeysRef.current.add(key);
+}
+}, [voiceAnnouncementsEnabled, upcomingFloatingRotationAnnouncement]);
+
+const handleToggleVoiceAnnouncements = () => {
+const nextEnabled = !voiceAnnouncementsEnabled;
+setVoiceAnnouncementsEnabled(nextEnabled);
+
+if (nextEnabled) {
+speakDashboardAnnouncement("Voice announcements enabled.");
+} else if (isDashboardSpeechSupported()) {
+try {
+window.speechSynthesis?.cancel();
+} catch {
+// Ignore browser speech cancellation failures.
+}
+}
+};
+
 const displayChores =
 (chores && chores.length ? chores : STATIC_CHORES) || [];
 const displayChecklistItems =
@@ -506,6 +557,9 @@ return (
   displayTimeSlots={displayTimeSlots}
   floatingAssignments={floatingAssignments}
   staffById={staffById}
+  participantsById={participantsById}
+  attendingParticipants={attendingParticipants}
+  activeOutings={activeOutings}
   tick={tick}
 />
 );
@@ -572,6 +626,9 @@ return (
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
+  voiceAnnouncementsEnabled={voiceAnnouncementsEnabled}
+  voiceAnnouncementsSupported={isDashboardSpeechSupported()}
+  onToggleVoiceAnnouncements={handleToggleVoiceAnnouncements}
 >
   {renderCurrentPanel()}
 </DashboardFrame>
