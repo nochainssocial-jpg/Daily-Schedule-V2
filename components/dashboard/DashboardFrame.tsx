@@ -19,6 +19,10 @@ type Props = {
   children: React.ReactNode;
 };
 
+const TV_CANVAS_WIDTH = 1280;
+const TV_CANVAS_HEIGHT = 720;
+const TV_PREVIEW_SAFE_SCALE = 0.985;
+
 export function DashboardFrame({
   date,
   tick,
@@ -37,117 +41,130 @@ export function DashboardFrame({
   const displayOverride = (() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return null;
     try {
-      const value = new URLSearchParams(window.location.search).get("display");
+      const value = new URLSearchParams(window.location.search).get("display")?.toLowerCase();
       return value === "tv" || value === "laptop" ? value : null;
     } catch {
       return null;
     }
   })();
 
-  // 55" TV target: most Google TV devices output the browser at a 16:9
-  // viewport such as 1920 x 1080. Laptop remains the default profile; TV mode
-  // is enabled automatically on large screens or manually with ?display=tv.
-  const isLargeScreen = Platform.OS === "web" && (width >= 1500 || height >= 900);
-  const isTvDisplay = displayOverride === "tv" || (displayOverride !== "laptop" && isLargeScreen);
-  const displayModeLabel = isTvDisplay ? '55\" TV mode' : "Laptop mode";
+  // TV mode is now an explicit 16:9 canvas. This gives the iMac and the 55" TV
+  // the same layout proportions: on a computer it previews the TV canvas, and on
+  // the TV it scales safely inside the available viewport without edge cropping.
+  const isTvDisplay = displayOverride === "tv";
+  const displayModeLabel = isTvDisplay ? '55" TV mode' : "Laptop mode";
+  const tvScale = isTvDisplay
+    ? Math.min(width / TV_CANVAS_WIDTH, height / TV_CANVAS_HEIGHT) * TV_PREVIEW_SAFE_SCALE
+    : 1;
 
-  const tvViewportStyle = isTvDisplay
-    ? ({
-        position: "fixed",
-        // Small inset protects the dashboard from TV overscan/cast cropping
-        // while still keeping it visually full-screen.
-        top: 8,
-        right: 24,
-        bottom: 8,
-        left: 24,
-        width: "auto",
-        height: "auto",
-        maxWidth: "none",
-        borderRadius: 0,
-      } as const)
-    : null;
+  const frame = (
+    <View style={[styles.appFrame, isTvDisplay && styles.appFrameTv]}>
+      <View style={[styles.topBar, isTvDisplay && styles.topBarTv]}>
+        <View style={styles.topLeftBlock}>
+          <Text style={[styles.locationText, isTvDisplay && styles.locationTextTv]}>
+            Daily Operations Dashboard
+          </Text>
+          <Text style={[styles.programText, isTvDisplay && styles.programTextTv]}>
+            Location: {HOUSE_ID} Day Program
+          </Text>
+          <Text style={[styles.dateText, isTvDisplay && styles.dateTextTv]}>{formatDateKey(date)}</Text>
+        </View>
+        <View style={styles.clockBlock}>
+          <Text style={[styles.clockText, isTvDisplay && styles.clockTextTv]}>{timeNowLabel(tick)}</Text>
+          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>
+            Cycles every {Math.round(ROTATE_MS / 1000)}s
+          </Text>
+          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>
+            Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s
+          </Text>
+          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>
+            Updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
+          </Text>
+          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>Display: {displayModeLabel}</Text>
+          {!isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
+            <Pressable
+              onPress={onToggleVoiceAnnouncements}
+              style={[
+                styles.voiceToggle,
+                voiceAnnouncementsEnabled && styles.voiceToggleEnabled,
+              ]}
+            >
+              <Text style={styles.voiceToggleText}>
+                {voiceAnnouncementsEnabled
+                  ? "Voice announcements on"
+                  : "Enable voice announcements"}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
 
-  return (
-    <View style={[styles.screen, isTvDisplay && styles.screenTv]}>
+      <View style={[styles.currentPanelBar, isTvDisplay && styles.currentPanelBarTv]}>
+        <View style={styles.currentPanelLeft}>
+          <View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}> 
+            <Text style={[styles.currentPanelLabel, isTvDisplay && styles.currentPanelLabelTv]}>
+              Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
+            </Text>
+          </View>
+          {isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
+            <Pressable
+              onPress={onToggleVoiceAnnouncements}
+              style={[
+                styles.voiceToggleBar,
+                voiceAnnouncementsEnabled && styles.voiceToggleBarEnabled,
+              ]}
+            >
+              <Text style={styles.voiceToggleBarText}>
+                {voiceAnnouncementsEnabled ? "Voice on" : "Enable voice"}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+        <Text style={[styles.currentPanelCount, isTvDisplay && styles.currentPanelCountTv]}>
+          Panel {pageIndex + 1} of {pageCount}
+        </Text>
+      </View>
+
       <View
         style={[
-          styles.appFrame,
-          isTvDisplay && styles.appFrameTv,
-          tvViewportStyle,
+          styles.contentArea,
+          isTvDisplay && styles.contentAreaTv,
+          { backgroundColor: pageTheme.background },
         ]}
       >
-        <View style={[styles.topBar, isTvDisplay && styles.topBarTv]}>
-          <View style={styles.topLeftBlock}>
-            <Text style={styles.locationText}>Daily Operations Dashboard</Text>
-            <Text style={styles.programText}>Location: {HOUSE_ID} Day Program</Text>
-            <Text style={styles.dateText}>{formatDateKey(date)}</Text>
-          </View>
-          <View style={styles.clockBlock}>
-            <Text style={styles.clockText}>{timeNowLabel(tick)}</Text>
-            <Text style={styles.cycleText}>
-              (Cycles through tabs every {Math.round(ROTATE_MS / 1000)} seconds)
-            </Text>
-            <Text style={styles.cycleText}>
-              Soft refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)} seconds
-            </Text>
-            <Text style={styles.cycleText}>
-              Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
-            </Text>
-            <Text style={styles.cycleText}>Display: {displayModeLabel}</Text>
-            {!isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
-              <Pressable
-                onPress={onToggleVoiceAnnouncements}
-                style={[
-                  styles.voiceToggle,
-                  voiceAnnouncementsEnabled && styles.voiceToggleEnabled,
-                ]}
-              >
-                <Text style={styles.voiceToggleText}>
-                  {voiceAnnouncementsEnabled
-                    ? "Voice announcements on"
-                    : "Enable voice announcements"}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={[styles.currentPanelBar, isTvDisplay && styles.currentPanelBarTv]}>
-          <View style={styles.currentPanelLeft}>
-            <View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}>
-              <Text style={styles.currentPanelLabel}>
-                Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
-              </Text>
-            </View>
-            {isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
-              <Pressable
-                onPress={onToggleVoiceAnnouncements}
-                style={[
-                  styles.voiceToggleBar,
-                  voiceAnnouncementsEnabled && styles.voiceToggleBarEnabled,
-                ]}
-              >
-                <Text style={styles.voiceToggleBarText}>
-                  {voiceAnnouncementsEnabled ? "Voice on" : "Enable voice"}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-          <Text style={styles.currentPanelCount}>
-            Panel {pageIndex + 1} of {pageCount}
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.contentArea,
-            isTvDisplay && styles.contentAreaTv,
-            { backgroundColor: pageTheme.background },
-          ]}
-        >
-          {children}
-        </View>
+        {children}
       </View>
     </View>
   );
+
+  if (isTvDisplay) {
+    return (
+      <View style={styles.screenTvPreview}>
+        <View
+          style={[
+            styles.tvCanvasViewport,
+            {
+              width: TV_CANVAS_WIDTH * tvScale,
+              height: TV_CANVAS_HEIGHT * tvScale,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.tvCanvasSurface,
+              {
+                width: TV_CANVAS_WIDTH,
+                height: TV_CANVAS_HEIGHT,
+                transform: [{ scale: tvScale }],
+              } as any,
+            ]}
+          >
+            {frame}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return <View style={styles.screen}>{frame}</View>;
 }
