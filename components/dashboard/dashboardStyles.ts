@@ -8,6 +8,21 @@ backgroundColor: "#111827",
 alignItems: "center",
 justifyContent: "center",
 },
+screenTv: {
+// Escape the normal Expo/React Native web wrapper and force the dashboard
+// to fill the actual browser/cast viewport in TV mode.
+position: "fixed" as any,
+top: 0,
+right: 0,
+bottom: 0,
+left: 0,
+width: "100vw" as any,
+height: "100vh" as any,
+alignItems: "stretch",
+justifyContent: "flex-start",
+backgroundColor: "#F8FAFC",
+zIndex: 9999,
+},
 appFrame: {
 width: "100%",
 maxWidth: MAX_WIDTH,
@@ -17,12 +32,18 @@ borderRadius: Platform.OS === "web" ? 22 : 0,
 overflow: "hidden",
 },
 appFrameTv: {
-// Keep the proven laptop composition, then scale it up as one clean unit.
-// This avoids crowded TV-only reflows while making text/cards readable on a 55" screen.
-shadowColor: "#000",
-shadowOpacity: 0.18,
-shadowRadius: 24,
-shadowOffset: { width: 0, height: 10 },
+// True TV mode: fill the full 16:9 browser viewport instead of showing
+// the laptop-sized dashboard as a floating card inside the screen.
+position: "fixed" as any,
+top: 0,
+right: 0,
+bottom: 0,
+left: 0,
+width: "100vw" as any,
+maxWidth: "none" as any,
+height: "100vh" as any,
+borderRadius: 0,
+shadowOpacity: 0,
 },
 topBar: {
 height: 112,
@@ -32,6 +53,11 @@ backgroundColor: "#F54FA5",
 flexDirection: "row",
 justifyContent: "space-between",
 alignItems: "center",
+},
+topBarTv: {
+height: 104,
+paddingHorizontal: 42,
+paddingVertical: 12,
 },
 topLeftBlock: {
 flex: 1,
@@ -97,6 +123,10 @@ flexDirection: "row",
 alignItems: "center",
 justifyContent: "space-between",
 },
+currentPanelBarTv: {
+height: 42,
+paddingHorizontal: 28,
+},
 currentPanelPill: {
 paddingHorizontal: 18,
 paddingVertical: 8,
@@ -121,15 +151,18 @@ contentArea: {
 flex: 1,
 padding: 16,
 },
+contentAreaTv: {
+padding: 14,
+},
 panel: {
 flex: 1,
 backgroundColor: "#FFFFFF",
-borderRadius: 20,
-padding: 16,
+borderRadius: 18,
+padding: 14,
 shadowColor: "#000",
-shadowOpacity: 0.06,
-shadowRadius: 10,
-shadowOffset: { width: 0, height: 4 },
+shadowOpacity: 0.04,
+shadowRadius: 8,
+shadowOffset: { width: 0, height: 3 },
 },
 panelHeaderRow: {
 flexDirection: "row",

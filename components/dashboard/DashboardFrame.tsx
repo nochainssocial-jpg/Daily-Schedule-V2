@@ -49,21 +49,32 @@ export function DashboardFrame({
   // is enabled automatically on large screens or manually with ?display=tv.
   const isLargeScreen = Platform.OS === "web" && (width >= 1500 || height >= 900);
   const isTvDisplay = displayOverride === "tv" || (displayOverride !== "laptop" && isLargeScreen);
-  const dashboardScale = isTvDisplay
-    ? Math.min(width / 1220, height / 820, width >= 2500 ? 2.2 : 1.42)
-    : 1;
   const displayModeLabel = isTvDisplay ? '55\" TV mode' : "Laptop mode";
 
+  const tvViewportStyle = isTvDisplay
+    ? ({
+        position: "fixed",
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        maxWidth: "none",
+        borderRadius: 0,
+      } as const)
+    : null;
+
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, isTvDisplay && styles.screenTv]}>
       <View
         style={[
           styles.appFrame,
           isTvDisplay && styles.appFrameTv,
-          isTvDisplay && { transform: [{ scale: dashboardScale }] },
+          tvViewportStyle,
         ]}
       >
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, isTvDisplay && styles.topBarTv]}>
           <View style={styles.topLeftBlock}>
             <Text style={styles.locationText}>Daily Operations Dashboard</Text>
             <Text style={styles.programText}>Location: {HOUSE_ID} Day Program</Text>
@@ -99,7 +110,7 @@ export function DashboardFrame({
           </View>
         </View>
 
-        <View style={styles.currentPanelBar}>
+        <View style={[styles.currentPanelBar, isTvDisplay && styles.currentPanelBarTv]}>
           <View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}>
             <Text style={styles.currentPanelLabel}>
               Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
@@ -110,7 +121,15 @@ export function DashboardFrame({
           </Text>
         </View>
 
-        <View style={[styles.contentArea, { backgroundColor: pageTheme.background }]}>{children}</View>
+        <View
+          style={[
+            styles.contentArea,
+            isTvDisplay && styles.contentAreaTv,
+            { backgroundColor: pageTheme.background },
+          ]}
+        >
+          {children}
+        </View>
       </View>
     </View>
   );
