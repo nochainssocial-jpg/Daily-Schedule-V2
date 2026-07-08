@@ -54,12 +54,14 @@ export function DashboardFrame({
   const tvViewportStyle = isTvDisplay
     ? ({
         position: "fixed",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
+        // Small inset protects the dashboard from TV overscan/cast cropping
+        // while still keeping it visually full-screen.
+        top: 10,
+        right: 18,
+        bottom: 14,
+        left: 18,
+        width: "auto",
+        height: "auto",
         maxWidth: "none",
         borderRadius: 0,
       } as const)
