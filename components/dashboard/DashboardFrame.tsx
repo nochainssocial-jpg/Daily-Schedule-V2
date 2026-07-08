@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, View, Text, useWindowDimensions } from "react-native";
+import { Platform, Pressable, View, Text, useWindowDimensions } from "react-native";
 import { styles } from "./dashboardStyles";
 import { DASHBOARD_REFRESH_MS, HOUSE_ID, ROTATE_MS, pageLabel } from "./dashboardTheme";
 import type { DashboardPage } from "./dashboardTypes";
@@ -13,6 +13,9 @@ type Props = {
   pageIndex: number;
   pageCount: number;
   pageTheme: { background: string; accent: string };
+  voiceAnnouncementsEnabled?: boolean;
+  voiceAnnouncementsSupported?: boolean;
+  onToggleVoiceAnnouncements?: () => void;
   children: React.ReactNode;
 };
 
@@ -24,6 +27,9 @@ export function DashboardFrame({
   pageIndex,
   pageCount,
   pageTheme,
+  voiceAnnouncementsEnabled = false,
+  voiceAnnouncementsSupported = false,
+  onToggleVoiceAnnouncements,
   children,
 }: Props) {
   const { width, height } = useWindowDimensions();
@@ -75,6 +81,21 @@ export function DashboardFrame({
               Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
             </Text>
             <Text style={styles.cycleText}>Display: {displayModeLabel}</Text>
+            {voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
+              <Pressable
+                onPress={onToggleVoiceAnnouncements}
+                style={[
+                  styles.voiceToggle,
+                  voiceAnnouncementsEnabled && styles.voiceToggleEnabled,
+                ]}
+              >
+                <Text style={styles.voiceToggleText}>
+                  {voiceAnnouncementsEnabled
+                    ? "Voice announcements on"
+                    : "Enable voice announcements"}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
