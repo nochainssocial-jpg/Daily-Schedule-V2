@@ -30,6 +30,7 @@ type RecurrenceFrequency = "weekly" | "fortnightly" | "monthly";
 type WeekdayKey = "SU" | "MO" | "TU" | "WE" | "TH" | "FR" | "SA";
 type FilterStatus = "Inbox" | "All" | EventStatus;
 type FilterCategory = "All" | MainCategory;
+type GuideStepKey = "title" | "type" | "date" | "time" | "recurrence" | "hostLocation" | "save";
 
 type EventsMeetingsVisitsRecord = {
   id: string;
@@ -100,7 +101,7 @@ type FormState = {
 const blankForm: FormState = {
   title: "",
   mainCategory: "Visit",
-  eventType: "Behaviour Support",
+  eventType: "",
   eventDateAU: "",
   startTime: "",
   endTime: "",
@@ -591,6 +592,63 @@ function looksLikeMissingRecurrenceColumns(error: any) {
   );
 }
 
+const guideCopy: Record<GuideStepKey, { title: string; text: string }> = {
+  title: {
+    title: "Step 1: Add a clear title",
+    text: "Use plain wording such as BSP Visit, Speech Therapy, Jersey Day or Staff Meeting.",
+  },
+  type: {
+    title: "Step 2: Choose the type",
+    text: "Pick the closest type from the list. If nothing fits, choose Other.",
+  },
+  date: {
+    title: "Step 3: Enter the date",
+    text: "Use Australian format: DD/MM/YYYY. Example: 30/06/2026.",
+  },
+  time: {
+    title: "Step 4: Add the time",
+    text: "Enter start and end time, or turn on All day if it runs for the whole day.",
+  },
+  recurrence: {
+    title: "Recurring visit setup",
+    text: "Select the repeat days, then enter the number of visits to create. Example: 12.",
+  },
+  hostLocation: {
+    title: "Add who is responsible",
+    text: "Add the host/responsible staff member and location so the dashboard is clear for everyone.",
+  },
+  save: {
+    title: "Ready to save",
+    text: "All required details are complete. Click Save to complete the entry.",
+  },
+};
+
+function getCurrentGuideStep(form: FormState): GuideStepKey {
+  if (!form.title.trim()) return "title";
+  if (!form.eventType.trim()) return "type";
+  if (!auDateToISO(form.eventDateAU)) return "date";
+
+  if (!form.allDay && (!normaliseTime(form.startTime) || !normaliseTime(form.endTime))) {
+    return "time";
+  }
+
+  if (form.recurring) {
+    if (form.recurrenceFrequency !== "monthly" && form.recurrenceDays.length === 0) {
+      return "recurrence";
+    }
+
+    if (!parsePositiveInteger(form.recurrenceCount) && !auDateToISO(form.recurrenceEndAU)) {
+      return "recurrence";
+    }
+  }
+
+  if (!form.responsibleStaff.trim() || !form.location.trim()) {
+    return "hostLocation";
+  }
+
+  return "save";
+}
+
 export default function EventsMeetingsVisitsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<EventsMeetingsVisitsRecord[]>([]);
@@ -602,6 +660,7 @@ export default function EventsMeetingsVisitsScreen() {
   const [editingSeriesIds, setEditingSeriesIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [guideEnabled, setGuideEnabled] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("Inbox");
@@ -609,6 +668,11 @@ export default function EventsMeetingsVisitsScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const listItems = useMemo(() => buildGroupedListItems(items), [items]);
+  const currentGuideStep = useMemo(() => getCurrentGuideStep(form), [form]);
+
+  function isGuided(step: GuideStepKey) {
+    return guideEnabled && currentGuideStep === step;
+  }
 
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -1526,12 +1590,43 @@ export default function EventsMeetingsVisitsScreen() {
               ) : null}
             </View>
 
+            {guideEnabled ? (
+              <View style={styles.guideCard}>
+                <View style={styles.guideIconBubble}>
+                  <Ionicons name="sparkles-outline" size={17} color="#7C2D12" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.guideTitle}>{guideCopy[currentGuideStep].title}</Text>
+                  <Text style={styles.guideText}>{guideCopy[currentGuideStep].text}</Text>
+                </View>
+                <Pressable
+                  style={styles.guideDismissButton}
+                  onPress={() => setGuideEnabled(false)}
+                >
+                  <Text style={styles.guideDismissText}>Hide</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={styles.showGuideButton}
+                onPress={() => setGuideEnabled(true)}
+              >
+                <Ionicons name="help-circle-outline" size={16} color="#562C61" />
+                <Text style={styles.showGuideButtonText}>Show entry guide</Text>
+              </Pressable>
+            )}
+
             <Label text="Title" />
+            <GuideBubble
+              visible={isGuided("title")}
+              title={guideCopy.title.title}
+              text={guideCopy.title.text}
+            />
             <TextInput
               value={form.title}
               onChangeText={(value) => updateForm("title", value)}
               placeholder="BSP Specialist Visit"
-              style={styles.input}
+              style={[styles.input, isGuided("title") && styles.guidedInput]}
             />
 
             <Label text="Category" />
@@ -1558,9 +1653,14 @@ export default function EventsMeetingsVisitsScreen() {
             </View>
 
             <Label text="Type" />
+            <GuideBubble
+              visible={isGuided("type")}
+              title={guideCopy.type.title}
+              text={guideCopy.type.text}
+            />
             <View style={styles.dropdownWrap}>
               <Pressable
-                style={styles.dropdownButton}
+                style={[styles.dropdownButton, isGuided("type") && styles.guidedInput]}
                 onPress={() => setTypeMenuOpen((value) => !value)}
               >
                 <Text
@@ -1610,6 +1710,11 @@ export default function EventsMeetingsVisitsScreen() {
             <View style={styles.twoColumnRow}>
               <View style={styles.column}>
                 <Label text="Event date" />
+                <GuideBubble
+                  visible={isGuided("date")}
+                  title={guideCopy.date.title}
+                  text={guideCopy.date.text}
+                />
                 <TextInput
                   value={form.eventDateAU}
                   onChangeText={(value) =>
@@ -1618,7 +1723,7 @@ export default function EventsMeetingsVisitsScreen() {
                   placeholder="30/06/2026"
                   keyboardType="number-pad"
                   maxLength={10}
-                  style={styles.input}
+                  style={[styles.input, isGuided("date") && styles.guidedInput]}
                 />
               </View>
               <View style={styles.columnSwitch}>
@@ -1631,30 +1736,42 @@ export default function EventsMeetingsVisitsScreen() {
             </View>
 
             {!form.allDay && (
-              <View style={styles.twoColumnRow}>
-                <View style={styles.column}>
-                  <Label text="Start time" />
-                  <TextInput
-                    value={form.startTime}
-                    onChangeText={(value) => updateForm("startTime", value)}
-                    placeholder="10:30"
-                    style={styles.input}
-                  />
-                </View>
-                <View style={styles.column}>
-                  <Label text="End time" />
-                  <TextInput
-                    value={form.endTime}
-                    onChangeText={(value) => updateForm("endTime", value)}
-                    placeholder="11:30"
-                    style={styles.input}
-                  />
+              <View>
+                <GuideBubble
+                  visible={isGuided("time")}
+                  title={guideCopy.time.title}
+                  text={guideCopy.time.text}
+                />
+                <View style={styles.twoColumnRow}>
+                  <View style={styles.column}>
+                    <Label text="Start time" />
+                    <TextInput
+                      value={form.startTime}
+                      onChangeText={(value) => updateForm("startTime", value)}
+                      placeholder="10:30"
+                      style={[styles.input, isGuided("time") && styles.guidedInput]}
+                    />
+                  </View>
+                  <View style={styles.column}>
+                    <Label text="End time" />
+                    <TextInput
+                      value={form.endTime}
+                      onChangeText={(value) => updateForm("endTime", value)}
+                      placeholder="11:30"
+                      style={[styles.input, isGuided("time") && styles.guidedInput]}
+                    />
+                  </View>
                 </View>
               </View>
             )}
 
             {(!editingId || editingGroupId || editingSeriesIds.length > 0) ? (
-              <View style={styles.recurrencePanel}>
+              <View style={[styles.recurrencePanel, isGuided("recurrence") && styles.guidedPanel]}>
+                <GuideBubble
+                  visible={isGuided("recurrence")}
+                  title={guideCopy.recurrence.title}
+                  text={guideCopy.recurrence.text}
+                />
                 <View style={styles.toggleRowNoBorder}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.toggleText}>Recurring event</Text>
@@ -1815,6 +1932,11 @@ export default function EventsMeetingsVisitsScreen() {
               </View>
             </View>
 
+            <GuideBubble
+              visible={isGuided("hostLocation")}
+              title={guideCopy.hostLocation.title}
+              text={guideCopy.hostLocation.text}
+            />
             <View style={styles.twoColumnRow}>
               <View style={styles.column}>
                 <Label text="Responsible staff" />
@@ -1824,7 +1946,7 @@ export default function EventsMeetingsVisitsScreen() {
                     updateForm("responsibleStaff", value)
                   }
                   placeholder="Bruno"
-                  style={styles.input}
+                  style={[styles.input, isGuided("hostLocation") && styles.guidedInput]}
                 />
               </View>
               <View style={styles.column}>
@@ -1833,7 +1955,7 @@ export default function EventsMeetingsVisitsScreen() {
                   value={form.location}
                   onChangeText={(value) => updateForm("location", value)}
                   placeholder="Main Activity Room"
-                  style={styles.input}
+                  style={[styles.input, isGuided("hostLocation") && styles.guidedInput]}
                 />
               </View>
             </View>
@@ -1895,9 +2017,16 @@ export default function EventsMeetingsVisitsScreen() {
               />
             </View>
 
+            <GuideBubble
+              visible={isGuided("save")}
+              title={guideCopy.save.title}
+              text={guideCopy.save.text}
+            />
+
             <Pressable
               style={({ pressed }) => [
                 styles.saveButton,
+                isGuided("save") && styles.saveButtonGuided,
                 pressed && styles.saveButtonPressed,
                 saving && styles.saveButtonDisabled,
               ]}
@@ -2137,6 +2266,28 @@ export default function EventsMeetingsVisitsScreen() {
   );
 }
 
+function GuideBubble({
+  visible,
+  title,
+  text,
+}: {
+  visible: boolean;
+  title: string;
+  text: string;
+}) {
+  if (!visible) return null;
+
+  return (
+    <View style={styles.guideBubble}>
+      <Ionicons name="information-circle-outline" size={16} color="#92400E" />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.guideBubbleTitle}>{title}</Text>
+        <Text style={styles.guideBubbleText}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
 function Label({ text }: { text: string }) {
   return <Text style={styles.label}>{text}</Text>;
 }
@@ -2348,6 +2499,112 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "800",
     marginBottom: 12,
+  },
+  guideCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FBBF24",
+    backgroundColor: "#FFFBEB",
+    padding: 12,
+    marginBottom: 14,
+  },
+  guideIconBubble: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guideTitle: {
+    fontSize: 13,
+    color: "#7C2D12",
+    fontWeight: "900",
+  },
+  guideText: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#92400E",
+    fontWeight: "600",
+  },
+  guideDismissButton: {
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  guideDismissText: {
+    fontSize: 11,
+    color: "#92400E",
+    fontWeight: "900",
+  },
+  showGuideButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: "#F5EAF8",
+    borderWidth: 1,
+    borderColor: "#E9D5FF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  showGuideButtonText: {
+    fontSize: 12,
+    color: "#562C61",
+    fontWeight: "900",
+  },
+  guideBubble: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 8,
+  },
+  guideBubbleTitle: {
+    fontSize: 12,
+    color: "#7C2D12",
+    fontWeight: "900",
+  },
+  guideBubbleText: {
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#92400E",
+    fontWeight: "600",
+  },
+  guidedInput: {
+    borderColor: "#F59E0B",
+    borderWidth: 2,
+    backgroundColor: "#FFFBEB",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  guidedPanel: {
+    borderColor: "#F59E0B",
+    borderWidth: 2,
+  },
+  saveButtonGuided: {
+    backgroundColor: "#7C2D12",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
   },
   formHeaderRow: {
     flexDirection: "row",
