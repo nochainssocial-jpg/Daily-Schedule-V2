@@ -136,6 +136,14 @@ cycleTextTv: {
 fontSize: 8,
 lineHeight: 10,
 },
+cycleInlineTextTv: {
+marginTop: 4,
+color: "#FFE4F4",
+fontSize: 16,
+lineHeight: 20,
+fontWeight: "900",
+textAlign: "right",
+},
 voiceToggle: {
 marginTop: 7,
 paddingHorizontal: 11,
@@ -177,6 +185,7 @@ letterSpacing: 0.45,
 },
 clockBlock: {
 alignItems: "flex-end",
+justifyContent: "center",
 },
 clockText: {
 color: "#FFFFFF",
@@ -185,8 +194,8 @@ lineHeight: 25,
 fontWeight: "900",
 },
 clockTextTv: {
-fontSize: 24,
-lineHeight: 27,
+fontSize: 30,
+lineHeight: 34,
 },
 currentPanelBar: {
 height: 48,

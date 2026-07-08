@@ -71,16 +71,24 @@ export function DashboardFrame({
         </View>
         <View style={styles.clockBlock}>
           <Text style={[styles.clockText, isTvDisplay && styles.clockTextTv]}>{timeNowLabel(tick)}</Text>
-          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>
-            Cycles every {Math.round(ROTATE_MS / 1000)}s
-          </Text>
-          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>
-            Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s
-          </Text>
-          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>
-            Updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
-          </Text>
-          <Text style={[styles.cycleText, isTvDisplay && styles.cycleTextTv]}>Display: {displayModeLabel}</Text>
+          {isTvDisplay ? (
+            <Text style={styles.cycleInlineTextTv}>
+              (Cycles every {Math.round(ROTATE_MS / 1000)}s   |   Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s)
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.cycleText}>
+                Cycles every {Math.round(ROTATE_MS / 1000)}s
+              </Text>
+              <Text style={styles.cycleText}>
+                Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s
+              </Text>
+              <Text style={styles.cycleText}>
+                Updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
+              </Text>
+              <Text style={styles.cycleText}>Display: {displayModeLabel}</Text>
+            </>
+          )}
           {!isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
             <Pressable
               onPress={onToggleVoiceAnnouncements}
