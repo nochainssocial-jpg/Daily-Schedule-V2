@@ -35,6 +35,7 @@ import {
   isDashboardSimulationEnabled,
   isEventDashboardVisible,
   minutesFromDate,
+  previewDashboardNow,
   simulatedDashboardNow,
   simulationProgressPercent,
   sortEventsMeetingsVisits,
@@ -165,13 +166,10 @@ new Map(
 [participants],
 );
 
-const dashboardNow = useMemo(
-() =>
-isSimMode
-? simulatedDashboardNow(simStartedAtRef.current, date)
-: new Date(),
-[date, isSimMode, tick],
-);
+const dashboardNow = useMemo(() => {
+if (isSimMode) return simulatedDashboardNow(simStartedAtRef.current, date);
+return previewDashboardNow(date) || new Date();
+}, [date, isSimMode, tick]);
 
 const currentMinutes = useMemo(() => minutesFromDate(dashboardNow), [dashboardNow]);
 const simProgress = useMemo(
