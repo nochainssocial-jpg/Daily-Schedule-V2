@@ -70,14 +70,6 @@ export const STAFF_CELEBRATION_SEED: StaffCelebrationSeed[] = [
     "photoKey": "Charlie"
   },
   {
-    "firstName": "Chelsea",
-    "preferredName": "Chelsea",
-    "lastName": "Simms",
-    "birthday": "1986-04-12",
-    "employmentStartDate": "2021-09-06",
-    "photoKey": "Chelsea"
-  },
-  {
     "firstName": "Theresia",
     "preferredName": "Theresia",
     "lastName": "Touma",
@@ -465,10 +457,9 @@ export function buildStaffCelebrationItems(
   staff: any[] = [],
   tick: number,
   windowDays = 45,
+  today = new Date(),
 ): StaffCelebrationItem[] {
   void tick;
-
-  const today = new Date();
   const items: StaffCelebrationItem[] = [];
 
   (staff || []).forEach((member) => {

@@ -6,7 +6,15 @@ import type { EventMeetingVisitRecord } from "./dashboardTypes";
 import { eventRelativeLabel, eventTimeRange, shortDateAU } from "./dashboardUtils";
 import { styles } from "./dashboardStyles";
 
-function EventCard({ item, highlight = false }: { item: EventMeetingVisitRecord; highlight?: boolean }) {
+function EventCard({
+  item,
+  highlight = false,
+  dashboardNow = new Date(),
+}: {
+  item: EventMeetingVisitRecord;
+  highlight?: boolean;
+  dashboardNow?: Date;
+}) {
   const detailRows = [
     item.responsible_staff ? `Host: ${item.responsible_staff}` : "",
     item.visitor_name ? `Visitor: ${item.visitor_name}` : "",
@@ -42,7 +50,7 @@ function EventCard({ item, highlight = false }: { item: EventMeetingVisitRecord;
               {item.title}
             </Text>
             <Text style={[styles.eventSubtitle, { color: theme.muted }]}>
-              {eventRelativeLabel(item.event_date)} · {shortDateAU(item.event_date)} · {eventTimeRange(item)}
+              {eventRelativeLabel(item.event_date, dashboardNow)} · {shortDateAU(item.event_date)} · {eventTimeRange(item)}
             </Text>
           </View>
           <View
@@ -82,10 +90,12 @@ export function EventsMeetingsVisitsPanel({
   visibleEventsMeetingsVisits,
   todayEventsMeetingsVisits,
   upcomingEventsMeetingsVisits,
+  dashboardNow = new Date(),
 }: {
   visibleEventsMeetingsVisits: EventMeetingVisitRecord[];
   todayEventsMeetingsVisits: EventMeetingVisitRecord[];
   upcomingEventsMeetingsVisits: EventMeetingVisitRecord[];
+  dashboardNow?: Date;
 }) {
   return (
     <View style={styles.panel}>
@@ -110,7 +120,7 @@ export function EventsMeetingsVisitsPanel({
           ) : (
             <ScrollView style={styles.innerScroll} contentContainerStyle={styles.eventsList}>
               {todayEventsMeetingsVisits.map((item) => (
-                <EventCard key={item.id} item={item} highlight />
+                <EventCard key={item.id} item={item} highlight dashboardNow={dashboardNow} />
               ))}
             </ScrollView>
           )}
@@ -125,7 +135,7 @@ export function EventsMeetingsVisitsPanel({
           ) : (
             <ScrollView style={styles.innerScroll} contentContainerStyle={styles.eventsList}>
               {upcomingEventsMeetingsVisits.map((item) => (
-                <EventCard key={item.id} item={item} />
+                <EventCard key={item.id} item={item} dashboardNow={dashboardNow} />
               ))}
             </ScrollView>
           )}

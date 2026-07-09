@@ -96,7 +96,7 @@ export function FloatingAssignmentsPanel({
   staffById,
   participantsById,
   attendingParticipants,
-  activeOutings,
+  activeOutings = [],
   tick,
   currentMinutes,
 }: {
@@ -105,7 +105,7 @@ export function FloatingAssignmentsPanel({
   staffById: Map<string, any>;
   participantsById: Map<string, any>;
   attendingParticipants: any[];
-  activeOutings: any[];
+  activeOutings?: any[];
   tick: number;
   currentMinutes?: number;
 }) {

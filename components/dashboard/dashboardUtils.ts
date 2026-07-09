@@ -1,10 +1,5 @@
-import {
-  DASHBOARD_OPERATIONAL_TIMES,
-  STAFF_FEMALE_COLOR,
-  STAFF_MALE_COLOR,
-  STAFF_OTHER_COLOR,
-} from "./dashboardTheme";
-import type { DashboardOperationalPhase, EventMeetingVisitRecord } from "./dashboardTypes";
+import { STAFF_FEMALE_COLOR, STAFF_MALE_COLOR, STAFF_OTHER_COLOR } from "./dashboardTheme";
+import type { EventMeetingVisitRecord } from "./dashboardTypes";
 
 export function normaliseHexColor(value?: string | null, fallback = STAFF_OTHER_COLOR): string {
   const raw = String(value || "").trim();
@@ -80,59 +75,6 @@ export function parseTimeToMinutes(value?: string | null): number | null {
   return hour * 60 + minute;
 }
 
-export function parsePreviewTimeToMinutes(value?: string | null): number | null {
-  if (!value) return null;
-  const raw = String(value).trim();
-  if (!/^\d{1,2}:\d{2}$/.test(raw)) return null;
-
-  const [hourRaw, minuteRaw] = raw.split(":");
-  const hour = Number(hourRaw);
-  const minute = Number(minuteRaw);
-
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-
-  return hour * 60 + minute;
-}
-
-export function minutesToTimeLabel(minutes: number): string {
-  const safeMinutes = Math.max(0, Math.min(23 * 60 + 59, minutes));
-  const hour = Math.floor(safeMinutes / 60);
-  const minute = safeMinutes % 60;
-  const date = new Date();
-  date.setHours(hour, minute, 0, 0);
-  return date.toLocaleTimeString("en-AU", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-export function buildDashboardDateAtMinutes(
-  scheduleDate?: string | null,
-  minutes?: number | null,
-): Date {
-  const base = scheduleDate ? new Date(`${String(scheduleDate).slice(0, 10)}T00:00:00`) : new Date();
-  const d = Number.isNaN(base.getTime()) ? new Date() : base;
-
-  if (minutes == null) return new Date();
-
-  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-  return d;
-}
-
-export function getDashboardOperationalPhase(
-  currentMinutes: number,
-): DashboardOperationalPhase {
-  const times = DASHBOARD_OPERATIONAL_TIMES;
-
-  if (currentMinutes >= times.programEnds) return "dayComplete";
-  if (currentMinutes >= times.checklistStarts) return "endOfShift";
-  if (currentMinutes >= times.dropoffsStart) return "departureWindow";
-  if (currentMinutes >= times.cleaningStarts) return "cleaningActive";
-  if (currentMinutes >= times.officialStart) return "activeProgram";
-  return "arrivalSetup";
-}
-
 export function slotWindow(slot: any): { start: number | null; end: number | null } {
   if (!slot) return { start: null, end: null };
 
@@ -152,9 +94,16 @@ export function slotWindow(slot: any): { start: number | null; end: number | nul
   return { start, end };
 }
 
-export function nowMinutes(): number {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
+export const DASHBOARD_SIM_DURATION_MS = 5 * 60 * 1000;
+export const DASHBOARD_SIM_START_MINUTES = 8 * 60 + 30;
+export const DASHBOARD_SIM_END_MINUTES = 17 * 60;
+
+export function minutesFromDate(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+export function nowMinutes(date = new Date()): number {
+  return minutesFromDate(date);
 }
 
 export function isCurrentSlot(
@@ -263,10 +212,9 @@ export function shortNames(names: string[]): string {
   return names.length ? names.join(", ") : "—";
 }
 
-export function timeNowLabel(tick: number, currentMinutes?: number | null): string {
+export function timeNowLabel(tick: number, date = new Date()): string {
   void tick;
-  if (currentMinutes != null) return minutesToTimeLabel(currentMinutes);
-  return new Date().toLocaleTimeString("en-AU", {
+  return date.toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -279,8 +227,8 @@ export function timeLabel(date: Date): string {
   });
 }
 
-export function todayISODate(referenceDate = new Date()): string {
-  const d = referenceDate;
+export function todayISODate(date = new Date()): string {
+  const d = date;
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
@@ -291,10 +239,9 @@ export function shortDateAU(dateString?: string | null): string {
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
-export function eventRelativeLabel(dateString: string, referenceDate = new Date()): string {
+export function eventRelativeLabel(dateString: string, today = new Date()): string {
   const [year, month, day] = String(dateString).slice(0, 10).split("-").map(Number);
   const eventDate = new Date(year, month - 1, day);
-  const today = referenceDate;
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const diffDays = Math.round((eventDate.getTime() - todayStart.getTime()) / 86400000);
 
@@ -316,19 +263,59 @@ export function eventTimeRange(item: EventMeetingVisitRecord): string {
 export function isEventDashboardVisible(
   item: EventMeetingVisitRecord,
   tick: number,
-  nowTimestamp = Date.now(),
+  currentDate = new Date(),
 ): boolean {
   void tick;
   if (!item.dashboard_visible) return false;
   if (item.status === "Cancelled" || item.status === "Archived") return false;
 
-  const now = nowTimestamp;
+  const now = currentDate.getTime();
   const from = item.display_from ? new Date(item.display_from).getTime() : null;
   const until = item.display_until ? new Date(item.display_until).getTime() : null;
 
   if (from != null && Number.isFinite(from) && now < from) return false;
   if (until != null && Number.isFinite(until) && now > until) return false;
   return true;
+}
+
+function parseDateOnly(value?: string | null): Date {
+  const parts = String(value || "").slice(0, 10).split("-").map(Number);
+  if (parts.length === 3 && parts.every((part) => Number.isFinite(part))) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  return new Date();
+}
+
+export function isDashboardSimulationEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const value = String(params.get("sim") || params.get("simulation") || "").toLowerCase();
+    return value === "1" || value === "true" || value === "yes";
+  } catch {
+    return false;
+  }
+}
+
+export function simulatedDashboardNow(
+  startedAtMs: number,
+  scheduleDate?: string | null,
+  actualNow = Date.now(),
+): Date {
+  const elapsed = ((actualNow - startedAtMs) % DASHBOARD_SIM_DURATION_MS + DASHBOARD_SIM_DURATION_MS) % DASHBOARD_SIM_DURATION_MS;
+  const progress = elapsed / DASHBOARD_SIM_DURATION_MS;
+  const simulatedMinutes = Math.round(
+    DASHBOARD_SIM_START_MINUTES +
+      progress * (DASHBOARD_SIM_END_MINUTES - DASHBOARD_SIM_START_MINUTES),
+  );
+  const base = parseDateOnly(scheduleDate);
+  base.setHours(Math.floor(simulatedMinutes / 60), simulatedMinutes % 60, 0, 0);
+  return base;
+}
+
+export function simulationProgressPercent(startedAtMs: number, actualNow = Date.now()): number {
+  const elapsed = ((actualNow - startedAtMs) % DASHBOARD_SIM_DURATION_MS + DASHBOARD_SIM_DURATION_MS) % DASHBOARD_SIM_DURATION_MS;
+  return Math.round((elapsed / DASHBOARD_SIM_DURATION_MS) * 100);
 }
 
 export function sortEventsMeetingsVisits(

@@ -31,7 +31,8 @@ export function OutingsPanel({
             const isSecond = index === 1;
             const staffNames = namesFromIds(outing.staffIds, staffById);
             const participantNames = namesFromIds(outing.participantIds, participantsById);
-            const phaseLabel = outingPhaseLabel(getOutingPhase(outing, currentMinutes));
+            const phase = getOutingPhase(outing, currentMinutes);
+            const phaseLabel = outingPhaseLabel(phase);
             return (
               <View
                 key={outing.id || `outing-${index}`}
