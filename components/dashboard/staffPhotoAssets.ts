@@ -9,6 +9,7 @@ export const STAFF_PHOTO_ASSETS: Partial<Record<StaffPhotoKey, ImageSourcePropTy
   "Bruno": require("../../assets/images/staff/Bruno.png"),
   "Charbel": require("../../assets/images/staff/Charbel.png"),
   "Charlie": require("../../assets/images/staff/Charlie.png"),
+  "Chelsea": require("../../assets/images/staff/Chelsea.png"),
   "Claudette": require("../../assets/images/staff/Claudette.png"),
   "Crystal": require("../../assets/images/staff/Crystal.png"),
   "Dalida": require("../../assets/images/staff/Dalida.png"),

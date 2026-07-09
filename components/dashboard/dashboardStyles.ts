@@ -1403,7 +1403,11 @@ alignItems: "center",
 gap: 8,
 },
 floatingBannerScrollerTrackWeb: {
-width: "100%",
+width: "200%",
+animationName: "floatingRotationBannerScroll",
+animationDuration: "38s",
+animationTimingFunction: "linear",
+animationIterationCount: "infinite",
 } as any,
 floatingBannerStaffCard: {
 flex: 1,

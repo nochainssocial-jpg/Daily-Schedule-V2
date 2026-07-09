@@ -169,6 +169,8 @@ function FloatingBannerRow({
   assignments: FloatingBannerAssignment[];
   variant: "upNext" | "current";
 }) {
+  const scrollingAssignments = assignments.length ? [...assignments, ...assignments] : assignments;
+
   return (
     <View
       style={[
@@ -203,7 +205,7 @@ function FloatingBannerRow({
             Platform.OS === "web" ? (styles.floatingBannerScrollerTrackWeb as any) : null,
           ]}
         >
-          {assignments.map((item, index) => (
+          {scrollingAssignments.map((item, index) => (
             <FloatingStaffCard key={`${item.room}-${item.staffId || "empty"}-${index}`} item={item} />
           ))}
         </View>
