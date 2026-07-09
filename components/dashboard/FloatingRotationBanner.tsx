@@ -169,8 +169,6 @@ function FloatingBannerRow({
   assignments: FloatingBannerAssignment[];
   variant: "upNext" | "current";
 }) {
-  const repeatedAssignments = assignments.length ? [...assignments, ...assignments] : assignments;
-
   return (
     <View
       style={[
@@ -205,7 +203,7 @@ function FloatingBannerRow({
             Platform.OS === "web" ? (styles.floatingBannerScrollerTrackWeb as any) : null,
           ]}
         >
-          {repeatedAssignments.map((item, index) => (
+          {assignments.map((item, index) => (
             <FloatingStaffCard key={`${item.room}-${item.staffId || "empty"}-${index}`} item={item} />
           ))}
         </View>
