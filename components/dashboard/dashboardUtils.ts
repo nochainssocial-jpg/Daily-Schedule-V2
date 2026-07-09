@@ -297,6 +297,30 @@ export function isDashboardSimulationEnabled(): boolean {
   }
 }
 
+
+export function previewDashboardNow(scheduleDate?: string | null): Date | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = String(
+      params.get("previewTime") ||
+        params.get("preview") ||
+        params.get("time") ||
+        "",
+    ).trim();
+    if (!raw) return null;
+
+    const minutes = parseTimeToMinutes(raw);
+    if (minutes == null) return null;
+
+    const base = parseDateOnly(scheduleDate);
+    base.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+    return base;
+  } catch {
+    return null;
+  }
+}
+
 export function simulatedDashboardNow(
   startedAtMs: number,
   scheduleDate?: string | null,

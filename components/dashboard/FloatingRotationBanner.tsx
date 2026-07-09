@@ -46,7 +46,12 @@ function staffForRoom(row: any, room: string, staffById: Map<string, any>) {
   const staff = staffId ? staffById.get(staffId) : null;
   const name = staff ? String(staff.name || staffId) : staffId || "Unallocated";
   const color = staff?.color || "#FFFFFF";
-  return { name, color, textColor: readableTextColor(color), unallocated: !staffId || name === "Unallocated" };
+  return {
+    name,
+    color,
+    textColor: readableTextColor(color),
+    unallocated: !staffId || name === "Unallocated",
+  };
 }
 
 function BannerCards({
@@ -64,24 +69,22 @@ function BannerCards({
     <View style={{ flexDirection: "row", alignItems: "center" }}>
       <View
         style={{
-          minWidth: 82,
-          borderRadius: 999,
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.72)",
-          backgroundColor: "rgba(255,255,255,0.14)",
-          paddingHorizontal: 10,
-          paddingVertical: 6,
+          minWidth: 116,
+          paddingHorizontal: 8,
+          paddingVertical: 5,
           marginRight: 8,
+          backgroundColor: "transparent",
         }}
       >
         <Text
+          numberOfLines={1}
           style={{
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: "900",
-            color: "#FFFFFF",
+            color: "#111827",
             textAlign: "center",
-            textShadowColor: "rgba(0,0,0,0.35)",
-            textShadowRadius: 2,
+            textShadowColor: "rgba(255,255,255,0.95)",
+            textShadowRadius: 4,
           }}
         >
           {slotLabel(rotationSlot.slot)}
@@ -96,19 +99,19 @@ function BannerCards({
           <View
             key={`${rotationSlot.slotId}-${room}`}
             style={{
-              minWidth: 136,
-              borderRadius: 16,
+              minWidth: 146,
+              borderRadius: 18,
               backgroundColor,
               borderWidth: 1,
-              borderColor: staff.unallocated ? "#FCA5A5" : "rgba(255,255,255,0.68)",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              marginRight: 8,
+              borderColor: staff.unallocated ? "#FCA5A5" : "rgba(255,255,255,0.82)",
+              paddingHorizontal: 13,
+              paddingVertical: 9,
+              marginRight: 9,
               shadowColor: "#000000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.16,
-              shadowRadius: 8,
-              elevation: 3,
+              shadowOffset: { width: 0, height: 5 },
+              shadowOpacity: 0.18,
+              shadowRadius: 10,
+              elevation: 6,
             }}
           >
             <Text
@@ -146,36 +149,30 @@ function BannerRow({
   rotationSlot,
   floatingAssignments,
   staffById,
-  isUpNext,
 }: {
   label: string;
   rotationSlot: RotationSlot;
   floatingAssignments: any;
   staffById: Map<string, any>;
-  isUpNext?: boolean;
 }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 3 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 4 }}>
       <View
         style={{
-          width: 82,
-          alignItems: "center",
-          borderRadius: 999,
-          borderWidth: 1,
-          borderColor: isUpNext ? "rgba(255,255,255,0.76)" : "rgba(255,255,255,0.5)",
-          backgroundColor: isUpNext ? "rgba(124,58,237,0.32)" : "rgba(17,24,39,0.2)",
-          paddingVertical: 6,
-          marginRight: 8,
+          width: 88,
+          alignItems: "flex-end",
+          backgroundColor: "transparent",
+          paddingRight: 8,
         }}
       >
         <Text
           style={{
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: "900",
-            color: "#FFFFFF",
+            color: label === "UP NEXT" ? "#B45309" : "#047857",
             letterSpacing: 0.6,
-            textShadowColor: "rgba(0,0,0,0.38)",
-            textShadowRadius: 2,
+            textShadowColor: "rgba(255,255,255,0.95)",
+            textShadowRadius: 4,
           }}
         >
           {label}
@@ -248,10 +245,12 @@ export function FloatingRotationBanner({
         left: "20%",
         right: "20%",
         bottom: 12,
-        minHeight: upNextSlot ? 104 : 58,
+        minHeight: upNextSlot ? 112 : 64,
         overflow: "hidden",
         justifyContent: "center",
         backgroundColor: "transparent",
+        zIndex: 999,
+        elevation: 999,
       }}
     >
       <Animated.View
@@ -269,7 +268,6 @@ export function FloatingRotationBanner({
                 rotationSlot={upNextSlot}
                 floatingAssignments={floatingAssignments}
                 staffById={staffById}
-                isUpNext
               />
             ) : null}
             <BannerRow label="NOW" rotationSlot={currentSlot} floatingAssignments={floatingAssignments} staffById={staffById} />
