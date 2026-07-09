@@ -13,6 +13,7 @@ import { DashboardFrame } from "@/components/dashboard/DashboardFrame";
 import { DropoffsPanel } from "@/components/dashboard/DropoffsPanel";
 import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetingsVisitsPanel";
 import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
+import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
 import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
 import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
 import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
@@ -809,6 +810,14 @@ return (
   onPreviousPage={handlePreviousPage}
   onNextPage={handleNextPage}
   onToggleAutoRotation={handleToggleAutoRotation}
+  floatingOverlay={
+    <FloatingRotationBanner
+      displayTimeSlots={displayTimeSlots}
+      floatingAssignments={floatingAssignments}
+      staffById={staffById}
+      currentMinutes={currentMinutes}
+    />
+  }
 >
   {renderCurrentPanel()}
 </DashboardFrame>
