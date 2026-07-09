@@ -54,6 +54,9 @@ import {
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
 
 const MANUAL_ROTATION_RESUME_MS = 90_000;
+const REMINDER_BURST_MINUTE = 15;
+const REMINDER_BURST_DURATION_MINUTES = 1;
+
 
 function getPreviewTimeParam(): string | null {
 if (typeof window === "undefined") return null;
@@ -122,6 +125,10 @@ const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.che
 const dailyAssignmentsAreOperational =
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
 const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
+const reminderBurstMinute = currentMinutes % 60;
+const reminderBurstActive =
+reminderBurstMinute >= REMINDER_BURST_MINUTE &&
+reminderBurstMinute < REMINDER_BURST_MINUTE + REMINDER_BURST_DURATION_MINUTES;
 
 const fetchEventsMeetingsVisits = async () => {
 try {
@@ -613,19 +620,23 @@ add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 }
 
-list.push(...REMINDER_PAGE_ORDER.filter((page) => !list.includes(page)));
-return list;
+return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
 }, [
 hasEventsMeetingsVisits,
 dailyAssignmentsAreOperational,
 floatingIsOperational,
 hasStaffCelebrations,
 operationalPhase,
+reminderBurstActive,
 showChecklistPanel,
 showCleaningPanel,
 showDropoffsPanel,
 visibleOutings.length,
 ]);
+
+useEffect(() => {
+setPageIndex(0);
+}, [reminderBurstActive]);
 
 useEffect(() => {
 if (!autoRotationEnabled || pages.length <= 1) return;
