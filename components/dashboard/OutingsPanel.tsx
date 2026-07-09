@@ -1,17 +1,19 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { namesFromIds, shortNames } from "./dashboardUtils";
+import { getOutingPhase, namesFromIds, outingPhaseLabel, shortNames } from "./dashboardUtils";
 import { styles } from "./dashboardStyles";
 
 export function OutingsPanel({
   activeOutings,
   staffById,
   participantsById,
+  currentMinutes,
 }: {
   activeOutings: any[];
   staffById: Map<string, any>;
   participantsById: Map<string, any>;
+  currentMinutes?: number;
 }) {
   return (
     <View style={styles.panel}>
@@ -29,6 +31,7 @@ export function OutingsPanel({
             const isSecond = index === 1;
             const staffNames = namesFromIds(outing.staffIds, staffById);
             const participantNames = namesFromIds(outing.participantIds, participantsById);
+            const phaseLabel = outingPhaseLabel(getOutingPhase(outing, currentMinutes));
             return (
               <View
                 key={outing.id || `outing-${index}`}
@@ -40,7 +43,7 @@ export function OutingsPanel({
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.outingLabel, isSecond ? styles.purpleText : styles.orangeText]}>
-                      {isSecond ? "Outing 2" : "Outing 1"}
+                      {isSecond ? "Outing 2" : "Outing 1"}{phaseLabel ? ` · ${phaseLabel}` : ""}
                     </Text>
                     <Text style={styles.outingName}>{outing.name || "Unnamed outing"}</Text>
                     <Text style={styles.outingTime}>{(outing.startTime || "?") + " – " + (outing.endTime || "?")}</Text>

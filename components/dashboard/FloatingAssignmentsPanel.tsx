@@ -98,6 +98,7 @@ export function FloatingAssignmentsPanel({
   attendingParticipants,
   activeOutings,
   tick,
+  currentMinutes,
 }: {
   displayTimeSlots: any[];
   floatingAssignments: any;
@@ -106,6 +107,7 @@ export function FloatingAssignmentsPanel({
   attendingParticipants: any[];
   activeOutings: any[];
   tick: number;
+  currentMinutes?: number;
 }) {
   const participantGroups = useMemo(
     () => buildParticipantGroups(participantsById),
@@ -223,7 +225,7 @@ export function FloatingAssignmentsPanel({
         {(displayTimeSlots || []).map((slot: any, index: number) => {
           const slotId = String(slot.id ?? index);
           const row = floatingAssignments?.[slotId] || {};
-          const current = isCurrentSlot(slot, tick);
+          const current = isCurrentSlot(slot, tick, currentMinutes);
 
           return (
             <View

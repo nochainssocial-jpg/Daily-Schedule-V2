@@ -1,5 +1,10 @@
-import { STAFF_FEMALE_COLOR, STAFF_MALE_COLOR, STAFF_OTHER_COLOR } from "./dashboardTheme";
-import type { EventMeetingVisitRecord } from "./dashboardTypes";
+import {
+  DASHBOARD_OPERATIONAL_TIMES,
+  STAFF_FEMALE_COLOR,
+  STAFF_MALE_COLOR,
+  STAFF_OTHER_COLOR,
+} from "./dashboardTheme";
+import type { DashboardOperationalPhase, EventMeetingVisitRecord } from "./dashboardTypes";
 
 export function normaliseHexColor(value?: string | null, fallback = STAFF_OTHER_COLOR): string {
   const raw = String(value || "").trim();
@@ -75,6 +80,59 @@ export function parseTimeToMinutes(value?: string | null): number | null {
   return hour * 60 + minute;
 }
 
+export function parsePreviewTimeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!/^\d{1,2}:\d{2}$/.test(raw)) return null;
+
+  const [hourRaw, minuteRaw] = raw.split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return hour * 60 + minute;
+}
+
+export function minutesToTimeLabel(minutes: number): string {
+  const safeMinutes = Math.max(0, Math.min(23 * 60 + 59, minutes));
+  const hour = Math.floor(safeMinutes / 60);
+  const minute = safeMinutes % 60;
+  const date = new Date();
+  date.setHours(hour, minute, 0, 0);
+  return date.toLocaleTimeString("en-AU", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function buildDashboardDateAtMinutes(
+  scheduleDate?: string | null,
+  minutes?: number | null,
+): Date {
+  const base = scheduleDate ? new Date(`${String(scheduleDate).slice(0, 10)}T00:00:00`) : new Date();
+  const d = Number.isNaN(base.getTime()) ? new Date() : base;
+
+  if (minutes == null) return new Date();
+
+  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return d;
+}
+
+export function getDashboardOperationalPhase(
+  currentMinutes: number,
+): DashboardOperationalPhase {
+  const times = DASHBOARD_OPERATIONAL_TIMES;
+
+  if (currentMinutes >= times.programEnds) return "dayComplete";
+  if (currentMinutes >= times.checklistStarts) return "endOfShift";
+  if (currentMinutes >= times.dropoffsStart) return "departureWindow";
+  if (currentMinutes >= times.cleaningStarts) return "cleaningActive";
+  if (currentMinutes >= times.officialStart) return "activeProgram";
+  return "arrivalSetup";
+}
+
 export function slotWindow(slot: any): { start: number | null; end: number | null } {
   if (!slot) return { start: null, end: null };
 
@@ -99,12 +157,15 @@ export function nowMinutes(): number {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-export function isCurrentSlot(slot: any, tick: number): boolean {
+export function isCurrentSlot(
+  slot: any,
+  tick: number,
+  currentMinutes = nowMinutes(),
+): boolean {
   void tick;
   const { start, end } = slotWindow(slot);
   if (start == null || end == null || end <= start) return false;
-  const now = nowMinutes();
-  return now >= start && now < end;
+  return currentMinutes >= start && currentMinutes < end;
 }
 
 export function slotLabel(slot: any): string {
@@ -202,8 +263,9 @@ export function shortNames(names: string[]): string {
   return names.length ? names.join(", ") : "—";
 }
 
-export function timeNowLabel(tick: number): string {
+export function timeNowLabel(tick: number, currentMinutes?: number | null): string {
   void tick;
+  if (currentMinutes != null) return minutesToTimeLabel(currentMinutes);
   return new Date().toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
@@ -217,8 +279,8 @@ export function timeLabel(date: Date): string {
   });
 }
 
-export function todayISODate(): string {
-  const d = new Date();
+export function todayISODate(referenceDate = new Date()): string {
+  const d = referenceDate;
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
@@ -229,10 +291,10 @@ export function shortDateAU(dateString?: string | null): string {
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
-export function eventRelativeLabel(dateString: string): string {
+export function eventRelativeLabel(dateString: string, referenceDate = new Date()): string {
   const [year, month, day] = String(dateString).slice(0, 10).split("-").map(Number);
   const eventDate = new Date(year, month - 1, day);
-  const today = new Date();
+  const today = referenceDate;
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const diffDays = Math.round((eventDate.getTime() - todayStart.getTime()) / 86400000);
 
@@ -251,12 +313,16 @@ export function eventTimeRange(item: EventMeetingVisitRecord): string {
   return start || end || "Time not set";
 }
 
-export function isEventDashboardVisible(item: EventMeetingVisitRecord, tick: number): boolean {
+export function isEventDashboardVisible(
+  item: EventMeetingVisitRecord,
+  tick: number,
+  nowTimestamp = Date.now(),
+): boolean {
   void tick;
   if (!item.dashboard_visible) return false;
   if (item.status === "Cancelled" || item.status === "Archived") return false;
 
-  const now = Date.now();
+  const now = nowTimestamp;
   const from = item.display_from ? new Date(item.display_from).getTime() : null;
   const until = item.display_until ? new Date(item.display_until).getTime() : null;
 

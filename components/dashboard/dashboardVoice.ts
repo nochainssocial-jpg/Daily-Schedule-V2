@@ -72,6 +72,7 @@ export function buildUpcomingFloatingRotationAnnouncement({
   floatingAssignments,
   staffById,
   tick,
+  currentMinutes,
   noticeMinutes = 1,
 }: {
   date?: string | null;
@@ -79,18 +80,19 @@ export function buildUpcomingFloatingRotationAnnouncement({
   floatingAssignments: any;
   staffById: StaffLookup;
   tick: number;
+  currentMinutes?: number;
   noticeMinutes?: number;
 }): FloatingAnnouncementResult | null {
   void tick;
 
-  const currentMinutes = nowMinutes();
+  const comparisonMinutes = currentMinutes ?? nowMinutes();
 
   for (const [index, slot] of (displayTimeSlots || []).entries()) {
     const slotId = String(slot?.id ?? index);
     const start = getSlotStartMinutes(slot);
     if (start == null) continue;
 
-    const minutesUntil = start - currentMinutes;
+    const minutesUntil = start - comparisonMinutes;
     if (minutesUntil < 0 || minutesUntil > noticeMinutes) continue;
 
     const row = floatingAssignments?.[slotId] || {};

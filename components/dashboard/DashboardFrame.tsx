@@ -1,8 +1,14 @@
 import React from "react";
 import { Platform, Pressable, View, Text, useWindowDimensions } from "react-native";
 import { styles } from "./dashboardStyles";
-import { DASHBOARD_REFRESH_MS, HOUSE_ID, ROTATE_MS, pageLabel } from "./dashboardTheme";
-import type { DashboardPage } from "./dashboardTypes";
+import {
+  DASHBOARD_PHASE_LABELS,
+  DASHBOARD_REFRESH_MS,
+  HOUSE_ID,
+  ROTATE_MS,
+  pageLabel,
+} from "./dashboardTheme";
+import type { DashboardOperationalPhase, DashboardPage } from "./dashboardTypes";
 import { formatDateKey, timeLabel, timeNowLabel } from "./dashboardUtils";
 
 type Props = {
@@ -16,6 +22,14 @@ type Props = {
   voiceAnnouncementsEnabled?: boolean;
   voiceAnnouncementsSupported?: boolean;
   onToggleVoiceAnnouncements?: () => void;
+  currentMinutes?: number | null;
+  isPreviewMode?: boolean;
+  previewTimeLabel?: string | null;
+  operationalPhase?: DashboardOperationalPhase;
+  autoRotationEnabled?: boolean;
+  onPreviousPage?: () => void;
+  onNextPage?: () => void;
+  onToggleAutoRotation?: () => void;
   children: React.ReactNode;
 };
 
@@ -34,6 +48,14 @@ export function DashboardFrame({
   voiceAnnouncementsEnabled = false,
   voiceAnnouncementsSupported = false,
   onToggleVoiceAnnouncements,
+  currentMinutes = null,
+  isPreviewMode = false,
+  previewTimeLabel = null,
+  operationalPhase,
+  autoRotationEnabled = true,
+  onPreviousPage,
+  onNextPage,
+  onToggleAutoRotation,
   children,
 }: Props) {
   const { width, height } = useWindowDimensions();
@@ -68,9 +90,19 @@ export function DashboardFrame({
             Location: {HOUSE_ID} Day Program
           </Text>
           <Text style={[styles.dateText, isTvDisplay && styles.dateTextTv]}>{formatDateKey(date)}</Text>
+          {operationalPhase ? (
+            <Text style={[styles.phaseText, isTvDisplay && styles.phaseTextTv]}>
+              Phase: {DASHBOARD_PHASE_LABELS[operationalPhase]}
+            </Text>
+          ) : null}
         </View>
         <View style={styles.clockBlock}>
-          <Text style={[styles.clockText, isTvDisplay && styles.clockTextTv]}>{timeNowLabel(tick)}</Text>
+          <Text style={[styles.clockText, isTvDisplay && styles.clockTextTv]}>{timeNowLabel(tick, currentMinutes)}</Text>
+          {isPreviewMode ? (
+            <Text style={[styles.previewClockText, isTvDisplay && styles.previewClockTextTv]}>
+              Preview time: {previewTimeLabel || timeNowLabel(tick, currentMinutes)}
+            </Text>
+          ) : null}
           {isTvDisplay ? (
             <>
               <Text style={styles.cycleInlineTextTv}>
@@ -134,9 +166,32 @@ export function DashboardFrame({
             </Pressable>
           ) : null}
         </View>
-        <Text style={[styles.currentPanelCount, isTvDisplay && styles.currentPanelCountTv]}>
-          Panel {pageIndex + 1} of {pageCount}
-        </Text>
+        <View style={styles.panelControlsRow}>
+          {onPreviousPage && onNextPage && onToggleAutoRotation ? (
+            <View style={[styles.manualNavControls, isTvDisplay && styles.manualNavControlsTv]}>
+              <Pressable onPress={onPreviousPage} style={styles.manualNavButton}>
+                <Text style={styles.manualNavButtonText}>←</Text>
+              </Pressable>
+              <Pressable
+                onPress={onToggleAutoRotation}
+                style={[
+                  styles.manualAutoButton,
+                  autoRotationEnabled && styles.manualAutoButtonEnabled,
+                ]}
+              >
+                <Text style={styles.manualAutoButtonText}>
+                  {autoRotationEnabled ? "Auto" : "Manual"}
+                </Text>
+              </Pressable>
+              <Pressable onPress={onNextPage} style={styles.manualNavButton}>
+                <Text style={styles.manualNavButtonText}>→</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <Text style={[styles.currentPanelCount, isTvDisplay && styles.currentPanelCountTv]}>
+            Panel {pageIndex + 1} of {pageCount}
+          </Text>
+        </View>
       </View>
 
       <View
