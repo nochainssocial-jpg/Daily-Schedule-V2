@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo } from "react";
 import { Image, Platform, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
 import type { RoomKey } from "./dashboardTypes";
-import { minutesToTimeLabel, slotWindow } from "./dashboardUtils";
+import { isFsoSlot, minutesToTimeLabel, slotWindow } from "./dashboardUtils";
 import { STAFF_PHOTO_ASSETS, type StaffPhotoKey } from "./staffPhotoAssets";
 import { styles } from "./dashboardStyles";
 
 type FloatingBannerAssignment = {
   room: RoomKey;
   roomLabel: string;
+  isFso: boolean;
   staffId: string | null;
   staffName: string;
   photoSource: ImageSourcePropType | null;
@@ -112,10 +112,12 @@ function buildSlotAssignments({
     const staffId = row?.[room] ? String(row[room]) : null;
     const person = staffId ? staffById.get(staffId) : null;
     const staffName = person?.name ? String(person.name) : "Unassigned";
+    const fso = room === "twins" && isFsoSlot(slot);
 
     return {
       room,
-      roomLabel: ROOM_LABELS[room],
+      roomLabel: room === "twins" ? (fso ? "Twins (FSO)" : "Twins") : ROOM_LABELS[room],
+      isFso: fso,
       staffId,
       staffName,
       photoSource: person ? getStaffPhotoSource(person) : null,
@@ -176,11 +178,20 @@ function FloatingBannerRow({
         variant === "upNext" ? styles.floatingBannerRowUpNext : styles.floatingBannerRowCurrent,
       ]}
     >
-      <View style={styles.floatingBannerRowLabelBlock}>
+      <View
+        style={[
+          styles.floatingBannerRowLabelBlock,
+          variant === "upNext"
+            ? styles.floatingBannerRowLabelBlockUpNext
+            : styles.floatingBannerRowLabelBlockCurrent,
+        ]}
+      >
         <Text
           style={[
             styles.floatingBannerRowTitle,
-            variant === "upNext" ? styles.floatingBannerRowTitleUpNext : null,
+            variant === "upNext"
+              ? styles.floatingBannerRowTitleUpNext
+              : styles.floatingBannerRowTitleCurrent,
           ]}
         >
           {title}
@@ -255,6 +266,7 @@ export function FloatingRotationBanner({
   return (
     <View style={styles.floatingBannerOverlay} pointerEvents="none">
       <View style={styles.floatingBannerGlassPanel}>
+        <Text style={styles.floatingBannerPanelTitle}>Floating Assignments</Text>
         {upNextSlot ? (
           <FloatingBannerRow
             title="Up Next"
@@ -264,17 +276,11 @@ export function FloatingRotationBanner({
           />
         ) : null}
         <FloatingBannerRow
-          title="Current Floating Assignments"
+          title="On Now"
           subtitle={currentSlot.label}
           assignments={currentSlot.assignments}
           variant="current"
         />
-        <View style={styles.floatingBannerFooterPill}>
-          <MaterialCommunityIcons name="clock-fast" size={14} color="#EDE9FE" />
-          <Text style={styles.floatingBannerFooterText}>
-            Floating rotation updates every 30 minutes until 2:30pm
-          </Text>
-        </View>
       </View>
     </View>
   );

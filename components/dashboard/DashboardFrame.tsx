@@ -129,21 +129,6 @@ export function DashboardFrame({
               <Text style={styles.cycleText}>Display: {displayModeLabel}</Text>
             </>
           )}
-          {!isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
-            <Pressable
-              onPress={onToggleVoiceAnnouncements}
-              style={[
-                styles.voiceToggle,
-                voiceAnnouncementsEnabled && styles.voiceToggleEnabled,
-              ]}
-            >
-              <Text style={styles.voiceToggleText}>
-                {voiceAnnouncementsEnabled
-                  ? "Voice announcements on"
-                  : "Enable voice announcements"}
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
       </View>
 
@@ -154,19 +139,6 @@ export function DashboardFrame({
               Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
             </Text>
           </View>
-          {isTvDisplay && voiceAnnouncementsSupported && onToggleVoiceAnnouncements ? (
-            <Pressable
-              onPress={onToggleVoiceAnnouncements}
-              style={[
-                styles.voiceToggleBar,
-                voiceAnnouncementsEnabled && styles.voiceToggleBarEnabled,
-              ]}
-            >
-              <Text style={styles.voiceToggleBarText}>
-                {voiceAnnouncementsEnabled ? "Voice on" : "Enable voice"}
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
         <View style={styles.panelControlsRow}>
           {onPreviousPage && onNextPage && onToggleAutoRotation ? (
