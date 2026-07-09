@@ -30,6 +30,7 @@ type Props = {
   onPreviousPage?: () => void;
   onNextPage?: () => void;
   onToggleAutoRotation?: () => void;
+  floatingOverlay?: React.ReactNode;
   children: React.ReactNode;
 };
 
@@ -56,6 +57,7 @@ export function DashboardFrame({
   onPreviousPage,
   onNextPage,
   onToggleAutoRotation,
+  floatingOverlay = null,
   children,
 }: Props) {
   const { width, height } = useWindowDimensions();
@@ -203,6 +205,7 @@ export function DashboardFrame({
       >
         {children}
       </View>
+      {floatingOverlay}
     </View>
   );
 
