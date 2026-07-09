@@ -119,6 +119,9 @@ const dropoffsAreOperational =
 currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.dropoffsStart &&
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
 const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
+const dailyAssignmentsAreOperational =
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
+const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
 
 const fetchEventsMeetingsVisits = async () => {
 try {
@@ -575,39 +578,38 @@ if (condition && !list.includes(page)) list.push(page);
 };
 
 if (operationalPhase === "arrivalSetup") {
-add("team");
+add("team", dailyAssignmentsAreOperational);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("outings", visibleOutings.length > 0);
 add("staffCelebrations", hasStaffCelebrations);
-add("floating");
+add("floating", floatingIsOperational);
 } else if (operationalPhase === "activeProgram") {
-add("floating");
+add("floating", floatingIsOperational);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team");
+add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "cleaningActive") {
-add("floating");
+add("floating", floatingIsOperational);
 add("cleaning", showCleaningPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team");
+add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "departureWindow") {
 add("dropoffs", showDropoffsPanel);
-add("floating");
+add("floating", floatingIsOperational);
 add("cleaning", showCleaningPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team");
+add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else {
 add("checklist", showChecklistPanel);
 add("dropoffs", showDropoffsPanel);
 add("cleaning", showCleaningPanel);
-add("floating");
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team");
+add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 }
 
@@ -615,6 +617,8 @@ list.push(...REMINDER_PAGE_ORDER.filter((page) => !list.includes(page)));
 return list;
 }, [
 hasEventsMeetingsVisits,
+dailyAssignmentsAreOperational,
+floatingIsOperational,
 hasStaffCelebrations,
 operationalPhase,
 showChecklistPanel,
