@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
@@ -20,7 +20,6 @@ import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrations
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
 import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
 import {
-  DASHBOARD_OPERATIONAL_TIMES,
   DASHBOARD_PAGE_THEMES,
   DASHBOARD_REFRESH_MS,
   HOUSE_ID,
@@ -30,15 +29,14 @@ import {
   isReminderPage,
 } from "@/components/dashboard/dashboardTheme";
 import {
-  buildDashboardDateAtMinutes,
   colorForStaff,
-  getDashboardOperationalPhase,
   getOutingPhase,
   hasOutingContent,
+  isDashboardSimulationEnabled,
   isEventDashboardVisible,
-  minutesToTimeLabel,
-  nowMinutes,
-  parsePreviewTimeToMinutes,
+  minutesFromDate,
+  simulatedDashboardNow,
+  simulationProgressPercent,
   sortEventsMeetingsVisits,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
@@ -46,44 +44,23 @@ import {
   buildStaffCelebrationItems,
   splitStaffCelebrations,
 } from "@/components/dashboard/staffCelebrationData";
-import {
-  buildUpcomingFloatingRotationAnnouncement,
-  isDashboardSpeechSupported,
-  speakDashboardAnnouncement,
-} from "@/components/dashboard/dashboardVoice";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
-
-const MANUAL_ROTATION_RESUME_MS = 90_000;
-const REMINDER_BURST_MINUTE = 15;
-const REMINDER_BURST_DURATION_MINUTES = 1;
-
-
-function getPreviewTimeParam(): string | null {
-if (typeof window === "undefined") return null;
-
-try {
-return new URLSearchParams(window.location.search).get("previewTime");
-} catch {
-return null;
-}
-}
 
 export default function DashboardScreen() {
 const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
-const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false);
-const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
-const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
-const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const simStartedAtRef = useRef(Date.now());
+const isSimMode = useMemo(() => isDashboardSimulationEnabled(), []);
 
 const {
 date,
 staff = [],
 participants = [],
 workingStaff = [],
+attendingParticipants = [],
 timeSlots = [],
 chores = [],
 checklistItems = [],
@@ -94,42 +71,9 @@ finalChecklist = {},
 finalChecklistStaff = null,
 dropoffAssignments = {},
 dropoffLocations = {},
-attendingParticipants = [],
 outingGroups = [],
 outingGroup = null,
 } = useSchedule() as any;
-
-const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
-const previewMinutes = useMemo(
-() => parsePreviewTimeToMinutes(previewTimeParam),
-[previewTimeParam],
-);
-const isPreviewMode = previewMinutes !== null;
-const currentMinutes = previewMinutes ?? nowMinutes();
-const dashboardNow = useMemo(
-() =>
-  isPreviewMode
-  ? buildDashboardDateAtMinutes(date, currentMinutes)
-  : new Date(),
-[date, currentMinutes, isPreviewMode, tick],
-);
-const operationalPhase = useMemo(
-() => getDashboardOperationalPhase(currentMinutes),
-[currentMinutes],
-);
-const previewTimeLabel = isPreviewMode ? minutesToTimeLabel(currentMinutes) : null;
-const cleaningIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.cleaningStarts;
-const dropoffsAreOperational =
-currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.dropoffsStart &&
-currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
-const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
-const dailyAssignmentsAreOperational =
-currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
-const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
-const reminderBurstMinute = currentMinutes % 60;
-const reminderBurstActive =
-reminderBurstMinute >= REMINDER_BURST_MINUTE &&
-reminderBurstMinute < REMINDER_BURST_MINUTE + REMINDER_BURST_DURATION_MINUTES;
 
 const fetchEventsMeetingsVisits = async () => {
 try {
@@ -180,9 +124,9 @@ cancelled = true;
 }, []);
 
 useEffect(() => {
-const timer = setInterval(() => setTick((value) => value + 1), 30_000);
+const timer = setInterval(() => setTick((value) => value + 1), isSimMode ? 1_000 : 30_000);
 return () => clearInterval(timer);
-}, []);
+}, [isSimMode]);
 
 useEffect(() => {
 let cancelled = false;
@@ -221,50 +165,76 @@ new Map(
 [participants],
 );
 
-const activeOutings = useMemo(() => {
+const dashboardNow = useMemo(
+() =>
+isSimMode
+? simulatedDashboardNow(simStartedAtRef.current, date)
+: new Date(),
+[date, isSimMode, tick],
+);
+
+const currentMinutes = useMemo(() => minutesFromDate(dashboardNow), [dashboardNow]);
+const simProgress = useMemo(
+() => (isSimMode ? simulationProgressPercent(simStartedAtRef.current) : 0),
+[isSimMode, tick],
+);
+
+const scheduledOutings = useMemo(() => {
 const groups = Array.isArray(outingGroups)
 ? outingGroups
 : outingGroup
 ? [outingGroup]
 : [];
-return groups.slice(0, 2).filter(hasOutingContent);
-}, [outingGroups, outingGroup]);
+const realGroups = groups.slice(0, 2).filter(hasOutingContent);
+if (!isSimMode || realGroups.length > 0) return realGroups;
 
-const visibleOutings = useMemo(
-() => activeOutings.filter((outing) => getOutingPhase(outing, currentMinutes) !== "none"),
-[activeOutings, currentMinutes],
-);
+return [
+{
+id: "sim-outing-1",
+name: "SIM Community Access",
+startTime: "11:15",
+endTime: "12:30",
+notes: "Simulation only — safe preview data.",
+staffIds: (staff || []).filter((person: any) => String(person?.name || "").toLowerCase() !== "everyone").slice(0, 2).map((person: any) => String(person.id)),
+participantIds: (participants || []).slice(0, 4).map((person: any) => String(person.id)),
+},
+];
+}, [outingGroups, outingGroup, isSimMode, staff, participants]);
+
+const activeOutings = useMemo(() => {
+return scheduledOutings.filter((group) => getOutingPhase(group, currentMinutes) !== "none");
+}, [scheduledOutings, currentMinutes]);
 
 const outing1StaffIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[0]?.staffIds ?? []) as any[]).map(String),
+((activeOutings[0]?.staffIds ?? []) as any[]).map(String),
 ),
-[visibleOutings],
+[activeOutings],
 );
 
 const outing2StaffIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[1]?.staffIds ?? []) as any[]).map(String),
+((activeOutings[1]?.staffIds ?? []) as any[]).map(String),
 ),
-[visibleOutings],
+[activeOutings],
 );
 
 const outing1ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[0]?.participantIds ?? []) as any[]).map(String),
+((activeOutings[0]?.participantIds ?? []) as any[]).map(String),
 ),
-[visibleOutings],
+[activeOutings],
 );
 
 const outing2ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[1]?.participantIds ?? []) as any[]).map(String),
+((activeOutings[1]?.participantIds ?? []) as any[]).map(String),
 ),
-[visibleOutings],
+[activeOutings],
 );
 
 const getParticipantTheme = (participantId: string) => {
@@ -438,50 +408,6 @@ getAssignmentTheme,
 
 const displayTimeSlots =
 (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [];
-
-const upcomingFloatingRotationAnnouncement = useMemo(
-() =>
-buildUpcomingFloatingRotationAnnouncement({
-  date,
-  displayTimeSlots,
-  floatingAssignments,
-  staffById,
-  tick,
-  currentMinutes,
-  noticeMinutes: 1,
-}),
-[date, displayTimeSlots, floatingAssignments, staffById, tick, currentMinutes],
-);
-
-useEffect(() => {
-if (!voiceAnnouncementsEnabled) return;
-if (!upcomingFloatingRotationAnnouncement) return;
-if (!isDashboardSpeechSupported()) return;
-
-const { key, message } = upcomingFloatingRotationAnnouncement;
-if (spokenFloatingRotationKeysRef.current.has(key)) return;
-
-const spoken = speakDashboardAnnouncement(message);
-if (spoken) {
-spokenFloatingRotationKeysRef.current.add(key);
-}
-}, [voiceAnnouncementsEnabled, upcomingFloatingRotationAnnouncement]);
-
-const handleToggleVoiceAnnouncements = () => {
-const nextEnabled = !voiceAnnouncementsEnabled;
-setVoiceAnnouncementsEnabled(nextEnabled);
-
-if (nextEnabled) {
-speakDashboardAnnouncement("Voice announcements enabled.");
-} else if (isDashboardSpeechSupported()) {
-try {
-window.speechSynthesis?.cancel();
-} catch {
-// Ignore browser speech cancellation failures.
-}
-}
-};
-
 const displayChores =
 (chores && chores.length ? chores : STATIC_CHORES) || [];
 const displayChecklistItems =
@@ -544,35 +470,87 @@ const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
 const hasChecklistData =
 Boolean(finalChecklistStaff) || checklistRows.some((row) => row.checked);
 const hasDropoffAssignments = dropoffRows.length > 0;
-const showCleaningPanel = hasCleaningAssignments && cleaningIsOperational;
-const showDropoffsPanel = hasDropoffAssignments && dropoffsAreOperational;
-const showChecklistPanel = hasChecklistData && checklistIsOperational;
+
+const dashboardEventsMeetingsVisits = useMemo(() => {
+if (!isSimMode) return eventsMeetingsVisits || [];
+const today = todayISODate(dashboardNow);
+const tomorrow = new Date(dashboardNow);
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowKey = todayISODate(tomorrow);
+
+const simulatedItems: EventMeetingVisitRecord[] = [
+{
+id: "sim-bsp-visit",
+house: HOUSE_ID,
+title: "SIM BSP Specialist Visit",
+main_category: "Visit",
+event_type: "BSP Specialist",
+event_date: today,
+start_time: "10:30:00",
+end_time: "11:15:00",
+all_day: false,
+display_from: `${today}T00:00:00`,
+display_until: `${today}T23:59:59`,
+visitor_name: "Sarah Jones",
+organisation: "External Provider",
+responsible_staff: "Bruno",
+location: "Main Activity Room",
+dashboard_visible: true,
+auto_archive: true,
+status: "Scheduled",
+notes: null,
+},
+{
+id: "sim-jersey-day",
+house: HOUSE_ID,
+title: "SIM Jersey Day",
+main_category: "Event",
+event_type: "Special Event",
+event_date: tomorrowKey,
+start_time: null,
+end_time: null,
+all_day: true,
+display_from: `${today}T00:00:00`,
+display_until: `${tomorrowKey}T23:59:59`,
+visitor_name: null,
+organisation: null,
+responsible_staff: "Team",
+location: "Centre",
+dashboard_visible: true,
+auto_archive: true,
+status: "Scheduled",
+notes: "Staff and participants encouraged to wear jerseys.",
+},
+];
+
+return [...simulatedItems, ...(eventsMeetingsVisits || [])];
+}, [dashboardNow, eventsMeetingsVisits, isSimMode]);
 
 const visibleEventsMeetingsVisits = useMemo(() => {
-return (eventsMeetingsVisits || [])
-.filter((item) => isEventDashboardVisible(item, tick, dashboardNow.getTime()))
+return (dashboardEventsMeetingsVisits || [])
+.filter((item) => isEventDashboardVisible(item, tick, dashboardNow))
 .sort(sortEventsMeetingsVisits);
-}, [dashboardNow, eventsMeetingsVisits, tick]);
+}, [dashboardEventsMeetingsVisits, tick, dashboardNow]);
 
 const todayEventsMeetingsVisits = useMemo(() => {
 const today = todayISODate(dashboardNow);
 return visibleEventsMeetingsVisits.filter(
 (item) => String(item.event_date).slice(0, 10) === today,
 );
-}, [dashboardNow, visibleEventsMeetingsVisits]);
+}, [visibleEventsMeetingsVisits, dashboardNow]);
 
 const upcomingEventsMeetingsVisits = useMemo(() => {
 const today = todayISODate(dashboardNow);
 return visibleEventsMeetingsVisits
 .filter((item) => String(item.event_date).slice(0, 10) > today)
 .slice(0, 6);
-}, [dashboardNow, visibleEventsMeetingsVisits]);
+}, [visibleEventsMeetingsVisits, dashboardNow]);
 
 const hasEventsMeetingsVisits = visibleEventsMeetingsVisits.length > 0;
 
 const staffCelebrationItems = useMemo(() => {
-return buildStaffCelebrationItems(staff, tick);
-}, [staff, tick]);
+return buildStaffCelebrationItems(staff, tick, 45, dashboardNow);
+}, [staff, tick, dashboardNow]);
 
 const { today: todayStaffCelebrations, upcoming: upcomingStaffCelebrations } =
 useMemo(() => splitStaffCelebrations(staffCelebrationItems), [staffCelebrationItems]);
@@ -580,139 +558,34 @@ useMemo(() => splitStaffCelebrations(staffCelebrationItems), [staffCelebrationIt
 const hasStaffCelebrations = staffCelebrationItems.length > 0;
 
 const pages = useMemo<DashboardPage[]>(() => {
-const list: DashboardPage[] = [];
-const add = (page: DashboardPage, condition = true) => {
-if (condition && !list.includes(page)) list.push(page);
-};
-
-if (operationalPhase === "arrivalSetup") {
-add("team", dailyAssignmentsAreOperational);
-add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("outings", visibleOutings.length > 0);
-add("staffCelebrations", hasStaffCelebrations);
-add("floating", floatingIsOperational);
-} else if (operationalPhase === "activeProgram") {
-add("floating", floatingIsOperational);
-add("outings", visibleOutings.length > 0);
-add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team", dailyAssignmentsAreOperational);
-add("staffCelebrations", hasStaffCelebrations);
-} else if (operationalPhase === "cleaningActive") {
-add("floating", floatingIsOperational);
-add("cleaning", showCleaningPanel);
-add("outings", visibleOutings.length > 0);
-add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team", dailyAssignmentsAreOperational);
-add("staffCelebrations", hasStaffCelebrations);
-} else if (operationalPhase === "departureWindow") {
-add("dropoffs", showDropoffsPanel);
-add("floating", floatingIsOperational);
-add("cleaning", showCleaningPanel);
-add("outings", visibleOutings.length > 0);
-add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team", dailyAssignmentsAreOperational);
-add("staffCelebrations", hasStaffCelebrations);
-} else {
-add("checklist", showChecklistPanel);
-add("dropoffs", showDropoffsPanel);
-add("cleaning", showCleaningPanel);
-add("eventsMeetingsVisits", hasEventsMeetingsVisits);
-add("team", dailyAssignmentsAreOperational);
-add("staffCelebrations", hasStaffCelebrations);
-}
-
-return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
+const list: DashboardPage[] = ["team", "floating"];
+if (activeOutings.length > 0) list.push("outings");
+if (hasEventsMeetingsVisits) list.push("eventsMeetingsVisits");
+if (hasStaffCelebrations) list.push("staffCelebrations");
+if (hasCleaningAssignments) list.push("cleaning");
+if (hasChecklistData) list.push("checklist");
+if (hasDropoffAssignments) list.push("dropoffs");
+list.push(...REMINDER_PAGE_ORDER);
+return list;
 }, [
+activeOutings.length,
+hasCleaningAssignments,
+hasChecklistData,
+hasDropoffAssignments,
 hasEventsMeetingsVisits,
-dailyAssignmentsAreOperational,
-floatingIsOperational,
 hasStaffCelebrations,
-operationalPhase,
-reminderBurstActive,
-showChecklistPanel,
-showCleaningPanel,
-showDropoffsPanel,
-visibleOutings.length,
 ]);
 
 useEffect(() => {
-setPageIndex(0);
-}, [reminderBurstActive]);
-
-useEffect(() => {
-if (!autoRotationEnabled || pages.length <= 1) return;
-
 const timer = setInterval(() => {
 setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
 }, ROTATE_MS);
 return () => clearInterval(timer);
-}, [autoRotationEnabled, pages.length]);
+}, [pages.length]);
 
 useEffect(() => {
 if (pageIndex >= pages.length) setPageIndex(0);
 }, [pageIndex, pages.length]);
-
-const clearAutoResumeTimer = useCallback(() => {
-if (autoResumeTimerRef.current) {
-  clearTimeout(autoResumeTimerRef.current);
-  autoResumeTimerRef.current = null;
-}
-}, []);
-
-const pauseAutoRotationBriefly = useCallback(() => {
-setAutoRotationEnabled(false);
-clearAutoResumeTimer();
-autoResumeTimerRef.current = setTimeout(() => {
-  setAutoRotationEnabled(true);
-  autoResumeTimerRef.current = null;
-}, MANUAL_ROTATION_RESUME_MS);
-}, [clearAutoResumeTimer]);
-
-const handlePreviousPage = useCallback(() => {
-pauseAutoRotationBriefly();
-setPageIndex((value) => {
-  const count = Math.max(1, pages.length);
-  return (value - 1 + count) % count;
-});
-}, [pages.length, pauseAutoRotationBriefly]);
-
-const handleNextPage = useCallback(() => {
-pauseAutoRotationBriefly();
-setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
-}, [pages.length, pauseAutoRotationBriefly]);
-
-const handleToggleAutoRotation = useCallback(() => {
-clearAutoResumeTimer();
-setAutoRotationEnabled((value) => !value);
-}, [clearAutoResumeTimer]);
-
-useEffect(() => {
-return () => clearAutoResumeTimer();
-}, [clearAutoResumeTimer]);
-
-useEffect(() => {
-if (typeof window === "undefined") return;
-
-const handleKeyDown = (event: any) => {
-  const target = event.target as any;
-  const tagName = target?.tagName?.toLowerCase?.();
-  if (tagName === "input" || tagName === "textarea" || target?.isContentEditable) return;
-
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    handlePreviousPage();
-  } else if (event.key === "ArrowRight") {
-    event.preventDefault();
-    handleNextPage();
-  } else if (event.key === " ") {
-    event.preventDefault();
-    handleToggleAutoRotation();
-  }
-};
-
-window.addEventListener("keydown", handleKeyDown);
-return () => window.removeEventListener("keydown", handleKeyDown);
-}, [handleNextPage, handlePreviousPage, handleToggleAutoRotation]);
 
 const currentPage = pages[pageIndex] || "floating";
 const pageTheme = DASHBOARD_PAGE_THEMES[currentPage] || DASHBOARD_PAGE_THEMES.team;
@@ -730,7 +603,7 @@ return (
   staffById={staffById}
   participantsById={participantsById}
   attendingParticipants={attendingParticipants}
-  activeOutings={visibleOutings}
+  activeOutings={scheduledOutings}
   tick={tick}
   currentMinutes={currentMinutes}
 />
@@ -740,7 +613,7 @@ return (
 if (currentPage === "outings") {
 return (
 <OutingsPanel
-  activeOutings={visibleOutings}
+  activeOutings={activeOutings}
   staffById={staffById}
   participantsById={participantsById}
   currentMinutes={currentMinutes}
@@ -754,6 +627,7 @@ return (
   visibleEventsMeetingsVisits={visibleEventsMeetingsVisits}
   todayEventsMeetingsVisits={todayEventsMeetingsVisits}
   upcomingEventsMeetingsVisits={upcomingEventsMeetingsVisits}
+  dashboardNow={dashboardNow}
 />
 );
 }
@@ -799,18 +673,10 @@ return (
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
-  voiceAnnouncementsEnabled={voiceAnnouncementsEnabled}
-  voiceAnnouncementsSupported={isDashboardSpeechSupported()}
-  onToggleVoiceAnnouncements={handleToggleVoiceAnnouncements}
-  currentMinutes={currentMinutes}
-  isPreviewMode={isPreviewMode}
-  previewTimeLabel={previewTimeLabel}
-  operationalPhase={operationalPhase}
-  autoRotationEnabled={autoRotationEnabled}
-  onPreviousPage={handlePreviousPage}
-  onNextPage={handleNextPage}
-  onToggleAutoRotation={handleToggleAutoRotation}
-  floatingOverlay={
+  dashboardNow={dashboardNow}
+  isSimMode={isSimMode}
+  simProgress={simProgress}
+  bottomOverlay={
     <FloatingRotationBanner
       displayTimeSlots={displayTimeSlots}
       floatingAssignments={floatingAssignments}
