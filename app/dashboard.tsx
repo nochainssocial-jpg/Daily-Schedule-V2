@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
@@ -19,6 +19,7 @@ import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrations
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
 import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
 import {
+  DASHBOARD_OPERATIONAL_TIMES,
   DASHBOARD_PAGE_THEMES,
   DASHBOARD_REFRESH_MS,
   HOUSE_ID,
@@ -28,9 +29,15 @@ import {
   isReminderPage,
 } from "@/components/dashboard/dashboardTheme";
 import {
+  buildDashboardDateAtMinutes,
   colorForStaff,
+  getDashboardOperationalPhase,
+  getOutingPhase,
   hasOutingContent,
   isEventDashboardVisible,
+  minutesToTimeLabel,
+  nowMinutes,
+  parsePreviewTimeToMinutes,
   sortEventsMeetingsVisits,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
@@ -46,13 +53,27 @@ import {
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
 
+const MANUAL_ROTATION_RESUME_MS = 90_000;
+
+function getPreviewTimeParam(): string | null {
+if (typeof window === "undefined") return null;
+
+try {
+return new URLSearchParams(window.location.search).get("previewTime");
+} catch {
+return null;
+}
+}
+
 export default function DashboardScreen() {
 const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
 const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false);
+const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
+const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 const {
 date,
@@ -73,6 +94,31 @@ attendingParticipants = [],
 outingGroups = [],
 outingGroup = null,
 } = useSchedule() as any;
+
+const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
+const previewMinutes = useMemo(
+() => parsePreviewTimeToMinutes(previewTimeParam),
+[previewTimeParam],
+);
+const isPreviewMode = previewMinutes !== null;
+const currentMinutes = previewMinutes ?? nowMinutes();
+const dashboardNow = useMemo(
+() =>
+  isPreviewMode
+  ? buildDashboardDateAtMinutes(date, currentMinutes)
+  : new Date(),
+[date, currentMinutes, isPreviewMode, tick],
+);
+const operationalPhase = useMemo(
+() => getDashboardOperationalPhase(currentMinutes),
+[currentMinutes],
+);
+const previewTimeLabel = isPreviewMode ? minutesToTimeLabel(currentMinutes) : null;
+const cleaningIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.cleaningStarts;
+const dropoffsAreOperational =
+currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.dropoffsStart &&
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
+const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
 
 const fetchEventsMeetingsVisits = async () => {
 try {
@@ -173,36 +219,41 @@ const groups = Array.isArray(outingGroups)
 return groups.slice(0, 2).filter(hasOutingContent);
 }, [outingGroups, outingGroup]);
 
+const visibleOutings = useMemo(
+() => activeOutings.filter((outing) => getOutingPhase(outing, currentMinutes) !== "none"),
+[activeOutings, currentMinutes],
+);
+
 const outing1StaffIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[0]?.staffIds ?? []) as any[]).map(String),
+((visibleOutings[0]?.staffIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[visibleOutings],
 );
 
 const outing2StaffIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[1]?.staffIds ?? []) as any[]).map(String),
+((visibleOutings[1]?.staffIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[visibleOutings],
 );
 
 const outing1ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[0]?.participantIds ?? []) as any[]).map(String),
+((visibleOutings[0]?.participantIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[visibleOutings],
 );
 
 const outing2ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((activeOutings[1]?.participantIds ?? []) as any[]).map(String),
+((visibleOutings[1]?.participantIds ?? []) as any[]).map(String),
 ),
-[activeOutings],
+[visibleOutings],
 );
 
 const getParticipantTheme = (participantId: string) => {
@@ -385,9 +436,10 @@ buildUpcomingFloatingRotationAnnouncement({
   floatingAssignments,
   staffById,
   tick,
+  currentMinutes,
   noticeMinutes: 1,
 }),
-[date, displayTimeSlots, floatingAssignments, staffById, tick],
+[date, displayTimeSlots, floatingAssignments, staffById, tick, currentMinutes],
 );
 
 useEffect(() => {
@@ -481,26 +533,29 @@ const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
 const hasChecklistData =
 Boolean(finalChecklistStaff) || checklistRows.some((row) => row.checked);
 const hasDropoffAssignments = dropoffRows.length > 0;
+const showCleaningPanel = hasCleaningAssignments && cleaningIsOperational;
+const showDropoffsPanel = hasDropoffAssignments && dropoffsAreOperational;
+const showChecklistPanel = hasChecklistData && checklistIsOperational;
 
 const visibleEventsMeetingsVisits = useMemo(() => {
 return (eventsMeetingsVisits || [])
-.filter((item) => isEventDashboardVisible(item, tick))
+.filter((item) => isEventDashboardVisible(item, tick, dashboardNow.getTime()))
 .sort(sortEventsMeetingsVisits);
-}, [eventsMeetingsVisits, tick]);
+}, [dashboardNow, eventsMeetingsVisits, tick]);
 
 const todayEventsMeetingsVisits = useMemo(() => {
-const today = todayISODate();
+const today = todayISODate(dashboardNow);
 return visibleEventsMeetingsVisits.filter(
 (item) => String(item.event_date).slice(0, 10) === today,
 );
-}, [visibleEventsMeetingsVisits]);
+}, [dashboardNow, visibleEventsMeetingsVisits]);
 
 const upcomingEventsMeetingsVisits = useMemo(() => {
-const today = todayISODate();
+const today = todayISODate(dashboardNow);
 return visibleEventsMeetingsVisits
 .filter((item) => String(item.event_date).slice(0, 10) > today)
 .slice(0, 6);
-}, [visibleEventsMeetingsVisits]);
+}, [dashboardNow, visibleEventsMeetingsVisits]);
 
 const hasEventsMeetingsVisits = visibleEventsMeetingsVisits.length > 0;
 
@@ -514,34 +569,134 @@ useMemo(() => splitStaffCelebrations(staffCelebrationItems), [staffCelebrationIt
 const hasStaffCelebrations = staffCelebrationItems.length > 0;
 
 const pages = useMemo<DashboardPage[]>(() => {
-const list: DashboardPage[] = ["team", "floating"];
-if (activeOutings.length > 0) list.push("outings");
-if (hasEventsMeetingsVisits) list.push("eventsMeetingsVisits");
-if (hasStaffCelebrations) list.push("staffCelebrations");
-if (hasCleaningAssignments) list.push("cleaning");
-if (hasChecklistData) list.push("checklist");
-if (hasDropoffAssignments) list.push("dropoffs");
-list.push(...REMINDER_PAGE_ORDER);
+const list: DashboardPage[] = [];
+const add = (page: DashboardPage, condition = true) => {
+if (condition && !list.includes(page)) list.push(page);
+};
+
+if (operationalPhase === "arrivalSetup") {
+add("team");
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("outings", visibleOutings.length > 0);
+add("staffCelebrations", hasStaffCelebrations);
+add("floating");
+} else if (operationalPhase === "activeProgram") {
+add("floating");
+add("outings", visibleOutings.length > 0);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("team");
+add("staffCelebrations", hasStaffCelebrations);
+} else if (operationalPhase === "cleaningActive") {
+add("floating");
+add("cleaning", showCleaningPanel);
+add("outings", visibleOutings.length > 0);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("team");
+add("staffCelebrations", hasStaffCelebrations);
+} else if (operationalPhase === "departureWindow") {
+add("dropoffs", showDropoffsPanel);
+add("floating");
+add("cleaning", showCleaningPanel);
+add("outings", visibleOutings.length > 0);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("team");
+add("staffCelebrations", hasStaffCelebrations);
+} else {
+add("checklist", showChecklistPanel);
+add("dropoffs", showDropoffsPanel);
+add("cleaning", showCleaningPanel);
+add("floating");
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("team");
+add("staffCelebrations", hasStaffCelebrations);
+}
+
+list.push(...REMINDER_PAGE_ORDER.filter((page) => !list.includes(page)));
 return list;
 }, [
-activeOutings.length,
-hasCleaningAssignments,
-hasChecklistData,
-hasDropoffAssignments,
 hasEventsMeetingsVisits,
 hasStaffCelebrations,
+operationalPhase,
+showChecklistPanel,
+showCleaningPanel,
+showDropoffsPanel,
+visibleOutings.length,
 ]);
 
 useEffect(() => {
+if (!autoRotationEnabled || pages.length <= 1) return;
+
 const timer = setInterval(() => {
 setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
 }, ROTATE_MS);
 return () => clearInterval(timer);
-}, [pages.length]);
+}, [autoRotationEnabled, pages.length]);
 
 useEffect(() => {
 if (pageIndex >= pages.length) setPageIndex(0);
 }, [pageIndex, pages.length]);
+
+const clearAutoResumeTimer = useCallback(() => {
+if (autoResumeTimerRef.current) {
+  clearTimeout(autoResumeTimerRef.current);
+  autoResumeTimerRef.current = null;
+}
+}, []);
+
+const pauseAutoRotationBriefly = useCallback(() => {
+setAutoRotationEnabled(false);
+clearAutoResumeTimer();
+autoResumeTimerRef.current = setTimeout(() => {
+  setAutoRotationEnabled(true);
+  autoResumeTimerRef.current = null;
+}, MANUAL_ROTATION_RESUME_MS);
+}, [clearAutoResumeTimer]);
+
+const handlePreviousPage = useCallback(() => {
+pauseAutoRotationBriefly();
+setPageIndex((value) => {
+  const count = Math.max(1, pages.length);
+  return (value - 1 + count) % count;
+});
+}, [pages.length, pauseAutoRotationBriefly]);
+
+const handleNextPage = useCallback(() => {
+pauseAutoRotationBriefly();
+setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
+}, [pages.length, pauseAutoRotationBriefly]);
+
+const handleToggleAutoRotation = useCallback(() => {
+clearAutoResumeTimer();
+setAutoRotationEnabled((value) => !value);
+}, [clearAutoResumeTimer]);
+
+useEffect(() => {
+return () => clearAutoResumeTimer();
+}, [clearAutoResumeTimer]);
+
+useEffect(() => {
+if (typeof window === "undefined") return;
+
+const handleKeyDown = (event: any) => {
+  const target = event.target as any;
+  const tagName = target?.tagName?.toLowerCase?.();
+  if (tagName === "input" || tagName === "textarea" || target?.isContentEditable) return;
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    handlePreviousPage();
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    handleNextPage();
+  } else if (event.key === " ") {
+    event.preventDefault();
+    handleToggleAutoRotation();
+  }
+};
+
+window.addEventListener("keydown", handleKeyDown);
+return () => window.removeEventListener("keydown", handleKeyDown);
+}, [handleNextPage, handlePreviousPage, handleToggleAutoRotation]);
 
 const currentPage = pages[pageIndex] || "floating";
 const pageTheme = DASHBOARD_PAGE_THEMES[currentPage] || DASHBOARD_PAGE_THEMES.team;
@@ -559,8 +714,9 @@ return (
   staffById={staffById}
   participantsById={participantsById}
   attendingParticipants={attendingParticipants}
-  activeOutings={activeOutings}
+  activeOutings={visibleOutings}
   tick={tick}
+  currentMinutes={currentMinutes}
 />
 );
 }
@@ -568,9 +724,10 @@ return (
 if (currentPage === "outings") {
 return (
 <OutingsPanel
-  activeOutings={activeOutings}
+  activeOutings={visibleOutings}
   staffById={staffById}
   participantsById={participantsById}
+  currentMinutes={currentMinutes}
 />
 );
 }
@@ -629,6 +786,14 @@ return (
   voiceAnnouncementsEnabled={voiceAnnouncementsEnabled}
   voiceAnnouncementsSupported={isDashboardSpeechSupported()}
   onToggleVoiceAnnouncements={handleToggleVoiceAnnouncements}
+  currentMinutes={currentMinutes}
+  isPreviewMode={isPreviewMode}
+  previewTimeLabel={previewTimeLabel}
+  operationalPhase={operationalPhase}
+  autoRotationEnabled={autoRotationEnabled}
+  onPreviousPage={handlePreviousPage}
+  onNextPage={handleNextPage}
+  onToggleAutoRotation={handleToggleAutoRotation}
 >
   {renderCurrentPanel()}
 </DashboardFrame>
