@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { Image, Platform, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
-import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
+import { ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
 import type { RoomKey } from "./dashboardTypes";
 import { isFsoSlot, minutesToTimeLabel, slotWindow } from "./dashboardUtils";
 import { STAFF_PHOTO_ASSETS, type StaffPhotoKey } from "./staffPhotoAssets";
@@ -35,6 +35,8 @@ type Props = {
 const ROTATION_PREVIEW_BEFORE_MINUTES = 2;
 const ROTATION_PREVIEW_AFTER_MINUTES = 5;
 const SCROLL_KEYFRAMES_ID = "floating-rotation-banner-keyframes";
+const FLOATING_OFFICIAL_START_MINUTES = 10 * 60;
+const FLOATING_END_MINUTES = 14 * 60 + 30;
 
 function staffInitials(name: string): string {
   const parts = String(name || "")
@@ -102,8 +104,8 @@ function buildSlotAssignments({
 }): FloatingBannerSlot | null {
   const { start, end } = slotWindow(slot);
   if (start == null || end == null || end <= start) return null;
-  if (start < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
-  if (start >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
+  if (start < FLOATING_OFFICIAL_START_MINUTES) return null;
+  if (start >= FLOATING_END_MINUTES) return null;
 
   const slotId = String(slot.id ?? index);
   const row = floatingAssignments?.[slotId] || {};
@@ -232,8 +234,8 @@ export function FloatingRotationBanner({
       .filter(Boolean) as FloatingBannerSlot[];
   }, [displayTimeSlots, floatingAssignments, staffById]);
 
-  if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
-  if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
+  if (currentMinutes < FLOATING_OFFICIAL_START_MINUTES) return null;
+  if (currentMinutes >= FLOATING_END_MINUTES) return null;
   if (!slots.length) return null;
 
   const activeIndex = slots.findIndex(
