@@ -252,7 +252,6 @@ export function FloatingRotationBanner({
   const upNextSlot =
     slots.find(
       (slot) =>
-        slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart &&
         currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
         currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
     ) || null;
@@ -268,7 +267,7 @@ export function FloatingRotationBanner({
     <View style={styles.floatingBannerOverlay} pointerEvents="none">
       <View style={styles.floatingBannerGlassPanel}>
         <Text style={styles.floatingBannerPanelTitle}>Floating Assignments</Text>
-        {upNextSlot ? (
+        {upNextSlot && upNextSlot.start !== slots[0]?.start ? (
           <FloatingBannerRow
             title="Up Next"
             subtitle={upNextSubtitle}
