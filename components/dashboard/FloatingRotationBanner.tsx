@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo } from "react";
 import { Image, Platform, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
+import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
 import type { RoomKey } from "./dashboardTypes";
+import { isFsoSlot, minutesToTimeLabel, slotWindow } from "./dashboardUtils";
 import { STAFF_PHOTO_ASSETS, type StaffPhotoKey } from "./staffPhotoAssets";
 import { styles } from "./dashboardStyles";
 
@@ -33,85 +35,6 @@ type Props = {
 const ROTATION_PREVIEW_BEFORE_MINUTES = 2;
 const ROTATION_PREVIEW_AFTER_MINUTES = 5;
 const SCROLL_KEYFRAMES_ID = "floating-rotation-banner-keyframes";
-
-// Kept local to avoid the dashboardTheme/dashboardUtils circular runtime dependency
-// that occurs when this component is rebuilt independently.
-const OFFICIAL_START_MINUTES = 10 * 60;
-const FLOATING_END_MINUTES = 14 * 60 + 30;
-const ROOM_KEYS: RoomKey[] = ["frontRoom", "scotty", "twins"];
-const ROOM_LABELS: Record<RoomKey, string> = {
-  frontRoom: "Front Room",
-  scotty: "Scotty",
-  twins: "Twins / FSO",
-};
-
-function parseTimeToMinutes(value?: string | null): number | null {
-  if (!value) return null;
-  let raw = String(value).trim().toLowerCase();
-  if (!raw) return null;
-  if (raw.includes("-")) raw = raw.split("-")[0].trim();
-  raw = raw.replace(/\s+/g, "").replace(/\./g, ":");
-
-  const match = raw.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/);
-  if (!match) return null;
-
-  let hour = Number(match[1]);
-  const minute = match[2] ? Number(match[2]) : 0;
-  const suffix = match[3];
-  if (!Number.isFinite(hour) || !Number.isFinite(minute) || minute < 0 || minute > 59) return null;
-
-  if (suffix === "am") {
-    if (hour === 12) hour = 0;
-  } else if (suffix === "pm") {
-    if (hour !== 12) hour += 12;
-  } else if (hour <= 6) {
-    hour += 12;
-  }
-
-  if (hour < 0 || hour > 23) return null;
-  return hour * 60 + minute;
-}
-
-function slotWindow(slot: any): { start: number | null; end: number | null } {
-  if (!slot) return { start: null, end: null };
-  const display = String(slot.displayTime || slot.display_time || "").trim();
-  const displayParts = display.includes("-") ? display.split("-") : [];
-  return {
-    start:
-      parseTimeToMinutes(slot.startTime) ??
-      parseTimeToMinutes(slot.start_time) ??
-      parseTimeToMinutes(displayParts[0]),
-    end:
-      parseTimeToMinutes(slot.endTime) ??
-      parseTimeToMinutes(slot.end_time) ??
-      parseTimeToMinutes(displayParts[1]),
-  };
-}
-
-function minutesToTimeLabel(minutes: number): string {
-  const safeMinutes = Math.max(0, Math.min(23 * 60 + 59, minutes));
-  const hour = Math.floor(safeMinutes / 60);
-  const minute = safeMinutes % 60;
-  const date = new Date();
-  date.setHours(hour, minute, 0, 0);
-  return date.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
-}
-
-function isFsoSlot(slot: any): boolean {
-  const { start, end } = slotWindow(slot);
-  if (start === 11 * 60 && end === 11 * 60 + 30) return true;
-  if (start === 13 * 60 && end === 13 * 60 + 30) return true;
-
-  const display = String(slot?.displayTime || slot?.display_time || "")
-    .replace(/\s+/g, "")
-    .toLowerCase();
-  return (
-    display.includes("11:00am-11:30am") ||
-    display.includes("11:00-11:30") ||
-    display.includes("1:00pm-1:30pm") ||
-    display.includes("13:00-13:30")
-  );
-}
 
 function staffInitials(name: string): string {
   const parts = String(name || "")
@@ -179,8 +102,8 @@ function buildSlotAssignments({
 }): FloatingBannerSlot | null {
   const { start, end } = slotWindow(slot);
   if (start == null || end == null || end <= start) return null;
-  if (start < OFFICIAL_START_MINUTES) return null;
-  if (start >= FLOATING_END_MINUTES) return null;
+  if (start < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
+  if (start >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
 
   const slotId = String(slot.id ?? index);
   const row = floatingAssignments?.[slotId] || {};
@@ -309,8 +232,8 @@ export function FloatingRotationBanner({
       .filter(Boolean) as FloatingBannerSlot[];
   }, [displayTimeSlots, floatingAssignments, staffById]);
 
-  if (currentMinutes < OFFICIAL_START_MINUTES) return null;
-  if (currentMinutes >= FLOATING_END_MINUTES) return null;
+  if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
+  if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
   if (!slots.length) return null;
 
   const activeIndex = slots.findIndex(
@@ -329,7 +252,6 @@ export function FloatingRotationBanner({
   const upNextSlot =
     slots.find(
       (slot) =>
-        slot.start > OFFICIAL_START_MINUTES &&
         currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
         currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
     ) || null;
