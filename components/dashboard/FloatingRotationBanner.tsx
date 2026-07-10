@@ -1,184 +1,215 @@
-import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, Text, View } from "react-native";
-import { ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
-import { slotLabel, slotWindow } from "./dashboardUtils";
+import React, { useEffect, useMemo } from "react";
+import { Image, Platform, Text, View } from "react-native";
+import type { ImageSourcePropType } from "react-native";
+import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
+import type { RoomKey } from "./dashboardTypes";
+import { isFsoSlot, minutesToTimeLabel, slotWindow } from "./dashboardUtils";
+import { STAFF_PHOTO_ASSETS, type StaffPhotoKey } from "./staffPhotoAssets";
+import { styles } from "./dashboardStyles";
 
-type RotationSlot = {
-  slot: any;
+type FloatingBannerAssignment = {
+  room: RoomKey;
+  roomLabel: string;
+  isFso: boolean;
+  staffId: string | null;
+  staffName: string;
+  photoSource: ImageSourcePropType | null;
+  initials: string;
+};
+
+type FloatingBannerSlot = {
   slotId: string;
   start: number;
   end: number;
+  label: string;
+  assignments: FloatingBannerAssignment[];
 };
 
-const BANNER_START_MINUTES = 10 * 60;
-const BANNER_END_MINUTES = 14 * 60 + 30;
-const UP_NEXT_BEFORE_MINUTES = 2;
-const UP_NEXT_AFTER_MINUTES = 5;
-const MARQUEE_WIDTH = 980;
+type Props = {
+  displayTimeSlots: any[];
+  floatingAssignments: any;
+  staffById: Map<string, any>;
+  currentMinutes: number;
+};
 
-function toRotationSlots(displayTimeSlots: any[]): RotationSlot[] {
-  return (displayTimeSlots || [])
-    .map((slot: any, index: number) => {
-      const { start, end } = slotWindow(slot);
-      if (start == null || end == null || end <= start) return null;
-      if (end <= BANNER_START_MINUTES || start >= BANNER_END_MINUTES) return null;
-      return {
-        slot,
-        slotId: String(slot.id ?? index),
-        start,
-        end,
-      };
-    })
-    .filter(Boolean) as RotationSlot[];
+const ROTATION_PREVIEW_BEFORE_MINUTES = 2;
+const ROTATION_PREVIEW_AFTER_MINUTES = 5;
+const SCROLL_KEYFRAMES_ID = "floating-rotation-banner-keyframes";
+
+function staffInitials(name: string): string {
+  const parts = String(name || "")
+    .replace(/[()]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "—";
 }
 
-function readableTextColor(hex?: string) {
-  if (!hex || !/^#[0-9A-F]{6}$/i.test(hex)) return "#111827";
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return brightness > 168 ? "#111827" : "#FFFFFF";
+function normalisePhotoKey(name?: string | null): StaffPhotoKey | null {
+  const raw = String(name || "").trim();
+  if (!raw) return null;
+
+  const candidates = [
+    raw,
+    raw.replace(/\s*\([^)]*\)\s*/g, "").trim(),
+    raw.match(/\(([^)]*)\)/)?.[1]?.trim() || "",
+    raw.split(/\s+/)[0],
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (candidate in STAFF_PHOTO_ASSETS) return candidate as StaffPhotoKey;
+  }
+
+  // Common display aliases used in the live staff table.
+  if (/liya/i.test(raw)) return "Liya";
+  if (/tema|temalesi/i.test(raw)) return "Tema";
+  if (/juliette|juliet/i.test(raw)) return "Juliet";
+
+  return null;
 }
 
-function staffForRoom(row: any, room: string, staffById: Map<string, any>) {
-  const staffId = row?.[room] ? String(row[room]) : "";
-  const staff = staffId ? staffById.get(staffId) : null;
-  const name = staff ? String(staff.name || staffId) : staffId || "Unallocated";
-  const color = staff?.color || "#FFFFFF";
-  return {
-    name,
-    color,
-    textColor: readableTextColor(color),
-    unallocated: !staffId || name === "Unallocated",
-  };
+function getStaffPhotoSource(person: any): ImageSourcePropType | null {
+  const key = normalisePhotoKey(person?.name);
+  return key ? STAFF_PHOTO_ASSETS[key] || null : null;
 }
 
-function BannerCards({
-  rotationSlot,
+function injectScrollingKeyframes() {
+  if (Platform.OS !== "web" || typeof document === "undefined") return;
+  if (document.getElementById(SCROLL_KEYFRAMES_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = SCROLL_KEYFRAMES_ID;
+  style.innerHTML = `
+    @keyframes floatingRotationBannerScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function buildSlotAssignments({
+  slot,
+  index,
   floatingAssignments,
   staffById,
 }: {
-  rotationSlot: RotationSlot;
+  slot: any;
+  index: number;
   floatingAssignments: any;
   staffById: Map<string, any>;
-}) {
-  const row = floatingAssignments?.[rotationSlot.slotId] || {};
+}): FloatingBannerSlot | null {
+  const { start, end } = slotWindow(slot);
+  if (start == null || end == null || end <= start) return null;
+  if (start < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
+  if (start >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
 
+  const slotId = String(slot.id ?? index);
+  const row = floatingAssignments?.[slotId] || {};
+
+  const assignments = ROOM_KEYS.map((room) => {
+    const staffId = row?.[room] ? String(row[room]) : null;
+    const person = staffId ? staffById.get(staffId) : null;
+    const staffName = person?.name ? String(person.name) : "Unassigned";
+    const fso = room === "twins" && isFsoSlot(slot);
+
+    return {
+      room,
+      roomLabel: room === "twins" ? (fso ? "Twins (FSO)" : "Twins") : ROOM_LABELS[room],
+      isFso: fso,
+      staffId,
+      staffName,
+      photoSource: person ? getStaffPhotoSource(person) : null,
+      initials: staffInitials(staffName),
+    };
+  });
+
+  return {
+    slotId,
+    start,
+    end,
+    label: `${minutesToTimeLabel(start)} – ${minutesToTimeLabel(end)}`,
+    assignments,
+  };
+}
+
+function FloatingStaffCard({ item }: { item: FloatingBannerAssignment }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
-      <View
-        style={{
-          minWidth: 116,
-          paddingHorizontal: 8,
-          paddingVertical: 5,
-          marginRight: 8,
-          backgroundColor: "transparent",
-        }}
-      >
-        <Text
-          numberOfLines={1}
-          style={{
-            fontSize: 13,
-            fontWeight: "900",
-            color: "#111827",
-            textAlign: "center",
-            textShadowColor: "rgba(255,255,255,0.95)",
-            textShadowRadius: 4,
-          }}
-        >
-          {slotLabel(rotationSlot.slot)}
+    <View style={styles.floatingBannerStaffCard}>
+      <View style={styles.floatingBannerAvatarWrap}>
+        {item.photoSource ? (
+          <Image source={item.photoSource} style={styles.floatingBannerAvatar} resizeMode="cover" />
+        ) : (
+          <View style={styles.floatingBannerInitialsAvatar}>
+            <Text style={styles.floatingBannerInitialsText}>{item.initials}</Text>
+          </View>
+        )}
+      </View>
+      <View style={styles.floatingBannerStaffTextBlock}>
+        <Text style={styles.floatingBannerStaffName} numberOfLines={1}>
+          {item.staffName}
+        </Text>
+        <Text style={styles.floatingBannerRoomName} numberOfLines={1}>
+          {item.roomLabel}
         </Text>
       </View>
-
-      {ROOM_KEYS.map((room) => {
-        const staff = staffForRoom(row, room, staffById);
-        const backgroundColor = staff.unallocated ? "#FEE2E2" : staff.color;
-        const textColor = staff.unallocated ? "#991B1B" : staff.textColor;
-        return (
-          <View
-            key={`${rotationSlot.slotId}-${room}`}
-            style={{
-              minWidth: 146,
-              borderRadius: 18,
-              backgroundColor,
-              borderWidth: 1,
-              borderColor: staff.unallocated ? "#FCA5A5" : "rgba(255,255,255,0.82)",
-              paddingHorizontal: 13,
-              paddingVertical: 9,
-              marginRight: 9,
-              shadowColor: "#000000",
-              shadowOffset: { width: 0, height: 5 },
-              shadowOpacity: 0.18,
-              shadowRadius: 10,
-              elevation: 6,
-            }}
-          >
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: 10,
-                fontWeight: "900",
-                color: textColor,
-                opacity: staff.unallocated ? 1 : 0.82,
-                textTransform: "uppercase",
-              }}
-            >
-              {ROOM_LABELS[room]}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{
-                marginTop: 1,
-                fontSize: 16,
-                fontWeight: "900",
-                color: textColor,
-              }}
-            >
-              {staff.name}
-            </Text>
-          </View>
-        );
-      })}
     </View>
   );
 }
 
-function BannerRow({
-  label,
-  rotationSlot,
-  floatingAssignments,
-  staffById,
+function FloatingBannerRow({
+  title,
+  subtitle,
+  assignments,
+  variant,
 }: {
-  label: string;
-  rotationSlot: RotationSlot;
-  floatingAssignments: any;
-  staffById: Map<string, any>;
+  title: string;
+  subtitle: string;
+  assignments: FloatingBannerAssignment[];
+  variant: "upNext" | "current";
 }) {
+  const scrollingAssignments = assignments.length ? [...assignments, ...assignments] : assignments;
+
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 4 }}>
+    <View
+      style={[
+        styles.floatingBannerRow,
+        variant === "upNext" ? styles.floatingBannerRowUpNext : styles.floatingBannerRowCurrent,
+      ]}
+    >
       <View
-        style={{
-          width: 88,
-          alignItems: "flex-end",
-          backgroundColor: "transparent",
-          paddingRight: 8,
-        }}
+        style={[
+          styles.floatingBannerRowLabelBlock,
+          variant === "upNext"
+            ? styles.floatingBannerRowLabelBlockUpNext
+            : styles.floatingBannerRowLabelBlockCurrent,
+        ]}
       >
         <Text
-          style={{
-            fontSize: 14,
-            fontWeight: "900",
-            color: label === "UP NEXT" ? "#B45309" : "#047857",
-            letterSpacing: 0.6,
-            textShadowColor: "rgba(255,255,255,0.95)",
-            textShadowRadius: 4,
-          }}
+          style={[
+            styles.floatingBannerRowTitle,
+            variant === "upNext"
+              ? styles.floatingBannerRowTitleUpNext
+              : styles.floatingBannerRowTitleCurrent,
+          ]}
         >
-          {label}
+          {title}
         </Text>
+        <Text style={styles.floatingBannerRowSubtitle}>{subtitle}</Text>
       </View>
-      <BannerCards rotationSlot={rotationSlot} floatingAssignments={floatingAssignments} staffById={staffById} />
+      <View style={styles.floatingBannerScrollerWindow}>
+        <View
+          style={[
+            styles.floatingBannerScrollerTrack,
+            Platform.OS === "web" ? (styles.floatingBannerScrollerTrackWeb as any) : null,
+          ]}
+        >
+          {scrollingAssignments.map((item, index) => (
+            <FloatingStaffCard key={`${item.room}-${item.staffId || "empty"}-${index}`} item={item} />
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -188,92 +219,72 @@ export function FloatingRotationBanner({
   floatingAssignments,
   staffById,
   currentMinutes,
-}: {
-  displayTimeSlots: any[];
-  floatingAssignments: any;
-  staffById: Map<string, any>;
-  currentMinutes: number;
-}) {
-  const animated = useRef(new Animated.Value(0)).current;
+}: Props) {
+  useEffect(() => {
+    injectScrollingKeyframes();
+  }, []);
 
-  const { currentSlot, upNextSlot } = useMemo(() => {
-    const slots = toRotationSlots(displayTimeSlots);
-    if (!slots.length || currentMinutes < BANNER_START_MINUTES || currentMinutes > BANNER_END_MINUTES) {
-      return { currentSlot: null as RotationSlot | null, upNextSlot: null as RotationSlot | null };
-    }
+  const slots = useMemo(() => {
+    return (displayTimeSlots || [])
+      .map((slot, index) =>
+        buildSlotAssignments({ slot, index, floatingAssignments, staffById }),
+      )
+      .filter(Boolean) as FloatingBannerSlot[];
+  }, [displayTimeSlots, floatingAssignments, staffById]);
 
-    const current =
-      slots.find((entry) => currentMinutes >= entry.start && currentMinutes < entry.end) ||
-      slots.find((entry) => currentMinutes < entry.start) ||
-      slots[slots.length - 1];
+  if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
+  if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
+  if (!slots.length) return null;
 
-    const upNext = slots.find(
-      (entry) =>
-        currentMinutes >= entry.start - UP_NEXT_BEFORE_MINUTES &&
-        currentMinutes <= entry.start + UP_NEXT_AFTER_MINUTES,
+  const activeIndex = slots.findIndex(
+    (slot) => currentMinutes >= slot.start && currentMinutes < slot.end,
+  );
+  if (activeIndex < 0) return null;
+
+  const activeSlot = slots[activeIndex];
+  const previousSlot = activeIndex > 0 ? slots[activeIndex - 1] : null;
+  const activeSlotStillSettling =
+    currentMinutes >= activeSlot.start &&
+    currentMinutes < activeSlot.start + ROTATION_PREVIEW_AFTER_MINUTES &&
+    previousSlot !== null;
+  const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
+
+  const upNextSlot =
+    slots.find(
+      (slot) =>
+        // The first 10:00 rotation is already the active assignment, so it must
+        // not also appear as “Up Next”. Preview transitions begin at 10:30.
+        slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
+        currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
     ) || null;
 
-    return { currentSlot: current, upNextSlot: upNext };
-  }, [currentMinutes, displayTimeSlots]);
-
-  useEffect(() => {
-    animated.setValue(0);
-    const animation = Animated.loop(
-      Animated.timing(animated, {
-        toValue: 1,
-        duration: 24000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [animated, currentSlot?.slotId, upNextSlot?.slotId]);
-
-  if (!currentSlot) return null;
-
-  const translateX = animated.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -MARQUEE_WIDTH],
-  });
+  const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
+  const upNextSubtitle = upNextSlot
+    ? minutesToNext !== null && minutesToNext > 0
+      ? `${upNextSlot.label} · starts in ${minutesToNext} min`
+      : `${upNextSlot.label} · rotation window active`
+    : "";
 
   return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: "absolute",
-        left: "20%",
-        right: "20%",
-        bottom: 12,
-        minHeight: upNextSlot ? 112 : 64,
-        overflow: "hidden",
-        justifyContent: "center",
-        backgroundColor: "transparent",
-        zIndex: 999,
-        elevation: 999,
-      }}
-    >
-      <Animated.View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          transform: [{ translateX }],
-        }}
-      >
-        {[0, 1, 2].map((copy) => (
-          <View key={copy} style={{ minWidth: MARQUEE_WIDTH, paddingRight: 18 }}>
-            {upNextSlot ? (
-              <BannerRow
-                label="UP NEXT"
-                rotationSlot={upNextSlot}
-                floatingAssignments={floatingAssignments}
-                staffById={staffById}
-              />
-            ) : null}
-            <BannerRow label="NOW" rotationSlot={currentSlot} floatingAssignments={floatingAssignments} staffById={staffById} />
-          </View>
-        ))}
-      </Animated.View>
+    <View style={styles.floatingBannerOverlay} pointerEvents="none">
+      <View style={styles.floatingBannerGlassPanel}>
+        <Text style={styles.floatingBannerPanelTitle}>Floating Assignments</Text>
+        {upNextSlot ? (
+          <FloatingBannerRow
+            title="Up Next"
+            subtitle={upNextSubtitle}
+            assignments={upNextSlot.assignments}
+            variant="upNext"
+          />
+        ) : null}
+        <FloatingBannerRow
+          title="On Now"
+          subtitle={currentSlot.label}
+          assignments={currentSlot.assignments}
+          variant="current"
+        />
+      </View>
     </View>
   );
 }
