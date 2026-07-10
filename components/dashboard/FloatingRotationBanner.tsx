@@ -247,14 +247,15 @@ export function FloatingRotationBanner({
     currentMinutes >= activeSlot.start &&
     currentMinutes < activeSlot.start + ROTATION_PREVIEW_AFTER_MINUTES &&
     previousSlot !== null;
-  const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
+  const currentSlot =
+    (activeSlotStillSettling ? previousSlot : activeSlot) || activeSlot;
 
   const upNextSlot =
     slots.find(
-      (slot) =>
-        // The first 10:00 rotation is already the active assignment, so it must
-        // not also appear as “Up Next”. Preview transitions begin at 10:30.
-        slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+      (slot, slotIndex) =>
+        // Slot index 0 is the opening 10:00 rotation and is already shown as
+        // On Now. Up Next previews therefore begin with the 10:30 rotation.
+        slotIndex > 0 &&
         currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
         currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
     ) || null;
