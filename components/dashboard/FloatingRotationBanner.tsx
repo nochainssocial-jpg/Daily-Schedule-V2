@@ -247,18 +247,18 @@ export function FloatingRotationBanner({
     currentMinutes >= activeSlot.start &&
     currentMinutes < activeSlot.start + ROTATION_PREVIEW_AFTER_MINUTES &&
     previousSlot !== null;
-  const currentSlot =
-    (activeSlotStillSettling ? previousSlot : activeSlot) || activeSlot;
+  const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
 
+  // The opening 10:00 rotation is already shown as On Now.
+  // Up Next previews begin with the following rotation at 10:30.
   const upNextSlot =
-    slots.find(
-      (slot, slotIndex) =>
-        // Slot index 0 is the opening 10:00 rotation and is already shown as
-        // On Now. Up Next previews therefore begin with the 10:30 rotation.
-        slotIndex > 0 &&
-        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
-        currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
-    ) || null;
+    activeIndex === 0
+      ? null
+      : slots.find(
+          (slot) =>
+            currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
+            currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
+        ) || null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
   const upNextSubtitle = upNextSlot
