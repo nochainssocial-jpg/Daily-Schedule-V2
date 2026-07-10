@@ -249,15 +249,13 @@ export function FloatingRotationBanner({
     previousSlot !== null;
   const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
 
-  // The opening 10:00 rotation is already shown as On Now.
-  // Up Next previews begin with the following rotation at 10:30.
-const upNextSlot =
-  slots.find(
-    (slot) =>
-      slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart &&
-      currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
-      currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
-  ) || null;
+  const upNextSlot =
+    slots.find(
+      (slot) =>
+        slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
+        currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
+    ) || null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
   const upNextSubtitle = upNextSlot
