@@ -252,6 +252,7 @@ export function FloatingRotationBanner({
   const upNextSlot =
     slots.find(
       (slot) =>
+        slot.start >= 10 * 60 + 30 &&
         currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
         currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
     ) || null;
