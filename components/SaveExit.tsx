@@ -9,7 +9,7 @@ import type { ScheduleSnapshot, OutingGroup } from '@/hooks/schedule-store';
 import { saveScheduleToSupabase } from '@/lib/saveSchedule';
 
 type SaveExitProps = {
-  onSave?: () => void;
+  onSave?: () => boolean | void | Promise<boolean | void>;
   // Kept broad because older screens use several touchKey labels.
   touchKey?: string;
 };
@@ -71,7 +71,8 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       return;
     }
 
-    onSave?.();
+    const canContinue = await onSave?.();
+    if (canContinue === false) return;
 
     const outingGroups = normaliseOutingsForSave(schedule);
 
