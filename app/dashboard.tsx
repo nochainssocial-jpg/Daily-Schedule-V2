@@ -815,12 +815,7 @@ return (
       displayTimeSlots={displayTimeSlots}
       floatingAssignments={floatingAssignments}
       staffById={staffById}
-      currentMinutes={
-        currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.officialStart &&
-        currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart + 5
-          ? DASHBOARD_OPERATIONAL_TIMES.officialStart + 5
-          : currentMinutes
-      }
+      currentMinutes={currentMinutes}
     />
   }
 >
