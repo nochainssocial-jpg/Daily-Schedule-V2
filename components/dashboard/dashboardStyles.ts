@@ -52,6 +52,7 @@ backgroundColor: "#F8FAFC",
 overflow: "hidden",
 },
 appFrame: {
+position: "relative" as any,
 width: "100%",
 maxWidth: MAX_WIDTH,
 height: Platform.OS === "web" ? 780 : "100%",
