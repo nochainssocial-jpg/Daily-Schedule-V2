@@ -810,7 +810,7 @@ return (
   onPreviousPage={handlePreviousPage}
   onNextPage={handleNextPage}
   onToggleAutoRotation={handleToggleAutoRotation}
-  floatingOverlay={
+  bottomOverlay={
     <FloatingRotationBanner
       displayTimeSlots={displayTimeSlots}
       floatingAssignments={floatingAssignments}
