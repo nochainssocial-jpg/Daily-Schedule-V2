@@ -71,8 +71,8 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       return;
     }
 
-    const validationResult = await onSave?.();
-    if (validationResult === false) return;
+    const canContinue = await onSave?.();
+    if (canContinue === false) return;
 
     const outingGroups = normaliseOutingsForSave(schedule);
 

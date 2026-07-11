@@ -8,7 +8,6 @@ import {
   Platform,
   useWindowDimensions,
   Animated,
-  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,7 +25,6 @@ import {
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
-import { conflictCellKey, findFloatingAssignmentConflicts } from './floatingValidation';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
@@ -44,6 +42,24 @@ const WRAP = {
 const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
 // Assignment priority (Twins highest needs)
 const ASSIGN_ORDER: ColKey[] = ['twins', 'scotty', 'frontRoom'];
+
+const ROOM_LABELS: Record<ColKey, string> = {
+  frontRoom: 'Front Room',
+  scotty: 'Scotty',
+  twins: 'Twins',
+};
+
+type FloatingConflict = {
+  slotId: string;
+  slotLabel: string;
+  staffId: string;
+  staffName: string;
+  rooms: ColKey[];
+};
+
+function conflictCellKey(slotId: string, room: ColKey): string {
+  return `${slotId}:${room}`;
+}
 
 // Participant groups for each floating room
 const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
@@ -711,6 +727,65 @@ function FloatingScreenInner() {
     return m;
   }, [staff]);
 
+  const [validationAttempted, setValidationAttempted] = useState(false);
+
+  const floatingConflicts = useMemo<FloatingConflict[]>(() => {
+    const conflicts: FloatingConflict[] = [];
+
+    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
+      const slotId = String(slot.id ?? idx);
+      const row = floatingAssignments?.[slotId];
+      if (!row || typeof row !== 'object') return;
+
+      const roomsByStaff = new Map<string, ColKey[]>();
+      ROOM_KEYS.forEach((room) => {
+        const rawStaffId = row[room];
+        if (!rawStaffId) return;
+        const staffId = String(rawStaffId);
+        const rooms = roomsByStaff.get(staffId) ?? [];
+        rooms.push(room);
+        roomsByStaff.set(staffId, rooms);
+      });
+
+      roomsByStaff.forEach((rooms, staffId) => {
+        if (rooms.length < 2) return;
+        conflicts.push({
+          slotId,
+          slotLabel:
+            slot.displayTime ||
+            `${slot.startTime ?? ''}${slot.endTime ? ` - ${slot.endTime}` : ''}` ||
+            slotId,
+          staffId,
+          staffName: staffById[staffId]?.name || 'Unknown staff member',
+          rooms,
+        });
+      });
+    });
+
+    return conflicts;
+  }, [TIME_SLOTS, floatingAssignments, staffById]);
+
+  const conflictingCells = useMemo(() => {
+    const keys = new Set<string>();
+    floatingConflicts.forEach((conflict) => {
+      conflict.rooms.forEach((room) => keys.add(conflictCellKey(conflict.slotId, room)));
+    });
+    return keys;
+  }, [floatingConflicts]);
+
+  const validateBeforeSave = () => {
+    setValidationAttempted(true);
+    if (floatingConflicts.length === 0) return true;
+
+    const first = floatingConflicts[0];
+    const roomNames = first.rooms.map((room) => ROOM_LABELS[room]).join(' and ');
+    push?.(
+      `Changes not saved: ${first.staffName} is assigned to ${roomNames} at ${first.slotLabel}. Correct the highlighted cells.`,
+      'floating',
+    );
+    return false;
+  };
+
   const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
 
   useEffect(() => {
@@ -738,7 +813,6 @@ function FloatingScreenInner() {
   }, []);
 
   const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
-  const [conflictCells, setConflictCells] = useState<Set<string>>(new Set());
 
   // --- Cell picker (modal) ---
   type PickState = { slotId: string; col: ColKey; fso?: boolean } | null;
@@ -775,25 +849,6 @@ function FloatingScreenInner() {
 
   const choose = (staffId: string) => {
     if (!pick) return;
-
-    const row = getRow(pick.slotId);
-    const duplicateRoom = ROOM_KEYS.find(
-      (room) => room !== pick.col && String(row?.[room] || '') === String(staffId),
-    );
-
-    if (duplicateRoom) {
-      const personName = staffById[String(staffId)]?.name || 'This staff member';
-      setConflictCells(
-        new Set([
-          conflictCellKey(pick.slotId, pick.col),
-          conflictCellKey(pick.slotId, duplicateRoom),
-        ]),
-      );
-      push(`${personName} is already assigned to another room in this time slot.`, 'floating');
-      return;
-    }
-
-    setConflictCells(new Set());
     setCell(pick.slotId, pick.col, String(staffId));
     setOpen(false);
     setPick(null);
@@ -1075,101 +1130,6 @@ useEffect(() => {
     push('Floating assignments updated', 'floating');
   };
 
-  useEffect(() => {
-    const conflicts = findFloatingAssignmentConflicts(floatingAssignments);
-    const cells = new Set<string>();
-    conflicts.forEach((conflict) => {
-      conflict.rooms.forEach((room) =>
-        cells.add(conflictCellKey(conflict.slotId, room)),
-      );
-    });
-    setConflictCells(cells);
-  }, [floatingAssignments]);
-
-  const activeConflicts = useMemo(
-    () => findFloatingAssignmentConflicts(floatingAssignments),
-    [floatingAssignments],
-  );
-
-  const validateBeforeSave = () => {
-    if (!activeConflicts.length) {
-      setConflictCells(new Set());
-      return true;
-    }
-
-    const cells = new Set<string>();
-    activeConflicts.forEach((conflict) => {
-      conflict.rooms.forEach((room) =>
-        cells.add(conflictCellKey(conflict.slotId, room)),
-      );
-    });
-    setConflictCells(cells);
-
-    const first = activeConflicts[0];
-    const staffName = staffById[first.staffId]?.name || 'A staff member';
-    const slot = TIME_SLOTS.find((item: any, index: number) =>
-      String(item.id ?? index) === first.slotId,
-    );
-    const timeLabel =
-      slot?.displayTime || `${slot?.startTime || ''} - ${slot?.endTime || ''}`;
-
-    const message = `${staffName} is assigned to multiple rooms at ${timeLabel}. The duplicate cells are highlighted. Remove every duplicate before saving.`;
-
-    Alert.alert('Changes cannot be saved', message);
-    push(`Changes not saved: ${message}`, 'floating');
-    return false;
-  };
-
-  const renderBlockedSaveExit = () => (
-    <View
-      style={{
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-        backgroundColor: '#F9FAFB',
-      }}
-    >
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          maxWidth: 880,
-          width: '100%',
-          alignSelf: 'center',
-        }}
-      >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{
-            paddingVertical: 8,
-            paddingHorizontal: 14,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: '#F54927',
-            backgroundColor: '#FFFFFF',
-          }}
-        >
-          <Text style={{ color: '#4B5563', fontWeight: '600' }}>Cancel</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={validateBeforeSave}
-          disabled={!isAdmin}
-          style={{
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            borderRadius: 10,
-            backgroundColor: isAdmin ? '#DC2626' : '#9CA3AF',
-          }}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   // 🔹 Print handler — navigate to /print-floating with staff + date
   const handlePrintFloating = () => {
     const staffParam = filterStaffId || 'ALL';
@@ -1190,9 +1150,7 @@ useEffect(() => {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
-      {activeConflicts.length > 0
-        ? renderBlockedSaveExit()
-        : <SaveExit touchKey="floating" onSave={validateBeforeSave} />}
+      <SaveExit touchKey="floating" onSave={validateBeforeSave} />
       {Platform.OS === 'web' && !isMobileWeb && (
         <MaterialCommunityIcons
           name="account-clock"
@@ -1210,6 +1168,38 @@ useEffect(() => {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={WRAP as any}>
+          {validationAttempted && floatingConflicts.length > 0 && (
+            <View
+              style={{
+                marginTop: 18,
+                marginBottom: 4,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                borderWidth: 2,
+                borderColor: '#DC2626',
+                borderRadius: 12,
+                backgroundColor: '#FEF2F2',
+              }}
+            >
+              <Text style={{ color: '#991B1B', fontSize: 16, fontWeight: '800' }}>
+                Changes not saved — {floatingConflicts.length}{' '}
+                {floatingConflicts.length === 1 ? 'conflict' : 'conflicts'} found
+              </Text>
+              {floatingConflicts.map((conflict) => (
+                <Text
+                  key={`${conflict.slotId}:${conflict.staffId}`}
+                  style={{ color: '#7F1D1D', marginTop: 6, fontWeight: '600' }}
+                >
+                  • {conflict.slotLabel}: {conflict.staffName} is assigned to{' '}
+                  {conflict.rooms.map((room) => ROOM_LABELS[room]).join(' and ')}.
+                </Text>
+              ))}
+              <Text style={{ color: '#991B1B', marginTop: 8 }}>
+                Correct the red cells, then press Save & Exit again.
+              </Text>
+            </View>
+          )}
+
           <Text
             style={{
               fontSize: 24,
@@ -1408,14 +1398,14 @@ useEffect(() => {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      conflictCells.has(conflictCellKey(slotId, 'frontRoom'))
-                        ? { backgroundColor: '#FEE2E2', borderWidth: 2, borderColor: '#DC2626' }
-                        : null,
                       isFrontOffsite
                         ? { opacity: 0.6, backgroundColor: '#fee2e2' }
                         : null,
                       isFrontNotAttending
                         ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
+                      validationAttempted && conflictingCells.has(conflictCellKey(slotId, 'frontRoom'))
+                        ? { borderWidth: 3, borderColor: '#DC2626', backgroundColor: '#FEE2E2' }
                         : null,
                     ]}
                     label={
@@ -1440,14 +1430,14 @@ useEffect(() => {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      conflictCells.has(conflictCellKey(slotId, 'scotty'))
-                        ? { backgroundColor: '#FEE2E2', borderWidth: 2, borderColor: '#DC2626' }
-                        : null,
                       isScottyOffsite
                         ? { opacity: 0.6, backgroundColor: '#fee2e2' }
                         : null,
                       isScottyNotAttending
                         ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
+                      validationAttempted && conflictingCells.has(conflictCellKey(slotId, 'scotty'))
+                        ? { borderWidth: 3, borderColor: '#DC2626', backgroundColor: '#FEE2E2' }
                         : null,
                     ]}
                     label={
@@ -1472,15 +1462,15 @@ useEffect(() => {
                   <CellButton
                     style={[
                       { flex: 1 },
-                      conflictCells.has(conflictCellKey(slotId, 'twins'))
-                        ? { backgroundColor: '#FEE2E2', borderWidth: 2, borderColor: '#DC2626' }
-                        : null,
                       fso ? { backgroundColor: '#fef2f2' } : null,
                       isTwinsOffsite
                         ? { opacity: 0.6, backgroundColor: '#fee2e2' }
                         : null,
                       isTwinsNotAttending
                         ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
+                      validationAttempted && conflictingCells.has(conflictCellKey(slotId, 'twins'))
+                        ? { borderWidth: 3, borderColor: '#DC2626', backgroundColor: '#FEE2E2' }
                         : null,
                     ]}
                     label={
