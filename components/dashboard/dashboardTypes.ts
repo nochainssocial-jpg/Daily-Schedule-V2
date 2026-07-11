@@ -16,6 +16,14 @@ export type DashboardPage =
 
 export type RoomKey = "frontRoom" | "scotty" | "twins";
 
+export type DashboardOperationalPhase =
+  | "arrivalSetup"
+  | "activeProgram"
+  | "cleaningActive"
+  | "departureWindow"
+  | "endOfShift"
+  | "dayComplete";
+
 export type ReminderPage =
   | "phoneUsage"
   | "incidentReports"

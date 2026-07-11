@@ -1,8 +1,29 @@
-import type { DashboardPage, ReminderPage, RoomKey } from "./dashboardTypes";
+import type { DashboardOperationalPhase, DashboardPage, ReminderPage, RoomKey } from "./dashboardTypes";
 
 export const HOUSE_ID = "B2";
 export const ROTATE_MS = 15_000;
 export const DASHBOARD_REFRESH_MS = 180_000;
+
+export const DASHBOARD_OPERATIONAL_TIMES = {
+  arrivalsStart: 8 * 60,
+  officialStart: 10 * 60,
+  dailyAssignmentsHide: 11 * 60 + 30,
+  cleaningStarts: 13 * 60,
+  dropoffsStart: 14 * 60,
+  floatingEnds: 14 * 60 + 30,
+  checklistStarts: 14 * 60 + 30,
+  programEnds: 15 * 60,
+};
+
+export const DASHBOARD_PHASE_LABELS: Record<DashboardOperationalPhase, string> = {
+  arrivalSetup: "Arrival / setup",
+  activeProgram: "Active program",
+  cleaningActive: "Cleaning active",
+  departureWindow: "Drop offs / departures",
+  endOfShift: "End of shift",
+  dayComplete: "Day program complete",
+};
+
 export const MAX_WIDTH = 1180;
 export const ROOM_KEYS: RoomKey[] = ["frontRoom", "scotty", "twins"];
 
