@@ -1,47 +1,34 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSchedule } from "@/hooks/schedule-store";
 import {
   chores as STATIC_CHORES,
   checklistItems as STATIC_CHECKLIST_ITEMS,
   TIME_SLOTS,
 } from "@/constants/data";
 
-import { ChecklistPanel } from "@/components/dashboard/ChecklistPanel";
-import { CleaningPanel } from "@/components/dashboard/CleaningPanel";
 import { DashboardFrame } from "@/components/dashboard/DashboardFrame";
-import { DropoffsPanel } from "@/components/dashboard/DropoffsPanel";
-import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetingsVisitsPanel";
-import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
+import { DashboardPanelRouter } from "@/components/dashboard/DashboardPanelRouter";
 import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
-import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
-import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
-import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
-import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
-import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
+import type { DashboardPage } from "@/components/dashboard/dashboardTypes";
 import {
   DASHBOARD_OPERATIONAL_TIMES,
   DASHBOARD_PAGE_THEMES,
-  DASHBOARD_REFRESH_MS,
-  HOUSE_ID,
   REMINDER_PAGE_ORDER,
-  ROTATE_MS,
   STAFF_OTHER_COLOR,
-  isReminderPage,
 } from "@/components/dashboard/dashboardTheme";
 import {
-  buildDashboardDateAtMinutes,
   colorForStaff,
   getDashboardOperationalPhase,
   getOutingPhase,
   hasOutingContent,
   isEventDashboardVisible,
-  minutesToTimeLabel,
-  nowMinutes,
-  parsePreviewTimeToMinutes,
   sortEventsMeetingsVisits,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
+import { resolveDashboardLocationId } from "@/components/dashboard/dashboardConfig";
+import { useDashboardClock } from "@/components/dashboard/hooks/useDashboardClock";
+import { useDashboardLifecycle } from "@/components/dashboard/hooks/useDashboardLifecycle";
+import { useDashboardNavigation } from "@/components/dashboard/hooks/useDashboardNavigation";
 import {
   buildStaffCelebrationItems,
   splitStaffCelebrations,
@@ -52,32 +39,10 @@ import {
   speakDashboardAnnouncement,
 } from "@/components/dashboard/dashboardVoice";
 
-// Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
-
-const MANUAL_ROTATION_RESUME_MS = 90_000;
-const REMINDER_BURST_MINUTE = 15;
-const REMINDER_BURST_DURATION_MINUTES = 1;
-
-
-function getPreviewTimeParam(): string | null {
-if (typeof window === "undefined") return null;
-
-try {
-return new URLSearchParams(window.location.search).get("previewTime");
-} catch {
-return null;
-}
-}
-
 export default function DashboardScreen() {
-const [pageIndex, setPageIndex] = useState(0);
-const [tick, setTick] = useState(0);
-const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
-const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
 const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false);
-const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
-const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const locationId = useMemo(() => resolveDashboardLocationId(), []);
 
 const {
 date,
@@ -99,25 +64,14 @@ outingGroups = [],
 outingGroup = null,
 } = useSchedule() as any;
 
-const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
-const previewMinutes = useMemo(
-() => parsePreviewTimeToMinutes(previewTimeParam),
-[previewTimeParam],
-);
-const isPreviewMode = previewMinutes !== null;
-const currentMinutes = previewMinutes ?? nowMinutes();
-const dashboardNow = useMemo(
-() =>
-  isPreviewMode
-  ? buildDashboardDateAtMinutes(date, currentMinutes)
-  : new Date(),
-[date, currentMinutes, isPreviewMode, tick],
-);
+const { tick, currentMinutes, dashboardNow, isPreviewMode, previewTimeLabel } =
+useDashboardClock(date);
+const { lastDashboardRefresh, eventsMeetingsVisits } =
+useDashboardLifecycle(locationId);
 const operationalPhase = useMemo(
 () => getDashboardOperationalPhase(currentMinutes),
 [currentMinutes],
 );
-const previewTimeLabel = isPreviewMode ? minutesToTimeLabel(currentMinutes) : null;
 const cleaningIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.cleaningStarts;
 const dropoffsAreOperational =
 currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.dropoffsStart &&
@@ -127,85 +81,7 @@ const dailyAssignmentsAreOperational =
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
 const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
 const reminderBurstMinute = currentMinutes % 60;
-const reminderBurstActive =
-reminderBurstMinute >= REMINDER_BURST_MINUTE &&
-reminderBurstMinute < REMINDER_BURST_MINUTE + REMINDER_BURST_DURATION_MINUTES;
-
-const fetchEventsMeetingsVisits = async () => {
-try {
-const { data, error } = await supabase
-.from("events_meetings_visits")
-.select("*")
-.eq("house", HOUSE_ID)
-.eq("dashboard_visible", true)
-.order("event_date", { ascending: true })
-.order("start_time", { ascending: true });
-
-if (error) {
-console.error("[dashboard] failed to load events, meetings and visits", error);
-return;
-}
-
-setEventsMeetingsVisits((data || []) as EventMeetingVisitRecord[]);
-} catch (error) {
-console.error("[dashboard] failed to load events, meetings and visits", error);
-}
-};
-
-useEffect(() => {
-let cancelled = false;
-
-async function initialiseDashboard() {
-try {
-await initScheduleForToday(HOUSE_ID);
-
-// initScheduleForToday can merge the saved snapshot over the store.
-// Re-load master data afterwards so dashboard-only pages still have
-// chores, checklist items, and Supabase time slots available.
-if (!cancelled) {
-await useSchedule.getState().loadMasterData();
-await fetchEventsMeetingsVisits();
-setLastDashboardRefresh(new Date());
-}
-} catch (error) {
-console.error("[dashboard] failed to initialise schedule", error);
-}
-}
-
-void initialiseDashboard();
-
-return () => {
-cancelled = true;
-};
-}, []);
-
-useEffect(() => {
-const timer = setInterval(() => setTick((value) => value + 1), 30_000);
-return () => clearInterval(timer);
-}, []);
-
-useEffect(() => {
-let cancelled = false;
-
-const refreshDashboard = async () => {
-try {
-await refreshScheduleFromSupabase(HOUSE_ID);
-await fetchEventsMeetingsVisits();
-if (!cancelled) setLastDashboardRefresh(new Date());
-} catch (error) {
-console.error("[dashboard] failed to refresh schedule", error);
-}
-};
-
-const timer = setInterval(() => {
-void refreshDashboard();
-}, DASHBOARD_REFRESH_MS);
-
-return () => {
-cancelled = true;
-clearInterval(timer);
-};
-}, []);
+const reminderBurstActive = reminderBurstMinute >= 15 && reminderBurstMinute < 16;
 
 const staffById = useMemo(
 () =>
@@ -635,152 +511,36 @@ showDropoffsPanel,
 visibleOutings.length,
 ]);
 
-useEffect(() => {
-setPageIndex(0);
-}, [reminderBurstActive]);
+const {
+pageIndex,
+currentPage,
+autoRotationEnabled,
+previousPage: handlePreviousPage,
+nextPage: handleNextPage,
+toggleAutoRotation: handleToggleAutoRotation,
+} = useDashboardNavigation(pages, reminderBurstActive);
 
-useEffect(() => {
-if (!autoRotationEnabled || pages.length <= 1) return;
-
-const timer = setInterval(() => {
-setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
-}, ROTATE_MS);
-return () => clearInterval(timer);
-}, [autoRotationEnabled, pages.length]);
-
-useEffect(() => {
-if (pageIndex >= pages.length) setPageIndex(0);
-}, [pageIndex, pages.length]);
-
-const clearAutoResumeTimer = useCallback(() => {
-if (autoResumeTimerRef.current) {
-  clearTimeout(autoResumeTimerRef.current);
-  autoResumeTimerRef.current = null;
-}
-}, []);
-
-const pauseAutoRotationBriefly = useCallback(() => {
-setAutoRotationEnabled(false);
-clearAutoResumeTimer();
-autoResumeTimerRef.current = setTimeout(() => {
-  setAutoRotationEnabled(true);
-  autoResumeTimerRef.current = null;
-}, MANUAL_ROTATION_RESUME_MS);
-}, [clearAutoResumeTimer]);
-
-const handlePreviousPage = useCallback(() => {
-pauseAutoRotationBriefly();
-setPageIndex((value) => {
-  const count = Math.max(1, pages.length);
-  return (value - 1 + count) % count;
-});
-}, [pages.length, pauseAutoRotationBriefly]);
-
-const handleNextPage = useCallback(() => {
-pauseAutoRotationBriefly();
-setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
-}, [pages.length, pauseAutoRotationBriefly]);
-
-const handleToggleAutoRotation = useCallback(() => {
-clearAutoResumeTimer();
-setAutoRotationEnabled((value) => !value);
-}, [clearAutoResumeTimer]);
-
-useEffect(() => {
-return () => clearAutoResumeTimer();
-}, [clearAutoResumeTimer]);
-
-useEffect(() => {
-if (typeof window === "undefined") return;
-
-const handleKeyDown = (event: any) => {
-  const target = event.target as any;
-  const tagName = target?.tagName?.toLowerCase?.();
-  if (tagName === "input" || tagName === "textarea" || target?.isContentEditable) return;
-
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    handlePreviousPage();
-  } else if (event.key === "ArrowRight") {
-    event.preventDefault();
-    handleNextPage();
-  } else if (event.key === " ") {
-    event.preventDefault();
-    handleToggleAutoRotation();
-  }
-};
-
-window.addEventListener("keydown", handleKeyDown);
-return () => window.removeEventListener("keydown", handleKeyDown);
-}, [handleNextPage, handlePreviousPage, handleToggleAutoRotation]);
-
-const currentPage = pages[pageIndex] || "floating";
 const pageTheme = DASHBOARD_PAGE_THEMES[currentPage] || DASHBOARD_PAGE_THEMES.team;
 
-const renderCurrentPanel = () => {
-if (currentPage === "team") {
-return <TeamAssignmentsPanel teamAssignmentRows={teamAssignmentRows} />;
-}
-
-if (currentPage === "floating") {
-return (
-<FloatingAssignmentsPanel
+const currentPanel = (
+<DashboardPanelRouter
+  currentPage={currentPage}
+  teamAssignmentRows={teamAssignmentRows}
   displayTimeSlots={displayTimeSlots}
   floatingAssignments={floatingAssignments}
   staffById={staffById}
   participantsById={participantsById}
   attendingParticipants={attendingParticipants}
-  activeOutings={visibleOutings}
+  visibleOutings={visibleOutings}
   tick={tick}
   currentMinutes={currentMinutes}
-/>
-);
-}
-
-if (currentPage === "outings") {
-return (
-<OutingsPanel
-  activeOutings={visibleOutings}
-  staffById={staffById}
-  participantsById={participantsById}
-  currentMinutes={currentMinutes}
-/>
-);
-}
-
-if (currentPage === "eventsMeetingsVisits") {
-return (
-<EventsMeetingsVisitsPanel
   visibleEventsMeetingsVisits={visibleEventsMeetingsVisits}
   todayEventsMeetingsVisits={todayEventsMeetingsVisits}
   upcomingEventsMeetingsVisits={upcomingEventsMeetingsVisits}
-/>
-);
-}
-
-if (currentPage === "staffCelebrations") {
-return (
-<StaffCelebrationsPanel
-  todayCelebrations={todayStaffCelebrations}
-  upcomingCelebrations={upcomingStaffCelebrations}
-/>
-);
-}
-
-if (currentPage === "cleaning") {
-return <CleaningPanel cleaningRows={cleaningRows} />;
-}
-
-if (currentPage === "dropoffs") {
-return <DropoffsPanel dropoffRows={dropoffRows} />;
-}
-
-if (isReminderPage(currentPage)) {
-return <ReminderPanel currentPage={currentPage} />;
-}
-
-return (
-<ChecklistPanel
+  todayStaffCelebrations={todayStaffCelebrations}
+  upcomingStaffCelebrations={upcomingStaffCelebrations}
+  cleaningRows={cleaningRows}
+  dropoffRows={dropoffRows}
   checklistRows={checklistRows}
   completedChecklist={completedChecklist}
   selectedFinalStaff={selectedFinalStaff}
@@ -788,7 +548,6 @@ return (
   selectedFinalStaffTextColor={selectedFinalStaffTextColor}
 />
 );
-};
 
 return (
 <DashboardFrame
@@ -810,7 +569,7 @@ return (
   onPreviousPage={handlePreviousPage}
   onNextPage={handleNextPage}
   onToggleAutoRotation={handleToggleAutoRotation}
-  bottomOverlay={
+  floatingOverlay={
     <FloatingRotationBanner
       displayTimeSlots={displayTimeSlots}
       floatingAssignments={floatingAssignments}
@@ -819,7 +578,7 @@ return (
     />
   }
 >
-  {renderCurrentPanel()}
+  {currentPanel}
 </DashboardFrame>
 );
 }
