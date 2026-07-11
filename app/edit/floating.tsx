@@ -8,6 +8,7 @@ import {
   Platform,
   useWindowDimensions,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1074,6 +1075,17 @@ useEffect(() => {
     push('Floating assignments updated', 'floating');
   };
 
+  useEffect(() => {
+    const conflicts = findFloatingAssignmentConflicts(floatingAssignments);
+    const cells = new Set<string>();
+    conflicts.forEach((conflict) => {
+      conflict.rooms.forEach((room) =>
+        cells.add(conflictCellKey(conflict.slotId, room)),
+      );
+    });
+    setConflictCells(cells);
+  }, [floatingAssignments]);
+
   const validateBeforeSave = () => {
     const conflicts = findFloatingAssignmentConflicts(floatingAssignments);
 
@@ -1095,10 +1107,10 @@ useEffect(() => {
     );
     const timeLabel = slot?.displayTime || `${slot?.startTime || ''} - ${slot?.endTime || ''}`;
 
-    push(
-      `Changes not saved: ${staffName} is assigned to multiple rooms at ${timeLabel}. Fix the highlighted cells first.`,
-      'floating',
-    );
+    const message = `${staffName} is assigned to multiple rooms at ${timeLabel}. The duplicate cells are highlighted. Remove every duplicate before saving.`;
+
+    Alert.alert('Changes cannot be saved', message);
+    push(`Changes not saved: ${message}`, 'floating');
     return false;
   };
 
