@@ -102,7 +102,7 @@ function buildSlotAssignments({
 }): FloatingBannerSlot | null {
   const { start, end } = slotWindow(slot);
   if (start == null || end == null || end <= start) return null;
-  if (start < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
+  if (start < DASHBOARD_OPERATIONAL_TIMES.floatingBannerStarts) return null;
   if (start >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
 
   const slotId = String(slot.id ?? index);
@@ -232,7 +232,7 @@ export function FloatingRotationBanner({
       .filter(Boolean) as FloatingBannerSlot[];
   }, [displayTimeSlots, floatingAssignments, staffById]);
 
-  if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
+  if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingBannerStarts) return null;
   if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
   if (!slots.length) return null;
 

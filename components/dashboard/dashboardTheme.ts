@@ -7,6 +7,7 @@ export const DASHBOARD_REFRESH_MS = 180_000;
 export const DASHBOARD_OPERATIONAL_TIMES = {
   arrivalsStart: 8 * 60,
   officialStart: 10 * 60,
+  floatingBannerStarts: 10 * 60 + 30,
   dailyAssignmentsHide: 11 * 60 + 30,
   cleaningStarts: 13 * 60,
   dropoffsStart: 14 * 60,
