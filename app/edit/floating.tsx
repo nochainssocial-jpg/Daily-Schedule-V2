@@ -1086,26 +1086,32 @@ useEffect(() => {
     setConflictCells(cells);
   }, [floatingAssignments]);
 
-  const validateBeforeSave = () => {
-    const conflicts = findFloatingAssignmentConflicts(floatingAssignments);
+  const activeConflicts = useMemo(
+    () => findFloatingAssignmentConflicts(floatingAssignments),
+    [floatingAssignments],
+  );
 
-    if (!conflicts.length) {
+  const validateBeforeSave = () => {
+    if (!activeConflicts.length) {
       setConflictCells(new Set());
       return true;
     }
 
     const cells = new Set<string>();
-    conflicts.forEach((conflict) => {
-      conflict.rooms.forEach((room) => cells.add(conflictCellKey(conflict.slotId, room)));
+    activeConflicts.forEach((conflict) => {
+      conflict.rooms.forEach((room) =>
+        cells.add(conflictCellKey(conflict.slotId, room)),
+      );
     });
     setConflictCells(cells);
 
-    const first = conflicts[0];
+    const first = activeConflicts[0];
     const staffName = staffById[first.staffId]?.name || 'A staff member';
     const slot = TIME_SLOTS.find((item: any, index: number) =>
       String(item.id ?? index) === first.slotId,
     );
-    const timeLabel = slot?.displayTime || `${slot?.startTime || ''} - ${slot?.endTime || ''}`;
+    const timeLabel =
+      slot?.displayTime || `${slot?.startTime || ''} - ${slot?.endTime || ''}`;
 
     const message = `${staffName} is assigned to multiple rooms at ${timeLabel}. The duplicate cells are highlighted. Remove every duplicate before saving.`;
 
@@ -1113,6 +1119,56 @@ useEffect(() => {
     push(`Changes not saved: ${message}`, 'floating');
     return false;
   };
+
+  const renderBlockedSaveExit = () => (
+    <View
+      style={{
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E7EB',
+        backgroundColor: '#F9FAFB',
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          maxWidth: 880,
+          width: '100%',
+          alignSelf: 'center',
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: '#F54927',
+            backgroundColor: '#FFFFFF',
+          }}
+        >
+          <Text style={{ color: '#4B5563', fontWeight: '600' }}>Cancel</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={validateBeforeSave}
+          disabled={!isAdmin}
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 10,
+            backgroundColor: isAdmin ? '#DC2626' : '#9CA3AF',
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Save & Exit</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   // 🔹 Print handler — navigate to /print-floating with staff + date
   const handlePrintFloating = () => {
@@ -1134,7 +1190,9 @@ useEffect(() => {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
-      <SaveExit touchKey="floating" onSave={validateBeforeSave} />
+      {activeConflicts.length > 0
+        ? renderBlockedSaveExit()
+        : <SaveExit touchKey="floating" onSave={validateBeforeSave} />}
       {Platform.OS === 'web' && !isMobileWeb && (
         <MaterialCommunityIcons
           name="account-clock"
