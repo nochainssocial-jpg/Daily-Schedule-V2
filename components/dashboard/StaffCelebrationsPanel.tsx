@@ -35,9 +35,10 @@ const localStyles = StyleSheet.create({
   },
   emptyMessageBadge: {
     position: "absolute",
-    left: 18,
-    right: 18,
-    bottom: 18,
+    left: "12%",
+    right: "12%",
+    top: "50%",
+    transform: [{ translateY: -34 }],
     borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.86)",
     borderWidth: 1,

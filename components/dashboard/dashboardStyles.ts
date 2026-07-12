@@ -1320,7 +1320,7 @@ padding: 18,
 
 dailyPhasePillOverlay: {
 position: "absolute" as any,
-right: 52,
+right: 68,
 bottom: 54,
 zIndex: 55,
 width: 225,
