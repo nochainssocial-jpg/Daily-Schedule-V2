@@ -984,13 +984,7 @@ export default function EventsMeetingsVisitsScreen() {
         );
       }
 
-      // Timed items leave the dashboard at their own end time. All-day items
-      // remain visible until the end of the event day.
-      const defaultDisplayUntilTime = !form.allDay && endTime ? endTime : "23:59";
-      return auDateToDeviceLocalISOString(
-        isoDateToAU(eventDateISO),
-        defaultDisplayUntilTime,
-      );
+      return auDateToDeviceLocalISOString(isoDateToAU(eventDateISO), "23:59");
     }
 
     setSaving(true);
@@ -1909,7 +1903,7 @@ export default function EventsMeetingsVisitsScreen() {
                   onChangeText={(value) =>
                     updateForm("displayUntilAU", formatDateInput(value))
                   }
-                  placeholder="Blank = event end time"
+                  placeholder="Leave blank for event day"
                   keyboardType="number-pad"
                   maxLength={10}
                   style={styles.input}

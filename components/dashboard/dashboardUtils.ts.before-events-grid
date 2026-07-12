@@ -313,78 +313,6 @@ export function eventTimeRange(item: EventMeetingVisitRecord): string {
   return start || end || "Time not set";
 }
 
-function localEventTimestamp(
-  eventDate?: string | null,
-  time?: string | null,
-): number | null {
-  const datePart = String(eventDate || "").slice(0, 10);
-  const timePart = String(time || "").slice(0, 5);
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
-  if (!/^\d{2}:\d{2}$/.test(timePart)) return null;
-
-  const timestamp = new Date(`${datePart}T${timePart}:00`).getTime();
-  return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-export function eventDashboardExpiryTimestamp(
-  item: EventMeetingVisitRecord,
-): number | null {
-  const explicitUntilDate = item.display_until ? new Date(item.display_until) : null;
-  const explicitUntil =
-    explicitUntilDate && Number.isFinite(explicitUntilDate.getTime())
-      ? explicitUntilDate.getTime()
-      : null;
-
-  const datePart = String(item.event_date || "").slice(0, 10);
-  const endOfEventDay = /^\d{4}-\d{2}-\d{2}$/.test(datePart)
-    ? new Date(`${datePart}T23:59:59.999`).getTime()
-    : null;
-
-  let eventEnd = item.all_day
-    ? endOfEventDay
-    : localEventTimestamp(item.event_date, item.end_time) ?? endOfEventDay;
-
-  const eventStart = item.all_day
-    ? null
-    : localEventTimestamp(item.event_date, item.start_time);
-
-  // Support the rare case where an item ends after midnight.
-  if (eventStart != null && eventEnd != null && eventEnd <= eventStart) {
-    eventEnd += 24 * 60 * 60 * 1000;
-  }
-
-  if (explicitUntil != null && explicitUntilDate) {
-    const explicitLocalDate = [
-      explicitUntilDate.getFullYear(),
-      pad2(explicitUntilDate.getMonth() + 1),
-      pad2(explicitUntilDate.getDate()),
-    ].join("-");
-    const explicitMinutes =
-      explicitUntilDate.getHours() * 60 + explicitUntilDate.getMinutes();
-
-    // Older records used 11:59 pm on the event day as an automatic default.
-    // For timed items, treat that legacy value as the event's own end time.
-    const isLegacyEndOfDayDefault =
-      !item.all_day &&
-      eventEnd != null &&
-      explicitLocalDate === datePart &&
-      explicitMinutes >= 23 * 60 + 58;
-
-    if (!isLegacyEndOfDayDefault) return explicitUntil;
-  }
-
-  return eventEnd ?? explicitUntil;
-}
-
-export function isEventDashboardExpired(
-  item: EventMeetingVisitRecord,
-  nowTimestamp = Date.now(),
-): boolean {
-  const expiry = eventDashboardExpiryTimestamp(item);
-  return expiry != null && nowTimestamp >= expiry;
-}
-
 export function isEventDashboardVisible(
   item: EventMeetingVisitRecord,
   tick: number,
@@ -392,19 +320,14 @@ export function isEventDashboardVisible(
 ): boolean {
   void tick;
   if (!item.dashboard_visible) return false;
-  if (
-    item.status === "Completed" ||
-    item.status === "Cancelled" ||
-    item.status === "Archived"
-  ) {
-    return false;
-  }
+  if (item.status === "Cancelled" || item.status === "Archived") return false;
 
   const now = nowTimestamp;
   const from = item.display_from ? new Date(item.display_from).getTime() : null;
+  const until = item.display_until ? new Date(item.display_until).getTime() : null;
 
   if (from != null && Number.isFinite(from) && now < from) return false;
-  if (isEventDashboardExpired(item, now)) return false;
+  if (until != null && Number.isFinite(until) && now > until) return false;
   return true;
 }
 

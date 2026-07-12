@@ -36,7 +36,6 @@ import {
   getDashboardOperationalPhase,
   getOutingPhase,
   hasOutingContent,
-  isEventDashboardExpired,
   isEventDashboardVisible,
   minutesToTimeLabel,
   nowMinutes,
@@ -148,41 +147,7 @@ console.error("[dashboard] failed to load events, meetings and visits", error);
 return;
 }
 
-const records = (data || []) as EventMeetingVisitRecord[];
-let nextRecords = records;
-
-// Auto-archive is never run while using previewTime, so testing the dashboard
-// cannot modify live records.
-if (!isPreviewMode) {
-const expiredAutoArchiveIds = records
-.filter(
-(item) =>
-item.auto_archive &&
-item.status !== "Archived" &&
-item.status !== "Cancelled" &&
-isEventDashboardExpired(item, Date.now()),
-)
-.map((item) => item.id);
-
-if (expiredAutoArchiveIds.length > 0) {
-const { error: archiveError } = await supabase
-.from("events_meetings_visits")
-.update({ status: "Archived" })
-.eq("house", HOUSE_ID)
-.in("id", expiredAutoArchiveIds);
-
-if (archiveError) {
-console.error("[dashboard] failed to auto-archive expired events", archiveError);
-} else {
-const archivedIds = new Set(expiredAutoArchiveIds);
-nextRecords = records.map((item) =>
-archivedIds.has(item.id) ? { ...item, status: "Archived" as const } : item,
-);
-}
-}
-}
-
-setEventsMeetingsVisits(nextRecords);
+setEventsMeetingsVisits((data || []) as EventMeetingVisitRecord[]);
 } catch (error) {
 console.error("[dashboard] failed to load events, meetings and visits", error);
 }
