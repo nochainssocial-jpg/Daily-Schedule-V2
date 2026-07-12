@@ -1320,8 +1320,8 @@ padding: 18,
 
 dailyPhasePillOverlay: {
 position: "absolute" as any,
-right: 36,
-bottom: 30,
+right: 52,
+bottom: 54,
 zIndex: 55,
 width: 225,
 alignItems: "flex-end",
@@ -1414,7 +1414,7 @@ floatingBannerOverlay: {
 position: "absolute" as any,
 left: "20%",
 right: "22%",
-bottom: 30,
+bottom: 54,
 zIndex: 40,
 },
 floatingBannerGlassPanel: {
