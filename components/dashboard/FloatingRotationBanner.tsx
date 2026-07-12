@@ -250,19 +250,17 @@ export function FloatingRotationBanner({
   const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
 
   const upNextSlot =
-    currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingBannerStarts
-      ? slots.find(
+    slots.find(
       (slot) =>
         currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
         currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
-        ) || null
-      : null;
+    ) || null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
-const upNextSubtitle =
-  upNextSlot && minutesToNext !== null && minutesToNext > 0
-    ? `${upNextSlot.label} · starts in ${minutesToNext} min`
-    : "";
+  const upNextSubtitle =
+    upNextSlot && minutesToNext !== null && minutesToNext > 0
+      ? `${upNextSlot.label} · starts in ${minutesToNext} min`
+      : "";
 
   return (
     <View style={styles.floatingBannerOverlay} pointerEvents="none">
