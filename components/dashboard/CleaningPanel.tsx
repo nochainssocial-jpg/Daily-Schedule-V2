@@ -1,9 +1,13 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { styles } from "./dashboardStyles";
 
 export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
-  const assignedCount = cleaningRows.filter((row) => row.complete).length;
+  const assignedRows = useMemo(
+    () => cleaningRows.filter((row) => row.complete),
+    [cleaningRows],
+  );
+
   return (
     <View style={styles.panel}>
       <View style={styles.panelHeaderRow}>
@@ -12,34 +16,30 @@ export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
           <Text style={styles.panelTitle}>Cleaning Assignments</Text>
         </View>
         <Text style={styles.progressText}>
-          {assignedCount} / {cleaningRows.length} assigned
+          {assignedRows.length} assigned {assignedRows.length === 1 ? "task" : "tasks"}
         </Text>
       </View>
 
       <ScrollView style={styles.innerScroll} contentContainerStyle={styles.cleaningGrid}>
-        {cleaningRows.map((row) => (
+        {assignedRows.map((row) => (
           <View key={row.id} style={styles.cleaningCard}>
             <Text style={styles.cleaningTask}>{row.chore}</Text>
-            {row.complete ? (
-              <View
-                style={[
-                  styles.cleaningAssignedPill,
-                  {
-                    backgroundColor: row.staffColor,
-                    borderColor: row.staffColor,
-                  },
-                ]}
+            <View
+              style={[
+                styles.cleaningAssignedPill,
+                {
+                  backgroundColor: row.staffColor,
+                  borderColor: row.staffColor,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.cleaningAssignedText, { color: row.staffTextColor }]}
+                numberOfLines={1}
               >
-                <Text
-                  style={[styles.cleaningAssignedText, { color: row.staffTextColor }]}
-                  numberOfLines={1}
-                >
-                  {row.assigned}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.cleaningUnassigned}>{row.assigned}</Text>
-            )}
+                {row.assigned}
+              </Text>
+            </View>
           </View>
         ))}
       </ScrollView>
