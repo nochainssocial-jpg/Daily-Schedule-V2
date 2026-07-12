@@ -259,10 +259,9 @@ export function FloatingRotationBanner({
       : null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
-  const upNextSubtitle = upNextSlot
-    ? minutesToNext !== null && minutesToNext > 0
-      ? `${upNextSlot.label} · starts in ${minutesToNext} min`
-      : `${upNextSlot.label} · rotation window active`
+const upNextSubtitle =
+  upNextSlot && minutesToNext !== null && minutesToNext > 0
+    ? `${upNextSlot.label} · starts in ${minutesToNext} min`
     : "";
 
   return (
