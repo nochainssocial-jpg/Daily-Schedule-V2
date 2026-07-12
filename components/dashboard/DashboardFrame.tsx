@@ -2,13 +2,12 @@ import React from "react";
 import { Platform, Pressable, View, Text, useWindowDimensions } from "react-native";
 import { styles } from "./dashboardStyles";
 import {
-  DASHBOARD_PHASE_LABELS,
   DASHBOARD_REFRESH_MS,
   HOUSE_ID,
   ROTATE_MS,
   pageLabel,
 } from "./dashboardTheme";
-import type { DashboardOperationalPhase, DashboardPage } from "./dashboardTypes";
+import type { DashboardPage } from "./dashboardTypes";
 import { formatDateKey, timeLabel, timeNowLabel } from "./dashboardUtils";
 
 type Props = {
@@ -25,7 +24,6 @@ type Props = {
   currentMinutes?: number | null;
   isPreviewMode?: boolean;
   previewTimeLabel?: string | null;
-  operationalPhase?: DashboardOperationalPhase;
   autoRotationEnabled?: boolean;
   onPreviousPage?: () => void;
   onNextPage?: () => void;
@@ -52,7 +50,6 @@ export function DashboardFrame({
   currentMinutes = null,
   isPreviewMode = false,
   previewTimeLabel = null,
-  operationalPhase,
   autoRotationEnabled = true,
   onPreviousPage,
   onNextPage,
@@ -92,11 +89,6 @@ export function DashboardFrame({
             Location: {HOUSE_ID} Day Program
           </Text>
           <Text style={[styles.dateText, isTvDisplay && styles.dateTextTv]}>{formatDateKey(date)}</Text>
-          {operationalPhase ? (
-            <Text style={[styles.phaseText, isTvDisplay && styles.phaseTextTv]}>
-              Phase: {DASHBOARD_PHASE_LABELS[operationalPhase]}
-            </Text>
-          ) : null}
         </View>
         <View style={styles.clockBlock}>
           <Text style={[styles.clockText, isTvDisplay && styles.clockTextTv]}>{timeNowLabel(tick, currentMinutes)}</Text>
