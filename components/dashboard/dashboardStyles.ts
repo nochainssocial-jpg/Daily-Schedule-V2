@@ -686,12 +686,10 @@ fontWeight: "700",
 color: "#111827",
 },
 eventsGrid: {
-flex: 1,
-flexDirection: "row",
-gap: 12,
-marginTop: 4,
-// Keep the event cards above the floating assignment banner.
-paddingBottom: 108,
+  flexDirection: "row",
+  gap: 12,
+  marginTop: 4,
+  height: 300,
 },
 eventsColumn: {
 flex: 1,
