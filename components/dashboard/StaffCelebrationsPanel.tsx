@@ -9,62 +9,157 @@ import { STAFF_PHOTO_ASSETS } from "./staffPhotoAssets";
 const celebrationLightImage = require("../../assets/images/celebrations-light.png");
 
 const localStyles = StyleSheet.create({
+  // Mirrors the final Events | Meetings | Visits panel proportions.
+  celebrationGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 4,
+    height: 300,
+  },
+  column: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#F3E8FF",
+    backgroundColor: "#FFF7FD",
+    padding: 10,
+    overflow: "hidden",
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 7,
+  },
+  quoteBanner: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: "#F3E8FF",
+    borderWidth: 1,
+    borderColor: "#E9D5FF",
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginBottom: 8,
+  },
+  quoteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "900",
+    color: "#3B0764",
+    textAlign: "center",
+  },
+  todayContent: {
+    flex: 1,
+    minHeight: 0,
+  },
+  todayScrollContent: {
+    gap: 8,
+    paddingRight: 2,
+    paddingBottom: 2,
+  },
+  todayCardCompact: {
+    width: "100%",
+    minHeight: 164,
+    padding: 12,
+    borderRadius: 18,
+  },
   emptyPreviewBox: {
     flex: 1,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: "#DDD6FE",
+    minHeight: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
     position: "relative",
-    minHeight: 300,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
   },
   emptyWatermarkImage: {
     position: "absolute",
-    left: 14,
-    right: 14,
-    top: 12,
-    bottom: 12,
+    left: 10,
+    right: 10,
+    top: 8,
+    bottom: 8,
     width: "96%",
     height: "96%",
-    opacity: 0.24,
+    opacity: 0.19,
   },
   emptySoftWash: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.28)",
+    backgroundColor: "rgba(255,255,255,0.34)",
   },
   emptyMessageBadge: {
-    position: "absolute",
-    left: "12%",
-    right: "12%",
-    top: "50%",
-    transform: [{ translateY: -34 }],
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.86)",
+    width: "88%",
+    maxWidth: 560,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.92)",
     borderWidth: 1,
     borderColor: "#E9D5FF",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 11,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    zIndex: 2,
   },
   emptyMessageTextBlock: {
     flex: 1,
     minWidth: 0,
   },
   emptyMessageTitle: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 18,
     fontWeight: "900",
     color: "#3B0764",
   },
   emptyMessageText: {
     marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: "700",
     color: "#6B21A8",
+  },
+  upcomingList: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  upcomingRow: {
+    minHeight: 0,
+    height: 55,
+    paddingVertical: 6,
+    gap: 9,
+  },
+  upcomingName: {
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  upcomingLabel: {
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  upcomingDate: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  upcomingEmpty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
   },
 });
 
@@ -79,7 +174,9 @@ function initialsFor(name: string): string {
 
 function photoSource(item: StaffCelebrationItem): ImageSourcePropType | null {
   if (item.photoUrl) return { uri: item.photoUrl };
-  if (item.photoKey && STAFF_PHOTO_ASSETS[item.photoKey]) return STAFF_PHOTO_ASSETS[item.photoKey] || null;
+  if (item.photoKey && STAFF_PHOTO_ASSETS[item.photoKey]) {
+    return STAFF_PHOTO_ASSETS[item.photoKey] || null;
+  }
   return null;
 }
 
@@ -102,44 +199,62 @@ function StaffPhoto({ item, size = 88 }: { item: StaffCelebrationItem; size?: nu
   );
 }
 
-function TodayCelebrationCard({ item, wide }: { item: StaffCelebrationItem; wide: boolean }) {
+function TodayCelebrationCard({ item }: { item: StaffCelebrationItem }) {
   const isBirthday = item.kind === "birthday";
 
   return (
     <View
       style={[
         styles.celebrationTodayCard,
+        localStyles.todayCardCompact,
         isBirthday ? styles.celebrationBirthdayCard : styles.celebrationMilestoneCard,
-        { width: wide ? "100%" : "48.8%" },
       ]}
     >
       <View style={styles.celebrationConfettiCorner}>
         <MaterialCommunityIcons
           name={isBirthday ? "cake-variant" : "star"}
-          size={26}
+          size={24}
           color={isBirthday ? "#7C3AED" : "#B7791F"}
         />
       </View>
 
       <View style={styles.celebrationTodayCardInner}>
-        <StaffPhoto item={item} size={84} />
+        <StaffPhoto item={item} size={76} />
 
         <View style={styles.celebrationTodayTextBlock}>
-          <View style={[styles.celebrationTypePill, isBirthday ? styles.celebrationBirthdayPill : styles.celebrationMilestonePill]}>
+          <View
+            style={[
+              styles.celebrationTypePill,
+              isBirthday ? styles.celebrationBirthdayPill : styles.celebrationMilestonePill,
+            ]}
+          >
             <MaterialCommunityIcons
               name={isBirthday ? "cake-variant" : "briefcase-check"}
               size={13}
               color={isBirthday ? "#7C3AED" : "#B7791F"}
             />
-            <Text style={[styles.celebrationTypeText, isBirthday ? styles.celebrationBirthdayText : styles.celebrationMilestoneText]}>
+            <Text
+              style={[
+                styles.celebrationTypeText,
+                isBirthday ? styles.celebrationBirthdayText : styles.celebrationMilestoneText,
+              ]}
+            >
               {item.label}
             </Text>
           </View>
 
-          <Text style={[styles.celebrationTodayTitle, isBirthday ? styles.celebrationBirthdayTitle : styles.celebrationMilestoneTitle]} numberOfLines={2}>
+          <Text
+            style={[
+              styles.celebrationTodayTitle,
+              isBirthday ? styles.celebrationBirthdayTitle : styles.celebrationMilestoneTitle,
+            ]}
+            numberOfLines={2}
+          >
             {item.title}
           </Text>
-          <Text style={styles.celebrationTodayMessage} numberOfLines={3}>{item.message}</Text>
+          <Text style={styles.celebrationTodayMessage} numberOfLines={3}>
+            {item.message}
+          </Text>
         </View>
 
         {!isBirthday && item.years ? (
@@ -155,16 +270,28 @@ function TodayCelebrationCard({ item, wide }: { item: StaffCelebrationItem; wide
 
 function UpcomingCelebrationRow({ item }: { item: StaffCelebrationItem }) {
   const isBirthday = item.kind === "birthday";
+
   return (
-    <View style={styles.celebrationUpcomingRow}>
-      <StaffPhoto item={item} size={46} />
+    <View style={[styles.celebrationUpcomingRow, localStyles.upcomingRow]}>
+      <StaffPhoto item={item} size={38} />
       <View style={styles.celebrationUpcomingTextBlock}>
-        <Text style={styles.celebrationUpcomingName} numberOfLines={1}>{item.firstName}</Text>
-        <Text style={[styles.celebrationUpcomingLabel, isBirthday ? styles.celebrationBirthdayText : styles.celebrationMilestoneText]} numberOfLines={1}>
+        <Text style={[styles.celebrationUpcomingName, localStyles.upcomingName]} numberOfLines={1}>
+          {item.firstName}
+        </Text>
+        <Text
+          style={[
+            styles.celebrationUpcomingLabel,
+            localStyles.upcomingLabel,
+            isBirthday ? styles.celebrationBirthdayText : styles.celebrationMilestoneText,
+          ]}
+          numberOfLines={1}
+        >
           {isBirthday ? "Birthday" : item.label}
         </Text>
       </View>
-      <Text style={styles.celebrationUpcomingDate}>{celebrationDateLabel(item)}</Text>
+      <Text style={[styles.celebrationUpcomingDate, localStyles.upcomingDate]}>
+        {celebrationDateLabel(item)}
+      </Text>
     </View>
   );
 }
@@ -178,10 +305,9 @@ export function StaffCelebrationsPanel({
 }) {
   const visibleUpcoming = upcomingCelebrations.slice(0, 4);
   const todayCount = todayCelebrations.length;
-  const wideCards = true;
 
   return (
-    <View style={[styles.panel, styles.celebrationPanel]}>
+    <View style={styles.panel}>
       <View style={styles.panelHeaderRow}>
         <View>
           <Text style={styles.panelEyebrow}>People & culture</Text>
@@ -193,56 +319,60 @@ export function StaffCelebrationsPanel({
         </View>
       </View>
 
-      <View style={[styles.celebrationLayout, { gap: 12 }]}>
-        <View style={[styles.celebrationMainColumn, { flex: 2.45, minWidth: 0 }]}>
-          <View style={styles.celebrationSectionTitleRow}>
-            <MaterialCommunityIcons name="sparkles" size={22} color="#7C3AED" />
-            <Text style={styles.celebrationSectionTitle} numberOfLines={1}>Today’s Celebrations</Text>
+      <View style={localStyles.celebrationGrid}>
+        <View style={localStyles.column}>
+          <View style={localStyles.quoteBanner}>
+            <MaterialCommunityIcons name="heart-outline" size={20} color="#7C3AED" />
+            <Text style={localStyles.quoteText} numberOfLines={1}>
+              Great people make a great team. Today, we celebrate you!
+            </Text>
+            <MaterialCommunityIcons name="heart" size={18} color="#7C3AED" />
           </View>
 
-          {todayCelebrations.length === 0 ? (
-            <View style={localStyles.emptyPreviewBox}>
-              <Image
-                source={celebrationLightImage}
-                style={localStyles.emptyWatermarkImage}
-                resizeMode="contain"
-              />
-              <View style={localStyles.emptySoftWash} />
-              <View style={localStyles.emptyMessageBadge}>
-                <MaterialCommunityIcons name="calendar-heart" size={28} color="#7C3AED" />
-                <View style={localStyles.emptyMessageTextBlock}>
-                  <Text style={localStyles.emptyMessageTitle}>No staff celebration today</Text>
-                  <Text style={localStyles.emptyMessageText}>The faded preview shows where birthday and milestone cards will appear.</Text>
+          <View style={localStyles.todayContent}>
+            {todayCelebrations.length === 0 ? (
+              <View style={localStyles.emptyPreviewBox}>
+                <Image
+                  source={celebrationLightImage}
+                  style={localStyles.emptyWatermarkImage}
+                  resizeMode="contain"
+                />
+                <View style={localStyles.emptySoftWash} />
+                <View style={localStyles.emptyMessageBadge}>
+                  <MaterialCommunityIcons name="calendar-heart" size={25} color="#7C3AED" />
+                  <View style={localStyles.emptyMessageTextBlock}>
+                    <Text style={localStyles.emptyMessageTitle}>No staff celebration today</Text>
+                    <Text style={localStyles.emptyMessageText}>
+                      Birthday and milestone cards will appear here when scheduled.
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          ) : (
-            <ScrollView style={styles.innerScroll} contentContainerStyle={[styles.celebrationTodayGrid, { flexDirection: "column", flexWrap: "nowrap", gap: 10, paddingRight: 2 }]}>
-              {todayCelebrations.map((item) => (
-                <TodayCelebrationCard key={item.id} item={item} wide={wideCards} />
-              ))}
-            </ScrollView>
-          )}
-
-          <View style={[styles.celebrationFooterBanner, { marginTop: 10, paddingVertical: 10 }]}>
-            <MaterialCommunityIcons name="heart-outline" size={24} color="#7C3AED" />
-            <Text style={styles.celebrationFooterText}>Great people make a great team. Today, we celebrate you!</Text>
-            <MaterialCommunityIcons name="heart" size={22} color="#7C3AED" />
+            ) : (
+              <ScrollView
+                style={styles.innerScroll}
+                contentContainerStyle={localStyles.todayScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {todayCelebrations.map((item) => (
+                  <TodayCelebrationCard key={item.id} item={item} />
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
 
-        <View style={[styles.celebrationSideColumn, { flex: 0.95, minWidth: 260 }]}>
-          <View style={styles.celebrationUpcomingHeader}>
-            <MaterialCommunityIcons name="calendar-star" size={22} color="#6D28D9" />
-            <Text style={styles.celebrationUpcomingTitle} numberOfLines={1}>Upcoming Celebrations</Text>
-          </View>
+        <View style={localStyles.column}>
+          <Text style={localStyles.sectionTitle}>Upcoming Celebrations</Text>
 
           {visibleUpcoming.length === 0 ? (
-            <View style={styles.celebrationUpcomingEmpty}>
-              <Text style={styles.celebrationEmptyText}>No upcoming birthdays or milestones in the display window.</Text>
+            <View style={[localStyles.upcomingList, localStyles.upcomingEmpty]}>
+              <Text style={styles.celebrationEmptyText}>
+                No upcoming birthdays or milestones in the display window.
+              </Text>
             </View>
           ) : (
-            <View style={styles.celebrationUpcomingList}>
+            <View style={localStyles.upcomingList}>
               {visibleUpcoming.map((item) => (
                 <UpcomingCelebrationRow key={item.id} item={item} />
               ))}
