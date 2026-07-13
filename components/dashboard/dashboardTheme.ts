@@ -41,6 +41,7 @@ export const DASHBOARD_PAGE_THEMES: Record<DashboardPage, { background: string; 
   cleaning: { background: "#DCFCE7", accent: "#22C55E" },
   checklist: { background: "#E5ECFF", accent: "#6366F1" },
   dropoffs: { background: "#FFD0B5", accent: "#FB7185" },
+  morningSetup: { background: "#FFF4FA", accent: "#F54FA5" },
   incidentReports: { background: "#FFF4FA", accent: "#F54FA5" },
   behaviourObservations: { background: "#FFF4FA", accent: "#F54FA5" },
   communicationForms: { background: "#FFF4FA", accent: "#F54FA5" },
@@ -98,6 +99,21 @@ export const REMINDER_CONTENT: Record<
     footer: string;
   }
 > = {
+  morningSetup: {
+    eyebrow: "Morning setup",
+    title: "Morning Setup",
+    icon: "weather-sunset-up",
+    lead:
+      "Please complete these setup tasks between 8:00am and 10:00am so the centre is ready for participants and today’s program.",
+    points: [
+      "Clean the daily task board and prepare it according to today’s schedule",
+      "Bring the walkie-talkies out of the office and place one at each location",
+      "Unlock the Twins room and prepare it for their arrival",
+      "Unlock the internal gym room so participants can train",
+      "Quickly tidy the front of the property using the blower",
+    ],
+    footer: "Complete morning setup before the Day Program becomes active at 10:00am.",
+  },
   phoneUsage: {
     eyebrow: "Staff reminder",
     title: "Phone Usage While on Shift",
@@ -158,7 +174,7 @@ export const REMINDER_CONTENT: Record<
 };
 
 export function isReminderPage(page: DashboardPage): page is ReminderPage {
-  return REMINDER_PAGE_ORDER.includes(page as ReminderPage);
+  return page === "morningSetup" || REMINDER_PAGE_ORDER.includes(page as ReminderPage);
 }
 
 export function pageLabel(page: DashboardPage): string {
@@ -179,6 +195,8 @@ export function pageLabel(page: DashboardPage): string {
       return "End of Shift Checklist";
     case "dropoffs":
       return "Drop Offs";
+    case "morningSetup":
+      return "Morning Setup";
     case "incidentReports":
       return "Incident Reports";
     case "behaviourObservations":

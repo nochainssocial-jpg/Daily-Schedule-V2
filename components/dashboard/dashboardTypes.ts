@@ -9,6 +9,7 @@ export type DashboardPage =
   | "cleaning"
   | "checklist"
   | "dropoffs"
+  | "morningSetup"
   | "incidentReports"
   | "behaviourObservations"
   | "communicationForms"
@@ -25,6 +26,7 @@ export type DashboardOperationalPhase =
   | "dayComplete";
 
 export type ReminderPage =
+  | "morningSetup"
   | "phoneUsage"
   | "incidentReports"
   | "behaviourObservations"

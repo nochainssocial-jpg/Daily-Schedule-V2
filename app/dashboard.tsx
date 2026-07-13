@@ -127,6 +127,9 @@ currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
 const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
 const dailyAssignmentsAreOperational =
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
+const morningSetupIsOperational =
+currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.arrivalsStart &&
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart;
 const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
 const reminderBurstMinute = currentMinutes % 60;
 const reminderBurstActive =
@@ -622,6 +625,7 @@ if (condition && !list.includes(page)) list.push(page);
 };
 
 if (operationalPhase === "arrivalSetup") {
+add("morningSetup", morningSetupIsOperational);
 add("team", dailyAssignmentsAreOperational);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("outings", visibleOutings.length > 0);
@@ -661,6 +665,7 @@ return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
 }, [
 hasEventsMeetingsVisits,
 dailyAssignmentsAreOperational,
+morningSetupIsOperational,
 floatingIsOperational,
 hasStaffCelebrations,
 operationalPhase,
