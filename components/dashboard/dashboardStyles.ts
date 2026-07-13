@@ -1475,7 +1475,7 @@ floatingBannerOverlay: {
 position: "absolute" as any,
 left: "20%",
 right: "20%",
-transform: [{ translateX: -100 }],
+transform: [{ translateX: -150 }],
 bottom: 54,
 zIndex: 40,
 },
