@@ -161,8 +161,6 @@ function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
   );
 }
 
-// ---- Outing phase helpers (short vs long, complete vs active) ----
-
 type OutingGroup = {
   name?: string | null;
   startTime?: string | null;
@@ -170,78 +168,6 @@ type OutingGroup = {
   staffIds?: (string | number)[];
   participantIds?: (string | number)[];
 };
-
-type OutingPhase = 'none' | 'activeShort' | 'completeShort' | 'activeLong';
-
-const SHORT_OUTING_THRESHOLD_MINUTES = 14 * 60; // 14:00
-
-function parseTimeToMinutes(value?: string | null): number | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  // Expect formats like "10:30" or "9:05"
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
-    return null;
-  }
-  return hours * 60 + minutes;
-}
-
-function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhase {
-  if (!outingGroup) return 'none';
-
-  const staffCount = outingGroup.staffIds?.length ?? 0;
-  const participantCount = outingGroup.participantIds?.length ?? 0;
-  if (staffCount === 0 && participantCount === 0) return 'none';
-
-  const startMinutes = parseTimeToMinutes(outingGroup.startTime);
-  const endMinutes = parseTimeToMinutes(outingGroup.endTime);
-
-  // No valid end time = treat as "out for the day"
-  if (endMinutes === null) {
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    if (startMinutes !== null && nowMinutes < startMinutes) {
-      return 'none';
-    }
-    return 'activeLong';
-  }
-
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  // If there's a future start time, nothing yet
-  if (startMinutes !== null && nowMinutes < startMinutes) {
-    return 'none';
-  }
-
-  const isShortOuting = endMinutes < SHORT_OUTING_THRESHOLD_MINUTES;
-
-  if (!isShortOuting) {
-    // Long outing (ends at/after 14:00) – treat as "out for day" once started
-    return 'activeLong';
-  }
-
-  // Short outing (< 14:00)
-  if (nowMinutes <= endMinutes) {
-    return 'activeShort';
-  }
-
-  // After end time of a short outing → complete, staff/participants back onsite
-  return 'completeShort';
-}
 
 export default function EditParticipantsScreen() {
   const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
@@ -329,43 +255,29 @@ export default function EditParticipantsScreen() {
     });
   }, [outingGroups, outingGroup]);
 
-  // Determine outing phase so that short outings revert back to onsite after end time.
-  // Each active outing keeps its own colour: Outing 1 = orange, Outing 2 = purple.
-  const activeOutingEntries = useMemo(
-    () =>
-      normalizedOutingGroups.slice(0, 2).map((group, index) => ({
-        group,
-        index,
-        phase: getOutingPhase(group),
-      })).filter(({ phase }) => phase === 'activeShort' || phase === 'activeLong'),
-    [normalizedOutingGroups],
-  );
-
+  // Outing membership is a planned daily classification, so show it immediately
+  // across the Edit Hub rather than waiting for the outing start time.
   const outing1ParticipantSet = useMemo(
     () =>
       new Set<string>(
-        activeOutingEntries
-          .filter(({ index }) => index === 0)
-          .flatMap(({ group }) =>
-            ((group.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
-          ),
+        ((normalizedOutingGroups[0]?.participantIds ?? []) as (
+          | string
+          | number
+        )[]).map((id) => String(id)),
       ),
-    [activeOutingEntries],
+    [normalizedOutingGroups],
   );
 
   const outing2ParticipantSet = useMemo(
     () =>
       new Set<string>(
-        activeOutingEntries
-          .filter(({ index }) => index === 1)
-          .flatMap(({ group }) =>
-            ((group.participantIds ?? []) as (string | number)[]).map((id) => String(id)),
-          ),
+        ((normalizedOutingGroups[1]?.participantIds ?? []) as (
+          | string
+          | number
+        )[]).map((id) => String(id)),
       ),
-    [activeOutingEntries],
+    [normalizedOutingGroups],
   );
-
-  const outingIsActive = activeOutingEntries.length > 0;
 
   const toggleParticipant = (id: ID) => {
     if (readOnly) {
@@ -417,11 +329,9 @@ export default function EditParticipantsScreen() {
           ) : (
             <View style={styles.attendingGrid}>
               {attendingList.map((p) => {
-                // Only show outing colours during active phases.
-                const isOuting1 =
-                  outingIsActive && outing1ParticipantSet.has(p.id as ID);
-                const isOuting2 =
-                  outingIsActive && outing2ParticipantSet.has(p.id as ID);
+                // Show the planned outing classification immediately.
+                const isOuting1 = outing1ParticipantSet.has(p.id as ID);
+                const isOuting2 = outing2ParticipantSet.has(p.id as ID);
                 const mode = isOuting1 ? 'outing1' : isOuting2 ? 'outing2' : 'onsite';
 
                 const nameKey = `name:${String(p.name || '').toLowerCase()}`;

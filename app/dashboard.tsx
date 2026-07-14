@@ -336,6 +336,16 @@ return "onsite" as const;
 
 const teamAssignmentRows = useMemo(() => {
 const byStaff = new Map<string, string[]>();
+const workingSet = new Set((workingStaff || []).map(String));
+
+// Always include every member of today's Dream Team, even when a participant
+// has not yet been allocated to them. This keeps the dashboard headcount aligned
+// with the Dream Team editor.
+if (workingSet.size > 0) {
+workingSet.forEach((staffId) => {
+if (staffById.has(staffId)) byStaff.set(staffId, []);
+});
+}
 
 Object.entries(assignments || {}).forEach(
 ([rawParticipantId, rawStaffId]) => {
@@ -364,8 +374,6 @@ if (!list.includes(participantId)) list.push(participantId);
 byStaff.set(staffId, list);
 },
 );
-
-const workingSet = new Set((workingStaff || []).map(String));
 
 return Array.from(byStaff.entries())
 .map(([staffId, participantIds]) => {
@@ -400,7 +408,6 @@ isWorking: workingSet.size === 0 || workingSet.has(staffId),
 })
 .filter((row) => row.isWorking)
 .filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
-.filter((row) => row.participantNames.length > 0)
 .sort((a, b) => a.staffName.localeCompare(b.staffName, "en-AU"));
 }, [
 assignments,
