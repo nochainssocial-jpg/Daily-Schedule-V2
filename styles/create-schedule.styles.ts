@@ -77,7 +77,6 @@ const cs = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#F9FAFB',
   
-    outlineStyle: 'none',
   },
   staffTileActive: {
     borderColor: '#3B82F6', // blue-500 outline for active
@@ -100,49 +99,32 @@ const cs = StyleSheet.create({
   screenBottomSpacer: {
     height: 96,
   },
+  attendingWrap: {
+    minHeight: 280,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    borderRadius: 12,
+    padding: 12,
+    justifyContent: 'flex-start',
+  },
+  tileGrey: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
+  tileTxtGrey: {
+    color: '#667085',
+    fontWeight: '700',
+  },
+  workingWrap: {
+    minHeight: 210,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+    borderRadius: 12,
+    padding: 12,
+    justifyContent: 'flex-start',
+  },
 });
 
 export default cs;
-
-
-  tileGrey: {
-    backgroundColor: '#D0D6DF',
-    borderColor: '#C3CAD5',
-  },
-
-
-  tileTxtGrey: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-attendingWrap: {
-  // Ensures enough vertical space to comfortably fit ~20 chips on typical widths.
-  // Adjust if you prefer taller/shorter. This does NOT force scroll; the page already scrolls.
-  minHeight: 280,
-  backgroundColor: '#F9FAFB',
-  borderWidth: 1,
-  borderColor: '#EEF2F7' as any,
-  borderRadius: 12,
-  padding: 12,
-  justifyContent: 'flex-start' as const,
-},
-
-// Grey-out style for names in the bottom section that are already selected
-tileGrey: {
-  backgroundColor: '#F3F4F6',
-  borderColor: '#E5E7EB' as any,
-},
-tileTxtGrey: {
-  color: '#667085',
-},
-workingWrap: {
-  // 3 rows x 5 chips target: ~3*(chip height ~44 + vertical gap ~10) + padding
-  // Adjust if you want more/less headroom.
-  minHeight: 210,
-  backgroundColor: '#F9FAFB',
-  borderWidth: 1,
-  borderColor: '#EEF2F7' as any,
-  borderRadius: 12,
-  padding: 12,
-  justifyContent: 'flex-start' as const,
-},

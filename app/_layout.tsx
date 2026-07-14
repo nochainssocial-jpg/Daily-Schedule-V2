@@ -74,14 +74,14 @@ export default function RootLayout() {
         {/* Dashboard / TV display uses its own full-screen layout */}
         <Stack.Screen name="dashboard" options={{ headerShown: false }} />
 
-        {/* Share schedule */}
+        {/* Admin / location access */}
         <Stack.Screen
           name="share-schedule"
           options={{
             headerTitle: () => (
               <HeaderTitle
                 icon={<Share2Icon size={24} color={WHITE} />}
-                label="Share"
+                label="Admin Access"
               />
             ),
           }}

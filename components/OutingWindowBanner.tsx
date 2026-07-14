@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSchedule } from "@/hooks/schedule-store";
+import { getSydneyMinutesSinceMidnight } from "@/lib/sydneyDate";
 
 const PINK = "#F54FA5";
 const PURPLE = "#7C3AED";
@@ -43,8 +44,7 @@ function parseTimeToMinutes(raw?: string | null): number | null {
 }
 
 function nowMinutes(): number {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
+  return getSydneyMinutesSinceMidnight();
 }
 
 function getActiveOutingStatus(outingGroup: OutingGroup, index: number) {

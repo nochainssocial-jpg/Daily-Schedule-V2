@@ -6,10 +6,15 @@ import { Check, ChevronLeft } from 'lucide-react-native';
 
 import { persistFinish } from '@/hooks/persist-finish';
 import useSchedule from '@/hooks/schedule-adapter';
-import { useSchedule as baseSchedule, type ScheduleSnapshot } from '@/hooks/schedule-store';
+import {
+  refreshScheduleFromSupabase,
+  useSchedule as baseSchedule,
+  type ScheduleSnapshot,
+} from '@/hooks/schedule-store';
 // Master data now loaded from Supabase via schedule-store
 
-import { saveScheduleToSupabase } from '@/lib/saveSchedule';
+import { createScheduleForDate, fetchScheduleForHouseAndDate } from '@/lib/saveSchedule';
+import { getSydneyDateKey } from '@/lib/sydneyDate';
 
 type ID = string;
 
@@ -24,6 +29,7 @@ const TOTAL_STEPS = 6;
 
 export default function CreateScheduleScreen() {
   const { staff: masterStaff, participants: masterParticipants, loadMasterData, masterDataLoaded } = baseSchedule();
+  const [isCreating, setIsCreating] = useState(false);
 
 
 
@@ -801,6 +807,8 @@ export default function CreateScheduleScreen() {
 
   // ---- validation + finish -------------------------------------------------
   const onComplete = async () => {
+    if (isCreating) return;
+    const scheduleDate = getSydneyDateKey();
     if (!workingStaff || workingStaff.length === 0) {
       Alert.alert(
         'Dream Team',
@@ -833,6 +841,30 @@ export default function CreateScheduleScreen() {
       Alert.alert(
         'Final checklist',
         'Choose one of the working staff to complete the end-of-shift checklist.',
+      );
+      return;
+    }
+
+    setIsCreating(true);
+
+    // Resolve the canonical B2 + Sydney date before mutating the shared store.
+    // This prevents a duplicate-create attempt from replacing the loaded daily state locally.
+    const existingResult = await fetchScheduleForHouseAndDate('B2', scheduleDate);
+    if (!existingResult.ok) {
+      setIsCreating(false);
+      Alert.alert(
+        'Unable to check today’s schedule',
+        'The app could not confirm whether today’s schedule already exists. Nothing was saved.',
+      );
+      return;
+    }
+
+    if (existingResult.data) {
+      await refreshScheduleFromSupabase('B2');
+      setIsCreating(false);
+      Alert.alert(
+        'Schedule already created',
+        "Today's schedule already exists. Open the Edit Hub to update it.",
       );
       return;
     }
@@ -871,15 +903,15 @@ export default function CreateScheduleScreen() {
         participants: partsSource ?? [],
         workingStaff: realWorkers,
         attendingParticipants,
-        assignments: assignmentsMap,
-        floatingDraft: {},
-        cleaningDraft: {},
-        finalChecklistDraft: {},
+        assignments: assignmentsMap as any,
+        floatingAssignments: {},
+        cleaningAssignments: {},
+        finalChecklist: {},
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments,
-        date: selectedDate,
+        dropoffAssignments: dropoffAssignments as any,
+        date: scheduleDate,
         // 🔥 pass history into fairness engine
         recentSnapshots: recentCleaningSnapshots,
       });
@@ -936,6 +968,7 @@ snapshot = {
 
         workingStaff: state.workingStaff ?? realWorkers,
         attendingParticipants: state.attendingParticipants ?? attendingParticipants,
+        trainingStaffToday: state.trainingStaffToday ?? [],
 
         assignments: __ds_normaliseAssignmentsMap(state.assignments, assignmentsMap),
         floatingAssignments: state.floatingAssignments ?? {},
@@ -949,10 +982,11 @@ snapshot = {
         dropoffAssignments: state.dropoffAssignments ?? dropoffAssignments,
         dropoffLocations: state.dropoffLocations ?? {},
 
-        // ✅ include outingGroup so Outings persists end-to-end
-        outingGroup: state.outingGroup ?? null,
+        // Outings are stored independently and are not part of schedule creation.
+        outingGroups: [],
+        outingGroup: null,
 
-        date: state.date ?? selectedDate,
+        date: scheduleDate,
         meta: {
           ...(state.meta || {}),
           from: (state.meta && state.meta.from) || 'create-wizard',
@@ -967,6 +1001,7 @@ snapshot = {
         participants: partsSource ?? [],
         workingStaff: realWorkers,
         attendingParticipants,
+        trainingStaffToday: [],
         assignments: assignmentsMap,
         floatingAssignments: {},
         cleaningAssignments: {},
@@ -974,66 +1009,52 @@ snapshot = {
         finalChecklistStaff,
         pickupParticipants,
         helperStaff,
-        dropoffAssignments,
+        dropoffAssignments: dropoffAssignments as any,
         dropoffLocations: {},
+        outingGroups: [],
         outingGroup: null,
-        date: selectedDate,
+        date: scheduleDate,
         meta: { from: 'create-wizard' },
       };
     }
 
-    /** 🔥 Save to Supabase */
-    try {
-      const result = await saveScheduleToSupabase('B2', snapshot);
+    /** Save exactly one daily schedule row for B2 + today's Sydney date. */
+    const result = await createScheduleForDate('B2', scheduleDate, snapshot);
 
-      if (!result.ok) {
-        console.warn('Supabase save error:', result.error);
+    if (!result.ok) {
+      if (result.reason === 'already_exists') {
+        await refreshScheduleFromSupabase('B2');
+        Alert.alert(
+          'Schedule already created',
+          "Today's schedule already exists. Open the Edit Hub to update it.",
+        );
       } else {
-        console.log('Supabase schedule saved with code:', result.code);
+        console.warn('Supabase schedule create failed:', result.error);
+        Alert.alert(
+          'Schedule not saved',
+          'The schedule could not be saved to Supabase. Please try again.',
+        );
       }
-
-      // 🧠 Persist the share code into the store so Share screen can use it,
-      // even if Supabase failed, as long as we have a code.
-      if (result && result.code) {
-        try {
-          const currentMeta = (meta || {}) as Record<string, any>;
-          if (typeof updateSchedule === 'function') {
-            updateSchedule({
-              meta: {
-                ...currentMeta,
-                shareCode: result.code,
-              },
-            } as any);
-          }
-        } catch (err) {
-          console.warn('[create-schedule] failed to store shareCode in meta:', err);
-        }
-
-        // Also persist to localStorage on web so Share screen can always recover it
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('nc_share_code', String(result.code));
-            // Store the full snapshot as well for same-device import fallback
-            window.localStorage.setItem(
-              'nc_schedule_' + String(result.code),
-              JSON.stringify(snapshot),
-            );
-          }
-        } catch (err) {
-          console.warn(
-            '[create-schedule] failed to store shareCode/snapshot in localStorage:',
-            err,
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('Supabase insert failed:', e);
+      setIsCreating(false);
+      return;
     }
+
+    baseSchedule.getState().setActiveScheduleRecord(result.data);
+    baseSchedule.setState((current) => ({
+      ...current,
+      date: scheduleDate,
+      banner: { type: 'created', scheduleDate },
+      hasInitialisedToday: true,
+      currentInitDate: scheduleDate,
+      todayScheduleStatus: 'ready',
+      scheduleLoadError: null,
+    }));
 
     /** Continue as normal */
     try {
       router.replace(EDIT_HUB);
     } catch {}
+    setIsCreating(false);
   };
 
   const onNext = () => (step < TOTAL ? setStep(step + 1) : onComplete());
@@ -1120,11 +1141,16 @@ snapshot = {
 
             <TouchableOpacity
               onPress={onNext}
-              style={[styles.btnBase, styles.nextBtn]}
+              disabled={isCreating}
+              style={[styles.btnBase, styles.nextBtn, isCreating && { opacity: 0.6 }]}
               activeOpacity={0.95}
             >
               <Text style={styles.nextTxt}>
-                {step < TOTAL ? 'Next' : 'Finish & go to Edit Hub'}
+                {isCreating
+                  ? 'Creating today’s schedule…'
+                  : step < TOTAL
+                    ? 'Next'
+                    : 'Finish & go to Edit Hub'}
               </Text>
             </TouchableOpacity>
           </View>

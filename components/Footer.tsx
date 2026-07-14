@@ -16,7 +16,7 @@ export default function Footer() {
 
   const goHome = () => router.push('/home');
   const goEditHub = () => router.push('/edit');
-  const goShare = () => router.push('/share-schedule');
+  const goAccess = () => router.push('/share-schedule');
   const goSettings = () => router.push('/settings');
   const goAdmin = () => router.push('/admin');
   const goHelp = () => router.push('/help');
@@ -37,9 +37,9 @@ export default function Footer() {
         />
 
         <FooterItem
-          label="Share"
+          label="Access"
           active={pathname === '/share-schedule'}
-          onPress={goShare}
+          onPress={goAccess}
         />
 
         {/* Admin-only tabs: Admin + Settings */}
