@@ -1,10 +1,33 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-// Read values from .env
 const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://erhotgyvqcwvyilkubuu.supabase.co';
+  process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 
 const SUPABASE_ANON_KEY =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyaG90Z3l2cWN3dnlpbGt1YnV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzNzg0MTcsImV4cCI6MjA3ODk1NDQxN30.3DneUEZRtYmqmMYGX7gP2Ggxhp8S1sDDIQSXRmxEAFA';
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const APP_ENV =
+  process.env.EXPO_PUBLIC_APP_ENV?.trim() ?? "production";
+
+const PRODUCTION_SUPABASE_HOST =
+  "erhotgyvqcwvyilkubuu.supabase.co";
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "Supabase environment variables are missing. Deployment blocked.",
+  );
+}
+
+if (
+  APP_ENV === "staging" &&
+  SUPABASE_URL.includes(PRODUCTION_SUPABASE_HOST)
+) {
+  throw new Error(
+    "Safety lock: staging cannot connect to production Supabase.",
+  );
+}
+
+export const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+);
