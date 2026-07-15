@@ -1,0 +1,2073 @@
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import {
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  Platform,
+  useWindowDimensions,
+  Animated,
+} from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { useSchedule } from '@/hooks/schedule-store';
+import { supabase } from '@/lib/supabase';
+import Chip from '@/components/Chip';
+import * as Data from '@/constants/data';
+import {
+  getRiskBand,
+  MAX_PARTICIPANT_SCORE,
+  RISK_GRADIENT_COLORS,
+  SCORE_BUBBLE_STYLES,
+} from '@/constants/ratingsTheme';
+import { useNotifications } from '@/hooks/notifications';
+import { useIsAdmin } from '@/hooks/access-control';
+import SaveExit from '@/components/SaveExit';
+import { resolveOutingTiming } from '@/lib/outingSlots';
+
+type ID = string;
+type ColKey = 'frontRoom' | 'scotty' | 'twins';
+
+const WRAP = {
+  width: '100%',
+  maxWidth: 880,
+  alignSelf: 'center',
+  paddingHorizontal: 12,
+};
+
+// NOTE: Do NOT call hooks at module scope.
+// Time slots are resolved inside the component from schedule state (Supabase) with a safe fallback.
+
+const ROOM_KEYS: ColKey[] = ['frontRoom', 'scotty', 'twins'];
+// Assignment priority (Twins highest needs)
+const ASSIGN_ORDER: ColKey[] = ['twins', 'scotty', 'frontRoom'];
+
+const ROOM_LABELS: Record<ColKey, string> = {
+  frontRoom: 'Front Room',
+  scotty: 'Scotty',
+  twins: 'Twins',
+};
+
+type FloatingConflict = {
+  slotId: string;
+  slotLabel: string;
+  staffId: string;
+  staffName: string;
+  rooms: ColKey[];
+};
+
+function conflictCellKey(slotId: string, room: ColKey): string {
+  return `${slotId}:${room}`;
+}
+
+// Participant groups for each floating room
+const PARTICIPANTS: any[] = Array.isArray((Data as any).PARTICIPANTS)
+  ? ((Data as any).PARTICIPANTS as any[])
+  : [];
+
+
+// Participant room-group membership must be derived from the *current* participant IDs.
+// Do NOT compute groups at module scope from static Data.* arrays (IDs can differ from Supabase legacy_id mapping).
+// Groups are computed inside FloatingScreen from the Supabase participants list (fallback to Data.PARTICIPANTS).
+
+function slotLabel(slot: any): string {
+  if (!slot) return '';
+  const raw =
+    slot.displayTime ||
+    (slot.startTime && slot.endTime ? `${slot.startTime} - ${slot.endTime}` : '');
+  return String(raw).replace(/\s/g, '').toLowerCase();
+}
+
+function isFSOTwinsSlot(slot?: any): boolean {
+  const label = slotLabel(slot);
+  if (!label) return false;
+  return (
+    label === '11:00am-11:30am' ||
+    label === '11:00-11:30' ||
+    label === '1:00pm-1:30pm' ||
+    label === '13:00-13:30'
+  );
+}
+
+function isAfter2PM(slot?: any): boolean {
+  const label = slotLabel(slot);
+  if (!label) return false;
+  return (
+    label.startsWith('2:00pm-') ||
+    label.startsWith('14:00-') ||
+    label.includes('2:00pm-2:30pm') ||
+    label.includes('14:00-14:30')
+  );
+}
+
+function isFemale(staff: any): boolean {
+  return staff && String(staff.gender || '').toLowerCase() === 'female';
+}
+
+function isAntoinette(staff: any): boolean {
+  if (!staff) return false;
+  const name = String(staff.name || '').toLowerCase();
+  return name.includes('antoinette');
+}
+
+// 🔹 NEW: helper to exclude the "Everyone" pseudo-staff
+function isEveryone(staff: any): boolean {
+  const name = String(staff?.name || '').trim().toLowerCase();
+  return name === 'everyone';
+}
+
+// ---- Participant ratings + behaviour helpers (for legend pills) ----
+
+type ParticipantRatingRow = {
+  id: string;
+  behaviours?: number | null;
+  personal_care?: number | null;
+  communication?: number | null;
+  sensory?: number | null;
+  social?: number | null;
+  community?: number | null;
+  safety?: number | null;
+};
+
+type ParticipantRating = ParticipantRatingRow | null | undefined;
+
+function getParticipantTotalScore(member: ParticipantRating | any): number | null {
+  if (!member) return null;
+  const values = [
+    member.behaviours,
+    member.personal_care,
+    member.communication,
+    member.sensory,
+    member.social,
+    member.community,
+    member.safety,
+  ].filter(
+    (v: any): v is number =>
+      typeof v === 'number' && !Number.isNaN(v),
+  );
+
+  if (!values.length) return null;
+  return values.reduce((sum: number, v: number) => sum + v, 0);
+}
+
+type ParticipantScoreLevel = 'veryLow' | 'low' | 'medium' | 'high' | 'veryHigh';
+
+function getParticipantScoreLevel(total: number): ParticipantScoreLevel {
+  if (total <= 5) return 'veryLow';
+  if (total <= 10) return 'low';
+  if (total <= 15) return 'medium';
+  if (total <= 20) return 'high';
+  return 'veryHigh';
+}
+
+// Behaviour risk from behaviours 1–3
+function getBehaviourRisk(
+  behaviours?: number | null,
+): 'low' | 'medium' | 'high' | null {
+  if (typeof behaviours !== 'number') return null;
+  if (behaviours <= 1) return 'low';
+  if (behaviours === 2) return 'medium';
+  if (behaviours >= 3) return 'high';
+  return null;
+}
+
+/**
+ * Gradient meter driven by TOTAL participant score:
+ * - totalScore: 0–35 (7 criteria × 5)
+ * - fill = totalScore / 35 (clamped 0–1)
+ * - gradient compressed so red only appears toward the end
+ */
+function BehaviourMeter({ totalScore }: { totalScore?: number | null }) {
+  const rawTotal = typeof totalScore === 'number' ? totalScore : 0;
+  const maxScore = MAX_PARTICIPANT_SCORE; // 7 criteria × 5
+  const fraction = Math.max(0, Math.min(1, rawTotal / maxScore));
+
+  const [trackWidth, setTrackWidth] = useState(0);
+  const progress = useRef(new Animated.Value(fraction)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: fraction,
+      duration: 350,
+      useNativeDriver: false, // animating width
+    }).start();
+  }, [fraction, progress]);
+
+  // Width of the grey mask that hides the right side of the gradient
+  const maskWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [trackWidth, 0], // 0% score = full mask, 100% = no mask
+  });
+
+  return (
+    <View
+      style={{
+        width: 120,
+        height: 5,
+        borderRadius: 999,
+        overflow: 'hidden',
+        backgroundColor: '#E5E7EB',
+      }}
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+    >
+      {trackWidth > 0 && (
+        <>
+          <LinearGradient
+            colors={RISK_GRADIENT_COLORS} // green → yellow → red (shared theme)
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+            }}
+          />
+          <Animated.View
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              backgroundColor: '#E5E7EB',
+              width: maskWidth,
+            }}
+          />
+        </>
+      )}
+    </View>
+  );
+}
+
+type LegendPerson = { name: string; female: boolean };
+
+function LegendParticipantPill({
+  person,
+  rating,
+}: {
+  person: LegendPerson;
+  rating?: ParticipantRatingRow;
+}) {
+  const total = rating ? getParticipantTotalScore(rating) : null;
+  const level = total !== null ? getParticipantScoreLevel(total) : null;
+  const behaviourRisk = rating ? getBehaviourRisk(rating.behaviours) : null;
+
+  const riskLetter =
+    behaviourRisk === 'high'
+      ? 'H'
+      : behaviourRisk === 'medium'
+      ? 'M'
+      : behaviourRisk === 'low'
+      ? 'L'
+      : null;
+
+  let riskColor = '#CBD5E1';
+  if (behaviourRisk === 'low') riskColor = '#22C55E';
+  if (behaviourRisk === 'medium') riskColor = '#F97316';
+  if (behaviourRisk === 'high') riskColor = '#EF4444';
+
+  let scoreBg = '#f8f2ff';
+  let scoreBorder = '#e7dff2';
+  if (level === 'veryLow') {
+    scoreBg = '#ecfdf3';
+    scoreBorder = '#22C55E';
+  } else if (level === 'low') {
+    scoreBg = '#fefce8';
+    scoreBorder = '#EAB308';
+  } else if (level === 'medium') {
+    scoreBg = '#fff7ed';
+    scoreBorder = '#F97316';
+  } else if (level === 'high') {
+    scoreBg = '#fee2e2';
+    scoreBorder = '#FB7185';
+  } else if (level === 'veryHigh') {
+    scoreBg = '#fee2e2';
+    scoreBorder = '#EF4444';
+  }
+
+  return (
+    <View
+      key={person.name}
+      style={{
+        borderWidth: 1,
+        borderColor: '#111827',
+        borderRadius: 999,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        marginRight: 8,
+        marginBottom: 8,
+        backgroundColor: '#FFFFFF',
+        flexBasis: '31%',
+        maxWidth: '31%',
+        minWidth: 0,
+      }}
+    >
+      {/* Header row */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: total !== null ? 6 : 0,
+        }}
+      >
+        {/* Left: gender dot + name */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            flexShrink: 1,
+            minWidth: 0,
+          }}
+        >
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              backgroundColor: person.female ? '#ec4899' : '#3b82f6',
+              marginRight: 6,
+            }}
+          />
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: '600',
+              color: '#111827',
+            }}
+            numberOfLines={1}
+          >
+            {person.name}
+          </Text>
+        </View>
+
+        {/* Right: behaviour risk + score */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginLeft: 8,
+          }}
+        >
+          {behaviourRisk && riskLetter && (
+            <View
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                backgroundColor: riskColor,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 6,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: '#FFFFFF',
+                }}
+              >
+                {riskLetter}
+              </Text>
+            </View>
+          )}
+
+          {total !== null && (
+            <View
+              style={{
+                minWidth: 26,
+                height: 24,
+                paddingHorizontal: 6,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: scoreBorder,
+                backgroundColor: scoreBg,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: '#111827',
+                }}
+              >
+                {total}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {total !== null && (
+        <View
+          style={{
+            alignItems: 'center',
+          }}
+        >
+          <BehaviourMeter totalScore={total} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function parseTimeToMinutes(time?: string | null): number | null {
+  if (!time) return null;
+  let t = String(time).trim().toLowerCase();
+
+  // If passed something like "11:00-12:00", take the first part.
+  if (t.includes('-')) t = t.split('-')[0].trim();
+
+  // Normalize common separators/spaces, e.g. "11.30 pm" -> "11:30pm"
+  t = t.replace(/\s+/g, '');
+  t = t.replace(/\./g, ':');
+
+  // Accept:
+  //  - "11" / "1pm" / "11am"
+  //  - "11:00" / "11:00pm"
+  //  - "11:30" / "11:30pm"
+  let m = t.match(/^(‏?\d{1,2})(?::(\d{2}))?(am|pm)?$/);
+  if (!m) return null;
+
+  let hour = parseInt(m[1].replace(/^\u200f/, ''), 10);
+  let minute = m[2] ? parseInt(m[2], 10) : 0;
+  const suffix = m[3];
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  if (minute < 0 || minute > 59) return null;
+
+  // If suffix missing, assume afternoon for early hours (matches existing intent).
+  if (suffix === 'am') {
+    if (hour === 12) hour = 0;
+  } else if (suffix === 'pm') {
+    if (hour !== 12) hour += 12;
+  } else {
+    // no suffix
+    if (hour <= 6) hour += 12;
+  }
+
+  if (hour < 0 || hour > 23) return null;
+  return hour * 60 + minute;
+}
+
+function getSlotWindowMinutes(slot: any): { start: number | null; end: number | null } {
+  if (!slot) return { start: null, end: null };
+
+  const start =
+    parseTimeToMinutes(slot.startTime) ||
+    (slot.displayTime ? parseTimeToMinutes(slot.displayTime.split('-')[0]) : null);
+
+  const end =
+    parseTimeToMinutes(slot.endTime) ||
+    (slot.displayTime && slot.displayTime.includes('-')
+      ? parseTimeToMinutes(slot.displayTime.split('-')[1])
+      : null);
+
+  return { start, end };
+}
+
+function getOutingWindowMinutes(outingGroup: any): {
+  start: number | null;
+  end: number | null;
+} {
+  if (!outingGroup) return { start: null, end: null };
+  const start = parseTimeToMinutes(outingGroup.startTime);
+  const end = parseTimeToMinutes(outingGroup.endTime);
+  if (start == null || end == null) {
+    return { start: null, end: null };
+  }
+  if (end <= start) {
+    return { start: null, end: null };
+  }
+  return { start, end };
+}
+
+function timesOverlap(
+  s1: number | null,
+  e1: number | null,
+  s2: number | null,
+  e2: number | null,
+): boolean {
+  if (s1 == null || e1 == null) return false;
+  if (s2 == null || e2 == null) return false;
+  return s1 < e2 && s2 < e1;
+}
+
+function normalizeOutingInput(outingInput: any): any[] {
+  if (Array.isArray(outingInput)) return outingInput.filter(Boolean);
+  return outingInput ? [outingInput] : [];
+}
+
+function outingHasTimedWindow(outingGroup: any): boolean {
+  return (
+    !!outingGroup &&
+    typeof outingGroup.startTime === 'string' &&
+    outingGroup.startTime.trim().length > 0 &&
+    typeof outingGroup.endTime === 'string' &&
+    outingGroup.endTime.trim().length > 0
+  );
+}
+
+function getOutingIdsForSlot(
+  slot: any,
+  outingInput: any,
+  key: 'staffIds' | 'participantIds',
+): Set<string> {
+  const ids = new Set<string>();
+  const slotWindow = getSlotWindowMinutes(slot);
+
+  normalizeOutingInput(outingInput).forEach((outingGroup) => {
+    const outingWindow = getOutingWindowMinutes(outingGroup);
+
+    // If no valid time window, treat as all-day offsite.
+    const windowOverlaps =
+      outingWindow.start == null || outingWindow.end == null
+        ? true
+        : timesOverlap(
+            slotWindow.start,
+            slotWindow.end,
+            outingWindow.start,
+            outingWindow.end,
+          );
+
+    if (!windowOverlaps) return;
+
+    ((outingGroup?.[key] ?? []) as (string | number)[]).forEach((id) =>
+      ids.add(String(id)),
+    );
+  });
+
+  return ids;
+}
+
+// For a given slot + staff, is that staff member offsite (on outing) at that time?
+function isStaffOffsiteForSlot(slot: any, staffId: ID, outingInput: any): boolean {
+  if (!staffId) return false;
+  return getOutingIdsForSlot(slot, outingInput, 'staffIds').has(String(staffId));
+}
+
+// For a given slot + room, is that room's participant group on outing at that time?
+
+// NOTE: Room offsite logic is evaluated inside FloatingScreen (needs current participant groups + attending IDs).
+
+
+function buildAutoAssignments(
+  working: any[],
+  timeSlots: any[],
+  getActiveRoomsForSlot?: (slot: any) => ColKey[],
+  isStaffAvailableForSlot?: (slot: any, staffId: ID) => boolean,
+  getForcedAssignmentForSlotRoom?: (slot: any, col: ColKey) => ID | null,
+): Record<string, { [K in ColKey]?: ID }> {
+  if (!Array.isArray(working) || working.length === 0) return {};
+
+  const totalUsage: Record<string, number> = {};
+  const roomUsage: Record<string, Record<ColKey, number>> = {};
+  const twinsUsage: Record<string, number> = {};
+
+  working.forEach((s) => {
+    totalUsage[s.id] = 0;
+    roomUsage[s.id] = {
+      frontRoom: 0,
+      scotty: 0,
+      twins: 0,
+    };
+    twinsUsage[s.id] = 0;
+  });
+
+  const result: Record<string, { [K in ColKey]?: ID }> = {};
+  let prevSlotStaff = new Set<string>();
+
+  (timeSlots || []).forEach((slot, index) => {
+    const slotId = String(slot.id ?? index);
+    const row: { [K in ColKey]?: ID } = {};
+    const thisSlotStaff = new Set<string>();
+    const fso = isFSOTwinsSlot(slot);
+    const after2 = isAfter2PM(slot);
+
+    const roomOrder: ColKey[] = getActiveRoomsForSlot
+      ? getActiveRoomsForSlot(slot)
+      : ASSIGN_ORDER;
+
+    roomOrder.forEach((col) => {
+      // Forced assignment (e.g., Drive/Outing label) does not consume staff capacity
+      if (getForcedAssignmentForSlotRoom) {
+        const forced = getForcedAssignmentForSlotRoom(slot, col);
+        if (forced) {
+          row[col] = forced;
+          return;
+        }
+      }
+      let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
+
+      // Exclude staff who are offsite (on outing) during this slot
+      if (isStaffAvailableForSlot) {
+        candidates = candidates.filter((s) => isStaffAvailableForSlot(slot, String(s.id)));
+      }
+
+      if (!candidates.length) return;
+
+      if (col === 'twins' && fso) {
+        const females = candidates.filter((s) => isFemale(s));
+        if (females.length) {
+          candidates = females;
+        }
+      }
+
+      // Respect Antoinette-after-2pm rule
+      candidates = candidates.filter((s) => !isAntoinette(s) || after2);
+
+      // Twins fairness: max 2 total per staff where possible
+      if (col === 'twins') {
+        const underCap = candidates.filter((s) => (twinsUsage[s.id] ?? 0) < 2);
+        if (underCap.length) {
+          candidates = underCap;
+        }
+      }
+
+      if (!candidates.length) return;
+
+      // 1) Global fairness: minimise total assignments
+      let minTotal = Infinity;
+      candidates.forEach((s) => {
+        const c = totalUsage[s.id] ?? 0;
+        if (c < minTotal) minTotal = c;
+      });
+      let best = candidates.filter((s) => (totalUsage[s.id] ?? 0) === minTotal);
+
+      // 2) Room fairness: minimise assignments in this specific room
+      let minRoom = Infinity;
+      best.forEach((s) => {
+        const c = roomUsage[s.id]?.[col] ?? 0;
+        if (c < minRoom) minRoom = c;
+      });
+      best = best.filter((s) => (roomUsage[s.id]?.[col] ?? 0) === minRoom);
+
+      // 3) Tie-breaker: prefer staff not used in previous slot (but allow back-to-back when needed)
+      const fresh = best.filter((s) => !prevSlotStaff.has(s.id));
+      const pool = fresh.length ? fresh : best;
+
+      // Final tie-breaker: random between equally good options
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      if (!chosen) return;
+
+      row[col] = chosen.id;
+      thisSlotStaff.add(chosen.id);
+
+      totalUsage[chosen.id] = (totalUsage[chosen.id] ?? 0) + 1;
+      roomUsage[chosen.id][col] = (roomUsage[chosen.id]?.[col] ?? 0) + 1;
+      if (col === 'twins') {
+        twinsUsage[chosen.id] = (twinsUsage[chosen.id] ?? 0) + 1;
+      }
+    });
+
+    result[slotId] = row;
+    prevSlotStaff = thisSlotStaff;
+  });
+
+  return result;
+}
+
+function FloatingScreenInner() {
+  const { width, height } = useWindowDimensions();
+  const isMobileWeb =
+    Platform.OS === 'web' &&
+    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+      width < 900 ||
+      height < 700);
+
+  const { push } = useNotifications();
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
+
+  const {
+    staff = [],
+    workingStaff = [],
+    floatingAssignments = {},
+    outingGroups = [],
+    outingGroup = null,
+    updateSchedule,
+    touch,
+    selectedDate,
+    attendingParticipants = [],
+    timeSlots: scheduleTimeSlots = [],
+  } = useSchedule() as any;
+
+  const getNow = () => new Date();
+
+  const nowMinutesOfDay = () => {
+    const d = getNow();
+    return d.getHours() * 60 + d.getMinutes();
+  };
+
+  const TIME_SLOTS = useMemo(
+    () =>
+      (Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length
+        ? scheduleTimeSlots
+        : Array.isArray((Data as any).TIME_SLOTS)
+          ? (Data as any).TIME_SLOTS
+          : []) as Array<{
+        id: string;
+        startTime?: string;
+        endTime?: string;
+        displayTime?: string;
+      }>,
+    [scheduleTimeSlots],
+  );
+
+  const staffById = useMemo(() => {
+    const m: Record<string, any> = {};
+    (staff || []).forEach((s: any) => {
+      m[s.id] = s;
+    });
+    return m;
+  }, [staff]);
+
+  const [validationAttempted, setValidationAttempted] = useState(false);
+
+  const floatingConflicts = useMemo<FloatingConflict[]>(() => {
+    const conflicts: FloatingConflict[] = [];
+
+    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
+      const slotId = String(slot.id ?? idx);
+      const row = floatingAssignments?.[slotId];
+      if (!row || typeof row !== 'object') return;
+
+      const roomsByStaff = new Map<string, ColKey[]>();
+      ROOM_KEYS.forEach((room) => {
+        const rawStaffId = row[room];
+        if (!rawStaffId) return;
+        const staffId = String(rawStaffId);
+        const rooms = roomsByStaff.get(staffId) ?? [];
+        rooms.push(room);
+        roomsByStaff.set(staffId, rooms);
+      });
+
+      roomsByStaff.forEach((rooms, staffId) => {
+        if (rooms.length < 2) return;
+        conflicts.push({
+          slotId,
+          slotLabel:
+            slot.displayTime ||
+            `${slot.startTime ?? ''}${slot.endTime ? ` - ${slot.endTime}` : ''}` ||
+            slotId,
+          staffId,
+          staffName: staffById[staffId]?.name || 'Unknown staff member',
+          rooms,
+        });
+      });
+    });
+
+    return conflicts;
+  }, [TIME_SLOTS, floatingAssignments, staffById]);
+
+  const conflictingCells = useMemo(() => {
+    const keys = new Set<string>();
+    floatingConflicts.forEach((conflict) => {
+      conflict.rooms.forEach((room) => keys.add(conflictCellKey(conflict.slotId, room)));
+    });
+    return keys;
+  }, [floatingConflicts]);
+
+  const validateBeforeSave = () => {
+    setValidationAttempted(true);
+    if (floatingConflicts.length === 0) return true;
+
+    const first = floatingConflicts[0];
+    const roomNames = first.rooms.map((room) => ROOM_LABELS[room]).join(' and ');
+    push?.(
+      `Changes not saved: ${first.staffName} is assigned to ${roomNames} at ${first.slotLabel}. Correct the highlighted cells.`,
+      'floating',
+    );
+    return false;
+  };
+
+  const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadRatings() {
+      const { data } = await supabase
+        .from('participants')
+        .select(
+          'id, name, behaviours, personal_care, communication, sensory, social, community, safety',
+        );
+      if (!isMounted || !data) return;
+
+      const map: Record<string, ParticipantRatingRow> = {};
+      (data as any[]).forEach((row) => {
+        if (!row || !row.name) return;
+        const nameKey = `name:${String(row.name).toLowerCase()}`;
+        map[nameKey] = row as ParticipantRatingRow;
+      });
+      setRatingMap(map);
+    }
+    loadRatings();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const [filterStaffId, setFilterStaffId] = useState<string | null>(null);
+
+  // --- Cell picker (modal) ---
+  type PickState = { slotId: string; col: ColKey; fso?: boolean } | null;
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState<PickState>(null);
+
+  const openPicker = (slotId: string, col: ColKey) => {
+    if (readOnly) {
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+    // FSO applies only to Twins column and only for slots tagged as FSO
+    const slot = (TIME_SLOTS || []).find((ts: any) => String(ts.id) === String(slotId));
+    const isFsoSlot = col === 'twins' && Boolean((slot as any)?.fso);
+    setPick({ slotId: String(slotId), col, fso: isFsoSlot });
+    setOpen(true);
+  };
+
+  const getRow = (slotId: string): any => {
+    const fa: any = floatingAssignments || {};
+    const row = fa[String(slotId)];
+    return row && typeof row === 'object' ? row : {};
+  };
+
+  const setCell = (slotId: string, col: ColKey, staffId: string | null) => {
+    if (!updateSchedule) return;
+    const fa: any = floatingAssignments || {};
+    const nextRow = { ...(fa[String(slotId)] || {}) };
+    if (staffId) nextRow[col] = String(staffId);
+    else delete nextRow[col];
+    const next = { ...fa, [String(slotId)]: nextRow };
+    updateSchedule({ floatingAssignments: next });
+  };
+
+  const choose = (staffId: string) => {
+    if (!pick) return;
+    setCell(pick.slotId, pick.col, String(staffId));
+    setOpen(false);
+    setPick(null);
+  };
+
+  const clearCell = () => {
+    if (!pick) return;
+    setCell(pick.slotId, pick.col, null);
+    setOpen(false);
+    setPick(null);
+  };
+
+  const workingSet = useMemo(
+    () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
+    [workingStaff],
+  );
+
+  const outingGroupsForLogic = useMemo(() => {
+    const groups = Array.isArray(outingGroups)
+      ? outingGroups
+      : outingGroup
+        ? [outingGroup]
+        : [];
+
+    return groups
+      .map((group: any) => resolveOutingTiming(group, groups))
+      .filter((group: any) => {
+        const staffCount = group?.staffIds?.length ?? 0;
+        const participantCount = group?.participantIds?.length ?? 0;
+        return staffCount > 0 || participantCount > 0;
+      });
+  }, [outingGroups, outingGroup]);
+
+  const outingStaffSet = useMemo(
+    () =>
+      new Set<string>(
+        outingGroupsForLogic.flatMap((group: any) =>
+          ((group?.staffIds ?? []) as (string | number)[]).map((id) => String(id)),
+        ),
+      ),
+    [outingGroupsForLogic],
+  );
+
+  // 🔹 Only real onsite Dream Team staff – exclude "Everyone"
+  const onsiteWorking = useMemo(
+    () => {
+      return (staff || []).filter((s: any) => {
+        const id = String(s.id);
+
+        // Never include the "Everyone" pseudo-staff
+        if (isEveryone(s)) return false;
+
+        // Must be in the working staff list
+        if (!workingSet.has(id)) return false;
+
+        // Staff are fully offsite only when they are in an outing with NO specific time window.
+        // Timed outing staff remain in the general pool, then slot-level logic removes them
+        // only during their outing window.
+        const isAllDayOutingStaff = outingGroupsForLogic.some(
+          (group: any) => !outingHasTimedWindow(group) &&
+            ((group?.staffIds ?? []) as (string | number)[])
+              .map((raw) => String(raw))
+              .includes(id),
+        );
+
+        return !isAllDayOutingStaff;
+      });
+    },
+    [staff, workingSet, outingGroupsForLogic],
+  );
+
+  const sortedWorking = useMemo(
+    () =>
+      (onsiteWorking || [])
+        .filter((s: any) => !isEveryone(s))
+        .slice()
+        .sort((a: any, b: any) =>
+          String(a.name || '').localeCompare(String(b.name || '')),
+        ),
+    [onsiteWorking],
+  );
+
+  // 🔹 Attendance-based room availability (Not attending)
+  const participantsAttendingSet = useMemo(
+    () =>
+      new Set<string>(
+        ((attendingParticipants as any[]) || []).map((id) => String(id)),
+      ),
+    [attendingParticipants],
+  );
+// --- Participants (Supabase) for robust room grouping ---
+// We derive room membership by NAME, but resolve to the *current* schedule participant IDs:
+// prefer legacy_id (stable) and fall back to UUID id if needed.
+const [participantsDb, setParticipantsDb] = useState<any[]>([]);
+useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('id,name,legacy_id,is_active')
+        .eq('is_active', true);
+      if (error) throw error;
+      if (!cancelled) setParticipantsDb(Array.isArray(data) ? data : []);
+    } catch (e) {
+      // Non-fatal: we can still fall back to Data.PARTICIPANTS for display,
+      // but room grouping may be inaccurate until DB loads.
+      console.error('Failed to load participants for room groups:', e);
+      if (!cancelled) setParticipantsDb([]);
+    }
+  })();
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+const participantIdByName = useMemo(() => {
+  const map = new Map<string, string>();
+  const source = (participantsDb && participantsDb.length)
+    ? participantsDb.map((p: any) => ({
+        name: String(p?.name || ''),
+        id: String(p?.legacy_id ?? p?.id ?? ''),
+      }))
+    : (PARTICIPANTS as any[]);
+  (source || []).forEach((p: any) => {
+    const name = String(p?.name || '').trim().toLowerCase();
+    const id = String(p?.id ?? '').trim();
+    if (name && id) map.set(name, id);
+  });
+  return map;
+}, [participantsDb]);
+
+const participantGroups = useMemo(() => {
+  const pick = (names: string[]) =>
+    names
+      .map((n) => participantIdByName.get(n.trim().toLowerCase()) || null)
+      .filter(Boolean) as string[];
+
+  return {
+    frontRoom: pick(['Paul', 'Jessica', 'Naveed', 'Tiffany', 'Sumera', 'Jacob']),
+    scotty: pick(['Scott']),
+    twins: pick(['Zara', 'Zoya']),
+  } as Record<ColKey, string[]>;
+}, [participantIdByName]);
+
+const getGroupIds = (col: ColKey): string[] => participantGroups[col] || [];
+
+const isRoomOffsiteForSlot = (col: ColKey, slot: any): boolean => {
+  const groupIds = getGroupIds(col);
+  if (!groupIds.length) return false;
+
+  const attendingGroup = groupIds.filter((id) =>
+    participantsAttendingSet.has(String(id)),
+  );
+  if (!attendingGroup.length) return false;
+
+  const outingIds = getOutingIdsForSlot(slot, outingGroupsForLogic, 'participantIds');
+
+  const offsiteCount = attendingGroup.filter((id) => outingIds.has(String(id))).length;
+  const onsiteCount = attendingGroup.length - offsiteCount;
+
+  // A room is only considered offsite if *all attending participants in that room* are offsite.
+  return offsiteCount > 0 && onsiteCount === 0;
+};
+
+
+
+
+const roomNotAttending = useMemo(
+  () => ({
+    frontRoom: (() => {
+      const ids = getGroupIds('frontRoom');
+      return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
+    })(),
+    scotty: (() => {
+      const ids = getGroupIds('scotty');
+      return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
+    })(),
+    twins: (() => {
+      const ids = getGroupIds('twins');
+      return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
+    })(),
+  }),
+  [participantsAttendingSet, participantGroups],
+);
+
+
+
+type RoomDirective = { active: boolean; forcedId?: string | null };
+
+const roomCountsForSlot = (col: ColKey, slot: any): { attending: number; offsite: number; onsite: number } => {
+  const groupIds = getGroupIds(col);
+  if (!groupIds.length) return { attending: 0, offsite: 0, onsite: 0 };
+
+  const attendingGroup = groupIds.filter((id) => participantsAttendingSet.has(String(id)));
+  if (!attendingGroup.length) return { attending: 0, offsite: 0, onsite: 0 };
+
+  const outingIds = getOutingIdsForSlot(slot, outingGroupsForLogic, 'participantIds');
+
+  const offsiteCount = attendingGroup.filter((id) => outingIds.has(String(id))).length;
+  const onsiteCount = attendingGroup.length - offsiteCount;
+
+  return { attending: attendingGroup.length, offsite: offsiteCount, onsite: onsiteCount };
+};
+
+const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
+  // Not attending: no supervision required
+  if (roomNotAttending[col]) return { active: false, forcedId: null };
+
+  // Offsite: no supervision required (and don't consume staff during auto-assign)
+  if (isRoomOffsiteForSlot(col, slot)) return { active: false, forcedId: '__OFFSITE__' };
+
+  // Front Room operational rule:
+  // - Needs supervision if onsite participants >= 3
+  // - If onsite < 3, Front Room merges into main group (no dedicated floater required)
+  if (col === 'frontRoom') {
+    const counts = roomCountsForSlot('frontRoom', slot);
+    if (counts.attending === 0) return { active: false, forcedId: null };
+    return { active: counts.onsite >= 3, forcedId: null };
+  }
+
+  // Scotty + Twins require supervision whenever at least one participant is onsite & attending.
+  const counts = roomCountsForSlot(col, slot);
+  return { active: counts.onsite > 0, forcedId: null };
+};
+  const activeRoomsForSlot = (slot: any): ColKey[] => {
+    // Rooms requiring staff coverage for this slot, ordered by priority.
+    // Twins are always highest needs.
+    const directives: Record<ColKey, RoomDirective> = {
+      frontRoom: getRoomDirective('frontRoom', slot),
+      scotty: getRoomDirective('scotty', slot),
+      twins: getRoomDirective('twins', slot),
+    };
+
+    const active = ASSIGN_ORDER.filter((col) => directives[col]?.active);
+
+    // If no rooms require coverage (e.g., Front Room merged / everyone offsite), return empty list.
+    return active;
+  };
+
+  const forcedAssignmentForSlotRoom = (slot: any, col: ColKey): ID | null => {
+    const d = getRoomDirective(col, slot);
+    return d?.forcedId ? String(d.forcedId) : null;
+  };
+
+
+const hasFrontRoom = useMemo(() => {
+  const existing = floatingAssignments || {};
+  return Object.values(existing).some((row: any) => !!row?.frontRoom);
+}, [floatingAssignments]);
+
+useEffect(() => {
+  // 🔥 Auto-build using *onsite* working staff only
+  if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroupsForLogic),
+      forcedAssignmentForSlotRoom,
+    );
+    updateSchedule({ floatingAssignments: next });
+    push('Floating assignments updated', 'floating');
+  }
+}, [hasFrontRoom, onsiteWorking, updateSchedule, TIME_SLOTS, activeRoomsForSlot, outingGroupsForLogic, forcedAssignmentForSlotRoom, push]);
+
+  const handleShuffle = () => {
+    if (readOnly) {
+      push?.('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+    if (!onsiteWorking.length || !updateSchedule) return;
+    const next = buildAutoAssignments(
+      onsiteWorking,
+      TIME_SLOTS,
+      activeRoomsForSlot,
+      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroupsForLogic),
+      forcedAssignmentForSlotRoom,
+    );
+    updateSchedule({ floatingAssignments: next });
+    push('Floating assignments updated', 'floating');
+  };
+
+  // 🔹 Print handler — navigate to /print-floating with staff + date
+  const handlePrintFloating = () => {
+    const staffParam = filterStaffId || 'ALL';
+    let dateParam = '';
+
+    if (selectedDate) {
+      const d = new Date(selectedDate);
+      if (!isNaN(d.getTime())) {
+        dateParam = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      }
+    }
+
+    router.push({
+      pathname: '/print-floating',
+      params: { staff: staffParam, date: dateParam },
+    });
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FDF2FF' }}>
+      <SaveExit touchKey="floating" onSave={validateBeforeSave} />
+      {Platform.OS === 'web' && !isMobileWeb && (
+        <MaterialCommunityIcons
+          name="account-clock"
+          size={220}
+          color="#F6C1FF"
+          style={{
+            position: 'absolute',
+            top: '25%',
+            left: '10%',
+            opacity: 1,
+            zIndex: 0,
+          }}
+        />
+      )}
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <View style={WRAP as any}>
+          {validationAttempted && floatingConflicts.length > 0 && (
+            <View
+              style={{
+                marginTop: 18,
+                marginBottom: 4,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                borderWidth: 2,
+                borderColor: '#DC2626',
+                borderRadius: 12,
+                backgroundColor: '#FEF2F2',
+              }}
+            >
+              <Text style={{ color: '#991B1B', fontSize: 16, fontWeight: '800' }}>
+                Changes not saved — {floatingConflicts.length}{' '}
+                {floatingConflicts.length === 1 ? 'conflict' : 'conflicts'} found
+              </Text>
+              {floatingConflicts.map((conflict) => (
+                <Text
+                  key={`${conflict.slotId}:${conflict.staffId}`}
+                  style={{ color: '#7F1D1D', marginTop: 6, fontWeight: '600' }}
+                >
+                  • {conflict.slotLabel}: {conflict.staffName} is assigned to{' '}
+                  {conflict.rooms.map((room) => ROOM_LABELS[room]).join(' and ')}.
+                </Text>
+              ))}
+              <Text style={{ color: '#991B1B', marginTop: 8 }}>
+                Correct the red cells, then press Save & Exit again.
+              </Text>
+            </View>
+          )}
+
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: '700',
+              marginTop: 40,
+              marginBottom: 10,
+            }}
+          >
+            Floating Assignments
+          </Text>
+          <Text style={{ color: '#64748b', marginBottom: 12 }}>
+            Tap a cell to assign a staff member. Twins FSO slots require a
+            female staff.
+          </Text>
+
+          <View
+            style={{
+              marginTop: 8,
+              marginBottom: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '600',
+                marginBottom: 6,
+              }}
+            >
+              Filter by staff
+            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              <Chip
+                label="Show all"
+                selected={!filterStaffId}
+                onPress={() => setFilterStaffId(null)}
+              />
+              {(sortedWorking || []).map((s: any) => {
+                const isOutingStaff = outingStaffSet.has(String(s.id));
+                const outingTag = isOutingStaff ? (
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: '#E5E7EB',
+                      backgroundColor: '#F8FAFC',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>
+                      Outing
+                    </Text>
+                  </View>
+                ) : null;
+
+                return (
+                  <Chip
+                    key={s.id}
+                    label={s.name}
+                    selected={filterStaffId === s.id}
+                    onPress={() => setFilterStaffId(s.id)}
+                    rightAddon={outingTag}
+                    style={isOutingStaff ? ({ opacity: 0.35 } as any) : undefined}
+                  />
+                );
+              })}
+            </View>
+            {filterStaffId && (
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: '#64748b',
+                }}
+              >
+                Showing floating assignments for{' '}
+                {(sortedWorking || []).find((s: any) => s.id === filterStaffId)
+                  ?.name || 'selected staff'}
+                . Tap Show all to clear.
+              </Text>
+            )}
+          </View>
+
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              borderRadius: 14,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                backgroundColor: '#f9fafb',
+                borderBottomWidth: 1,
+                borderBottomColor: '#e5e7eb',
+              }}
+            >
+              <HeaderCell label="Time" flex={1.1} />
+              <HeaderCell label="Front Room" />
+              <HeaderCell label="Scotty" />
+              <HeaderCell label="Twins" />
+            </View>
+
+            {(TIME_SLOTS || []).map((slot: any, idx: number) => {
+              const slotId = String(slot.id ?? idx);
+              const row = getRow(slotId);
+
+              const frId = row.frontRoom ? String(row.frontRoom) : null;
+              const scId = row.scotty ? String(row.scotty) : null;
+              const twId = row.twins ? String(row.twins) : null;
+
+              // If a staff member is on an outing during this slot, treat them as unavailable here
+              // (so they don't render as assigned and won't match the staff filter for this slot).
+              const frOff = frId ? isStaffOffsiteForSlot(slot, frId, outingGroupsForLogic) : false;
+              const scOff = scId ? isStaffOffsiteForSlot(slot, scId, outingGroupsForLogic) : false;
+              const twOff = twId ? isStaffOffsiteForSlot(slot, twId, outingGroupsForLogic) : false;
+
+              const frStaff = frId && !frOff ? staffById[frId] : undefined;
+              const scStaff = scId && !scOff ? staffById[scId] : undefined;
+              const twStaff = twId && !twOff ? staffById[twId] : undefined;
+
+              let fr = '';
+              let sc = '';
+              let tw = '';
+
+              const fso = isFSOTwinsSlot(slot);
+              const isFrontOffsite = isRoomOffsiteForSlot('frontRoom', slot);
+              const isScottyOffsite = isRoomOffsiteForSlot('scotty', slot);
+              const isTwinsOffsite = isRoomOffsiteForSlot('twins', slot);
+              const isFrontNotAttending = roomNotAttending.frontRoom;
+              const isScottyNotAttending = roomNotAttending.scotty;
+              const isTwinsNotAttending = roomNotAttending.twins;
+
+              if (!filterStaffId) {
+                fr = frStaff?.name ?? '';
+                sc = scStaff?.name ?? '';
+                tw = twStaff?.name ?? '';
+              } else {
+                const matchId = filterStaffId;
+                if (frStaff && frStaff.id === matchId) fr = frStaff.name ?? '';
+                if (scStaff && scStaff.id === matchId) sc = scStaff.name ?? '';
+                if (twStaff && twStaff.id === matchId) tw = twStaff.name ?? '';
+              }
+
+              const baseRowStyle =
+                idx % 2 === 0
+                  ? { backgroundColor: '#ffffff' }
+                  : { backgroundColor: '#f9fafb' };
+
+              return (
+                <View
+                  key={slotId}
+                  style={[
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'stretch',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#e5e7eb',
+                    },
+                    baseRowStyle,
+                  ]}
+                >
+                  {/* Time cell */}
+                  <View
+                    style={{
+                      flex: 1.1,
+                      paddingVertical: 10,
+                      paddingHorizontal: 10,
+                      borderRightWidth: 1,
+                      borderRightColor: '#e5e7eb',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: '#0f172a',
+                      }}
+                    >
+                      {slot.displayTime ||
+                        `${slot.startTime ?? ''} - ${slot.endTime ?? ''}`}
+                    </Text>
+                  </View>
+
+                  {/* Front Room */}
+                  <CellButton
+                    style={[
+                      { flex: 1 },
+                      isFrontOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                      isFrontNotAttending
+                        ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
+                      validationAttempted && conflictingCells.has(conflictCellKey(slotId, 'frontRoom'))
+                        ? { borderWidth: 3, borderColor: '#DC2626', backgroundColor: '#FEE2E2' }
+                        : null,
+                    ]}
+                    label={
+                      isFrontOffsite
+                        ? 'Outing (offsite)'
+                        : isFrontNotAttending
+                        ? 'Not attending'
+                        : !filterStaffId
+                        ? fr || 'Tap to assign'
+                        : fr
+                    }
+                    gender={
+                      isFrontOffsite || isFrontNotAttending ? undefined : frStaff?.gender
+                    }
+                    onPress={() => {
+                      if (isFrontOffsite || isFrontNotAttending) return;
+                      openPicker(slotId, 'frontRoom');
+                    }}
+                  />
+
+                  {/* Scotty */}
+                  <CellButton
+                    style={[
+                      { flex: 1 },
+                      isScottyOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                      isScottyNotAttending
+                        ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
+                      validationAttempted && conflictingCells.has(conflictCellKey(slotId, 'scotty'))
+                        ? { borderWidth: 3, borderColor: '#DC2626', backgroundColor: '#FEE2E2' }
+                        : null,
+                    ]}
+                    label={
+                      isScottyOffsite
+                        ? 'Outing (offsite)'
+                        : isScottyNotAttending
+                        ? 'Not attending'
+                        : !filterStaffId
+                        ? sc || 'Tap to assign'
+                        : sc
+                    }
+                    gender={
+                      isScottyOffsite || isScottyNotAttending ? undefined : scStaff?.gender
+                    }
+                    onPress={() => {
+                      if (isScottyOffsite || isScottyNotAttending) return;
+                      openPicker(slotId, 'scotty');
+                    }}
+                  />
+
+                  {/* Twins */}
+                  <CellButton
+                    style={[
+                      { flex: 1 },
+                      fso ? { backgroundColor: '#fef2f2' } : null,
+                      isTwinsOffsite
+                        ? { opacity: 0.6, backgroundColor: '#fee2e2' }
+                        : null,
+                      isTwinsNotAttending
+                        ? { opacity: 0.7, backgroundColor: '#e5e7eb' }
+                        : null,
+                      validationAttempted && conflictingCells.has(conflictCellKey(slotId, 'twins'))
+                        ? { borderWidth: 3, borderColor: '#DC2626', backgroundColor: '#FEE2E2' }
+                        : null,
+                    ]}
+                    label={
+                      isTwinsOffsite
+                        ? 'Outing (offsite)'
+                        : isTwinsNotAttending
+                        ? 'Not attending'
+                        : !filterStaffId
+                        ? tw
+                          ? fso
+                            ? `${tw} (FSO)`
+                            : tw
+                          : fso
+                          ? 'Tap to assign (FSO)'
+                          : 'Tap to assign'
+                        : tw
+                        ? fso
+                          ? `${tw} (FSO)`
+                          : tw
+                        : ''
+                    }
+                    gender={
+                      isTwinsOffsite || isTwinsNotAttending ? undefined : twStaff?.gender
+                    }
+                    fsoTag={fso && !isTwinsOffsite && !isTwinsNotAttending}
+                    onPress={() => {
+                      if (isTwinsOffsite || isTwinsNotAttending) return;
+                      openPicker(slotId, 'twins');
+                    }}
+                  />
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Shuffle button */}
+          <View style={{ marginTop: 12, alignItems: 'flex-end' }}>
+            <TouchableOpacity
+              onPress={handleShuffle}
+              activeOpacity={0.9}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: '#4f46e5',
+                backgroundColor: '#eef2ff',
+              }}
+            >
+              <Text
+                style={{
+                  color: '#4f46e5',
+                  fontWeight: '600',
+                }}
+              >
+                Shuffle all assignments
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Print Floating Assignment – web only, right-aligned like Edit Hub */}
+          {Platform.OS === 'web' && (
+            <View
+              style={{
+                marginTop: 28,
+                width: '100%',
+                alignItems: 'flex-end',
+              }}
+            >
+              <TouchableOpacity
+                onPress={handlePrintFloating}
+                activeOpacity={0.85}
+                style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 4,
+                }}
+              >
+                <Ionicons
+                  name="print-outline"
+                  size={42}
+                  color="#00A86A"
+                  style={{ marginBottom: 6 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: '#3c234c',
+                    textAlign: 'center',
+                  }}
+                >
+                  Print Floating Assignment
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Legend */}
+          <View style={{ marginTop: 24 }}>
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: '700',
+                color: '#000000',
+                marginBottom: 8,
+              }}
+            >
+              Legend
+            </Text>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: '#e5e7eb',
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Front Room row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
+                }}
+              >
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Front Room
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[
+                    { name: 'Paul', female: false },
+                    { name: 'Jessica', female: true },
+                    { name: 'Naveed', female: false },
+                    { name: 'Tiffany', female: true },
+                    { name: 'Sumera', female: true },
+                    { name: 'Jacob', female: false },
+                  ].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Scotty row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#e5e7eb',
+                }}
+              >
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Scotty
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[{ name: 'Scott', female: false }].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Twins / FSO row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                }}
+              >
+                <View
+                  style={{
+                    width: '32%',
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    borderRightWidth: 1,
+                    borderRightColor: '#e5e7eb',
+                    justifyContent: 'center',
+                    backgroundColor: '#f9fafb',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    Twins / FSO
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    alignItems: 'center',
+                  }}
+                >
+                  {[
+                    { name: 'Zara', female: true },
+                    { name: 'Zoya', female: true },
+                  ].map((p) => {
+                    const nameKey = `name:${String(p.name).toLowerCase()}`;
+                    const rating = ratingMap[nameKey];
+                    return (
+                      <LegendParticipantPill
+                        key={p.name}
+                        person={p}
+                        rating={rating}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Staff picker modal */}
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.25)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#ffffff',
+              width: '100%',
+              maxWidth: 720,
+              borderRadius: 16,
+              padding: 16,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: '800',
+                marginBottom: 10,
+              }}
+            >
+              Assign Staff
+            </Text>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(onsiteWorking || [])
+                .filter(
+                  (s: any) => {
+                    if (pick?.fso && String(s.gender || '').toLowerCase() !== 'female') return false;
+                    const slot = (TIME_SLOTS || []).find((ts) => String(ts.id) === String(pick?.slotId));
+                    // Exclude outing staff during the outing window for this slot
+                    if (slot && isStaffOffsiteForSlot(slot, String(s.id), outingGroupsForLogic)) return false;
+                    return true;
+                  },
+                )
+                .map((s: any) => (
+                  <Chip key={s.id} label={s.name} onPress={() => choose(s.id)} />
+                ))}
+            </View>
+
+            {pick?.fso &&
+              (onsiteWorking || []).every(
+                (s: any) =>
+                  String(s.gender || '').toLowerCase() !== 'female',
+              ) && (
+                <View
+                  style={{
+                    marginTop: 12,
+                    padding: 10,
+                    borderWidth: 1,
+                    borderColor: '#fecaca',
+                    backgroundColor: '#fef2f2',
+                    borderRadius: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#b91c1c',
+                      fontWeight: '600',
+                    }}
+                  >
+                    No eligible female staff on the Dream Team for this slot.
+                  </Text>
+                </View>
+              )}
+
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 16,
+              }}
+            >
+              <TouchableOpacity onPress={clearCell}>
+                <Text
+                  style={{
+                    color: '#ef4444',
+                    fontWeight: '600',
+                  }}
+                >
+                  Clear this cell
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setOpen(false)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
+                }}
+              >
+                <Text style={{ fontWeight: '600' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function HeaderCell({ label, flex = 1 }: { label: string; flex?: number }) {
+  return (
+    <View
+      style={{
+        flex,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        borderRightWidth: 1,
+        borderRightColor: '#e5e7eb',
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: '700',
+          color: '#0f172a',
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+type CellProps = {
+  label: string;
+  onPress: () => void;
+  style?: any;
+  gender?: string;
+  fsoTag?: boolean;
+};
+
+function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
+  const lower = label.toLowerCase();
+  const isEmpty = lower.startsWith('tap to assign');
+  const isOffsite = lower === 'outing (offsite)';
+
+  const genderColor =
+    String(gender || '').toLowerCase() === 'female'
+      ? '#fb7185' // pink
+      : String(gender || '').toLowerCase() === 'male'
+      ? '#60a5fa' // blue
+      : '#cbd5e1'; // neutral grey
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      style={[
+        {
+          paddingVertical: 10,
+          paddingHorizontal: 8,
+          borderLeftWidth: 1,
+          borderLeftColor: '#e5e7eb',
+          justifyContent: 'center',
+          position: 'relative',
+        },
+        style,
+      ]}
+    >
+      {isEmpty ? (
+        <Text
+          style={{
+            color: '#64748b',
+            fontWeight: '400' as any,
+            fontSize: 13,
+          }}
+        >
+          {label}
+        </Text>
+      ) : (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            alignSelf: 'flex-start',
+            paddingVertical: 4,
+            paddingHorizontal: 10,
+            borderRadius: 999,
+            backgroundColor: '#f1f5f9',
+            gap: 8,
+          }}
+        >
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 999,
+              backgroundColor: genderColor,
+            }}
+          />
+          <Text
+            style={{
+              color: '#0f172a',
+              fontWeight: '600' as any,
+              fontSize: 13,
+            }}
+          >
+            {label}
+          </Text>
+        </View>
+      )}
+
+      {fsoTag && (
+        <View
+          style={{
+            position: 'absolute',
+            right: 8,
+            bottom: 6,
+          }}
+        >
+          <Tag>FSO</Tag>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return (
+    <View
+      style={{
+        alignSelf: 'flex-start',
+        paddingVertical: 2,
+        paddingHorizontal: 6,
+        backgroundColor: '#fce7f3',
+        borderRadius: 999,
+      }}
+    >
+      <Text
+        style={{
+          color: '#be185d',
+          fontSize: 11,
+          fontWeight: '700',
+        }}
+      >
+        {children as any}
+      </Text>
+    </View>
+  );
+}
+
+// --- Error boundary wrapper (prevents silent white-screen on web) ---
+class FloatingErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, info: any) {
+    // eslint-disable-next-line no-console
+    console.error('Floating screen crashed:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, padding: 16 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Floating screen error</Text>
+          <Text style={{ fontSize: 14, opacity: 0.8, marginBottom: 12 }}>
+            Something went wrong while rendering Floating. Open the browser console for the detailed error.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.replace('/edit')}
+            style={{
+              alignSelf: 'flex-start',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: '#111827',
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: '700' }}>Back to Edit Hub</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children as any;
+  }
+}
+
+export default function FloatingScreen() {
+  return (
+    <FloatingErrorBoundary>
+      <FloatingScreenInner />
+    </FloatingErrorBoundary>
+  );
+}
