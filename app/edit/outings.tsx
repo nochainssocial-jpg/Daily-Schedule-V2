@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   Switch,
@@ -49,6 +49,173 @@ type ParticipantLike = {
   community?: number | null;
   safety?: number | null;
 };
+
+const OUTING_TIME_OPTIONS = [
+  { value: "10:00AM", label: "10:00 am" },
+  { value: "10:30AM", label: "10:30 am" },
+  { value: "11:00AM", label: "11:00 am" },
+  { value: "11:30AM", label: "11:30 am" },
+  { value: "12:00PM", label: "12:00 pm" },
+  { value: "12:30PM", label: "12:30 pm" },
+  { value: "1:00PM", label: "1:00 pm" },
+  { value: "1:30PM", label: "1:30 pm" },
+  { value: "2:00PM", label: "2:00 pm" },
+  { value: "2:30PM", label: "2:30 pm" },
+] as const;
+
+type TimeDropdownProps = {
+  value?: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  isSecond?: boolean;
+};
+
+function normaliseOutingTime(value?: string | null): string {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+
+  const match = raw.toLowerCase().match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
+  if (!match) return raw;
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const meridiem = match[3];
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return raw;
+
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return raw;
+    if (meridiem === "pm" && hour !== 12) hour += 12;
+    if (meridiem === "am" && hour === 12) hour = 0;
+  } else if (hour >= 1 && hour <= 2) {
+    // Outings operate during the day. Legacy values such as "2:00"
+    // therefore mean 2:00 pm, not 2:00 am.
+    hour += 12;
+  }
+
+  const totalMinutes = hour * 60 + minute;
+  const option = OUTING_TIME_OPTIONS.find(({ value: candidate }) => {
+    const optionMatch = candidate.match(/^(\d{1,2}):(\d{2})(AM|PM)$/);
+    if (!optionMatch) return false;
+
+    let optionHour = Number(optionMatch[1]);
+    const optionMinute = Number(optionMatch[2]);
+    const optionMeridiem = optionMatch[3];
+
+    if (optionMeridiem === "PM" && optionHour !== 12) optionHour += 12;
+    if (optionMeridiem === "AM" && optionHour === 12) optionHour = 0;
+
+    return optionHour * 60 + optionMinute === totalMinutes;
+  });
+
+  return option?.value || raw;
+}
+
+function getTimeLabel(value?: string): string {
+  const normalised = normaliseOutingTime(value);
+  return (
+    OUTING_TIME_OPTIONS.find((option) => option.value === normalised)?.label ||
+    normalised ||
+    "Select time"
+  );
+}
+
+function TimeDropdown({
+  value,
+  onChange,
+  disabled = false,
+  isSecond = false,
+}: TimeDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const normalisedValue = normaliseOutingTime(value);
+
+  return (
+    <View style={[styles.timeDropdownWrap, open && styles.timeDropdownWrapOpen]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        disabled={disabled}
+        onPress={() => setOpen((current) => !current)}
+        style={[
+          styles.timeDropdownButton,
+          isSecond && styles.timeDropdownButtonSecond,
+          disabled && styles.timeDropdownDisabled,
+        ]}
+      >
+        <Text
+          style={[
+            styles.timeDropdownText,
+            !normalisedValue && styles.timeDropdownPlaceholder,
+          ]}
+        >
+          {getTimeLabel(normalisedValue)}
+        </Text>
+        <Ionicons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={isSecond ? "#6D28D9" : "#C2410C"}
+        />
+      </TouchableOpacity>
+
+      {open && !disabled && (
+        <View
+          style={[
+            styles.timeDropdownMenu,
+            isSecond && styles.timeDropdownMenuSecond,
+          ]}
+        >
+          <View style={styles.timeOptionGrid}>
+            {OUTING_TIME_OPTIONS.map((option) => {
+              const selected = normalisedValue === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  style={[
+                    styles.timeOption,
+                    selected &&
+                      (isSecond
+                        ? styles.timeOptionSelectedSecond
+                        : styles.timeOptionSelected),
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.timeOptionText,
+                      selected &&
+                        (isSecond
+                          ? styles.timeOptionTextSelectedSecond
+                          : styles.timeOptionTextSelected),
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {normalisedValue ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              style={styles.clearTimeButton}
+            >
+              <Ionicons name="close-circle-outline" size={16} color="#6B7280" />
+              <Text style={styles.clearTimeText}>Clear time</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      )}
+    </View>
+  );
+}
 
 const DEFAULT_OUTINGS: OutingGroup[] = [
   {
@@ -136,8 +303,8 @@ function mergeDefaultOutings(
       ...source,
       id: source.id || fallback.id,
       name: source.name || "",
-      startTime: source.startTime || "",
-      endTime: source.endTime || "",
+      startTime: normaliseOutingTime(source.startTime),
+      endTime: normaliseOutingTime(source.endTime),
       notes: source.notes || "",
       staffIds: source.staffIds || [],
       participantIds: source.participantIds || [],
@@ -395,26 +562,26 @@ export default function OutingsScreen() {
                     style={styles.input}
                   />
                   <View style={[styles.row, { marginTop: 8 }]}>
-                    <View style={{ flex: 1, marginRight: 6 }}>
+                    <View style={{ flex: 1, marginRight: 6, zIndex: 30 }}>
                       <Text style={styles.sectionTitle}>Start Time</Text>
-                      <TextInput
+                      <TimeDropdown
                         value={outing.startTime}
-                        onChangeText={(value) =>
+                        onChange={(value) =>
                           applyChange(index, { startTime: value })
                         }
-                        placeholder="11:00"
-                        style={styles.input}
+                        disabled={readOnly}
+                        isSecond={isSecond}
                       />
                     </View>
-                    <View style={{ flex: 1, marginLeft: 6 }}>
+                    <View style={{ flex: 1, marginLeft: 6, zIndex: 20 }}>
                       <Text style={styles.sectionTitle}>End Time</Text>
-                      <TextInput
+                      <TimeDropdown
                         value={outing.endTime}
-                        onChangeText={(value) =>
+                        onChange={(value) =>
                           applyChange(index, { endTime: value })
                         }
-                        placeholder="15:00"
-                        style={styles.input}
+                        disabled={readOnly}
+                        isSecond={isSecond}
                       />
                     </View>
                   </View>
@@ -698,6 +865,105 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   notesInput: { height: 80, textAlignVertical: "top" },
+  timeDropdownWrap: {
+    position: "relative",
+    zIndex: 1,
+  },
+  timeDropdownWrapOpen: {
+    zIndex: 100,
+  },
+  timeDropdownButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FB923C",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: "#FFFFFF",
+  },
+  timeDropdownButtonSecond: {
+    borderColor: "#8B5CF6",
+  },
+  timeDropdownDisabled: {
+    opacity: 0.55,
+  },
+  timeDropdownText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  timeDropdownPlaceholder: {
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  timeDropdownMenu: {
+    position: "absolute",
+    top: 46,
+    left: 0,
+    right: 0,
+    zIndex: 200,
+    elevation: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FB923C",
+    backgroundColor: "#FFFFFF",
+    padding: 8,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+  },
+  timeDropdownMenuSecond: {
+    borderColor: "#8B5CF6",
+  },
+  timeOptionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  timeOption: {
+    width: "50%",
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  timeOptionSelected: {
+    backgroundColor: "#FFF7ED",
+  },
+  timeOptionSelectedSecond: {
+    backgroundColor: "#F5F3FF",
+  },
+  timeOptionText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+    textAlign: "center",
+  },
+  timeOptionTextSelected: {
+    color: "#C2410C",
+    fontWeight: "800",
+  },
+  timeOptionTextSelectedSecond: {
+    color: "#6D28D9",
+    fontWeight: "800",
+  },
+  clearTimeButton: {
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+  clearTimeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
