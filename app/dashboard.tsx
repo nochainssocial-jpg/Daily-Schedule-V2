@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getOutingBySlot, resolveOutingTiming } from "@/lib/outingSlots";
 import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
 import {
   chores as STATIC_CHORES,
@@ -263,7 +264,10 @@ const groups = Array.isArray(outingGroups)
 : outingGroup
 ? [outingGroup]
 : [];
-return groups.slice(0, 2).filter(hasOutingContent);
+return groups
+.map((group: any) => resolveOutingTiming(group, groups as any))
+.slice(0, 3)
+.filter(hasOutingContent);
 }, [outingGroups, outingGroup]);
 
 const visibleOutings = useMemo(
@@ -274,7 +278,7 @@ const visibleOutings = useMemo(
 const outing1StaffIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[0]?.staffIds ?? []) as any[]).map(String),
+((getOutingBySlot(visibleOutings, 0)?.staffIds ?? []) as any[]).map(String),
 ),
 [visibleOutings],
 );
@@ -282,7 +286,7 @@ new Set<string>(
 const outing2StaffIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[1]?.staffIds ?? []) as any[]).map(String),
+((getOutingBySlot(visibleOutings, 1)?.staffIds ?? []) as any[]).map(String),
 ),
 [visibleOutings],
 );
@@ -290,7 +294,7 @@ new Set<string>(
 const outing1ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[0]?.participantIds ?? []) as any[]).map(String),
+((getOutingBySlot(visibleOutings, 0)?.participantIds ?? []) as any[]).map(String),
 ),
 [visibleOutings],
 );
@@ -298,23 +302,41 @@ new Set<string>(
 const outing2ParticipantIds = useMemo(
 () =>
 new Set<string>(
-((visibleOutings[1]?.participantIds ?? []) as any[]).map(String),
+((getOutingBySlot(visibleOutings, 1)?.participantIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+const safetyTransportStaffIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 2)?.staffIds ?? []) as any[]).map(String),
 ),
 [visibleOutings],
 );
 
+const safetyTransportParticipantIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 2)?.participantIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+
+
 const getParticipantTheme = (participantId: string) => {
 if (outing1ParticipantIds.has(participantId)) return "outing1" as const;
 if (outing2ParticipantIds.has(participantId)) return "outing2" as const;
+if (safetyTransportParticipantIds.has(participantId)) return "outing3" as const;
 return "onsite" as const;
 };
 
 const getAssignmentTheme = (staffId: string, participantIds: string[]) => {
 // Direct staff outing membership wins first. This keeps the dashboard aligned
 // with the Edit Hub outing banners when staff have been explicitly placed on
-// Outing 1 or Outing 2.
+// Outing 1, Outing 2, or Additional Transport.
 if (outing1StaffIds.has(staffId)) return "outing1" as const;
 if (outing2StaffIds.has(staffId)) return "outing2" as const;
+if (safetyTransportStaffIds.has(staffId)) return "outing3" as const;
 
 // If staff were not directly placed on an outing, infer the tile colour from
 // their assigned participants. This covers the common operational case where
@@ -324,6 +346,9 @@ return "outing1" as const;
 }
 if (participantIds.some((id) => outing2ParticipantIds.has(id))) {
 return "outing2" as const;
+}
+if (participantIds.some((id) => safetyTransportParticipantIds.has(id))) {
+return "outing3" as const;
 }
 return "onsite" as const;
 };
@@ -410,8 +435,10 @@ participantsById,
 workingStaff,
 outing1StaffIds,
 outing2StaffIds,
+safetyTransportStaffIds,
 outing1ParticipantIds,
 outing2ParticipantIds,
+safetyTransportParticipantIds,
 ]);
 
 const dropoffRows = useMemo(() => {

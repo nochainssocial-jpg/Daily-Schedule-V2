@@ -20,6 +20,7 @@ import {
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
+import { resolveOutingTiming } from '@/lib/outingSlots';
 
 const PINK = '#F54FA5';
 
@@ -83,6 +84,7 @@ export default function CleaningEditScreen() {
     staff,
     workingStaff,
     cleaningAssignments = {},
+    outingGroups = [],
     outingGroup = null,
     cleaningBinsVariant = 0,
     updateSchedule,
@@ -118,43 +120,52 @@ export default function CleaningEditScreen() {
     [workingStaff],
   );
 
+  const outingGroupsForLogic = useMemo(() => {
+    const groups = Array.isArray(outingGroups)
+      ? outingGroups
+      : outingGroup
+        ? [outingGroup]
+        : [];
+
+    return groups
+      .map((group: any) => resolveOutingTiming(group, groups))
+      .filter((group: any) => {
+        const staffCount = group?.staffIds?.length ?? 0;
+        const participantCount = group?.participantIds?.length ?? 0;
+        return staffCount > 0 || participantCount > 0;
+      });
+  }, [outingGroups, outingGroup]);
+
   const workingStaffList: Staff[] = useMemo(() => {
     const base = (staff || []).filter((s: Staff) =>
       workingSet.has(String(s.id)),
     );
 
-    if (!outingGroup) {
-      // No outing at all – everyone working is available for cleaning
+    if (outingGroupsForLogic.length === 0) {
       return base.sort((a, b) =>
         String(a.name).localeCompare(String(b.name), 'en-AU'),
       );
     }
 
-    const outingWindow = getOutingWindowMinutes(outingGroup);
-    const hasTimedOuting =
-      outingWindow.start !== null && outingWindow.end !== null;
+    const excluded = new Set<string>();
+    outingGroupsForLogic.forEach((group: any) => {
+      const outingWindow = getOutingWindowMinutes(group);
+      const hasTimedOuting =
+        outingWindow.start !== null && outingWindow.end !== null;
 
-    // Option B:
-    // - If outing has a valid time window → treat as partial-day;
-    //   keep all staff eligible for cleaning.
-    // - If no valid times → full-day outing; exclude those staff.
-    if (hasTimedOuting) {
-      return base.sort((a, b) =>
-        String(a.name).localeCompare(String(b.name), 'en-AU'),
+      // Preserve the existing cleaning rule: timed outings remain eligible
+      // for end-of-shift cleaning; untimed/all-day outings are excluded.
+      if (hasTimedOuting) return;
+      ((group.staffIds ?? []) as (string | number)[]).forEach((id) =>
+        excluded.add(String(id)),
       );
-    }
+    });
 
-    const excluded = new Set<string>(
-      ((outingGroup.staffIds ?? []) as (string | number)[]).map((id) =>
-        String(id),
-      ),
-    );
     const onsite = base.filter((s) => !excluded.has(String(s.id)));
-
     return onsite.sort((a, b) =>
       String(a.name).localeCompare(String(b.name), 'en-AU'),
     );
-  }, [staff, workingSet, outingGroup]);
+  }, [staff, workingSet, outingGroupsForLogic]);
 
   // ✅ Set of staff allowed to hold cleaning duties (onsite only)
   const allowedStaffIds = useMemo(

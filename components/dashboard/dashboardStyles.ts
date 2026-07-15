@@ -408,6 +408,10 @@ legendPurple: {
 backgroundColor: "#F5F3FF",
 borderColor: "#8B5CF6",
 },
+legendRed: {
+backgroundColor: "#FEF2F2",
+borderColor: "#DC2626",
+},
 legendText: {
 color: "#4B5563",
 fontSize: 12,
@@ -420,6 +424,11 @@ fontWeight: "900",
 },
 legendTextPurple: {
 color: "#6D28D9",
+fontSize: 12,
+fontWeight: "900",
+},
+legendTextRed: {
+color: "#B91C1C",
 fontSize: 12,
 fontWeight: "900",
 },
@@ -453,6 +462,11 @@ borderColor: "#FB923C",
 assignmentCardOuting2: {
 backgroundColor: "#F5F3FF",
 borderColor: "#8B5CF6",
+},
+assignmentCardOuting3: {
+backgroundColor: "#FEF2F2",
+borderColor: "#DC2626",
+borderWidth: 2,
 },
 assignmentStaffPill: {
 alignSelf: "flex-start",
@@ -513,6 +527,11 @@ assignmentParticipantChipOuting2: {
 backgroundColor: "#EDE9FE",
 borderColor: "#8B5CF6",
 },
+assignmentParticipantChipOuting3: {
+backgroundColor: "#FEE2E2",
+borderColor: "#DC2626",
+borderWidth: 2,
+},
 assignmentUnassignedChip: {
 borderRadius: 999,
 borderWidth: 1.5,
@@ -541,6 +560,9 @@ color: "#C2410C",
 },
 assignmentParticipantNameOuting2: {
 color: "#6D28D9",
+},
+assignmentParticipantNameOuting3: {
+color: "#B91C1C",
 },
 floatingTable: {
 flex: 1,
@@ -642,6 +664,11 @@ outingCardPurple: {
 backgroundColor: "#F5F3FF",
 borderColor: "#8B5CF6",
 },
+outingCardRed: {
+backgroundColor: "#FEF2F2",
+borderColor: "#DC2626",
+borderWidth: 2,
+},
 outingTitleRow: {
 flexDirection: "row",
 alignItems: "center",
@@ -661,6 +688,9 @@ backgroundColor: "#F97316",
 outingIconPurple: {
 backgroundColor: "#7C3AED",
 },
+outingIconRed: {
+backgroundColor: "#DC2626",
+},
 outingLabel: {
 fontSize: 13,
 fontWeight: "900",
@@ -672,6 +702,9 @@ color: "#C2410C",
 },
 purpleText: {
 color: "#6D28D9",
+},
+redText: {
+color: "#B91C1C",
 },
 outingName: {
 fontSize: 28,

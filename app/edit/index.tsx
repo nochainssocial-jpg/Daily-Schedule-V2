@@ -16,6 +16,7 @@ import Footer from "@/components/Footer";
 import ScheduleBanner from "@/components/ScheduleBanner";
 import OutingSummaryBanner from "@/components/OutingSummaryBanner";
 import { initScheduleForToday, useSchedule } from "@/hooks/schedule-store";
+import { getOutingSlot, resolveOutingTiming } from "@/lib/outingSlots";
 
 const MAX_WIDTH = 960;
 const showWebBranding = Platform.OS === "web";
@@ -118,6 +119,8 @@ type OutingGroup = {
   staffIds?: (string | number)[];
   participantIds?: (string | number)[];
   notes?: string | null;
+  linkedOutingId?: string | null;
+  linkedOutingName?: string | null;
 };
 
 type OutingPhase = "none" | "upcoming" | "startingSoon" | "active" | "complete";
@@ -213,7 +216,9 @@ function buildVisibleOutings(
   currentMinutes = getNowMinutes(),
 ) {
   return outingGroups
-    .map((group, index) => {
+    .map((rawGroup, index) => {
+      const group = resolveOutingTiming(rawGroup, outingGroups);
+      const slot = getOutingSlot(rawGroup, index);
       const phase = getOutingPhase(group, currentMinutes);
       const staffCount = group.staffIds?.length ?? 0;
       const participantCount = group.participantIds?.length ?? 0;
@@ -226,7 +231,7 @@ function buildVisibleOutings(
 
       return {
         group,
-        index,
+        index: slot,
         phase,
         staffCount,
         participantCount,
@@ -234,7 +239,7 @@ function buildVisibleOutings(
       };
     })
     .filter((item) => item.phase !== "none")
-    .slice(0, 2);
+    .slice(0, 3);
 }
 
 export default function EditHubScreen() {

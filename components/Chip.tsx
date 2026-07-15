@@ -11,7 +11,7 @@ type Props = {
   disabled?: boolean;
   style?: ViewStyle;
   /** Visual mode used for outings etc. */
-  mode?: 'default' | 'onsite' | 'offsite' | 'training' | 'outing1' | 'outing2';
+  mode?: 'default' | 'onsite' | 'offsite' | 'training' | 'outing1' | 'outing2' | 'outing3';
 };
 
 const PINK = '#F54FA5';
@@ -21,6 +21,9 @@ const OUTING1_TEXT = '#C2410C';
 const OUTING2_BG = '#F5F3FF';
 const OUTING2_BORDER = '#8B5CF6';
 const OUTING2_TEXT = '#6D28D9';
+const OUTING3_BG = '#FEF2F2';
+const OUTING3_BORDER = '#DC2626';
+const OUTING3_TEXT = '#B91C1C';
 const TEXT_DARK = '#111827';
 const BORDER_DEFAULT = '#E5E7EB';
 
@@ -40,6 +43,7 @@ export default function Chip({
   const isTraining = mode === 'training';
   const isOuting1 = mode === 'outing1';
   const isOuting2 = mode === 'outing2';
+  const isOuting3 = mode === 'outing3';
 
   return (
     <TouchableOpacity
@@ -55,6 +59,7 @@ export default function Chip({
         isTraining && styles.training,
         isOuting1 && styles.outing1,
         isOuting2 && styles.outing2,
+        isOuting3 && styles.outing3,
         selected && styles.selected,
         disabled && styles.disabled,
         style,
@@ -71,6 +76,7 @@ export default function Chip({
           isTraining && styles.labelTraining,
           isOuting1 && styles.labelOuting1,
           isOuting2 && styles.labelOuting2,
+          isOuting3 && styles.labelOuting3,
           selected && styles.labelSelected,
         ]}
         numberOfLines={1}
@@ -142,6 +148,17 @@ const styles = StyleSheet.create({
   labelOuting2: {
     color: OUTING2_TEXT,
     fontWeight: '600',
+  },
+
+  // Additional Safety Transport = light red pill
+  outing3: {
+    backgroundColor: OUTING3_BG,
+    borderColor: OUTING3_BORDER,
+    borderWidth: 2,
+  },
+  labelOuting3: {
+    color: OUTING3_TEXT,
+    fontWeight: '700',
   },
 
   // Training = light blue pill (Option C)

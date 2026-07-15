@@ -20,6 +20,7 @@ export type OutingGroup = {
   staffIds: ID[];
   participantIds: ID[];
   driverId?: ID;
+  linkedOutingId?: ID;
   startTime?: string; // e.g. '11:00'
   endTime?: string; // e.g. '15:00'
   notes?: string;
@@ -80,7 +81,7 @@ export type ScheduleSnapshot = {
   finalChecklist: FinalChecklist;
   finalChecklistStaff: ID | null;
 
-  // Primary outings model. The UI currently supports up to two outings.
+  // Primary outings model. The UI supports two main outings plus optional safety transport.
   outingGroups: OutingGroup[];
 
   // Backwards compatibility for older saved schedules and any screens not yet refactored.
@@ -201,6 +202,7 @@ function isOutingMeaningful(
     (outing.endTime || "").trim() ||
     (outing.notes || "").trim() ||
     (outing.driverId || "").trim() ||
+    (outing.linkedOutingId || "").trim() ||
     (outing.staffIds?.length ?? 0) > 0 ||
     (outing.participantIds?.length ?? 0) > 0,
   );
@@ -217,6 +219,7 @@ function normalizeOutingGroup(value: any, fallbackId: string): OutingGroup {
     startTime: value?.startTime ? String(value.startTime) : "",
     endTime: value?.endTime ? String(value.endTime) : "",
     driverId: value?.driverId ? String(value.driverId) : "",
+    linkedOutingId: value?.linkedOutingId ? String(value.linkedOutingId) : "",
     notes: value?.notes ? String(value.notes) : "",
   };
 }
@@ -229,7 +232,7 @@ function normalizeOutingGroupsFromSnapshot(snapshot: any): OutingGroup[] {
       : [];
 
   return rawGroups
-    .slice(0, 2)
+    .slice(0, 3)
     .map((outing: any, index: number) =>
       normalizeOutingGroup(outing, `outing-${index + 1}`),
     )

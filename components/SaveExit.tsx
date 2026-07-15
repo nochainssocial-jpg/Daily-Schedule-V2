@@ -25,6 +25,7 @@ function hasOutingContent(outing: OutingGroup | null | undefined): outing is Out
     (outing.endTime || '').trim() ||
     ((outing as any).notes || '').trim?.() ||
     ((outing as any).driverId || '').trim?.() ||
+    ((outing as any).linkedOutingId || '').trim?.() ||
     (outing.staffIds?.length ?? 0) > 0 ||
     (outing.participantIds?.length ?? 0) > 0,
   );
@@ -38,7 +39,7 @@ function normaliseOutingsForSave(schedule: any): OutingGroup[] {
       : [];
 
   return rawOutings
-    .slice(0, 2)
+    .slice(0, 3)
     .map((outing: any, index: number) => ({
       id: String(outing?.id || `outing-${index + 1}`),
       name: String(outing?.name || ''),
@@ -49,6 +50,7 @@ function normaliseOutingsForSave(schedule: any): OutingGroup[] {
       startTime: outing?.startTime ? String(outing.startTime) : '',
       endTime: outing?.endTime ? String(outing.endTime) : '',
       driverId: outing?.driverId ? String(outing.driverId) : '',
+      linkedOutingId: outing?.linkedOutingId ? String(outing.linkedOutingId) : '',
       notes: outing?.notes ? String(outing.notes) : '',
     }))
     .filter(hasOutingContent);
@@ -101,7 +103,7 @@ export default function SaveExit({ onSave }: SaveExitProps) {
       dropoffAssignments: schedule.dropoffAssignments,
       dropoffLocations: schedule.dropoffLocations || {},
 
-      // Primary two-outing model.
+      // Two main outings plus optional Additional Safety Transport.
       outingGroups,
 
       // Legacy compatibility for any older screens or saved schedule readers.

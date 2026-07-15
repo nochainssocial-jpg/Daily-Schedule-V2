@@ -28,6 +28,7 @@ import {
 } from '@/constants/ratingsTheme';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
+import { getOutingBySlot } from '@/lib/outingSlots';
 
 type ID = string;
 
@@ -260,7 +261,7 @@ export default function EditParticipantsScreen() {
   const outing1ParticipantSet = useMemo(
     () =>
       new Set<string>(
-        ((normalizedOutingGroups[0]?.participantIds ?? []) as (
+        (((getOutingBySlot(normalizedOutingGroups, 0) as any)?.participantIds ?? []) as (
           | string
           | number
         )[]).map((id) => String(id)),
@@ -271,13 +272,24 @@ export default function EditParticipantsScreen() {
   const outing2ParticipantSet = useMemo(
     () =>
       new Set<string>(
-        ((normalizedOutingGroups[1]?.participantIds ?? []) as (
+        (((getOutingBySlot(normalizedOutingGroups, 1) as any)?.participantIds ?? []) as (
           | string
           | number
         )[]).map((id) => String(id)),
       ),
     [normalizedOutingGroups],
   );
+  const safetyTransportParticipantSet = useMemo(
+    () =>
+      new Set<string>(
+        (((getOutingBySlot(normalizedOutingGroups, 2) as any)?.participantIds ?? []) as (
+          | string
+          | number
+        )[]).map((id) => String(id)),
+      ),
+    [normalizedOutingGroups],
+  );
+
 
   const toggleParticipant = (id: ID) => {
     if (readOnly) {
@@ -332,7 +344,14 @@ export default function EditParticipantsScreen() {
                 // Show the planned outing classification immediately.
                 const isOuting1 = outing1ParticipantSet.has(p.id as ID);
                 const isOuting2 = outing2ParticipantSet.has(p.id as ID);
-                const mode = isOuting1 ? 'outing1' : isOuting2 ? 'outing2' : 'onsite';
+                const isSafetyTransport = safetyTransportParticipantSet.has(p.id as ID);
+                const mode = isOuting1
+                  ? 'outing1'
+                  : isOuting2
+                    ? 'outing2'
+                    : isSafetyTransport
+                      ? 'outing3'
+                      : 'onsite';
 
                 const nameKey = `name:${String(p.name || '').toLowerCase()}`;
                 const rating = ratingMap[nameKey];
@@ -457,6 +476,10 @@ export default function EditParticipantsScreen() {
               <View style={styles.legendItem}>
                 <View style={[styles.legendSwatch, styles.legendOuting2]} />
                 <Text style={styles.legendLabel}>Outing 2</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendSafety]} />
+                <Text style={styles.legendLabel}>Safety Transport</Text>
               </View>
             </View>
 
@@ -822,6 +845,11 @@ const styles = StyleSheet.create({
   legendOuting2: {
     backgroundColor: '#F5F3FF',
     borderColor: '#8B5CF6',
+  },
+  legendSafety: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC2626',
+    borderWidth: 2,
   },
 
   legendSubheading: {
