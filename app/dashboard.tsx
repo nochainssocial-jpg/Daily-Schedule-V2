@@ -16,7 +16,6 @@ import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetings
 import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
 import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
 import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
-import { NoSchedulePanel } from "@/components/dashboard/NoSchedulePanel";
 import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
 import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
@@ -84,8 +83,6 @@ const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 const {
 date,
-todayScheduleStatus,
-scheduleLoadError,
 staff = [],
 participants = [],
 workingStaff = [],
@@ -130,9 +127,6 @@ currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
 const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
 const dailyAssignmentsAreOperational =
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
-const morningSetupIsOperational =
-currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.arrivalsStart &&
-currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart;
 const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
 const reminderBurstMinute = currentMinutes % 60;
 const reminderBurstActive =
@@ -635,7 +629,6 @@ if (condition && !list.includes(page)) list.push(page);
 };
 
 if (operationalPhase === "arrivalSetup") {
-add("morningSetup", morningSetupIsOperational);
 add("team", dailyAssignmentsAreOperational);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("outings", visibleOutings.length > 0);
@@ -675,7 +668,6 @@ return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
 }, [
 hasEventsMeetingsVisits,
 dailyAssignmentsAreOperational,
-morningSetupIsOperational,
 floatingIsOperational,
 hasStaffCelebrations,
 operationalPhase,
@@ -840,50 +832,6 @@ return (
 />
 );
 };
-
-if (todayScheduleStatus === "idle" || todayScheduleStatus === "loading") {
-return (
-<DashboardFrame
-  date={date}
-  tick={tick}
-  lastDashboardRefresh={lastDashboardRefresh}
-  currentPage="team"
-  pageIndex={0}
-  pageCount={1}
-  pageTheme={DASHBOARD_PAGE_THEMES.team}
-  currentMinutes={currentMinutes}
-  isPreviewMode={isPreviewMode}
-  previewTimeLabel={previewTimeLabel}
-  autoRotationEnabled={false}
-  floatingOverlay={null}
->
-  <NoSchedulePanel loading />
-</DashboardFrame>
-);
-}
-
-if (todayScheduleStatus === "missing" || todayScheduleStatus === "error") {
-return (
-<DashboardFrame
-  date={date}
-  tick={tick}
-  lastDashboardRefresh={lastDashboardRefresh}
-  currentPage="team"
-  pageIndex={0}
-  pageCount={1}
-  pageTheme={DASHBOARD_PAGE_THEMES.team}
-  currentMinutes={currentMinutes}
-  isPreviewMode={isPreviewMode}
-  previewTimeLabel={previewTimeLabel}
-  autoRotationEnabled={false}
-  floatingOverlay={null}
->
-  <NoSchedulePanel
-    errorMessage={todayScheduleStatus === "error" ? scheduleLoadError : null}
-  />
-</DashboardFrame>
-);
-}
 
 return (
 <DashboardFrame
