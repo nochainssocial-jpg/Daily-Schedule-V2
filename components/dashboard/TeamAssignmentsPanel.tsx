@@ -61,6 +61,13 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
               </View>
 
               <View style={styles.assignmentParticipantList}>
+                {row.participantItems.length === 0 && (
+                  <View style={styles.assignmentUnassignedChip}>
+                    <Text style={styles.assignmentUnassignedText}>
+                      No participant assigned
+                    </Text>
+                  </View>
+                )}
                 {row.participantItems.map((participant: any) => (
                   <View
                     key={participant.id}

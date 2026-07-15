@@ -451,7 +451,10 @@ export default function OutingsScreen() {
                             activeOpacity={disabled ? 1 : 0.85}
                             style={[
                               styles.chip,
-                              selected && styles.chipSelected,
+                              selected &&
+                                (isSecond
+                                  ? styles.chipSelectedSecond
+                                  : styles.chipSelected),
                               disabled && styles.chipDisabled,
                             ]}
                           >
@@ -459,7 +462,10 @@ export default function OutingsScreen() {
                               <Text
                                 style={[
                                   styles.chipLabel,
-                                  selected && styles.chipLabelSelected,
+                                  selected &&
+                                    (isSecond
+                                      ? styles.chipLabelSelectedSecond
+                                      : styles.chipLabelSelected),
                                   disabled && styles.chipLabelDisabled,
                                 ]}
                                 numberOfLines={1}
@@ -522,7 +528,10 @@ export default function OutingsScreen() {
                             activeOpacity={disabled ? 1 : 0.85}
                             style={[
                               styles.chip,
-                              selected && styles.chipSelected,
+                              selected &&
+                                (isSecond
+                                  ? styles.chipSelectedSecond
+                                  : styles.chipSelected),
                               disabled && styles.chipDisabled,
                             ]}
                           >
@@ -530,7 +539,10 @@ export default function OutingsScreen() {
                               <Text
                                 style={[
                                   styles.chipLabel,
-                                  selected && styles.chipLabelSelected,
+                                  selected &&
+                                    (isSecond
+                                      ? styles.chipLabelSelectedSecond
+                                      : styles.chipLabelSelected),
                                   disabled && styles.chipLabelDisabled,
                                 ]}
                                 numberOfLines={1}
@@ -702,7 +714,14 @@ const styles = StyleSheet.create({
     borderColor: "#FED7AA",
     backgroundColor: "#FFF",
   },
-  chipSelected: { backgroundColor: "#FDBA74", borderColor: "#FB923C" },
+  chipSelected: {
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FB923C",
+  },
+  chipSelectedSecond: {
+    backgroundColor: "#F5F3FF",
+    borderColor: "#8B5CF6",
+  },
   chipDisabled: {
     opacity: 0.35,
     backgroundColor: "#F3F4F6",
@@ -710,7 +729,8 @@ const styles = StyleSheet.create({
   },
   chipContent: { flexDirection: "row", alignItems: "center", gap: 6 },
   chipLabel: { fontSize: 13, color: "#000" },
-  chipLabelSelected: { fontWeight: "600", color: "#000" },
+  chipLabelSelected: { fontWeight: "600", color: "#C2410C" },
+  chipLabelSelectedSecond: { fontWeight: "600", color: "#6D28D9" },
   chipLabelDisabled: { color: "#6B7280" },
   scoreBubble: {
     minWidth: 26,

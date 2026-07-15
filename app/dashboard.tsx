@@ -16,6 +16,7 @@ import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetings
 import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
 import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
 import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
+import { NoSchedulePanel } from "@/components/dashboard/NoSchedulePanel";
 import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
 import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
@@ -83,6 +84,8 @@ const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 const {
 date,
+todayScheduleStatus,
+scheduleLoadError,
 staff = [],
 participants = [],
 workingStaff = [],
@@ -333,6 +336,16 @@ return "onsite" as const;
 
 const teamAssignmentRows = useMemo(() => {
 const byStaff = new Map<string, string[]>();
+const workingSet = new Set((workingStaff || []).map(String));
+
+// Always include every member of today's Dream Team, even when a participant
+// has not yet been allocated to them. This keeps the dashboard headcount aligned
+// with the Dream Team editor.
+if (workingSet.size > 0) {
+workingSet.forEach((staffId) => {
+if (staffById.has(staffId)) byStaff.set(staffId, []);
+});
+}
 
 Object.entries(assignments || {}).forEach(
 ([rawParticipantId, rawStaffId]) => {
@@ -361,8 +374,6 @@ if (!list.includes(participantId)) list.push(participantId);
 byStaff.set(staffId, list);
 },
 );
-
-const workingSet = new Set((workingStaff || []).map(String));
 
 return Array.from(byStaff.entries())
 .map(([staffId, participantIds]) => {
@@ -397,7 +408,6 @@ isWorking: workingSet.size === 0 || workingSet.has(staffId),
 })
 .filter((row) => row.isWorking)
 .filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
-.filter((row) => row.participantNames.length > 0)
 .sort((a, b) => a.staffName.localeCompare(b.staffName, "en-AU"));
 }, [
 assignments,
@@ -830,6 +840,50 @@ return (
 />
 );
 };
+
+if (todayScheduleStatus === "idle" || todayScheduleStatus === "loading") {
+return (
+<DashboardFrame
+  date={date}
+  tick={tick}
+  lastDashboardRefresh={lastDashboardRefresh}
+  currentPage="team"
+  pageIndex={0}
+  pageCount={1}
+  pageTheme={DASHBOARD_PAGE_THEMES.team}
+  currentMinutes={currentMinutes}
+  isPreviewMode={isPreviewMode}
+  previewTimeLabel={previewTimeLabel}
+  autoRotationEnabled={false}
+  floatingOverlay={null}
+>
+  <NoSchedulePanel loading />
+</DashboardFrame>
+);
+}
+
+if (todayScheduleStatus === "missing" || todayScheduleStatus === "error") {
+return (
+<DashboardFrame
+  date={date}
+  tick={tick}
+  lastDashboardRefresh={lastDashboardRefresh}
+  currentPage="team"
+  pageIndex={0}
+  pageCount={1}
+  pageTheme={DASHBOARD_PAGE_THEMES.team}
+  currentMinutes={currentMinutes}
+  isPreviewMode={isPreviewMode}
+  previewTimeLabel={previewTimeLabel}
+  autoRotationEnabled={false}
+  floatingOverlay={null}
+>
+  <NoSchedulePanel
+    errorMessage={todayScheduleStatus === "error" ? scheduleLoadError : null}
+  />
+</DashboardFrame>
+);
+}
 
 return (
 <DashboardFrame
