@@ -169,7 +169,20 @@ function getOutingPhase(
   if (!outingGroup || !hasOutingPeople(outingGroup)) return "none";
 
   const startMinutes = parseTimeToMinutes(outingGroup.startTime);
-  const endMinutes = parseTimeToMinutes(outingGroup.endTime);
+  const parsedEndMinutes = parseTimeToMinutes(outingGroup.endTime);
+
+  // Staff sometimes enter an afternoon end time without an AM/PM suffix
+  // (for example, 10:30 to 2:00). When the parsed end is earlier than the
+  // start and falls before midday, treat it as PM. This matches the dashboard
+  // outing logic and prevents a live outing being mistaken for one that ended
+  // at 2:00 am.
+  const endMinutes =
+    startMinutes !== null &&
+    parsedEndMinutes !== null &&
+    parsedEndMinutes <= startMinutes &&
+    parsedEndMinutes < 12 * 60
+      ? parsedEndMinutes + 12 * 60
+      : parsedEndMinutes;
 
   // If no usable time has been entered, keep the banner as a general planned
   // reminder instead of calling it active forever.
