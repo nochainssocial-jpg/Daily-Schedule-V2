@@ -193,14 +193,32 @@ export function isFsoSlot(slot: any): boolean {
 }
 
 export function hasOutingContent(outing: any): boolean {
-  return Boolean(
-    String(outing?.name || "").trim() ||
-      String(outing?.startTime || "").trim() ||
-      String(outing?.endTime || "").trim() ||
-      String(outing?.notes || "").trim() ||
-      (outing?.staffIds?.length ?? 0) > 0 ||
-      (outing?.participantIds?.length ?? 0) > 0,
+  if (!outing) return false;
+
+  const startMinutes = parseTimeToMinutes(
+    outing.startTime ?? outing.start_time,
   );
+  const endMinutes = parseTimeToMinutes(
+    outing.endTime ?? outing.end_time,
+  );
+
+  const staffIds = outing.staffIds ?? outing.staff_ids ?? [];
+  const participantIds =
+    outing.participantIds ?? outing.participant_ids ?? [];
+
+  const hasValidTimeWindow =
+    startMinutes !== null &&
+    endMinutes !== null &&
+    endMinutes > startMinutes;
+
+  const hasAssignedPeople =
+    (Array.isArray(staffIds) && staffIds.length > 0) ||
+    (Array.isArray(participantIds) && participantIds.length > 0);
+
+  // A default label such as "DRIVE" is only a placeholder. The dashboard
+  // should show an outing only after it has a valid time window and at least
+  // one assigned staff member or participant.
+  return hasValidTimeWindow && hasAssignedPeople;
 }
 
 
@@ -215,12 +233,12 @@ export function getOutingPhase(
 ): OutingPhase {
   if (!outing || !hasOutingContent(outing)) return "none";
 
-  const startMinutes = parseTimeToMinutes(outing.startTime);
-  const endMinutes = parseTimeToMinutes(outing.endTime);
-
-  // If a basic outing has been entered but no usable times exist, keep it as
-  // upcoming rather than treating it as permanently active.
-  if (startMinutes === null && endMinutes === null) return "upcoming";
+  const startMinutes = parseTimeToMinutes(
+    outing.startTime ?? outing.start_time,
+  );
+  const endMinutes = parseTimeToMinutes(
+    outing.endTime ?? outing.end_time,
+  );
 
   if (startMinutes !== null && currentMinutes < startMinutes) {
     return startMinutes - currentMinutes <= OUTING_STARTING_SOON_WINDOW_MINUTES
