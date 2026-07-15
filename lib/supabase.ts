@@ -7,25 +7,40 @@ const SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
 const APP_ENV =
-  process.env.EXPO_PUBLIC_APP_ENV?.trim() ?? "production";
+  process.env.EXPO_PUBLIC_APP_ENV?.trim();
 
-const PRODUCTION_SUPABASE_HOST =
-  "erhotgyvqcwvyilkubuu.supabase.co";
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "Supabase environment variables are missing. Deployment blocked.",
-  );
-}
+const EXPECTED_SUPABASE_HOST =
+  process.env.EXPO_PUBLIC_EXPECTED_SUPABASE_HOST?.trim();
 
 if (
-  APP_ENV === "staging" &&
-  SUPABASE_URL.includes(PRODUCTION_SUPABASE_HOST)
+  !SUPABASE_URL ||
+  !SUPABASE_ANON_KEY ||
+  !APP_ENV ||
+  !EXPECTED_SUPABASE_HOST
 ) {
   throw new Error(
-    "Safety lock: staging cannot connect to production Supabase.",
+    "Staging configuration is incomplete. Deployment blocked.",
   );
 }
+
+const actualSupabaseHost = new URL(SUPABASE_URL).hostname;
+
+// This feature branch must never operate as production.
+if (APP_ENV !== "staging") {
+  throw new Error(
+    "Safety lock: testing branch must use the staging environment.",
+  );
+}
+
+if (actualSupabaseHost !== EXPECTED_SUPABASE_HOST) {
+  throw new Error(
+    `Safety lock: expected ${EXPECTED_SUPABASE_HOST}, received ${actualSupabaseHost}.`,
+  );
+}
+
+console.info(
+  `[Daily Schedule] environment=${APP_ENV}, database=${actualSupabaseHost}`,
+);
 
 export const supabase = createClient(
   SUPABASE_URL,
