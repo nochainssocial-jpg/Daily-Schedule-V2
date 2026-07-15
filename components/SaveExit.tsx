@@ -24,6 +24,7 @@ function hasOutingContent(outing: OutingGroup | null | undefined): outing is Out
     (outing.startTime || '').trim() ||
     (outing.endTime || '').trim() ||
     ((outing as any).notes || '').trim?.() ||
+    ((outing as any).driverId || '').trim?.() ||
     (outing.staffIds?.length ?? 0) > 0 ||
     (outing.participantIds?.length ?? 0) > 0,
   );
@@ -47,6 +48,7 @@ function normaliseOutingsForSave(schedule: any): OutingGroup[] {
         : [],
       startTime: outing?.startTime ? String(outing.startTime) : '',
       endTime: outing?.endTime ? String(outing.endTime) : '',
+      driverId: outing?.driverId ? String(outing.driverId) : '',
       notes: outing?.notes ? String(outing.notes) : '',
     }))
     .filter(hasOutingContent);

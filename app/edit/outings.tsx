@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Modal,
+  Pressable,
   ScrollView,
   Switch,
   Text,
@@ -26,6 +28,7 @@ type OutingGroup = {
   name: string;
   staffIds: ID[];
   participantIds: ID[];
+  driverId?: ID;
   startTime?: string;
   endTime?: string;
   notes?: string;
@@ -63,11 +66,22 @@ const OUTING_TIME_OPTIONS = [
   { value: "2:30PM", label: "2:30 pm" },
 ] as const;
 
-type TimeDropdownProps = {
+type DropdownOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
+
+type SelectionDropdownProps = {
   value?: string;
+  options: DropdownOption[];
+  placeholder: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   isSecond?: boolean;
+  columns?: 1 | 2;
+  clearable?: boolean;
+  hasError?: boolean;
 };
 
 function normaliseOutingTime(value?: string | null): string {
@@ -111,12 +125,166 @@ function normaliseOutingTime(value?: string | null): string {
   return option?.value || raw;
 }
 
-function getTimeLabel(value?: string): string {
-  const normalised = normaliseOutingTime(value);
+function SelectionDropdown({
+  value,
+  options,
+  placeholder,
+  onChange,
+  disabled = false,
+  isSecond = false,
+  columns = 1,
+  clearable = false,
+  hasError = false,
+}: SelectionDropdownProps) {
+  const triggerRef = useRef<View>(null);
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState({ x: 0, y: 0, width: 220, height: 42 });
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+
+  const selectedOption = options.find((option) => option.value === value);
+
+  const openMenu = () => {
+    if (disabled) return;
+
+    const node = triggerRef.current as any;
+    if (node?.measureInWindow) {
+      node.measureInWindow((x: number, y: number, width: number, height: number) => {
+        setAnchor({ x, y, width, height });
+        setOpen(true);
+      });
+      return;
+    }
+
+    setOpen(true);
+  };
+
+  const estimatedRows = Math.ceil(options.length / columns);
+  const estimatedMenuHeight = Math.min(
+    340,
+    estimatedRows * 42 + (clearable && value ? 48 : 18),
+  );
+  const menuWidth = Math.max(anchor.width, 180);
+  const menuLeft = Math.max(8, Math.min(anchor.x, windowWidth - menuWidth - 8));
+  const menuTop =
+    anchor.y + anchor.height + 6 + estimatedMenuHeight > windowHeight
+      ? Math.max(8, anchor.y - estimatedMenuHeight - 6)
+      : anchor.y + anchor.height + 6;
+
   return (
-    OUTING_TIME_OPTIONS.find((option) => option.value === normalised)?.label ||
-    normalised ||
-    "Select time"
+    <>
+      <TouchableOpacity
+        ref={triggerRef as any}
+        activeOpacity={0.85}
+        disabled={disabled}
+        onPress={openMenu}
+        style={[
+          styles.dropdownButton,
+          isSecond && styles.dropdownButtonSecond,
+          hasError && styles.dropdownButtonError,
+          disabled && styles.dropdownDisabled,
+        ]}
+      >
+        <Text
+          style={[
+            styles.dropdownText,
+            !selectedOption && styles.dropdownPlaceholder,
+          ]}
+          numberOfLines={1}
+        >
+          {selectedOption?.label || placeholder}
+        </Text>
+        <Ionicons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={hasError ? "#DC2626" : isSecond ? "#6D28D9" : "#C2410C"}
+        />
+      </TouchableOpacity>
+
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setOpen(false)}
+      >
+        <View style={styles.dropdownModalRoot}>
+          <Pressable
+            style={styles.dropdownBackdrop}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            style={[
+              styles.dropdownMenuPortal,
+              isSecond && styles.dropdownMenuPortalSecond,
+              {
+                left: menuLeft,
+                top: menuTop,
+                width: menuWidth,
+                maxHeight: Math.min(340, windowHeight - 16),
+              },
+            ]}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              contentContainerStyle={styles.dropdownOptionsGrid}
+            >
+              {options.map((option) => {
+                const selected = option.value === value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    activeOpacity={option.disabled ? 1 : 0.85}
+                    disabled={option.disabled}
+                    onPress={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                    style={[
+                      styles.dropdownOption,
+                      { width: columns === 2 ? "50%" : "100%" },
+                      selected &&
+                        (isSecond
+                          ? styles.dropdownOptionSelectedSecond
+                          : styles.dropdownOptionSelected),
+                      option.disabled && styles.dropdownOptionDisabled,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownOptionText,
+                        selected &&
+                          (isSecond
+                            ? styles.dropdownOptionTextSelectedSecond
+                            : styles.dropdownOptionTextSelected),
+                        option.disabled && styles.dropdownOptionTextDisabled,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {clearable && value ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                style={styles.clearDropdownButton}
+              >
+                <Ionicons name="close-circle-outline" size={16} color="#6B7280" />
+                <Text style={styles.clearDropdownText}>Clear selection</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -125,95 +293,25 @@ function TimeDropdown({
   onChange,
   disabled = false,
   isSecond = false,
-}: TimeDropdownProps) {
-  const [open, setOpen] = useState(false);
+}: {
+  value?: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  isSecond?: boolean;
+}) {
   const normalisedValue = normaliseOutingTime(value);
 
   return (
-    <View style={[styles.timeDropdownWrap, open && styles.timeDropdownWrapOpen]}>
-      <TouchableOpacity
-        activeOpacity={0.85}
-        disabled={disabled}
-        onPress={() => setOpen((current) => !current)}
-        style={[
-          styles.timeDropdownButton,
-          isSecond && styles.timeDropdownButtonSecond,
-          disabled && styles.timeDropdownDisabled,
-        ]}
-      >
-        <Text
-          style={[
-            styles.timeDropdownText,
-            !normalisedValue && styles.timeDropdownPlaceholder,
-          ]}
-        >
-          {getTimeLabel(normalisedValue)}
-        </Text>
-        <Ionicons
-          name={open ? "chevron-up" : "chevron-down"}
-          size={18}
-          color={isSecond ? "#6D28D9" : "#C2410C"}
-        />
-      </TouchableOpacity>
-
-      {open && !disabled && (
-        <View
-          style={[
-            styles.timeDropdownMenu,
-            isSecond && styles.timeDropdownMenuSecond,
-          ]}
-        >
-          <View style={styles.timeOptionGrid}>
-            {OUTING_TIME_OPTIONS.map((option) => {
-              const selected = normalisedValue === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  style={[
-                    styles.timeOption,
-                    selected &&
-                      (isSecond
-                        ? styles.timeOptionSelectedSecond
-                        : styles.timeOptionSelected),
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.timeOptionText,
-                      selected &&
-                        (isSecond
-                          ? styles.timeOptionTextSelectedSecond
-                          : styles.timeOptionTextSelected),
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {normalisedValue ? (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => {
-                onChange("");
-                setOpen(false);
-              }}
-              style={styles.clearTimeButton}
-            >
-              <Ionicons name="close-circle-outline" size={16} color="#6B7280" />
-              <Text style={styles.clearTimeText}>Clear time</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      )}
-    </View>
+    <SelectionDropdown
+      value={normalisedValue}
+      options={OUTING_TIME_OPTIONS.map((option) => ({ ...option }))}
+      placeholder="Select time"
+      onChange={onChange}
+      disabled={disabled}
+      isSecond={isSecond}
+      columns={2}
+      clearable
+    />
   );
 }
 
@@ -223,6 +321,7 @@ const DEFAULT_OUTINGS: OutingGroup[] = [
     name: "",
     staffIds: [],
     participantIds: [],
+    driverId: "",
     startTime: "",
     endTime: "",
     notes: "",
@@ -232,6 +331,7 @@ const DEFAULT_OUTINGS: OutingGroup[] = [
     name: "",
     staffIds: [],
     participantIds: [],
+    driverId: "",
     startTime: "",
     endTime: "",
     notes: "",
@@ -306,6 +406,7 @@ function mergeDefaultOutings(
       startTime: normaliseOutingTime(source.startTime),
       endTime: normaliseOutingTime(source.endTime),
       notes: source.notes || "",
+      driverId: source.driverId || "",
       staffIds: source.staffIds || [],
       participantIds: source.participantIds || [],
     };
@@ -318,6 +419,7 @@ function hasOutingContent(outing: OutingGroup): boolean {
     (outing.startTime || "").trim() ||
     (outing.endTime || "").trim() ||
     (outing.notes || "").trim() ||
+    (outing.driverId || "").trim() ||
     outing.staffIds.length > 0 ||
     outing.participantIds.length > 0,
   );
@@ -341,6 +443,9 @@ export default function OutingsScreen() {
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
   const { width } = useWindowDimensions();
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, { name?: boolean; driver?: boolean }>
+  >({});
 
   useEffect(() => {
     void maybeAutoResetOutings?.();
@@ -396,6 +501,21 @@ export default function OutingsScreen() {
     const nextOutings = outings.map((outing, i) =>
       i === index ? { ...outing, ...patch } : outing,
     );
+
+    if ("name" in patch || "driverId" in patch) {
+      const outingId = outings[index]?.id;
+      if (outingId) {
+        setValidationErrors((current) => ({
+          ...current,
+          [outingId]: {
+            ...current[outingId],
+            ...(patch.name?.trim() ? { name: false } : {}),
+            ...(patch.driverId ? { driver: false } : {}),
+          },
+        }));
+      }
+    }
+
     saveOutings(nextOutings);
   };
 
@@ -412,9 +532,26 @@ export default function OutingsScreen() {
     if (isSelectedElsewhere("staffIds", id, index)) return;
     const current = outings[index];
     const next = new Set<ID>(current.staffIds);
-    if (next.has(id)) next.delete(id);
+    const removing = next.has(id);
+
+    if (removing) next.delete(id);
     else next.add(id);
-    applyChange(index, { staffIds: Array.from(next) });
+
+    applyChange(index, {
+      staffIds: Array.from(next),
+      ...(removing && current.driverId === id ? { driverId: "" } : {}),
+    });
+  };
+
+  const handleDriverChange = (index: number, driverId: ID) => {
+    if (isSelectedElsewhere("staffIds", driverId, index)) return;
+
+    const current = outings[index];
+    const staffIds = current.staffIds.includes(driverId)
+      ? current.staffIds
+      : [...current.staffIds, driverId];
+
+    applyChange(index, { driverId, staffIds });
   };
 
   const toggleParticipant = (index: number, id: ID) => {
@@ -431,6 +568,7 @@ export default function OutingsScreen() {
       name: "",
       staffIds: [],
       participantIds: [],
+      driverId: "",
       startTime: "",
       endTime: "",
       notes: "",
@@ -462,9 +600,48 @@ export default function OutingsScreen() {
     );
   };
 
+  const validateOutings = () => {
+    const errors: Record<string, { name?: boolean; driver?: boolean }> = {};
+    let firstInvalidIndex = -1;
+
+    outings.forEach((outing, index) => {
+      if (!hasOutingContent(outing)) return;
+
+      const nameMissing = !outing.name.trim();
+      const driverMissing =
+        !outing.driverId || !workingSet.has(String(outing.driverId));
+
+      if (nameMissing || driverMissing) {
+        errors[outing.id] = {
+          name: nameMissing,
+          driver: driverMissing,
+        };
+        if (firstInvalidIndex === -1) firstInvalidIndex = index;
+      }
+    });
+
+    setValidationErrors(errors);
+
+    if (firstInvalidIndex !== -1) {
+      const invalid = errors[outings[firstInvalidIndex].id];
+      const missing = [
+        invalid?.name ? "Outing Name" : null,
+        invalid?.driver ? "Driver" : null,
+      ].filter(Boolean);
+
+      push?.(
+        `Outing ${firstInvalidIndex + 1}: ${missing.join(" and ")} required`,
+        "outings",
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   return (
     <View style={styles.screen}>
-      <SaveExit touchKey="Drive / Outings" />
+      <SaveExit touchKey="Drive / Outings" onSave={validateOutings} />
 
       {Platform.OS === "web" && width >= 900 && (
         <Ionicons
@@ -519,6 +696,14 @@ export default function OutingsScreen() {
             const staffOnOuting = new Set<string>(outing.staffIds ?? []);
             const partsOnOuting = new Set<string>(outing.participantIds ?? []);
             const isSecond = index === 1;
+            const outingErrors = validationErrors[outing.id] || {};
+            const driverOptions = workingStaffObjs.map((member: any) => ({
+              value: String(member.id),
+              label: String(member.name),
+              disabled:
+                String(member.id) !== String(outing.driverId || "") &&
+                isSelectedElsewhere("staffIds", String(member.id), index),
+            }));
 
             return (
               <View
@@ -548,21 +733,47 @@ export default function OutingsScreen() {
                 </View>
 
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Outing Name</Text>
-                  <TextInput
-                    value={outing.name}
-                    onChangeText={(value) =>
-                      applyChange(index, { name: value })
-                    }
-                    placeholder={
-                      isSecond
-                        ? "e.g. Bowling with Mary"
-                        : "e.g. Shopping with Shatha"
-                    }
-                    style={styles.input}
-                  />
+                  <View style={styles.nameDriverRow}>
+                    <View style={styles.nameFieldWrap}>
+                      <Text style={styles.sectionTitle}>
+                        Outing Name <Text style={styles.requiredMark}>*</Text>
+                      </Text>
+                      <TextInput
+                        value={outing.name}
+                        onChangeText={(value) =>
+                          applyChange(index, { name: value })
+                        }
+                        editable={!readOnly}
+                        placeholder={
+                          isSecond
+                            ? "e.g. Bowling"
+                            : "e.g. Drive 1"
+                        }
+                        style={[
+                          styles.input,
+                          outingErrors.name && styles.inputError,
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.driverFieldWrap}>
+                      <Text style={styles.sectionTitle}>
+                        Driver <Text style={styles.requiredMark}>*</Text>
+                      </Text>
+                      <SelectionDropdown
+                        value={outing.driverId || ""}
+                        options={driverOptions}
+                        placeholder="Select driver"
+                        onChange={(value) => handleDriverChange(index, value)}
+                        disabled={readOnly}
+                        isSecond={isSecond}
+                        hasError={Boolean(outingErrors.driver)}
+                      />
+                    </View>
+                  </View>
+
                   <View style={[styles.row, { marginTop: 8 }]}>
-                    <View style={{ flex: 1, marginRight: 6, zIndex: 30 }}>
+                    <View style={styles.timeFieldLeft}>
                       <Text style={styles.sectionTitle}>Start Time</Text>
                       <TimeDropdown
                         value={outing.startTime}
@@ -573,7 +784,7 @@ export default function OutingsScreen() {
                         isSecond={isSecond}
                       />
                     </View>
-                    <View style={{ flex: 1, marginLeft: 6, zIndex: 20 }}>
+                    <View style={styles.timeFieldRight}>
                       <Text style={styles.sectionTitle}>End Time</Text>
                       <TimeDropdown
                         value={outing.endTime}
@@ -865,14 +1076,18 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   notesInput: { height: 80, textAlignVertical: "top" },
-  timeDropdownWrap: {
-    position: "relative",
-    zIndex: 1,
+  nameDriverRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
   },
-  timeDropdownWrapOpen: {
-    zIndex: 100,
-  },
-  timeDropdownButton: {
+  nameFieldWrap: { flex: 1.3 },
+  driverFieldWrap: { flex: 0.9 },
+  timeFieldLeft: { flex: 1, marginRight: 6 },
+  timeFieldRight: { flex: 1, marginLeft: 6 },
+  requiredMark: { color: "#DC2626", fontWeight: "900" },
+  inputError: { borderColor: "#DC2626", borderWidth: 2 },
+  dropdownButton: {
     minHeight: 42,
     flexDirection: "row",
     alignItems: "center",
@@ -884,72 +1099,64 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     backgroundColor: "#FFFFFF",
   },
-  timeDropdownButtonSecond: {
-    borderColor: "#8B5CF6",
-  },
-  timeDropdownDisabled: {
-    opacity: 0.55,
-  },
-  timeDropdownText: {
+  dropdownButtonSecond: { borderColor: "#8B5CF6" },
+  dropdownButtonError: { borderColor: "#DC2626", borderWidth: 2 },
+  dropdownDisabled: { opacity: 0.55 },
+  dropdownText: {
+    flex: 1,
+    marginRight: 8,
     fontSize: 14,
     fontWeight: "700",
     color: "#111827",
   },
-  timeDropdownPlaceholder: {
-    fontWeight: "500",
-    color: "#6B7280",
+  dropdownPlaceholder: { fontWeight: "500", color: "#6B7280" },
+  dropdownModalRoot: {
+    flex: 1,
+    position: "relative",
+    zIndex: 999999,
+    elevation: 999999,
   },
-  timeDropdownMenu: {
+  dropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.04)",
+  },
+  dropdownMenuPortal: {
     position: "absolute",
-    top: 46,
-    left: 0,
-    right: 0,
-    zIndex: 200,
-    elevation: 12,
+    zIndex: 1000000,
+    elevation: 1000000,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#FB923C",
     backgroundColor: "#FFFFFF",
     padding: 8,
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
   },
-  timeDropdownMenuSecond: {
-    borderColor: "#8B5CF6",
-  },
-  timeOptionGrid: {
+  dropdownMenuPortalSecond: { borderColor: "#8B5CF6" },
+  dropdownOptionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
   },
-  timeOption: {
-    width: "50%",
-    paddingVertical: 9,
-    paddingHorizontal: 8,
+  dropdownOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 9,
     borderRadius: 8,
   },
-  timeOptionSelected: {
-    backgroundColor: "#FFF7ED",
-  },
-  timeOptionSelectedSecond: {
-    backgroundColor: "#F5F3FF",
-  },
-  timeOptionText: {
+  dropdownOptionSelected: { backgroundColor: "#FFF7ED" },
+  dropdownOptionSelectedSecond: { backgroundColor: "#F5F3FF" },
+  dropdownOptionDisabled: { opacity: 0.35, backgroundColor: "#F3F4F6" },
+  dropdownOptionText: {
     fontSize: 13,
     fontWeight: "600",
     color: "#374151",
     textAlign: "center",
   },
-  timeOptionTextSelected: {
-    color: "#C2410C",
-    fontWeight: "800",
-  },
-  timeOptionTextSelectedSecond: {
-    color: "#6D28D9",
-    fontWeight: "800",
-  },
-  clearTimeButton: {
+  dropdownOptionTextSelected: { color: "#C2410C", fontWeight: "800" },
+  dropdownOptionTextSelectedSecond: { color: "#6D28D9", fontWeight: "800" },
+  dropdownOptionTextDisabled: { color: "#9CA3AF" },
+  clearDropdownButton: {
     marginTop: 6,
     paddingTop: 8,
     borderTopWidth: 1,
@@ -959,7 +1166,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 5,
   },
-  clearTimeText: {
+  clearDropdownText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#6B7280",

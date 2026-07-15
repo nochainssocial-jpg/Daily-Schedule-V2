@@ -19,6 +19,7 @@ export type OutingGroup = {
   name: string;
   staffIds: ID[];
   participantIds: ID[];
+  driverId?: ID;
   startTime?: string; // e.g. '11:00'
   endTime?: string; // e.g. '15:00'
   notes?: string;
@@ -199,6 +200,7 @@ function isOutingMeaningful(
     (outing.startTime || "").trim() ||
     (outing.endTime || "").trim() ||
     (outing.notes || "").trim() ||
+    (outing.driverId || "").trim() ||
     (outing.staffIds?.length ?? 0) > 0 ||
     (outing.participantIds?.length ?? 0) > 0,
   );
@@ -214,6 +216,7 @@ function normalizeOutingGroup(value: any, fallbackId: string): OutingGroup {
       : [],
     startTime: value?.startTime ? String(value.startTime) : "",
     endTime: value?.endTime ? String(value.endTime) : "",
+    driverId: value?.driverId ? String(value.driverId) : "",
     notes: value?.notes ? String(value.notes) : "",
   };
 }
