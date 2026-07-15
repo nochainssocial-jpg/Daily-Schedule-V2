@@ -410,20 +410,65 @@ function applyLiveMasterDataToSnapshot<T extends Partial<ScheduleSnapshot>>(
   return syncOutingCompatibility(next) as T;
 }
 
+function reconcileOutingMemberships(
+  outingGroups: OutingGroup[],
+  workingStaff: unknown,
+  attendingParticipants: unknown,
+): OutingGroup[] {
+  const workingSet = Array.isArray(workingStaff)
+    ? new Set(workingStaff.map((id) => String(id)))
+    : null;
+  const attendingSet = Array.isArray(attendingParticipants)
+    ? new Set(attendingParticipants.map((id) => String(id)))
+    : null;
+
+  return outingGroups
+    .map((outing) => {
+      let staffIds = outing.staffIds.map(String);
+      let participantIds = outing.participantIds.map(String);
+      let driverId = outing.driverId ? String(outing.driverId) : "";
+
+      if (workingSet) {
+        staffIds = staffIds.filter((id) => workingSet.has(id));
+
+        if (driverId && !workingSet.has(driverId)) {
+          driverId = "";
+        }
+      }
+
+      if (driverId && !staffIds.includes(driverId)) {
+        staffIds = [driverId, ...staffIds];
+      }
+
+      if (attendingSet) {
+        participantIds = participantIds.filter((id) =>
+          attendingSet.has(id),
+        );
+      }
+
+      return {
+        ...outing,
+        staffIds: Array.from(new Set(staffIds)),
+        participantIds: Array.from(new Set(participantIds)),
+        driverId,
+      };
+    })
+    .filter(isOutingMeaningful);
+}
+
 function syncOutingCompatibility<T extends Partial<ScheduleSnapshot>>(
   next: T,
 ): T {
   const anyNext = next as any;
 
-  if ("outingGroups" in anyNext) {
-    const outingGroups = normalizeOutingGroupsFromSnapshot(anyNext);
-    anyNext.outingGroups = outingGroups;
-    anyNext.outingGroup = outingGroups[0] ?? null;
-    return next;
-  }
+  if ("outingGroups" in anyNext || "outingGroup" in anyNext) {
+    const normalizedGroups = normalizeOutingGroupsFromSnapshot(anyNext);
+    const outingGroups = reconcileOutingMemberships(
+      normalizedGroups,
+      anyNext.workingStaff,
+      anyNext.attendingParticipants,
+    );
 
-  if ("outingGroup" in anyNext) {
-    const outingGroups = normalizeOutingGroupsFromSnapshot(anyNext);
     anyNext.outingGroups = outingGroups;
     anyNext.outingGroup = outingGroups[0] ?? null;
   }
