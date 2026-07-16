@@ -1,3 +1,4 @@
+import { getSydneyMinutesSinceMidnight } from '@/lib/sydneyDate';
 // app/edit/index.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -155,8 +156,7 @@ function parseTimeToMinutes(value?: string | null): number | null {
 }
 
 function getNowMinutes() {
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
+  return getSydneyMinutesSinceMidnight();
 }
 
 function hasOutingPeople(outingGroup: OutingGroup | null | undefined) {

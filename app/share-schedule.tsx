@@ -1,367 +1,105 @@
-// app/share-schedule.tsx
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Linking,
-  Platform,
-  ScrollView,
-  Image,
+  View,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
-import { useSchedule } from '@/hooks/schedule-store';
+import { router } from 'expo-router';
 import { useAccessControl } from '@/hooks/access-control';
 import { useNotifications } from '@/hooks/notifications';
 import Footer from '@/components/Footer';
-import { loadScheduleFromSupabase } from '@/lib/loadSchedule';
 import { ROUTES } from '@/constants/ROUTES';
 
 const MAX_WIDTH = 880;
 
-export default function ShareScheduleScreen() {
-  const {
-    meta,
-    shareCode,
-    updateSchedule,
-    hydrateFromSnapshot,
-    loadSnapshot,
-  } = useSchedule() as any;
-
-  const { mode, setB2ReadOnly, setAdminMd, setAdminBruno, setAdminJessica } = useAccessControl();
+export default function AdminAccessScreen() {
+  const { mode, setB2ReadOnly, setAdminMd, setAdminBruno, setAdminJessica } =
+    useAccessControl();
   const { push } = useNotifications();
-
   const [adminPin, setAdminPin] = useState('');
   const [pinError, setPinError] = useState('');
-
   const adminPinRef = useRef<TextInput | null>(null);
 
-  const MD_ADMIN_PIN = '7474'; // Dalida (MD)
-  const BRUNO_ADMIN_PIN = '0309'; // Bruno (AA)
-  const JESSICA_ADMIN_PIN = '0812'; // Jess (AA)
+  const MD_ADMIN_PIN = '7474';
+  const BRUNO_ADMIN_PIN = '0309';
+  const JESSICA_ADMIN_PIN = '0812';
 
-  const showWebBranding = Platform.OS === 'web';
-
-  // Autofocus the admin PIN field when this screen mounts
   useEffect(() => {
-    if (adminPinRef.current && typeof adminPinRef.current.focus === 'function') {
-      adminPinRef.current.focus();
-    }
+    adminPinRef.current?.focus?.();
   }, []);
 
-  // Derive initial code from state, with localStorage fallback on web
-  const initialCode = (() => {
-    const fromState =
-      (meta && typeof meta.shareCode === 'string' && meta.shareCode) ||
-      shareCode ||
-      '';
-    if (fromState) return fromState;
-
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('nc_share_code');
-        return stored || '';
-      }
-    } catch (err) {
-      console.warn('[ShareSchedule] failed to read localStorage share code:', err);
-    }
-    return '';
-  })();
-
-  const [code, setCode] = useState(initialCode);
-  const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-
-  useEffect(() => {
-    if (initialCode && initialCode !== code) {
-      setCode(initialCode);
-    }
-  }, [initialCode]);
-
-  useEffect(() => {
-    // Keep meta.shareCode in sync whenever code changes
-    updateSchedule?.((prev: any) => {
-      const snap = typeof prev === 'function' ? prev() : prev;
-      if (!snap) return prev;
-
-      return {
-        ...snap,
-        meta: {
-          ...(snap.meta || {}),
-          shareCode: code || null,
-        },
-      } as any;
-    });
-
-    // Also persist to localStorage on web
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        if (code) {
-          window.localStorage.setItem('nc_share_code', String(code));
-        } else {
-          window.localStorage.removeItem('nc_share_code');
-        }
-      }
-    } catch (err) {
-      console.warn(
-        '[ShareSchedule] failed to persist shareCode in localStorage:',
-        err,
-      );
-    }
-  }, [code, updateSchedule]);
-
-  const smsHref = useMemo(() => {
-    if (!code) return null;
-
-    const body = encodeURIComponent(
-      `Today's No Chains Daily Schedule share code is: ${code}\n\nOpen the Daily Schedule app and enter this code to view today's schedule.`,
-    );
-
-    if (Platform.OS === 'ios') {
-      return `sms:&body=${body}`;
-    }
-
-    return Platform.select({
-      android: `sms:?body=${body}`,
-      default: `sms:?body=${body}`,
-    });
-  }, [code]);
-
-const handleAdminAccess = () => {
-  if (!adminPin.trim()) {
-    setPinError('Please enter a PIN');
-    return;
-  }
-
-  const goHome = () => {
+  const finishLogin = () => {
     setPinError('');
     setAdminPin('');
     router.replace(ROUTES.HOME);
   };
 
-  // Dalida (MD)
-  if (adminPin === MD_ADMIN_PIN) {
-    setAdminMd();
-    push('Admin Mode Enabled - Full Access', 'general');
-    goHome();
-    return;
-  }
+  const handleAdminAccess = () => {
+    if (!adminPin.trim()) {
+      setPinError('Please enter a PIN');
+      return;
+    }
 
-  // Bruno (AA)
-  if (adminPin === BRUNO_ADMIN_PIN) {
-    setAdminBruno();
-    push('Admin Mode Enabled - Full Access', 'general');
-    goHome();
-    return;
-  }
+    if (adminPin === MD_ADMIN_PIN) {
+      setAdminMd();
+      push('Admin Mode Enabled - Full Access', 'general');
+      finishLogin();
+      return;
+    }
 
-  // Jessica (AA)
-  if (adminPin === JESSICA_ADMIN_PIN) {
-    setAdminJessica();
-    push('Admin Mode Enabled - Full Access', 'general');
-    goHome();
-    return;
-  }
+    if (adminPin === BRUNO_ADMIN_PIN) {
+      setAdminBruno();
+      push('Admin Mode Enabled - Full Access', 'general');
+      finishLogin();
+      return;
+    }
 
-  // Incorrect PIN
-  setPinError('Incorrect PIN');
-};
+    if (adminPin === JESSICA_ADMIN_PIN) {
+      setAdminJessica();
+      push('Admin Mode Enabled - Full Access', 'general');
+      finishLogin();
+      return;
+    }
 
-  const handleB2Access = () => {
+    setPinError('Incorrect PIN');
+  };
+
+  const handleReadOnly = () => {
     setB2ReadOnly();
     setPinError('');
     setAdminPin('');
     push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
-  };
-
-  const handleShareSms = async () => {
-    try {
-      const ok = await Linking.canOpenURL(smsHref || 'sms:');
-      if (!ok) throw new Error('SMS not available');
-      await Linking.openURL(smsHref || 'sms:');
-    } catch {
-      Alert.alert('Share', 'Unable to open SMS composer on this device.');
-    }
-  };
-
-  const handleImport = async () => {
-    const trimmed = code.trim();
-
-    if (!trimmed || trimmed.length !== 6 || !/^\d{6}$/.test(trimmed)) {
-      Alert.alert(
-        'Import code',
-        'Please enter a valid 6-digit share code before importing.',
-      );
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const { data, error } = await loadScheduleFromSupabase(trimmed);
-
-      if (error || !data) {
-        console.error('Import share code: failed', error);
-        Alert.alert(
-          'Import code',
-          'Unable to import schedule. Please check the code and try again.',
-        );
-        return;
-      }
-
-      const { snapshot, scheduleDate } = data;
-
-      await hydrateFromSnapshot(snapshot as any, {
-        scheduleDate,
-        shareCode: trimmed,
-      });
-
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem('nc_share_code', String(trimmed));
-        }
-      } catch (err) {
-        console.warn(
-          '[ShareSchedule] failed to store imported shareCode in localStorage:',
-          err,
-        );
-      }
-
-      Alert.alert(
-        'Import code',
-        'Schedule imported successfully. You can now view and edit today’s schedule.',
-      );
-    } catch (err) {
-      console.error('Import share code: unexpected error', err);
-      Alert.alert(
-        'Import code',
-        'Something went wrong while importing the schedule. Please try again.',
-      );
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleLoadToday = async () => {
-    setLoading(true);
-    try {
-      const result = await loadSnapshot('B2');
-
-      if (!result || !result.snapshot) {
-        Alert.alert(
-          'Load today',
-          'No schedule found for today. Create a schedule first.',
-        );
-        return;
-      }
-
-      await hydrateFromSnapshot(result.snapshot as any, {
-        scheduleDate: result.scheduleDate,
-        shareCode: result.snapshot?.meta?.shareCode ?? null,
-      });
-    } catch (err) {
-      console.error('Share screen: failed to load today snapshot', err);
-      Alert.alert(
-        'Load today',
-        'Something went wrong while loading today’s schedule. Please try again.',
-      );
-    } finally {
-      setLoading(false);
-    }
+    router.replace(ROUTES.HOME);
   };
 
   return (
     <View style={styles.screen}>
-      {/* Large washed-out background logo – web only */}
-      {showWebBranding && (
+      {Platform.OS === 'web' ? (
         <Image
           source={require('../assets/images/nochains-bg.png')}
           style={styles.bgLogo}
           resizeMode="contain"
         />
-      )}
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.inner}>
-          {/* Section 1: Today's share code */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Today&apos;s share code</Text>
+            <Text style={styles.cardTitle}>Admin Access</Text>
             <Text style={styles.cardDescription}>
-              This 6-digit code is generated automatically when you press Finish at the end of the
-              Create Schedule flow. Share it with staff so they can view today&apos;s Daily
-              Schedule on their own device.
-            </Text>
-            <View style={styles.row}>
-              <TextInput
-                value={code}
-                onChangeText={setCode}
-                placeholder="6-digit code"
-                style={styles.input}
-                keyboardType="number-pad"
-              />
-            </View>
-          </View>
-
-          {/* Section 2: Share via SMS */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Share via SMS</Text>
-            <Text style={styles.cardDescription}>
-              Open your SMS app with a pre-filled message containing today&apos;s share code.
-            </Text>
-            <View style={styles.row}>
-              <TouchableOpacity
-                onPress={handleShareSms}
-                style={[styles.button, styles.btnPink]}
-                activeOpacity={0.9}
-                disabled={!smsHref}
-              >
-                <Text style={styles.btnText}>Open Messages</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Section 3: Import code */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>
-              Import code to access today&apos;s schedule
-            </Text>
-            <Text style={styles.cardDescription}>
-              Enter a valid 6-digit code to load today&apos;s Daily Schedule associated with that
-              code.
-            </Text>
-            <View style={styles.row}>
-              <TextInput
-                value={code}
-                onChangeText={setCode}
-                placeholder="Enter 6-digit code"
-                style={styles.input}
-                keyboardType="number-pad"
-              />
-              <TouchableOpacity
-                onPress={handleImport}
-                style={[styles.button, styles.btnDeepPink]}
-                activeOpacity={0.9}
-                disabled={importing}
-              >
-                <Text style={styles.btnText}>
-                  {importing ? 'Importing…' : 'Import'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Section 4: Device access mode */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Device access</Text>
-            <Text style={styles.cardDescription}>
-              Switch this device between full ADMIN mode and B2 read-only mode. Use Admin mode only
-              on trusted devices.
+              Enter an authorised PIN to enable schedule creation and editing on this device.
             </Text>
 
-            <Text style={styles.label}>Admin PIN (MD / Bruno)</Text>
+            <Text style={styles.modeLabel}>
+              Current mode: {mode === 'b2-readonly' ? 'B2 read-only' : 'Administrator'}
+            </Text>
 
+            <Text style={styles.label}>Admin PIN</Text>
             <View style={styles.row}>
               <TextInput
                 ref={adminPinRef}
@@ -376,22 +114,36 @@ const handleAdminAccess = () => {
                 maxLength={4}
                 returnKeyType="done"
                 blurOnSubmit={false}
-                onSubmitEditing={handleAdminAccess} // ENTER triggers same handler
-                style={[styles.input, styles.pinInput]}
+                onSubmitEditing={handleAdminAccess}
+                style={styles.input}
               />
 
               <TouchableOpacity
                 onPress={handleAdminAccess}
-                style={[styles.button, styles.btnLavender]}
+                style={[styles.button, styles.adminButton]}
                 activeOpacity={0.9}
               >
-                <Text style={styles.btnText}>Enable Admin Access</Text>
+                <Text style={styles.buttonText}>Enable Admin Access</Text>
               </TouchableOpacity>
             </View>
 
-            {pinError ? (
-              <Text style={styles.errorText}>{pinError}</Text>
-            ) : null}
+            {pinError ? <Text style={styles.errorText}>{pinError}</Text> : null}
+
+            <TouchableOpacity
+              onPress={handleReadOnly}
+              style={[styles.button, styles.readOnlyButton]}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.readOnlyButtonText}>Use B2 Read-Only Mode</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>Schedule access update</Text>
+            <Text style={styles.noticeText}>
+              Share codes have been retired. Location PIN access will be introduced with the
+              multi-location rollout.
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -404,12 +156,21 @@ const handleAdminAccess = () => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#faf7fb',
+    backgroundColor: '#FAF7FB',
     position: 'relative',
     overflow: 'hidden',
   },
+  bgLogo: {
+    position: 'absolute',
+    width: 1400,
+    height: 1400,
+    opacity: 0.08,
+    left: -600,
+    top: 10,
+    pointerEvents: 'none',
+  },
   scroll: {
-    paddingVertical: 24,
+    paddingVertical: 48,
     alignItems: 'center',
     paddingBottom: 160,
   },
@@ -419,88 +180,97 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 16,
   },
-  // Large washed-out background logo
-  bgLogo: {
-    position: 'absolute',
-    width: 1400,
-    height: 1400,
-    opacity: 0.1,
-    left: -600,
-    top: 10,
-    pointerEvents: 'none',
-  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 6,
     color: '#332244',
+    fontSize: 26,
+    fontWeight: '800',
   },
   cardDescription: {
-    fontSize: 14,
-    color: '#4c3b5c',
-    marginBottom: 12,
+    marginTop: 8,
+    color: '#6B7280',
+    fontSize: 15,
+    lineHeight: 22,
   },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 13,
-    marginTop: 4,
-    marginBottom: 4,
+  modeLabel: {
+    marginTop: 18,
+    color: '#7C3AED',
+    fontWeight: '700',
+  },
+  label: {
+    marginTop: 22,
+    marginBottom: 8,
+    color: '#374151',
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     alignItems: 'center',
-    marginBottom: 4,
-    columnGap: 12,
-  },
-  label: {
-    marginBottom: 6,
   },
   input: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 220,
     borderWidth: 1,
-    borderColor: '#e5deef',
+    borderColor: '#D1D5DB',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#f8f4fb',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     fontSize: 16,
-    color: '#332244',
-    marginBottom: 20,
   },
   button: {
-    borderRadius: 999,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginBottom: 20,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnText: {
-    color: '#332244',
+  adminButton: {
+    backgroundColor: '#A855F7',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  readOnlyButton: {
+    marginTop: 18,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#F54FA5',
+    backgroundColor: '#FFFFFF',
+  },
+  readOnlyButtonText: {
+    color: '#F54FA5',
     fontWeight: '700',
-    fontSize: 14,
   },
-  btnPink: {
-    backgroundColor: '#fbcfe8',
+  errorText: {
+    marginTop: 10,
+    color: '#B91C1C',
+    fontWeight: '700',
   },
-  btnLavender: {
-    backgroundColor: '#e5deef',
+  noticeCard: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    padding: 18,
   },
-  btnDeepPink: {
-    backgroundColor: '#f472b6',
+  noticeTitle: {
+    color: '#3730A3',
+    fontWeight: '800',
+    fontSize: 16,
   },
-  pinInput: {
-    flex: 0,
-    width: 200,
-    marginBottom: 20,
+  noticeText: {
+    marginTop: 6,
+    color: '#4F46E5',
+    lineHeight: 21,
   },
 });

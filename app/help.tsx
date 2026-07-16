@@ -67,12 +67,12 @@ export default function HelpScreen() {
               {'\n'}
               <Text style={styles.subSectionTitle}>B2 Read-only mode (default)</Text>
               • The app always opens in <Text style={styles.bold}>B2 Read-only mode</Text> by default.{'\n'}
-              • Staff can open the app, load today&apos;s schedule (or the most recent one) and view all details.{'\n'}
+              • Staff can open the app and view the schedule created for the current Sydney date. If none exists, the app clearly shows that today&apos;s schedule has not yet been created.{'\n'}
               • All Save buttons and Admin-only features are disabled to prevent accidental changes.{'\n'}
               • This is the safest mode for staff who only need to see assignments, pickups/dropoffs and cleaning duties.{'\n'}
               {'\n'}
               <Text style={styles.subSectionTitle}>Switching to Admin mode with PIN</Text>
-              • To unlock Admin mode, go to the <Text style={styles.bold}>Share &amp; Admin</Text> tab in the footer.{'\n'}
+              • To unlock Admin mode, go to the <Text style={styles.bold}>Access</Text> tab in the footer.{'\n'}
               • Use the Admin PIN panel to enter the 4-digit{' '}
               <Text style={styles.bold}>Admin PIN</Text> assigned by management.{'\n'}
               • After entering the correct PIN, Admin mode is activated and Admin-only features (including Reports) become available.{'\n'}
@@ -83,9 +83,9 @@ export default function HelpScreen() {
             {/* 3. Creating Today’s Schedule */}
             <Text style={styles.sectionTitle}>3. Creating today&apos;s schedule</Text>
             <Text style={styles.body}>
-              When you open the app, it automatically loads today&apos;s schedule if one already exists, or the most
-              recent schedule if today is empty. You&apos;ll see a banner at the top confirming whether a schedule was
-              created or loaded.{'\n'}
+              When you open the app, it loads only the schedule belonging to the current Sydney date. It never
+              substitutes an older schedule. If today is empty, the app displays &quot;No Schedule Created Yet&quot; until
+              an administrator creates it.{'\n'}
               {'\n'}
               From the Home screen, tap <Text style={styles.bold}>&quot;Create Schedule&quot;</Text>.
               The process is a 6-step wizard. You can scroll each step and use the
@@ -304,36 +304,22 @@ export default function HelpScreen() {
               </View>
             </View>
 
-            {/* 5. Share & Admin (with deprecated share code box) */}
-            <Text style={styles.sectionTitle}>5. Share &amp; Admin</Text>
+            {/* 5. Access & Admin */}
+            <Text style={styles.sectionTitle}>5. Access &amp; Admin</Text>
             <Text style={styles.body}>
-              The Share &amp; Admin tab in the footer is the hub for unlocking Admin mode and, in future, optional
-              share-code features.{'\n'}
+              The <Text style={styles.bold}>Access</Text> tab is used to unlock administrator mode on an authorised device.{'\n'}
               {'\n'}
-              <Text style={styles.subSectionTitle}>Admin PIN (current behaviour)</Text>
-              • Use the Admin PIN panel to enter the 4-digit{' '}
-              <Text style={styles.bold}>Admin PIN</Text>. On success, Admin mode is unlocked.{'\n'}
-              • Once in Admin mode, you can access Admin-only screens such as Reports and other advanced tools.{'\n'}
-              • When you are finished, you can close the app or reload to return to B2 Read-only mode for regular staff use.{'\n'}
+              <Text style={styles.subSectionTitle}>Admin PIN</Text>
+              • Enter an authorised 4-digit Admin PIN to enable schedule creation and editing.{'\n'}
+              • Admin mode provides access to the Edit Hub, Reports, Settings and other restricted tools.{'\n'}
+              • Select B2 Read-Only Mode when the device should display schedules without editing access.{'\n'}
             </Text>
 
-            {/* Deprecated / parked share codes */}
             <View style={styles.deprecatedBox}>
-              <Text style={styles.deprecatedTitle}>
-                Share codes (Not currently in use)
-              </Text>
+              <Text style={styles.deprecatedTitle}>Location access moving forward</Text>
               <Text style={styles.deprecatedBody}>
-                Historically, the app used 6-digit share codes so staff could import a schedule on their own device and
-                view it. That system has been parked for now while the B2 Read-only and Admin PIN flow is in use.{'\n'}
-                {'\n'}
-                If share codes are reintroduced in the future, this is where you will:{'\n'}
-                {'\n'}
-                • See today&apos;s 6-digit share code for the schedule.{'\n'}
-                • Copy the code or open Messages with a pre-filled SMS containing it.{'\n'}
-                • Let staff type the code on another device and tap &quot;Import&quot; to load today&apos;s schedule.{'\n'}
-                {'\n'}
-                For now, all sharing is effectively done by viewing the central copy of the schedule in B2 Read-only
-                mode, or unlocking Admin mode with the Admin PIN where appropriate.
+                Six-digit schedule share codes have been retired. During the multi-location rollout, each site will use
+                its own location PIN so the app and dashboard resolve the correct location and current-day schedule.
               </Text>
             </View>
 

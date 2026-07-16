@@ -9,7 +9,9 @@ import type {
   TimeSlot,
 } from "@/constants/data";
 import { TIME_SLOTS } from "@/constants/data";
-import { fetchLatestScheduleForHouse, saveScheduleToSupabase } from "@/lib/saveSchedule";
+import { fetchScheduleForHouseAndDate, type ScheduleRecord } from "@/lib/saveSchedule";
+import { fetchOutingsForDate, saveOutingsForDate } from "@/lib/outings";
+import { getSydneyDateKey, getSydneyMinutesSinceMidnight } from "@/lib/sydneyDate";
 import { supabase } from "@/lib/supabase";
 
 export type ID = string;
@@ -26,11 +28,17 @@ export type OutingGroup = {
   notes?: string;
 };
 
-export type FloatingAssignments = {
+export type FloatingRoomAssignment = {
   frontRoom: ID | null;
   scotty: ID | null;
   twins: ID | null;
 };
+
+// Current data is stored by timeslot; the direct room shape is retained for
+// compatibility with older snapshots.
+export type FloatingAssignments =
+  | FloatingRoomAssignment
+  | Record<ID, FloatingRoomAssignment>;
 
 export type CleaningAssignments = Record<ID, ID | null>;
 
@@ -53,8 +61,8 @@ export type ScheduleSnapshot = {
   // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday: ID[];
 
-  // Core person → staff assignments (participant -> staff)
-  assignments: Record<ID, ID | null>;
+  // Supports the current staff -> participant[] shape and older participant -> staff shape.
+  assignments: Record<ID, ID[] | ID | null>;
 
   // Floating staff by room
   floatingAssignments: FloatingAssignments;
@@ -66,8 +74,11 @@ export type ScheduleSnapshot = {
   // 0 = default, 1 = red + yellow, 2 = red + green, 3 = bring in & clean
   cleaningBinsVariant?: 0 | 1 | 2 | 3;
 
+  pickupParticipants?: ID[];
+
   // Helper staff (one or more staff helping with pickups/dropoffs)
   helperStaff: ID[];
+  helperPickupStaff?: ID[];
 
   // Dropoffs (participant → staff + location)
   dropoffAssignments: Record<ID, DropoffAssignment | null>;
@@ -97,12 +108,13 @@ export type ScheduleSnapshot = {
   date?: string;
 
   // Misc metadata
-  meta?: {
+  meta?: Record<string, any> & {
     from?: "create-wizard" | "prefill";
   };
 };
 
-export type ScheduleBannerType = "created" | "loaded" | "prefilled";
+export type ScheduleBannerType = "created" | "loaded" | "missing";
+export type TodayScheduleStatus = "idle" | "loading" | "ready" | "missing" | "error";
 
 export type ScheduleBanner = {
   type: ScheduleBannerType;
@@ -127,6 +139,13 @@ export type ScheduleState = ScheduleSnapshot & {
   hasInitialisedToday: boolean;
   currentInitDate?: string;
 
+  activeScheduleId: string | null;
+  activeScheduleHouse: string | null;
+  activeScheduleDate: string | null;
+  activeScheduleUpdatedAt: string | null;
+  todayScheduleStatus: TodayScheduleStatus;
+  scheduleLoadError: string | null;
+
   // prior snapshots for cleaning fairness
   recentCleaningSnapshots: ScheduleSnapshot[];
 
@@ -146,6 +165,7 @@ export type ScheduleState = ScheduleSnapshot & {
 
   setBanner: (banner: ScheduleBanner | null) => void;
   markInitialisedForDate: (date: string) => void;
+  setActiveScheduleRecord: (record: ScheduleRecord | null) => void;
 
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) => void;
 
@@ -160,7 +180,7 @@ const DEFAULT_HOUSE_ID = "B2";
 const OUTING_AUTO_RESET_MINUTES = 17 * 60;
 
 function minutesSinceMidnight(date = new Date()): number {
-  return date.getHours() * 60 + date.getMinutes();
+  return getSydneyMinutesSinceMidnight(date);
 }
 
 function makeInitialSnapshot(): ScheduleSnapshot {
@@ -518,12 +538,7 @@ function normalizeDropoffAssignments(
 }
 
 function toTodayKey(date = new Date()): string {
-  const now = date;
-  return [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("-");
+  return getSydneyDateKey(date);
 }
 
 function normaliseSnapshotForStore(snapshot: any): ScheduleSnapshot {
@@ -569,46 +584,6 @@ function shouldAutoResetOutings(
   return normalizeOutingGroupsFromSnapshot(anySnapshot).length > 0;
 }
 
-function buildPersistableSnapshotFromState(
-  schedule: ScheduleState,
-  dateKey = toTodayKey(),
-): ScheduleSnapshot {
-  const outingGroups = normalizeOutingGroupsFromSnapshot(schedule);
-
-  return {
-    staff: schedule.staff,
-    participants: schedule.participants,
-    workingStaff: schedule.workingStaff,
-    attendingParticipants: schedule.attendingParticipants,
-
-    trainingStaffToday: schedule.trainingStaffToday,
-
-    assignments: schedule.assignments,
-    floatingAssignments: schedule.floatingAssignments,
-    cleaningAssignments: schedule.cleaningAssignments,
-    cleaningBinsVariant: schedule.cleaningBinsVariant ?? 0,
-
-    finalChecklist: schedule.finalChecklist,
-    finalChecklistStaff: schedule.finalChecklistStaff,
-
-    // Kept for compatibility with existing saved snapshots/screens.
-    pickupParticipants: (schedule as any).pickupParticipants,
-    helperStaff: schedule.helperStaff,
-    helperPickupStaff: (schedule as any).helperPickupStaff || [],
-
-    dropoffAssignments: schedule.dropoffAssignments,
-    dropoffLocations: schedule.dropoffLocations || {},
-
-    outingGroups,
-    outingGroup: outingGroups[0] ?? null,
-    outingAutoResetEnabled: schedule.outingAutoResetEnabled !== false,
-    outingLastAutoResetDate: schedule.outingLastAutoResetDate,
-
-    date: dateKey,
-    meta: schedule.meta ?? {},
-  } as ScheduleSnapshot;
-}
-
 // ----------------------------------------------------------------------------------
 // Store
 // ----------------------------------------------------------------------------------
@@ -627,6 +602,13 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   banner: null,
   hasInitialisedToday: false,
   currentInitDate: undefined,
+
+  activeScheduleId: null,
+  activeScheduleHouse: null,
+  activeScheduleDate: null,
+  activeScheduleUpdatedAt: null,
+  todayScheduleStatus: "idle",
+  scheduleLoadError: null,
 
   recentCleaningSnapshots: [],
 
@@ -772,11 +754,15 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
 
     if (options.persist) {
       try {
-        const snapshot = buildPersistableSnapshotFromState(
-          get(),
-          resetDateKey,
-        );
-        await saveScheduleToSupabase(DEFAULT_HOUSE_ID, snapshot);
+        const current = get();
+        const result = await saveOutingsForDate({
+          house: current.activeScheduleHouse || DEFAULT_HOUSE_ID,
+          outingDate: resetDateKey,
+          outings: [],
+          autoResetEnabled: current.outingAutoResetEnabled !== false,
+          lastAutoResetDate: isAuto ? resetDateKey : current.outingLastAutoResetDate,
+        });
+        if (!result.ok) throw result.error;
       } catch (error) {
         console.error("[outings] failed to persist outing reset", error);
       }
@@ -838,6 +824,17 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
       currentInitDate: date,
     })),
 
+  setActiveScheduleRecord: (record: ScheduleRecord | null) =>
+    set((state) => ({
+      ...state,
+      activeScheduleId: record?.id ?? null,
+      activeScheduleHouse: record?.house ?? null,
+      activeScheduleDate: record?.scheduleDate ?? null,
+      activeScheduleUpdatedAt: record?.updatedAt ?? null,
+      todayScheduleStatus: record ? "ready" : "missing",
+      scheduleLoadError: null,
+    })),
+
   setRecentCleaningSnapshots: (snaps: ScheduleSnapshot[]) =>
     set((state) => ({
       ...state,
@@ -878,151 +875,153 @@ export function useAttendingParticipants() {
 // Init / banner helpers
 // ----------------------------------------------------------------------------------
 
-/**
- * Initialise schedule for today if we haven't already.
- */
+function applyIndependentOutings(
+  snapshot: ScheduleSnapshot,
+  outingsResult: Awaited<ReturnType<typeof fetchOutingsForDate>>,
+): ScheduleSnapshot {
+  if (!outingsResult.ok) return snapshot;
+
+  const record = outingsResult.data;
+  return syncOutingCompatibility({
+    ...snapshot,
+    outingGroups: record?.outings || [],
+    outingGroup: record?.outings?.[0] ?? null,
+    outingAutoResetEnabled: record?.autoResetEnabled !== false,
+    outingLastAutoResetDate: record?.lastAutoResetDate,
+  } as ScheduleSnapshot);
+}
+
+function setMissingScheduleState(
+  houseId: string,
+  todayKey: string,
+  outingsResult?: Awaited<ReturnType<typeof fetchOutingsForDate>>,
+) {
+  useSchedule.setState((current) => {
+    const empty = applyIndependentOutings(
+      {
+        ...makeInitialSnapshot(),
+        staff: current.staff,
+        participants: current.participants,
+        date: todayKey,
+      },
+      outingsResult || ({ ok: true, data: null } as any),
+    );
+
+    return {
+      ...current,
+      ...empty,
+      chores: current.chores,
+      checklistItems: current.checklistItems,
+      timeSlots: current.timeSlots.length ? current.timeSlots : TIME_SLOTS,
+      masterDataLoaded: current.masterDataLoaded,
+      masterDataLoading: false,
+      banner: { type: "missing", scheduleDate: todayKey },
+      hasInitialisedToday: true,
+      currentInitDate: todayKey,
+      activeScheduleId: null,
+      activeScheduleHouse: houseId,
+      activeScheduleDate: todayKey,
+      activeScheduleUpdatedAt: null,
+      todayScheduleStatus: "missing",
+      scheduleLoadError: null,
+    };
+  });
+}
+
+function applyLoadedScheduleState(
+  record: ScheduleRecord,
+  todayKey: string,
+  outingsResult: Awaited<ReturnType<typeof fetchOutingsForDate>>,
+) {
+  useSchedule.setState((current) => {
+    const normalized = normaliseSnapshotForStore(record.snapshot);
+    const withMasterData = applyLiveMasterDataToSnapshot(
+      normalized,
+      current.staff,
+      current.participants,
+    );
+    const withOutings = applyIndependentOutings(withMasterData, outingsResult);
+
+    return {
+      ...current,
+      ...withOutings,
+      date: todayKey,
+      banner: { type: "loaded", scheduleDate: todayKey },
+      hasInitialisedToday: true,
+      currentInitDate: todayKey,
+      activeScheduleId: record.id,
+      activeScheduleHouse: record.house,
+      activeScheduleDate: record.scheduleDate,
+      activeScheduleUpdatedAt: record.updatedAt,
+      todayScheduleStatus: "ready",
+      scheduleLoadError: null,
+    };
+  });
+}
+
+/** Initialise the exact current Sydney-date schedule for a location. */
 export async function initScheduleForToday(houseId: string) {
   return initialiseScheduleForTodayIfNeeded(houseId, toTodayKey());
 }
 
-/**
- * Initialises a schedule for the given house + date key if needed.
- * This is where we fetch from Supabase and decide which banner to show.
- */
 export async function initialiseScheduleForTodayIfNeeded(
   houseId: string,
   todayKey: string,
 ) {
   const state = useSchedule.getState();
 
-  // Ensure master data is loaded (staff, participants, chores, checklist)
   try {
     await state.loadMasterData({ force: true });
   } catch {}
 
-  // If we've already initialised for this date, do nothing
-  if (state.hasInitialisedToday && state.currentInitDate === todayKey) {
+  const latestState = useSchedule.getState();
+  if (
+    latestState.hasInitialisedToday &&
+    latestState.currentInitDate === todayKey &&
+    latestState.activeScheduleHouse === houseId &&
+    latestState.todayScheduleStatus === "ready"
+  ) {
     return;
   }
 
-  try {
-    const result = await fetchLatestScheduleForHouse(houseId);
+  useSchedule.setState({
+    todayScheduleStatus: "loading",
+    scheduleLoadError: null,
+  });
 
-    if (!result.ok || !result.data) {
-      // Treat as new schedule for today
-      useSchedule.setState((s) => ({
-        ...s,
-        ...makeInitialSnapshot(),
-        staff: s.staff,
-        participants: s.participants,
-        chores: s.chores,
-        checklistItems: s.checklistItems,
-        timeSlots: s.timeSlots.length ? s.timeSlots : TIME_SLOTS,
-        masterDataLoaded: s.masterDataLoaded,
-        masterDataLoading: false,
-        date: todayKey,
-        banner: {
-          type: "created",
-          scheduleDate: todayKey,
-        },
-        hasInitialisedToday: true,
-        currentInitDate: todayKey,
-      }));
-      return;
-    }
+  const [scheduleResult, outingsResult] = await Promise.all([
+    fetchScheduleForHouseAndDate(houseId, todayKey),
+    fetchOutingsForDate(houseId, todayKey),
+  ]);
 
-    const { snapshot, scheduleDate } = result.data;
-
-    // If there's no snapshot in Supabase, treat as new schedule for today
-    if (!snapshot) {
-      useSchedule.setState((s) => ({
-        ...s,
-        ...makeInitialSnapshot(),
-        staff: s.staff,
-        participants: s.participants,
-        chores: s.chores,
-        checklistItems: s.checklistItems,
-        timeSlots: s.timeSlots.length ? s.timeSlots : TIME_SLOTS,
-        masterDataLoaded: s.masterDataLoaded,
-        masterDataLoading: false,
-        date: todayKey,
-        banner: {
-          type: "created",
-          scheduleDate: todayKey,
-        },
-        hasInitialisedToday: true,
-        currentInitDate: todayKey,
-      }));
-      return;
-    }
-
-    // Normalise dropoffs/outings and merge snapshot
-    const normalizedSnapshot = normaliseSnapshotForStore(snapshot);
-
-    // Decide banner type
-    const bannerType: ScheduleBannerType =
-      scheduleDate === todayKey ? "loaded" : "prefilled";
-
-    // Outings are day-only operational data. They should not be carried
-    // forward when today's schedule is prefilled from an older schedule.
-    const outingReset =
-      bannerType === "prefilled"
-        ? clearOutingsFromSnapshot(normalizedSnapshot)
-        : normalizedSnapshot;
-
-    const banner: ScheduleBanner = {
-      type: bannerType,
-      scheduleDate: todayKey,
-      ...(bannerType === "prefilled" ? { sourceDate: scheduleDate } : {}),
-    };
-
-    // Daily operational completion state must not be carried forward when
-    // we prefill a new working day from an older schedule. Staff/participants
-    // may be reused, but the end-of-shift checklist should always start clear
-    // for the new schedule date.
-    const checklistReset =
-      bannerType === "prefilled"
-        ? { finalChecklist: {}, finalChecklistStaff: null }
-        : {};
-
-    useSchedule.setState((s) => ({
-      ...s,
-      ...applyLiveMasterDataToSnapshot(outingReset, s.staff, s.participants),
-      ...checklistReset,
+  if (!scheduleResult.ok) {
+    useSchedule.setState((current) => ({
+      ...current,
       date: todayKey,
-      banner,
+      activeScheduleId: null,
+      activeScheduleHouse: houseId,
+      activeScheduleDate: todayKey,
+      activeScheduleUpdatedAt: null,
+      todayScheduleStatus: "error",
+      scheduleLoadError: String((scheduleResult.error as any)?.message || scheduleResult.error),
       hasInitialisedToday: true,
       currentInitDate: todayKey,
     }));
-
-    await useSchedule.getState().maybeAutoResetOutings();
-  } catch (error) {
-    console.error("Error initialising schedule for today:", error);
-    useSchedule.setState((s) => ({
-      ...s,
-      ...makeInitialSnapshot(),
-      staff: s.staff,
-      participants: s.participants,
-      chores: s.chores,
-      checklistItems: s.checklistItems,
-      timeSlots: s.timeSlots.length ? s.timeSlots : TIME_SLOTS,
-      masterDataLoaded: s.masterDataLoaded,
-      masterDataLoading: false,
-      date: todayKey,
-      banner: {
-        type: "created",
-        scheduleDate: todayKey,
-      },
-      hasInitialisedToday: true,
-      currentInitDate: todayKey,
-    }));
+    return;
   }
+
+  if (!scheduleResult.data) {
+    setMissingScheduleState(houseId, todayKey, outingsResult);
+    return;
+  }
+
+  applyLoadedScheduleState(scheduleResult.data, todayKey, outingsResult);
+  await useSchedule.getState().maybeAutoResetOutings();
 }
 
 /**
- * Soft-refreshes the currently displayed schedule from Supabase.
- * Unlike initScheduleForToday(), this intentionally does not return early after
- * the dashboard has already initialised. It is designed for TV/dashboard polling.
+ * Poll the exact current Sydney-date record. A missing record clears stale daily
+ * operational data; a temporary network failure never substitutes yesterday.
  */
 export async function refreshScheduleFromSupabase(houseId: string) {
   const todayKey = toTodayKey();
@@ -1032,46 +1031,35 @@ export async function refreshScheduleFromSupabase(houseId: string) {
     await state.loadMasterData();
   } catch {}
 
-  try {
-    const result = await fetchLatestScheduleForHouse(houseId);
+  const [scheduleResult, outingsResult] = await Promise.all([
+    fetchScheduleForHouseAndDate(houseId, todayKey),
+    fetchOutingsForDate(houseId, todayKey),
+  ]);
 
-    if (!result.ok || !result.data?.snapshot) {
-      return result;
-    }
+  if (!scheduleResult.ok) {
+    const current = useSchedule.getState();
+    const alreadyHoldingVerifiedToday =
+      current.todayScheduleStatus === "ready" &&
+      current.activeScheduleHouse === houseId &&
+      current.activeScheduleDate === todayKey;
 
-    const { snapshot, scheduleDate } = result.data;
-    const normalizedSnapshot = normaliseSnapshotForStore(snapshot);
-    const isTodaySchedule = scheduleDate === todayKey;
-    const outingReset = isTodaySchedule
-      ? normalizedSnapshot
-      : clearOutingsFromSnapshot(normalizedSnapshot);
-
-    // If the latest saved schedule is an older prefill source, keep daily
-    // completion state clear for today's dashboard until today's schedule is saved.
-    const checklistReset = isTodaySchedule
-      ? {}
-      : { finalChecklist: {}, finalChecklistStaff: null };
-
-    useSchedule.setState((current) => ({
-      ...current,
-      ...applyLiveMasterDataToSnapshot(
-        outingReset,
-        current.staff,
-        current.participants,
-      ),
-      ...checklistReset,
-      date: todayKey,
-      banner: current.banner,
-      hasInitialisedToday: true,
-      currentInitDate: todayKey,
+    useSchedule.setState((value) => ({
+      ...value,
+      todayScheduleStatus: alreadyHoldingVerifiedToday ? "ready" : "error",
+      scheduleLoadError: String((scheduleResult.error as any)?.message || scheduleResult.error),
+      ...(alreadyHoldingVerifiedToday
+        ? applyIndependentOutings(value, outingsResult)
+        : {}),
     }));
-
-    await useSchedule.getState().maybeAutoResetOutings();
-
-    return result;
-  } catch (error) {
-    console.error("Error refreshing schedule from Supabase:", error);
-    return { ok: false, error };
+    return scheduleResult;
   }
-}
 
+  if (!scheduleResult.data) {
+    setMissingScheduleState(houseId, todayKey, outingsResult);
+    return scheduleResult;
+  }
+
+  applyLoadedScheduleState(scheduleResult.data, todayKey, outingsResult);
+  await useSchedule.getState().maybeAutoResetOutings();
+  return scheduleResult;
+}

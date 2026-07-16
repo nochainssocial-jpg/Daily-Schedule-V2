@@ -11,94 +11,20 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
-import type { ScheduleSnapshot, OutingGroup } from '@/hooks/schedule-store';
 import { masterStaff as STATIC_STAFF } from '@/constants/data';
 import Chip from '@/components/Chip';
 import Checkbox from '@/components/Checkbox';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
-import { saveScheduleToSupabase } from '@/lib/saveSchedule';
+import { patchScheduleById } from '@/lib/saveSchedule';
+import { getSydneyDateKey } from '@/lib/sydneyDate';
 
 type ID = string;
 type ChecklistSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const MAX_WIDTH = 880;
 const HOUSE_ID = 'B2';
-
-function hasOutingContent(outing: OutingGroup | null | undefined): outing is OutingGroup {
-  if (!outing) return false;
-
-  return Boolean(
-    (outing.name || '').trim() ||
-      (outing.startTime || '').trim() ||
-      (outing.endTime || '').trim() ||
-      ((outing as any).notes || '').trim?.() ||
-      (outing.staffIds?.length ?? 0) > 0 ||
-      (outing.participantIds?.length ?? 0) > 0,
-  );
-}
-
-function normaliseOutingsForSave(schedule: any): OutingGroup[] {
-  const rawOutings = Array.isArray(schedule.outingGroups)
-    ? schedule.outingGroups
-    : schedule.outingGroup
-      ? [schedule.outingGroup]
-      : [];
-
-  return rawOutings
-    .slice(0, 2)
-    .map((outing: any, index: number) => ({
-      id: String(outing?.id || `outing-${index + 1}`),
-      name: String(outing?.name || ''),
-      staffIds: Array.isArray(outing?.staffIds) ? outing.staffIds.map(String) : [],
-      participantIds: Array.isArray(outing?.participantIds)
-        ? outing.participantIds.map(String)
-        : [],
-      startTime: outing?.startTime ? String(outing.startTime) : '',
-      endTime: outing?.endTime ? String(outing.endTime) : '',
-      notes: outing?.notes ? String(outing.notes) : '',
-    }))
-    .filter(hasOutingContent);
-}
-
-function buildSnapshotForSave(schedule: any): ScheduleSnapshot {
-  const outingGroups = normaliseOutingsForSave(schedule);
-
-  return {
-    staff: schedule.staff || [],
-    participants: schedule.participants || [],
-    workingStaff: schedule.workingStaff || [],
-    attendingParticipants: schedule.attendingParticipants || [],
-
-    trainingStaffToday: schedule.trainingStaffToday || [],
-
-    assignments: schedule.assignments || {},
-    floatingAssignments: schedule.floatingAssignments || {
-      frontRoom: null,
-      scotty: null,
-      twins: null,
-    },
-    cleaningAssignments: schedule.cleaningAssignments || {},
-    cleaningBinsVariant: schedule.cleaningBinsVariant ?? 0,
-
-    finalChecklist: schedule.finalChecklist || {},
-    finalChecklistStaff: schedule.finalChecklistStaff ?? null,
-
-    pickupParticipants: schedule.pickupParticipants || [],
-    helperStaff: schedule.helperStaff || [],
-    helperPickupStaff: schedule.helperPickupStaff || [],
-
-    dropoffAssignments: schedule.dropoffAssignments || {},
-    dropoffLocations: schedule.dropoffLocations || {},
-
-    outingGroups,
-    outingGroup: outingGroups[0] ?? null,
-
-    date: schedule.date,
-    meta: schedule.meta ?? {},
-  } as ScheduleSnapshot;
-}
 
 export default function EditChecklistScreen() {
   const { width, height } = useWindowDimensions();
@@ -149,17 +75,26 @@ export default function EditChecklistScreen() {
 
     try {
       const latestScheduleState = useSchedule.getState();
-      const snapshot = buildSnapshotForSave({
-        ...latestScheduleState,
-        finalChecklist: nextChecklist,
-      });
+      const todayKey = getSydneyDateKey();
 
-      const result = await saveScheduleToSupabase(HOUSE_ID, snapshot);
-
-      if (!result?.ok) {
-        throw result?.error || new Error('Checklist save failed');
+      if (
+        latestScheduleState.todayScheduleStatus !== 'ready' ||
+        !latestScheduleState.activeScheduleId ||
+        latestScheduleState.activeScheduleDate !== todayKey
+      ) {
+        throw new Error("Today's schedule is not loaded");
       }
 
+      const result = await patchScheduleById({
+        scheduleId: latestScheduleState.activeScheduleId,
+        house: latestScheduleState.activeScheduleHouse || HOUSE_ID,
+        scheduleDate: todayKey,
+        patch: { finalChecklist: nextChecklist },
+      });
+
+      if (!result.ok) throw result.error || new Error('Checklist save failed');
+
+      latestScheduleState.setActiveScheduleRecord(result.data);
       setChecklistSaveStatus('saved');
     } catch (error) {
       console.error('Checklist auto-save failed:', error);

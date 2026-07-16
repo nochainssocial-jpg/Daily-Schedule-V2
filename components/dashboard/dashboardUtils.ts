@@ -1,3 +1,4 @@
+import { getSydneyDateKey, getSydneyMinutesSinceMidnight, SYDNEY_TIMEZONE } from "@/lib/sydneyDate";
 import {
   DASHBOARD_OPERATIONAL_TIMES,
   STAFF_FEMALE_COLOR,
@@ -153,8 +154,7 @@ export function slotWindow(slot: any): { start: number | null; end: number | nul
 }
 
 export function nowMinutes(): number {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
+  return getSydneyMinutesSinceMidnight();
 }
 
 export function isCurrentSlot(
@@ -285,6 +285,7 @@ export function timeNowLabel(tick: number, currentMinutes?: number | null): stri
   void tick;
   if (currentMinutes != null) return minutesToTimeLabel(currentMinutes);
   return new Date().toLocaleTimeString("en-AU", {
+    timeZone: SYDNEY_TIMEZONE,
     hour: "numeric",
     minute: "2-digit",
   });
@@ -292,14 +293,14 @@ export function timeNowLabel(tick: number, currentMinutes?: number | null): stri
 
 export function timeLabel(date: Date): string {
   return date.toLocaleTimeString("en-AU", {
+    timeZone: SYDNEY_TIMEZONE,
     hour: "numeric",
     minute: "2-digit",
   });
 }
 
 export function todayISODate(referenceDate = new Date()): string {
-  const d = referenceDate;
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return getSydneyDateKey(referenceDate);
 }
 
 export function shortDateAU(dateString?: string | null): string {
@@ -310,12 +311,18 @@ export function shortDateAU(dateString?: string | null): string {
 }
 
 export function eventRelativeLabel(dateString: string, referenceDate = new Date()): string {
-  const [year, month, day] = String(dateString).slice(0, 10).split("-").map(Number);
-  const eventDate = new Date(year, month - 1, day);
-  const today = referenceDate;
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const diffDays = Math.round((eventDate.getTime() - todayStart.getTime()) / 86400000);
+  const toUtcDay = (dateKey: string) => {
+    const [year, month, day] = dateKey.slice(0, 10).split("-").map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
 
+  const eventKey = String(dateString).slice(0, 10);
+  const todayKey = getSydneyDateKey(referenceDate);
+  const eventDay = toUtcDay(eventKey);
+  const todayDay = toUtcDay(todayKey);
+  if (!Number.isFinite(eventDay) || !Number.isFinite(todayDay)) return "";
+
+  const diffDays = Math.round((eventDay - todayDay) / 86400000);
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Tomorrow";
   if (diffDays > 1) return `In ${diffDays} days`;

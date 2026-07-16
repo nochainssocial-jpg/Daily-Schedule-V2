@@ -6,6 +6,7 @@
 import * as Data from '@/constants/data';
 import type { Staff, Participant } from '@/constants/data';
 import type { ID, ScheduleSnapshot } from './schedule-store';
+import { getSydneyDateKey } from '@/lib/sydneyDate';
 
 type PersistParams = {
   createSchedule: (snapshot: ScheduleSnapshot) => Promise<void> | void;
@@ -290,14 +291,10 @@ export async function persistFinish(params: PersistParams) {
     finalChecklist,
     finalChecklistStaff: finalChecklistStaff ?? null,
 
+    outingGroups: [],
     outingGroup: null,
 
-    date:
-      date ||
-      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-        2,
-        '0',
-      )}-${String(now.getDate()).padStart(2, '0')}`,
+    date: date || getSydneyDateKey(now),
 
     meta: {
       from: 'create-wizard',
@@ -319,12 +316,15 @@ export async function persistFinish(params: PersistParams) {
       const pid = p.id as ID;
       if (!attendingSet.has(pid)) return;
 
-      if (!snapshot.assignments[everyoneId]) {
-        snapshot.assignments[everyoneId] = [];
+      const currentEveryoneAssignments = snapshot.assignments[everyoneId];
+      const everyoneAssignments = Array.isArray(currentEveryoneAssignments)
+        ? currentEveryoneAssignments
+        : [];
+
+      if (!everyoneAssignments.includes(pid)) {
+        everyoneAssignments.push(pid);
       }
-      if (!snapshot.assignments[everyoneId].includes(pid)) {
-        snapshot.assignments[everyoneId].push(pid);
-      }
+      snapshot.assignments[everyoneId] = everyoneAssignments;
     };
 
     ensure(zara);
