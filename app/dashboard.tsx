@@ -63,6 +63,23 @@ const REMINDER_BURST_MINUTE = 15;
 const REMINDER_BURST_DURATION_MINUTES = 1;
 
 
+const FLOATING_ROOM_KEYS = ["frontRoom", "scotty", "twins"] as const;
+
+function hasAssignedFloatingStaff(value: any): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  // Compatibility with the older direct room shape.
+  if (FLOATING_ROOM_KEYS.some((room) => Boolean(value?.[room]))) return true;
+
+  // Current shape: time-slot id -> room assignments.
+  return Object.values(value).some(
+    (row: any) =>
+      row &&
+      typeof row === "object" &&
+      FLOATING_ROOM_KEYS.some((room) => Boolean(row?.[room])),
+  );
+}
+
 function getPreviewTimeParam(): string | null {
 if (typeof window === "undefined") return null;
 
@@ -515,6 +532,12 @@ getAssignmentTheme,
 const displayTimeSlots =
 (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [];
 
+const hasFloatingAssignments = useMemo(
+() => hasAssignedFloatingStaff(floatingAssignments),
+[floatingAssignments],
+);
+const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
+
 const upcomingFloatingRotationAnnouncement = useMemo(
 () =>
 buildUpcomingFloatingRotationAnnouncement({
@@ -667,15 +690,15 @@ add("team", dailyAssignmentsAreOperational);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("outings", visibleOutings.length > 0);
 add("staffCelebrations", hasStaffCelebrations);
-add("floating", floatingIsOperational);
+add("floating", showFloatingPanel);
 } else if (operationalPhase === "activeProgram") {
-add("floating", floatingIsOperational);
+add("floating", showFloatingPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "cleaningActive") {
-add("floating", floatingIsOperational);
+add("floating", showFloatingPanel);
 add("cleaning", showCleaningPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
@@ -683,7 +706,7 @@ add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "departureWindow") {
 add("dropoffs", showDropoffsPanel);
-add("floating", floatingIsOperational);
+add("floating", showFloatingPanel);
 add("cleaning", showCleaningPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
@@ -703,7 +726,7 @@ return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
 hasEventsMeetingsVisits,
 dailyAssignmentsAreOperational,
 morningSetupIsOperational,
-floatingIsOperational,
+showFloatingPanel,
 hasStaffCelebrations,
 operationalPhase,
 reminderBurstActive,
@@ -933,12 +956,14 @@ return (
   onToggleAutoRotation={handleToggleAutoRotation}
   floatingOverlay={
     <>
-      <FloatingRotationBanner
-        displayTimeSlots={displayTimeSlots}
-        floatingAssignments={floatingAssignments}
-        staffById={staffById}
-        currentMinutes={currentMinutes}
-      />
+      {hasFloatingAssignments ? (
+        <FloatingRotationBanner
+          displayTimeSlots={displayTimeSlots}
+          floatingAssignments={floatingAssignments}
+          staffById={staffById}
+          currentMinutes={currentMinutes}
+        />
+      ) : null}
       <DailyPhasePills
         currentMinutes={currentMinutes}
         dashboardNow={dashboardNow}
