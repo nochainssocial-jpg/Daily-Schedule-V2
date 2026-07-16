@@ -21,6 +21,7 @@ type OutingGroup = {
   staffIds?: (string | number)[];
   participantIds?: (string | number)[];
   notes?: string | null;
+  linkedOutingName?: string | null;
 };
 
 type OutingPhase = "none" | "upcoming" | "startingSoon" | "active" | "complete";
@@ -66,14 +67,16 @@ export default function OutingSummaryBanner({
   const isStartingSoon = phase === "startingSoon";
   const isComplete = phase === "complete";
   const isSecond = outingIndex === 1;
+  const isSafety = outingIndex === 2;
+  const displayLabel = isSafety ? "Additional Safety Transport" : `Outing ${outingIndex + 1}`;
 
   const outingTitle = isStartingSoon
-    ? `Outing ${outingIndex + 1} starting soon`
+    ? `${displayLabel} starting soon`
     : isUpcoming
-      ? `Upcoming outing ${outingIndex + 1}`
+      ? `Upcoming ${displayLabel.toLowerCase()}`
       : isComplete
-        ? `Outing ${outingIndex + 1} complete`
-        : `Outing ${outingIndex + 1} in progress`;
+        ? `${displayLabel} complete`
+        : `${displayLabel} in progress`;
 
   const outingSubtitle = isStartingSoon
     ? "Starting soon"
@@ -103,6 +106,7 @@ export default function OutingSummaryBanner({
       style={({ pressed }) => [
         styles.outingSummary,
         isSecond && styles.outingSummarySecond,
+        isSafety && styles.outingSummarySafety,
         isUpcoming && styles.outingSummaryUpcoming,
         isStartingSoon && styles.outingSummaryStartingSoon,
         isComplete && styles.outingSummaryComplete,
@@ -115,6 +119,7 @@ export default function OutingSummaryBanner({
           style={[
             styles.outingSummaryIconBubble,
             isSecond && styles.outingSummaryIconBubbleSecond,
+            isSafety && styles.outingSummaryIconBubbleSafety,
             isStartingSoon && styles.outingSummaryIconBubbleStartingSoon,
             isComplete && styles.outingSummaryIconBubbleComplete,
           ]}
@@ -127,9 +132,11 @@ export default function OutingSummaryBanner({
                 ? "#166534"
                 : isUpcoming || isStartingSoon
                   ? "#1D4ED8"
-                  : isSecond
-                    ? "#6D28D9"
-                    : "#C05621"
+                  : isSafety
+                    ? "#B91C1C"
+                    : isSecond
+                      ? "#6D28D9"
+                      : "#C05621"
             }
           />
         </View>
@@ -140,6 +147,7 @@ export default function OutingSummaryBanner({
               style={[
                 styles.outingSummaryTitle,
                 isSecond && styles.outingSummaryTitleSecond,
+                isSafety && styles.outingSummaryTitleSafety,
                 (isUpcoming || isStartingSoon) && styles.outingSummaryTitleUpcoming,
                 isComplete && styles.outingSummaryTitleComplete,
               ]}
@@ -155,9 +163,11 @@ export default function OutingSummaryBanner({
                   ? "#166534"
                   : isUpcoming || isStartingSoon
                     ? "#1D4ED8"
-                    : isSecond
-                      ? "#5B21B6"
-                      : "#9A3412"
+                    : isSafety
+                      ? "#B91C1C"
+                      : isSecond
+                        ? "#5B21B6"
+                        : "#9A3412"
               }
             />
           </View>
@@ -166,12 +176,15 @@ export default function OutingSummaryBanner({
             style={[
               styles.outingSummaryLine,
               isSecond && styles.outingSummaryLineSecond,
+              isSafety && styles.outingSummaryLineSafety,
               (isUpcoming || isStartingSoon) && styles.outingSummaryLineUpcoming,
               isComplete && styles.outingSummaryLineComplete,
             ]}
             numberOfLines={expanded ? undefined : 1}
           >
-            {outingGroup.name || "Unnamed outing"}
+            {isSafety
+              ? `Linked to ${outingGroup.linkedOutingName || "main outing"}`
+              : outingGroup.name || "Unnamed outing"}
             {timeRange ? ` · ${timeRange}` : ""}
             {` · ${outingSubtitle}`}
           </Text>
@@ -180,6 +193,7 @@ export default function OutingSummaryBanner({
             style={[
               styles.outingSummaryLine,
               isSecond && styles.outingSummaryLineSecond,
+              isSafety && styles.outingSummaryLineSafety,
               (isUpcoming || isStartingSoon) && styles.outingSummaryLineUpcoming,
               isComplete && styles.outingSummaryLineComplete,
             ]}
@@ -235,6 +249,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F3FF",
     borderColor: "#DDD6FE",
   },
+  outingSummarySafety: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#DC2626",
+    borderWidth: 2,
+  },
   outingSummaryUpcoming: {
     backgroundColor: "#EFF6FF",
     borderColor: "#BFDBFE",
@@ -264,6 +283,9 @@ const styles = StyleSheet.create({
   outingSummaryIconBubbleSecond: {
     backgroundColor: "#DDD6FE",
   },
+  outingSummaryIconBubbleSafety: {
+    backgroundColor: "#FEE2E2",
+  },
   outingSummaryIconBubbleStartingSoon: {
     backgroundColor: "#BFDBFE",
   },
@@ -284,6 +306,9 @@ const styles = StyleSheet.create({
   outingSummaryTitleSecond: {
     color: "#5B21B6",
   },
+  outingSummaryTitleSafety: {
+    color: "#B91C1C",
+  },
   outingSummaryTitleUpcoming: {
     color: "#1D4ED8",
   },
@@ -296,6 +321,9 @@ const styles = StyleSheet.create({
   },
   outingSummaryLineSecond: {
     color: "#4C1D95",
+  },
+  outingSummaryLineSafety: {
+    color: "#991B1B",
   },
   outingSummaryLineUpcoming: {
     color: "#1E40AF",

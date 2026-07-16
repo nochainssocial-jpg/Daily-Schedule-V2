@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSchedule } from "@/hooks/schedule-store";
+import { getOutingSlot, resolveOutingTiming } from "@/lib/outingSlots";
 
 const PINK = "#F54FA5";
 const PURPLE = "#7C3AED";
 const DARK = "#2b2230";
+const RED = "#DC2626";
 
 type OutingGroup = {
   id?: string;
@@ -14,6 +16,8 @@ type OutingGroup = {
   participantIds?: string[];
   startTime?: string;
   endTime?: string;
+  linkedOutingId?: string;
+  linkedOutingName?: string;
 };
 
 function parseTimeToMinutes(raw?: string | null): number | null {
@@ -64,7 +68,10 @@ function getActiveOutingStatus(outingGroup: OutingGroup, index: number) {
   const inWindow = nowM >= startM && nowM < endM;
   if (!inWindow) return null;
 
-  const name = (outingGroup.name || "").trim() || `Drive / Outing ${index + 1}`;
+  const slot = getOutingSlot(outingGroup, index);
+  const name = slot === 2
+    ? "Additional Safety Transport"
+    : (outingGroup.name || "").trim() || `Drive / Outing ${slot + 1}`;
   const pCount = outingGroup.participantIds?.length ?? 0;
   const sCount = outingGroup.staffIds?.length ?? 0;
   const startLabel = outingGroup.startTime || "?";
@@ -74,7 +81,8 @@ function getActiveOutingStatus(outingGroup: OutingGroup, index: number) {
     id: outingGroup.id || `outing-${index + 1}`,
     title: `${name} in progress`,
     sub: `${startLabel}–${endLabel} • ${pCount} participant${pCount === 1 ? "" : "s"} • ${sCount} staff`,
-    isSecond: index === 1,
+    isSecond: slot === 1,
+    isSafety: slot === 2,
   };
 }
 
@@ -99,10 +107,11 @@ export default function OutingWindowBanner() {
   const activeOutings = useMemo(() => {
     void tick;
     return outingGroups
-      .slice(0, 2)
-      .map((outingGroup: OutingGroup, index: number) =>
-        getActiveOutingStatus(outingGroup, index),
-      )
+      .slice(0, 3)
+      .map((rawGroup: OutingGroup, index: number) => {
+        const outingGroup = resolveOutingTiming(rawGroup, outingGroups);
+        return getActiveOutingStatus(outingGroup, index);
+      })
       .filter(Boolean);
   }, [outingGroups, tick]);
 
@@ -114,12 +123,17 @@ export default function OutingWindowBanner() {
         {activeOutings.map((status: any) => (
           <View
             key={status.id}
-            style={[styles.banner, status.isSecond && styles.bannerSecond]}
+            style={[
+              styles.banner,
+              status.isSecond && styles.bannerSecond,
+              status.isSafety && styles.bannerSafety,
+            ]}
           >
             <View
               style={[
                 styles.iconPill,
                 status.isSecond && styles.iconPillSecond,
+                status.isSafety && styles.iconPillSafety,
               ]}
             >
               <Ionicons name="car-outline" size={16} color="#fff" />
@@ -174,6 +188,10 @@ const styles = StyleSheet.create({
   bannerSecond: {
     borderColor: "rgba(124,58,237,0.35)",
   },
+  bannerSafety: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "rgba(220,38,38,0.55)",
+  },
   iconPill: {
     width: 30,
     height: 30,
@@ -185,6 +203,9 @@ const styles = StyleSheet.create({
   },
   iconPillSecond: {
     backgroundColor: PURPLE,
+  },
+  iconPillSafety: {
+    backgroundColor: RED,
   },
   title: {
     fontSize: 13,

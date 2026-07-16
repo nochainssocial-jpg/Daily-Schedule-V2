@@ -8,7 +8,7 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
     <View style={styles.panel}>
       <View style={styles.panelHeaderRow}>
         <View>
-          <Text style={styles.panelEyebrow}>Today's participant support</Text>
+          <Text style={styles.panelEyebrow}>Today’s participant support</Text>
           <Text style={styles.panelTitle}>Team Daily Assignments</Text>
         </View>
         <View style={styles.legendRow}>
@@ -20,6 +20,9 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
           </View>
           <View style={[styles.legendPill, styles.legendPurple]}>
             <Text style={styles.legendTextPurple}>Outing 2</Text>
+          </View>
+          <View style={[styles.legendPill, styles.legendRed]}>
+            <Text style={styles.legendTextRed}>Additional Transport</Text>
           </View>
         </View>
       </View>
@@ -40,7 +43,9 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
                   ? styles.assignmentCardOuting1
                   : row.theme === "outing2"
                     ? styles.assignmentCardOuting2
-                    : styles.assignmentCardOnsite,
+                    : row.theme === "outing3"
+                      ? styles.assignmentCardOuting3
+                      : styles.assignmentCardOnsite,
               ]}
             >
               <View
@@ -61,6 +66,13 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
               </View>
 
               <View style={styles.assignmentParticipantList}>
+                {row.participantItems.length === 0 && (
+                  <View style={styles.assignmentUnassignedChip}>
+                    <Text style={styles.assignmentUnassignedText}>
+                      No participant assigned
+                    </Text>
+                  </View>
+                )}
                 {row.participantItems.map((participant: any) => (
                   <View
                     key={participant.id}
@@ -70,7 +82,9 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
                         ? styles.assignmentParticipantChipOuting1
                         : participant.theme === "outing2"
                           ? styles.assignmentParticipantChipOuting2
-                          : styles.assignmentParticipantChipOnsite,
+                          : participant.theme === "outing3"
+                            ? styles.assignmentParticipantChipOuting3
+                            : styles.assignmentParticipantChipOnsite,
                     ]}
                   >
                     <Text
@@ -80,7 +94,9 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
                           ? styles.assignmentParticipantNameOuting1
                           : participant.theme === "outing2"
                             ? styles.assignmentParticipantNameOuting2
-                            : styles.assignmentParticipantNameOnsite,
+                            : participant.theme === "outing3"
+                              ? styles.assignmentParticipantNameOuting3
+                              : styles.assignmentParticipantNameOnsite,
                       ]}
                       numberOfLines={1}
                     >

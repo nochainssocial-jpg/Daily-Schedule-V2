@@ -16,6 +16,7 @@ import Footer from "@/components/Footer";
 import ScheduleBanner from "@/components/ScheduleBanner";
 import OutingSummaryBanner from "@/components/OutingSummaryBanner";
 import { initScheduleForToday, useSchedule } from "@/hooks/schedule-store";
+import { getOutingSlot, resolveOutingTiming } from "@/lib/outingSlots";
 
 const MAX_WIDTH = 960;
 const showWebBranding = Platform.OS === "web";
@@ -118,6 +119,8 @@ type OutingGroup = {
   staffIds?: (string | number)[];
   participantIds?: (string | number)[];
   notes?: string | null;
+  linkedOutingId?: string | null;
+  linkedOutingName?: string | null;
 };
 
 type OutingPhase = "none" | "upcoming" | "startingSoon" | "active" | "complete";
@@ -169,7 +172,20 @@ function getOutingPhase(
   if (!outingGroup || !hasOutingPeople(outingGroup)) return "none";
 
   const startMinutes = parseTimeToMinutes(outingGroup.startTime);
-  const endMinutes = parseTimeToMinutes(outingGroup.endTime);
+  const parsedEndMinutes = parseTimeToMinutes(outingGroup.endTime);
+
+  // Staff sometimes enter an afternoon end time without an AM/PM suffix
+  // (for example, 10:30 to 2:00). When the parsed end is earlier than the
+  // start and falls before midday, treat it as PM. This matches the dashboard
+  // outing logic and prevents a live outing being mistaken for one that ended
+  // at 2:00 am.
+  const endMinutes =
+    startMinutes !== null &&
+    parsedEndMinutes !== null &&
+    parsedEndMinutes <= startMinutes &&
+    parsedEndMinutes < 12 * 60
+      ? parsedEndMinutes + 12 * 60
+      : parsedEndMinutes;
 
   // If no usable time has been entered, keep the banner as a general planned
   // reminder instead of calling it active forever.
@@ -200,7 +216,9 @@ function buildVisibleOutings(
   currentMinutes = getNowMinutes(),
 ) {
   return outingGroups
-    .map((group, index) => {
+    .map((rawGroup, index) => {
+      const group = resolveOutingTiming(rawGroup, outingGroups);
+      const slot = getOutingSlot(rawGroup, index);
       const phase = getOutingPhase(group, currentMinutes);
       const staffCount = group.staffIds?.length ?? 0;
       const participantCount = group.participantIds?.length ?? 0;
@@ -213,7 +231,7 @@ function buildVisibleOutings(
 
       return {
         group,
-        index,
+        index: slot,
         phase,
         staffCount,
         participantCount,
@@ -221,7 +239,7 @@ function buildVisibleOutings(
       };
     })
     .filter((item) => item.phase !== "none")
-    .slice(0, 2);
+    .slice(0, 3);
 }
 
 export default function EditHubScreen() {

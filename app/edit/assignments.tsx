@@ -21,6 +21,7 @@ import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
 import { supabase } from '@/lib/supabase';
+import { getOutingSlot, resolveOutingTiming } from '@/lib/outingSlots';
 
 type ID = string;
 
@@ -369,16 +370,19 @@ export default function EditAssignmentsScreen() {
   // Keep the original outing index so Outing 2 stays purple even if Outing 1 is inactive.
   const activeOutingEntries = React.useMemo(
     () =>
-      normalizedOutingGroups.slice(0, 2).map((group, index) => ({
-        group,
-        index,
-        phase: getOutingPhase(group),
-      })).filter(({ phase }) => phase === 'activeShort' || phase === 'activeLong'),
+      normalizedOutingGroups.slice(0, 3).map((rawGroup, index) => {
+        const group = resolveOutingTiming(rawGroup as any, normalizedOutingGroups as any);
+        return {
+          group,
+          index: getOutingSlot(rawGroup, index),
+          phase: getOutingPhase(group),
+        };
+      }).filter(({ phase }) => phase === 'activeShort' || phase === 'activeLong'),
     [normalizedOutingGroups],
   );
 
   // Offsite participants from each active outing group (IDs only).
-  // Outing 1 = orange, Outing 2 = purple.
+  // Outing 1 = orange, Outing 2 = purple, Additional Safety Transport = red.
   const outing1ParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
     activeOutingEntries
@@ -402,6 +406,18 @@ export default function EditAssignmentsScreen() {
       });
     return set;
   }, [activeOutingEntries]);
+  const safetyTransportParticipantIds = React.useMemo(() => {
+    const set = new Set<ID>();
+    activeOutingEntries
+      .filter(({ index }) => index === 2)
+      .forEach(({ group }) => {
+        ((group?.participantIds ?? []) as (string | number)[]).forEach((id: any) => {
+          set.add(String(id) as ID);
+        });
+      });
+    return set;
+  }, [activeOutingEntries]);
+
 
   const outingIsActive = activeOutingEntries.length > 0;
 
@@ -859,7 +875,9 @@ export default function EditAssignmentsScreen() {
                           outingIsActive && outing1ParticipantIds.has(pid);
                         const isOuting2 =
                           outingIsActive && outing2ParticipantIds.has(pid);
-                        const isOffsite = isOuting1 || isOuting2;
+                        const isSafetyTransport =
+                          outingIsActive && safetyTransportParticipantIds.has(pid);
+                        const isOffsite = isOuting1 || isOuting2 || isSafetyTransport;
 
                         return (
                           <TouchableOpacity
@@ -898,6 +916,7 @@ export default function EditAssignmentsScreen() {
                               // Outing participants: orange for Outing 1, purple for Outing 2
                               isOuting1 && styles.chipOuting1,
                               isOuting2 && styles.chipOuting2,
+                              isSafetyTransport && styles.chipSafetyTransport,
                             ]}
                           >
                             {/* Name */}
@@ -907,6 +926,7 @@ export default function EditAssignmentsScreen() {
                                 isAssigned && styles.chipTxtSel,
                                 isOuting1 && styles.chipTxtOuting1,
                                 isOuting2 && styles.chipTxtOuting2,
+                                isSafetyTransport && styles.chipTxtSafetyTransport,
                               ]}
                               numberOfLines={1}
                             >
@@ -1366,6 +1386,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     borderColor: '#8B5CF6',
   },
+  chipSafetyTransport: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC2626',
+    borderWidth: 2,
+  },
   chipTxt: {
     fontSize: 16,
     fontWeight: '700',
@@ -1379,6 +1404,9 @@ const styles = StyleSheet.create({
   },
   chipTxtOuting2: {
     color: '#6D28D9',
+  },
+  chipTxtSafetyTransport: {
+    color: '#B91C1C',
   },
   chipTxtOffsite: {
     color: '#101828', // dark text when offsite (overrides white)

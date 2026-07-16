@@ -25,6 +25,7 @@ import {
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
+import { resolveOutingTiming } from '@/lib/outingSlots';
 
 type ID = string;
 type ColKey = 'frontRoom' | 'scotty' | 'twins';
@@ -873,11 +874,13 @@ function FloatingScreenInner() {
         ? [outingGroup]
         : [];
 
-    return groups.filter((group: any) => {
-      const staffCount = group?.staffIds?.length ?? 0;
-      const participantCount = group?.participantIds?.length ?? 0;
-      return staffCount > 0 || participantCount > 0;
-    });
+    return groups
+      .map((group: any) => resolveOutingTiming(group, groups))
+      .filter((group: any) => {
+        const staffCount = group?.staffIds?.length ?? 0;
+        const participantCount = group?.participantIds?.length ?? 0;
+        return staffCount > 0 || participantCount > 0;
+      });
   }, [outingGroups, outingGroup]);
 
   const outingStaffSet = useMemo(
@@ -1284,7 +1287,7 @@ useEffect(() => {
                 Showing floating assignments for{' '}
                 {(sortedWorking || []).find((s: any) => s.id === filterStaffId)
                   ?.name || 'selected staff'}
-                . Tap "Show all" to clear.
+                . Tap Show all to clear.
               </Text>
             )}
           </View>

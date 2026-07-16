@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 
 import SaveExit from '@/components/SaveExit';
+import { getOutingBySlot } from '@/lib/outingSlots';
 import { useSchedule } from '@/hooks/schedule-store';
 import { masterStaff as STATIC_STAFF } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
@@ -183,7 +184,7 @@ export default function EditDreamTeamScreen() {
   const outing1StaffSet = useMemo(
     () =>
       new Set<string>(
-        (((normalizedOutingGroups[0] as any)?.staffIds ?? []) as (string | number)[]).map(
+        (((getOutingBySlot(normalizedOutingGroups, 0) as any)?.staffIds ?? []) as (string | number)[]).map(
           (raw) => String(raw),
         ),
       ),
@@ -193,12 +194,22 @@ export default function EditDreamTeamScreen() {
   const outing2StaffSet = useMemo(
     () =>
       new Set<string>(
-        (((normalizedOutingGroups[1] as any)?.staffIds ?? []) as (string | number)[]).map(
+        (((getOutingBySlot(normalizedOutingGroups, 1) as any)?.staffIds ?? []) as (string | number)[]).map(
           (raw) => String(raw),
         ),
       ),
     [normalizedOutingGroups],
   );
+  const safetyTransportStaffSet = useMemo(
+    () =>
+      new Set<string>(
+        (((getOutingBySlot(normalizedOutingGroups, 2) as any)?.staffIds ?? []) as (string | number)[]).map(
+          (raw) => String(raw),
+        ),
+      ),
+    [normalizedOutingGroups],
+  );
+
 
   const toggleStaff = (id: ID) => {
     if (readOnly) {
@@ -245,6 +256,7 @@ export default function EditDreamTeamScreen() {
 
     const isOnOuting1 = outing1StaffSet.has(id);
     const isOnOuting2 = outing2StaffSet.has(id);
+    const isOnSafetyTransport = safetyTransportStaffSet.has(id);
     const isTraining = trainingSet.has(id);
 
     const nameKey = `name:${String(s.name || '').toLowerCase()}`;
@@ -262,6 +274,8 @@ export default function EditDreamTeamScreen() {
         ? 'outing1'
         : isOnOuting2
         ? 'outing2'
+        : isOnSafetyTransport
+        ? 'outing3'
         : inDreamTeam
         ? 'onsite'
         : 'default'
@@ -371,6 +385,11 @@ export default function EditDreamTeamScreen() {
               <View style={styles.legendItem}>
                 <View style={[styles.legendSwatch, styles.legendOuting2]} />
                 <Text style={styles.legendLabel}>Outing 2</Text>
+              </View>
+
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendSafety]} />
+                <Text style={styles.legendLabel}>Safety Transport</Text>
               </View>
             </View>
 
@@ -545,6 +564,11 @@ const styles = StyleSheet.create({
   legendOuting2: {
     backgroundColor: '#F5F3FF',
     borderColor: '#8B5CF6',
+  },
+  legendSafety: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC2626',
+    borderWidth: 2,
   },
   legendLabel: {
     fontSize: 12,

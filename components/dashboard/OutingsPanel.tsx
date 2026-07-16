@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getOutingPhase, namesFromIds, outingPhaseLabel, shortNames } from "./dashboardUtils";
 import { styles } from "./dashboardStyles";
+import { getOutingSlot } from "@/lib/outingSlots";
 
 export function OutingsPanel({
   activeOutings,
@@ -28,7 +29,9 @@ export function OutingsPanel({
       ) : (
         <View style={styles.outingGrid}>
           {activeOutings.map((outing: any, index: number) => {
-            const isSecond = index === 1;
+            const slot = getOutingSlot(outing, index);
+            const isSecond = slot === 1;
+            const isSafety = slot === 2;
             const staffNames = namesFromIds(outing.staffIds, staffById);
             const participantNames = namesFromIds(outing.participantIds, participantsById);
             const phase = getOutingPhase(outing, currentMinutes);
@@ -36,17 +39,47 @@ export function OutingsPanel({
             return (
               <View
                 key={outing.id || `outing-${index}`}
-                style={[styles.outingCard, isSecond ? styles.outingCardPurple : styles.outingCardOrange]}
+                style={[
+                  styles.outingCard,
+                  isSafety
+                    ? styles.outingCardRed
+                    : isSecond
+                      ? styles.outingCardPurple
+                      : styles.outingCardOrange,
+                ]}
               >
                 <View style={styles.outingTitleRow}>
-                  <View style={[styles.outingIcon, isSecond ? styles.outingIconPurple : styles.outingIconOrange]}>
+                  <View
+                    style={[
+                      styles.outingIcon,
+                      isSafety
+                        ? styles.outingIconRed
+                        : isSecond
+                          ? styles.outingIconPurple
+                          : styles.outingIconOrange,
+                    ]}
+                  >
                     <Ionicons name="car-outline" size={26} color="#FFFFFF" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.outingLabel, isSecond ? styles.purpleText : styles.orangeText]}>
-                      {isSecond ? "Outing 2" : "Outing 1"}{phaseLabel ? ` · ${phaseLabel}` : ""}
+                    <Text
+                      style={[
+                        styles.outingLabel,
+                        isSafety
+                          ? styles.redText
+                          : isSecond
+                            ? styles.purpleText
+                            : styles.orangeText,
+                      ]}
+                    >
+                      {isSafety ? "Additional Transport" : isSecond ? "Outing 2" : "Outing 1"}
+                      {phaseLabel ? ` · ${phaseLabel}` : ""}
                     </Text>
-                    <Text style={styles.outingName}>{outing.name || "Unnamed outing"}</Text>
+                    <Text style={styles.outingName}>
+                      {isSafety
+                        ? `Linked to ${outing.linkedOutingName || "main outing"}`
+                        : outing.name || "Unnamed outing"}
+                    </Text>
                     <Text style={styles.outingTime}>{(outing.startTime || "?") + " – " + (outing.endTime || "?")}</Text>
                   </View>
                 </View>
