@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { CompactDashboardTile } from "./CompactDashboardTile";
 import { styles } from "./dashboardStyles";
 
 export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
@@ -23,39 +23,17 @@ export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
 
       <ScrollView style={styles.innerScroll} contentContainerStyle={styles.cleaningGrid}>
         {assignedRows.map((row) => (
-          <View key={row.id} style={styles.cleaningCard}>
-            <View
-              style={[
-                styles.cleaningAssignedPill,
-                {
-                  backgroundColor: row.staffColor,
-                  borderColor: row.staffColor,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.cleaningAssignedText, { color: row.staffTextColor }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {row.assigned}
-              </Text>
-            </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={18}
-              color="#9CA3AF"
-              style={styles.cleaningChevron}
-            />
-            <Text
-              style={styles.cleaningTask}
-              numberOfLines={2}
-              ellipsizeMode="tail"
-              accessibilityLabel={row.chore}
-            >
+          <CompactDashboardTile
+            key={row.id}
+            staffName={row.assigned}
+            staffColor={row.staffColor}
+            staffTextColor={row.staffTextColor}
+            style={styles.cleaningCard}
+          >
+            <Text style={styles.cleaningTask} numberOfLines={3}>
               {row.chore}
             </Text>
-          </View>
+          </CompactDashboardTile>
         ))}
       </ScrollView>
     </View>

@@ -1,6 +1,7 @@
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { CompactDashboardTile } from "./CompactDashboardTile";
 import { styles } from "./dashboardStyles";
 
 export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
@@ -22,32 +23,13 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
       ) : (
         <ScrollView style={styles.innerScroll} contentContainerStyle={styles.assignmentGrid}>
           {dropoffRows.map((row) => (
-            <View
+            <CompactDashboardTile
               key={row.staffId}
+              staffName={row.staffName}
+              staffColor={row.staffColor}
+              staffTextColor={row.staffTextColor}
               style={[styles.assignmentCard, styles.assignmentCardOnsite]}
             >
-              <View
-                style={[
-                  styles.assignmentStaffPill,
-                  {
-                    backgroundColor: row.staffColor,
-                    borderColor: row.staffColor,
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.assignmentStaffName, { color: row.staffTextColor }]}
-                  numberOfLines={1}
-                >
-                  {row.staffName}
-                </Text>
-              </View>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={18}
-                color="#9CA3AF"
-                style={styles.assignmentChevron}
-              />
               <View style={styles.assignmentParticipantList}>
                 {row.items.map((item: any) => {
                   const label = item.locationLabel
@@ -74,7 +56,7 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
                   );
                 })}
               </View>
-            </View>
+            </CompactDashboardTile>
           ))}
         </ScrollView>
       )}

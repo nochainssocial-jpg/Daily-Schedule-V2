@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable, View, Text, useWindowDimensions } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { styles } from "./dashboardStyles";
 import {
   DASHBOARD_REFRESH_MS,
@@ -58,6 +59,39 @@ export function DashboardFrame({
   children,
 }: Props) {
   const { width, height } = useWindowDimensions();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const fullscreenSupported =
+    Platform.OS === "web" &&
+    typeof document !== "undefined" &&
+    typeof document.documentElement?.requestFullscreen === "function" &&
+    typeof document.exitFullscreen === "function";
+
+  useEffect(() => {
+    if (!fullscreenSupported) return;
+
+    const syncFullscreenState = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }, [fullscreenSupported]);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (!fullscreenSupported) return;
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (error) {
+      console.warn("Unable to change dashboard fullscreen mode", error);
+    }
+  }, [fullscreenSupported]);
 
   const displayOverride = (() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return null;
@@ -152,6 +186,23 @@ export function DashboardFrame({
               <Pressable onPress={onNextPage} style={styles.manualNavButton}>
                 <Text style={styles.manualNavButtonText}>→</Text>
               </Pressable>
+              {fullscreenSupported ? (
+                <Pressable
+                  onPress={toggleFullscreen}
+                  accessibilityRole="button"
+                  accessibilityLabel={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                  style={[
+                    styles.manualFullscreenButton,
+                    isFullscreen && styles.manualFullscreenButtonExit,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={isFullscreen ? "close" : "fullscreen"}
+                    size={18}
+                    color={isFullscreen ? "#DC2626" : "#374151"}
+                  />
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
           <Text style={[styles.currentPanelCount, isTvDisplay && styles.currentPanelCountTv]}>

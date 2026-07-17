@@ -1,6 +1,7 @@
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { CompactDashboardTile } from "./CompactDashboardTile";
 import { styles } from "./dashboardStyles";
 
 export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRows: any[] }) {
@@ -35,8 +36,11 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
       ) : (
         <ScrollView style={styles.innerScroll} contentContainerStyle={styles.assignmentGrid}>
           {teamAssignmentRows.map((row) => (
-            <View
+            <CompactDashboardTile
               key={row.staffId}
+              staffName={row.staffName}
+              staffColor={row.staffColor}
+              staffTextColor={row.staffTextColor}
               style={[
                 styles.assignmentCard,
                 row.theme === "outing1"
@@ -48,30 +52,6 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
                       : styles.assignmentCardOnsite,
               ]}
             >
-              <View
-                style={[
-                  styles.assignmentStaffPill,
-                  {
-                    backgroundColor: row.staffColor,
-                    borderColor: row.staffColor,
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.assignmentStaffName, { color: row.staffTextColor }]}
-                  numberOfLines={1}
-                >
-                  {row.staffName}
-                </Text>
-              </View>
-
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={18}
-                color="#9CA3AF"
-                style={styles.assignmentChevron}
-              />
-
               <View style={styles.assignmentParticipantList}>
                 {row.participantItems.length === 0 && (
                   <View style={styles.assignmentUnassignedChip}>
@@ -112,7 +92,7 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
                   </View>
                 ))}
               </View>
-            </View>
+            </CompactDashboardTile>
           ))}
         </ScrollView>
       )}

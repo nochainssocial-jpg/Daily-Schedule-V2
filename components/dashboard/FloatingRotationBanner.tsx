@@ -34,6 +34,7 @@ type Props = {
 
 const ROTATION_PREVIEW_BEFORE_MINUTES = 2;
 const ROTATION_PREVIEW_AFTER_MINUTES = 5;
+const FIRST_UP_NEXT_DISPLAY_MINUTES = 10 * 60 + 30;
 const SCROLL_KEYFRAMES_ID = "floating-rotation-banner-keyframes";
 
 function staffInitials(name: string): string {
@@ -268,26 +269,26 @@ export function FloatingRotationBanner({
     previousSlot !== null;
   const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
 
-  const canShowUpNext = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.officialStart + 30;
-  const upNextSlot = canShowUpNext
-    ? slots.find(
-        (slot) =>
-          currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
-          currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
-      ) || null
-    : null;
+  const upNextSlot =
+    slots.find(
+      (slot) =>
+        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
+        currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
+    ) || null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
   const upNextSubtitle =
     upNextSlot && minutesToNext !== null && minutesToNext > 0
       ? `${upNextSlot.label} · starts in ${minutesToNext} min`
       : "";
+  const showUpNext =
+    currentMinutes >= FIRST_UP_NEXT_DISPLAY_MINUTES && upNextSlot !== null;
 
   return (
     <View style={styles.floatingBannerOverlay} pointerEvents="none">
       <View style={styles.floatingBannerGlassPanel}>
         <Text style={styles.floatingBannerPanelTitle}>Floating Assignments</Text>
-        {upNextSlot ? (
+        {showUpNext && upNextSlot ? (
           <FloatingBannerRow
             title="Up Next"
             subtitle={upNextSubtitle}
