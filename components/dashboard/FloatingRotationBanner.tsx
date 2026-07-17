@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { memo, useEffect, useMemo } from "react";
 import { Image, Platform, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
@@ -82,8 +82,8 @@ function injectScrollingKeyframes() {
   style.id = SCROLL_KEYFRAMES_ID;
   style.innerHTML = `
     @keyframes floatingRotationBannerScroll {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
     }
   `;
   document.head.appendChild(style);
@@ -134,7 +134,7 @@ function buildSlotAssignments({
   };
 }
 
-function FloatingStaffCard({ item }: { item: FloatingBannerAssignment }) {
+const FloatingStaffCard = memo(function FloatingStaffCard({ item }: { item: FloatingBannerAssignment }) {
   return (
     <View style={styles.floatingBannerStaffCard}>
       <View style={styles.floatingBannerAvatarWrap}>
@@ -156,9 +156,9 @@ function FloatingStaffCard({ item }: { item: FloatingBannerAssignment }) {
       </View>
     </View>
   );
-}
+});
 
-function FloatingBannerRow({
+const FloatingBannerRow = memo(function FloatingBannerRow({
   title,
   subtitle,
   assignments,
@@ -169,7 +169,27 @@ function FloatingBannerRow({
   assignments: FloatingBannerAssignment[];
   variant: "upNext" | "current";
 }) {
-  const scrollingAssignments = assignments.length ? [...assignments, ...assignments] : assignments;
+  const assignmentKey = assignments
+    .map((item) => `${item.room}:${item.staffId || "empty"}:${item.staffName}`)
+    .join("|");
+
+  const renderAssignmentGroup = (copy: "primary" | "duplicate") => (
+    <View
+      key={`${copy}-${assignmentKey}`}
+      style={[
+        styles.floatingBannerScrollerGroup,
+        Platform.OS === "web" ? (styles.floatingBannerScrollerGroupWeb as any) : null,
+      ]}
+      aria-hidden={copy === "duplicate" ? true : undefined}
+    >
+      {assignments.map((item) => (
+        <FloatingStaffCard
+          key={`${copy}-${item.room}-${item.staffId || "empty"}`}
+          item={item}
+        />
+      ))}
+    </View>
+  );
 
   return (
     <View
@@ -205,14 +225,13 @@ function FloatingBannerRow({
             Platform.OS === "web" ? (styles.floatingBannerScrollerTrackWeb as any) : null,
           ]}
         >
-          {scrollingAssignments.map((item, index) => (
-            <FloatingStaffCard key={`${item.room}-${item.staffId || "empty"}-${index}`} item={item} />
-          ))}
+          {renderAssignmentGroup("primary")}
+          {renderAssignmentGroup("duplicate")}
         </View>
       </View>
     </View>
   );
-}
+});
 
 export function FloatingRotationBanner({
   displayTimeSlots,
