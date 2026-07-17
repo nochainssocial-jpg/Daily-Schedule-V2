@@ -15,6 +15,7 @@ import { ROUTES } from '@/constants/ROUTES';
 import Footer from '@/components/Footer';
 import ScheduleBanner from '@/components/ScheduleBanner';
 import { initScheduleForToday } from '@/hooks/schedule-store';
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 
 const MAX_WIDTH = 880;
 
@@ -27,7 +28,7 @@ export default function HomeScreen() {
       height < 700);
 
 useEffect(() => {
-  void initScheduleForToday('B2').catch((e) => {
+  void initScheduleForToday(DEFAULT_LOCATION_ID).catch((e) => {
     console.error('initScheduleForToday failed (home):', e);
   });
 }, []);

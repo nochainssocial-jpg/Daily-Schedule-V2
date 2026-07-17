@@ -1,5 +1,6 @@
 // FINAL AUTO-GROUP INBOX SERIES MANAGER - series save fix: update/insert/archive
 // app/edit/events-meetings-visits.tsx
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import {
@@ -21,7 +22,7 @@ import ScheduleBanner from "@/components/ScheduleBanner";
 import { supabase } from "@/lib/supabase";
 
 const MAX_WIDTH = 960;
-const HOUSE = "B2";
+const HOUSE = DEFAULT_LOCATION_ID;
 
 type MainCategory = "Event" | "Meeting" | "Visit";
 type EventStatus =
@@ -1192,23 +1193,6 @@ export default function EventsMeetingsVisitsScreen() {
       );
     }
   }
-
-  async function updateStatus(id: string, status: EventStatus) {
-    const { error } = await supabase
-      .from("events_meetings_visits")
-      .update({ status })
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error updating status:", error);
-      Alert.alert("Update failed", "The status could not be updated.");
-      return;
-    }
-
-    await fetchItems();
-  }
-
-
 
   function recordIdsForListKeys(keys: string[]) {
     const keySet = new Set(keys);

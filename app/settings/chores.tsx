@@ -118,7 +118,7 @@ export default function ChoresSettingsScreen() {
     const message = `Remove "${chore.name}" from the cleaning list? This action cannot be undone.`;
 
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
+       
       const ok = typeof confirm === 'function' ? confirm(message) : true;
       if (ok) void doDelete();
       return;
@@ -454,10 +454,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 2,
     marginRight: 8,            // space between pencil and text
-  },
-  editButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
   },
   editButtonText: {
     fontSize: 18,

@@ -16,7 +16,6 @@ import {
   masterStaff as STATIC_STAFF,
   masterParticipants as STATIC_PARTS,
 } from '@/constants/data';
-import { getRiskBand, SCORE_BUBBLE_STYLES } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
@@ -33,7 +32,7 @@ const MAX_WIDTH = 880;
 const PILL = 999;
 const ACCENT = '#4862f1b3'; // indigo
 
-const STAFF_SCORE_KEYS: Array<keyof any> = [
+const STAFF_SCORE_KEYS: (keyof any)[] = [
   'experience_level',
   'behaviour_capability',
   'personal_care_skill',
@@ -58,7 +57,7 @@ function getScoreBand(score: number): 'none' | 'junior' | 'mid' | 'senior' {
   return 'junior';
 }
 
-const PARTICIPANT_SCORE_KEYS: Array<keyof any> = [
+const PARTICIPANT_SCORE_KEYS: (keyof any)[] = [
   'behaviours',
   'personal_care',
   'communication',
@@ -190,9 +189,7 @@ function getOutingPhase(outingGroup: OutingGroup | null | undefined): OutingPhas
 }
 
 export default function EditAssignmentsScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
-
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
 
   // Treat "mobile web" as actual mobile browsers (iPhone / Android) only.
   // Used for hero icon behaviour.
@@ -340,16 +337,16 @@ export default function EditAssignmentsScreen() {
   );
 
   // Canonical assignments (in store): participantId -> staffId | null
-  const assignmentsMap: Record<ID, ID | null> = (assignments || {}) as any;
+  const assignmentsMap = React.useMemo<Record<ID, ID | null>>(
+    () => (assignments || {}) as Record<ID, ID | null>,
+    [assignments],
+  );
 
   const attendingIds: ID[] =
     (attendingParticipants && attendingParticipants.length
       ? (attendingParticipants as ID[])
       : partsSource.map((p) => p.id as ID)) || [];
 
-  const attendingSet = new Set(attendingIds);
-
-  const staffById = new Map(staffSource.map((s) => [s.id, s]));
   const partsById = new Map(partsSource.map((p) => [p.id, p]));
 
   const normalizedOutingGroups = React.useMemo<OutingGroup[]>(() => {
@@ -509,7 +506,7 @@ export default function EditAssignmentsScreen() {
         'Low level behaviours of concern that can usually be managed with general support, structure, and redirection.';
     }
 
-    const domains: Array<{ key: keyof any; label: string; icon: any }> = [
+    const domains: { key: keyof any; label: string; icon: any }[] = [
       { key: 'personal_care', label: 'Hygiene', icon: 'shower' },
       {
         key: 'communication',

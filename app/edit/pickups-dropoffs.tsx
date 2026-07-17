@@ -205,7 +205,7 @@ export default function PickupsDropoffsScreen() {
     return Array.from(byId.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
-  }, [workingStaffList, helperStaffList, staff]);
+  }, [workingStaffList, helperStaffList]);
 
   const [showAllPickupCandidates, setShowAllPickupCandidates] =
     useState(false);

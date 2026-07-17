@@ -1,3 +1,4 @@
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 import React, { useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
@@ -18,7 +19,7 @@ type SaveExitProps = {
 };
 
 const MAX_WIDTH = 880;
-const DEFAULT_HOUSE = 'B2';
+const DEFAULT_HOUSE = DEFAULT_LOCATION_ID;
 
 function resolveScope(touchKey?: string): DailyScheduleSaveScope | 'outings' | null {
   const key = String(touchKey || '').trim().toLowerCase();

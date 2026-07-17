@@ -1,3 +1,4 @@
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 // app/create-schedule.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet, Platform } from 'react-native';
@@ -5,7 +6,6 @@ import { Stack, router } from 'expo-router';
 import { Check, ChevronLeft } from 'lucide-react-native';
 
 import { persistFinish } from '@/hooks/persist-finish';
-import useSchedule from '@/hooks/schedule-adapter';
 import {
   refreshScheduleFromSupabase,
   useSchedule as baseSchedule,
@@ -28,34 +28,21 @@ const isAntoinette = (name?: string) => nm(name) === 'antoinette';
 const TOTAL_STEPS = 6;
 
 export default function CreateScheduleScreen() {
-  const { staff: masterStaff, participants: masterParticipants, loadMasterData, masterDataLoaded } = baseSchedule();
-  const [isCreating, setIsCreating] = useState(false);
-
-
-
-  useEffect(() => {
-    loadMasterData({ force: true });
-  }, [loadMasterData]);
-  // ---- safe hook access ----------------------------------------------------
-  let hook: any = {};
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    hook = useSchedule() || {};
-  } catch (e) {
-    console.warn('[create-schedule] useSchedule() failed; using fallbacks:', e);
-  }
-
   const {
-    staff = [],
-    participants = [],
+    staff: masterStaff = [],
+    participants: masterParticipants = [],
+    loadMasterData,
     createSchedule,
     selectedDate,
     scheduleStep,
     setScheduleStep,
     touch,
-    updateSchedule,
-    meta,
-  } = hook;
+  } = baseSchedule() as any;
+  const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    loadMasterData({ force: true });
+  }, [loadMasterData]);
 
   // ---- step state (web-stable) ----------------------------------------
   const [localStep, setLocalStep] = useState<number>(Number(scheduleStep ?? 1) || 1);
@@ -71,9 +58,14 @@ export default function CreateScheduleScreen() {
   };
 
   // ---- sources & defaults --------------------------------------------------
-  const staffSource = (Array.isArray(staff) && staff.length ? staff : masterStaff) || [];
-  const partsSource =
-    (Array.isArray(participants) && participants.length ? participants : masterParticipants) || [];
+  const staffSource = useMemo(
+    () => (Array.isArray(masterStaff) ? masterStaff : []),
+    [masterStaff],
+  );
+  const partsSource = useMemo(
+    () => (Array.isArray(masterParticipants) ? masterParticipants : []),
+    [masterParticipants],
+  );
   const everyone = staffSource.find(s => isEveryone(s.name));
   const everyoneId = everyone?.id;
 
@@ -82,7 +74,7 @@ export default function CreateScheduleScreen() {
   );
   const [attendingParticipants, setAttendingParticipants] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<
-    Array<{ staffId: string; participantIds: string[] }>
+    { staffId: string; participantIds: string[] }[]
   >([]);
 
   const [pickupParticipants, setPickupParticipants] = useState<string[]>([]);
@@ -849,7 +841,7 @@ export default function CreateScheduleScreen() {
 
     // Resolve the canonical B2 + Sydney date before mutating the shared store.
     // This prevents a duplicate-create attempt from replacing the loaded daily state locally.
-    const existingResult = await fetchScheduleForHouseAndDate('B2', scheduleDate);
+    const existingResult = await fetchScheduleForHouseAndDate(DEFAULT_LOCATION_ID, scheduleDate);
     if (!existingResult.ok) {
       setIsCreating(false);
       Alert.alert(
@@ -860,7 +852,7 @@ export default function CreateScheduleScreen() {
     }
 
     if (existingResult.data) {
-      await refreshScheduleFromSupabase('B2');
+      await refreshScheduleFromSupabase(DEFAULT_LOCATION_ID);
       setIsCreating(false);
       Alert.alert(
         'Schedule already created',
@@ -1019,11 +1011,11 @@ snapshot = {
     }
 
     /** Save exactly one daily schedule row for B2 + today's Sydney date. */
-    const result = await createScheduleForDate('B2', scheduleDate, snapshot);
+    const result = await createScheduleForDate(DEFAULT_LOCATION_ID, scheduleDate, snapshot);
 
     if (!result.ok) {
       if (result.reason === 'already_exists') {
-        await refreshScheduleFromSupabase('B2');
+        await refreshScheduleFromSupabase(DEFAULT_LOCATION_ID);
         Alert.alert(
           'Schedule already created',
           "Today's schedule already exists. Open the Edit Hub to update it.",

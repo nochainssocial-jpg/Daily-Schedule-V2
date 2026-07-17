@@ -1,6 +1,7 @@
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 import type { DashboardOperationalPhase, DashboardPage, ReminderPage, RoomKey } from "./dashboardTypes";
 
-export const HOUSE_ID = "B2";
+export const HOUSE_ID = DEFAULT_LOCATION_ID;
 export const ROTATE_MS = 15_000;
 export const DASHBOARD_REFRESH_MS = 60_000;
 

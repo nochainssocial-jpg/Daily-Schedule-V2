@@ -118,7 +118,7 @@ export default function ChecklistSettingsScreen() {
     const message = `Remove "${item.name}" from the final checklist? This action cannot be undone.`;
 
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
+       
       const ok = typeof confirm === 'function' ? confirm(message) : true;
       if (ok) void doDelete();
       return;

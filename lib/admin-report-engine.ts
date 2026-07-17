@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 
-export const HOUSE_ID = 'B2';
+export const HOUSE_ID = DEFAULT_LOCATION_ID;
 export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
 export type WeekDayLabel = (typeof WEEK_DAYS)[number];
 

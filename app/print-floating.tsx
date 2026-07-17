@@ -3,16 +3,6 @@ import React, { useEffect, useMemo } from 'react';
 import { ScrollView, View, Text, Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSchedule } from '@/hooks/schedule-store';
-import * as Data from '@/constants/data';
-
-type ColKey = 'frontRoom' | 'scotty' | 'twins';
-
-const timeSlots: Array<{
-  id: string;
-  startTime?: string;
-  endTime?: string;
-  displayTime?: string;
-}> = Array.isArray((Data as any).timeSlots) ? (Data as any).timeSlots : [];
 
 function slotLabel(slot: any): string {
   if (!slot) return '';
@@ -34,13 +24,11 @@ function isFSOTwinsSlot(slot?: any): boolean {
 }
 
 export default function PrintFloatingScreen() {
-  const { timeSlots } = useSchedule() as any;
-
   const params = useLocalSearchParams<{ staff?: string; date?: string }>();
   const filterStaffId =
     params.staff && params.staff !== 'ALL' ? String(params.staff) : null;
 
-  const { staff = [], floatingAssignments = {}, selectedDate } =
+  const { staff = [], floatingAssignments = {}, selectedDate, timeSlots = [] } =
     useSchedule() as any;
 
   const staffById = useMemo(() => {

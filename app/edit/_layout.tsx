@@ -7,6 +7,7 @@ import { Edit3 } from 'lucide-react-native';
 // 🔔 ADD THIS
 import NotificationToaster from '@/components/NotificationToaster';
 import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 
 const PINK = '#F54FA5';
 const DARK_GREY = '#444444';
@@ -35,10 +36,10 @@ export default function EditLayout() {
   const scheduleLoadError = useSchedule((state) => state.scheduleLoadError);
 
   useEffect(() => {
-    void initScheduleForToday('B2');
+    void initScheduleForToday(DEFAULT_LOCATION_ID);
   }, []);
 
-  const routeName = String(segments[1] || 'index');
+  const routeName = String((segments as readonly string[])[1] || 'index');
   const independentRoute =
     routeName === 'index' ||
     routeName === 'outings' ||

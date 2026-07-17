@@ -21,10 +21,8 @@ import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import { masterParticipants as STATIC_PARTICIPANTS } from '@/constants/data';
 import {
-  getRiskBand,
   MAX_PARTICIPANT_SCORE,
   RISK_GRADIENT_COLORS,
-  SCORE_BUBBLE_STYLES,
 } from '@/constants/ratingsTheme';
 import SaveExit from '@/components/SaveExit';
 import Chip from '@/components/Chip';
@@ -33,14 +31,6 @@ import { getOutingBySlot } from '@/lib/outingSlots';
 type ID = string;
 
 const MAX_WIDTH = 880;
-
-const makePartMap = () => {
-  const map: Record<string, any> = {};
-  STATIC_PARTICIPANTS.forEach((p) => {
-    map[p.id] = p;
-  });
-  return map;
-};
 
 const sortByName = (list: any[]) =>
   list.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -171,8 +161,6 @@ type OutingGroup = {
 };
 
 export default function EditParticipantsScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
-
   const { width } = useWindowDimensions();
   const isAdmin = useIsAdmin();
   const readOnly = !isAdmin;
@@ -214,8 +202,6 @@ export default function EditParticipantsScreen() {
   } = useSchedule() as any;
 
   const { push } = useNotifications();
-
-  const partById = useMemo(makePartMap, []);
 
   // Prefer Supabase participants snapshot when available so we get live ratings.
   const participantsSource = (participants && participants.length

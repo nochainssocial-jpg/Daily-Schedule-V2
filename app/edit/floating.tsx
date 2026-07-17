@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Modal,
   ScrollView,
@@ -17,10 +17,8 @@ import { supabase } from '@/lib/supabase';
 import Chip from '@/components/Chip';
 import * as Data from '@/constants/data';
 import {
-  getRiskBand,
   MAX_PARTICIPANT_SCORE,
   RISK_GRADIENT_COLORS,
-  SCORE_BUBBLE_STYLES,
 } from '@/constants/ratingsTheme';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
@@ -116,6 +114,17 @@ function isAntoinette(staff: any): boolean {
 function isEveryone(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   return name === 'everyone';
+}
+
+// Operational exclusion: Mikaela must not be assigned to floating duties.
+function isExcludedFromFloating(staff: any): boolean {
+  const name = String(staff?.name || '').trim().toLowerCase();
+  const id = String(staff?.id || '').trim().toLowerCase();
+  return (
+    name === 'mikaela' ||
+    id === '2c00094c-4a46-43fd-b5b8-de891bf5a7e3' ||
+    id === '20'
+  );
 }
 
 // ---- Participant ratings + behaviour helpers (for legend pills) ----
@@ -563,6 +572,7 @@ function buildAutoAssignments(
   getActiveRoomsForSlot?: (slot: any) => ColKey[],
   isStaffAvailableForSlot?: (slot: any, staffId: ID) => boolean,
   getForcedAssignmentForSlotRoom?: (slot: any, col: ColKey) => ID | null,
+  randomizeTies = false,
 ): Record<string, { [K in ColKey]?: ID }> {
   if (!Array.isArray(working) || working.length === 0) return {};
 
@@ -652,8 +662,15 @@ function buildAutoAssignments(
       const fresh = best.filter((s) => !prevSlotStaff.has(s.id));
       const pool = fresh.length ? fresh : best;
 
-      // Final tie-breaker: random between equally good options
-      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      // Initial auto-builds are deterministic so opening/reloading the editor cannot
+      // produce a different roster. The explicit Re-shuffle button opts into randomness.
+      const stablePool = pool.slice().sort((a: any, b: any) => {
+        const byName = String(a?.name || '').localeCompare(String(b?.name || ''));
+        return byName || String(a?.id || '').localeCompare(String(b?.id || ''));
+      });
+      const chosen = randomizeTies
+        ? pool[Math.floor(Math.random() * pool.length)]
+        : stablePool[0];
       if (!chosen) return;
 
       row[col] = chosen.id;
@@ -692,18 +709,10 @@ function FloatingScreenInner() {
     outingGroups = [],
     outingGroup = null,
     updateSchedule,
-    touch,
     selectedDate,
     attendingParticipants = [],
     timeSlots: scheduleTimeSlots = [],
   } = useSchedule() as any;
-
-  const getNow = () => new Date();
-
-  const nowMinutesOfDay = () => {
-    const d = getNow();
-    return d.getHours() * 60 + d.getMinutes();
-  };
 
   const TIME_SLOTS = useMemo(
     () =>
@@ -711,12 +720,12 @@ function FloatingScreenInner() {
         ? scheduleTimeSlots
         : Array.isArray((Data as any).TIME_SLOTS)
           ? (Data as any).TIME_SLOTS
-          : []) as Array<{
+          : []) as {
         id: string;
         startTime?: string;
         endTime?: string;
         displayTime?: string;
-      }>,
+      }[],
     [scheduleTimeSlots],
   );
 
@@ -899,8 +908,8 @@ function FloatingScreenInner() {
       return (staff || []).filter((s: any) => {
         const id = String(s.id);
 
-        // Never include the "Everyone" pseudo-staff
-        if (isEveryone(s)) return false;
+        // Never include the "Everyone" pseudo-staff or operational exclusions.
+        if (isEveryone(s) || isExcludedFromFloating(s)) return false;
 
         // Must be in the working staff list
         if (!workingSet.has(id)) return false;
@@ -944,6 +953,7 @@ function FloatingScreenInner() {
 // We derive room membership by NAME, but resolve to the *current* schedule participant IDs:
 // prefer legacy_id (stable) and fall back to UUID id if needed.
 const [participantsDb, setParticipantsDb] = useState<any[]>([]);
+const [participantsDbReady, setParticipantsDbReady] = useState(false);
 useEffect(() => {
   let cancelled = false;
   (async () => {
@@ -955,10 +965,11 @@ useEffect(() => {
       if (error) throw error;
       if (!cancelled) setParticipantsDb(Array.isArray(data) ? data : []);
     } catch (e) {
-      // Non-fatal: we can still fall back to Data.PARTICIPANTS for display,
-      // but room grouping may be inaccurate until DB loads.
+      // Non-fatal: we can still fall back to Data.PARTICIPANTS for display.
       console.error('Failed to load participants for room groups:', e);
       if (!cancelled) setParticipantsDb([]);
+    } finally {
+      if (!cancelled) setParticipantsDbReady(true);
     }
   })();
   return () => {
@@ -995,9 +1006,12 @@ const participantGroups = useMemo(() => {
   } as Record<ColKey, string[]>;
 }, [participantIdByName]);
 
-const getGroupIds = (col: ColKey): string[] => participantGroups[col] || [];
+const getGroupIds = useCallback(
+  (col: ColKey): string[] => participantGroups[col] || [],
+  [participantGroups],
+);
 
-const isRoomOffsiteForSlot = (col: ColKey, slot: any): boolean => {
+const isRoomOffsiteForSlot = useCallback((col: ColKey, slot: any): boolean => {
   const groupIds = getGroupIds(col);
   if (!groupIds.length) return false;
 
@@ -1013,7 +1027,7 @@ const isRoomOffsiteForSlot = (col: ColKey, slot: any): boolean => {
 
   // A room is only considered offsite if *all attending participants in that room* are offsite.
   return offsiteCount > 0 && onsiteCount === 0;
-};
+}, [getGroupIds, outingGroupsForLogic, participantsAttendingSet]);
 
 
 
@@ -1033,14 +1047,14 @@ const roomNotAttending = useMemo(
       return ids.length ? ids.every((id) => !participantsAttendingSet.has(String(id))) : false;
     })(),
   }),
-  [participantsAttendingSet, participantGroups],
+  [getGroupIds, participantsAttendingSet],
 );
 
 
 
 type RoomDirective = { active: boolean; forcedId?: string | null };
 
-const roomCountsForSlot = (col: ColKey, slot: any): { attending: number; offsite: number; onsite: number } => {
+const roomCountsForSlot = useCallback((col: ColKey, slot: any): { attending: number; offsite: number; onsite: number } => {
   const groupIds = getGroupIds(col);
   if (!groupIds.length) return { attending: 0, offsite: 0, onsite: 0 };
 
@@ -1053,9 +1067,9 @@ const roomCountsForSlot = (col: ColKey, slot: any): { attending: number; offsite
   const onsiteCount = attendingGroup.length - offsiteCount;
 
   return { attending: attendingGroup.length, offsite: offsiteCount, onsite: onsiteCount };
-};
+}, [getGroupIds, outingGroupsForLogic, participantsAttendingSet]);
 
-const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
+const getRoomDirective = useCallback((col: ColKey, slot: any): RoomDirective => {
   // Not attending: no supervision required
   if (roomNotAttending[col]) return { active: false, forcedId: null };
 
@@ -1074,8 +1088,8 @@ const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
   // Scotty + Twins require supervision whenever at least one participant is onsite & attending.
   const counts = roomCountsForSlot(col, slot);
   return { active: counts.onsite > 0, forcedId: null };
-};
-  const activeRoomsForSlot = (slot: any): ColKey[] => {
+}, [isRoomOffsiteForSlot, roomCountsForSlot, roomNotAttending]);
+  const activeRoomsForSlot = useCallback((slot: any): ColKey[] => {
     // Rooms requiring staff coverage for this slot, ordered by priority.
     // Twins are always highest needs.
     const directives: Record<ColKey, RoomDirective> = {
@@ -1088,33 +1102,113 @@ const getRoomDirective = (col: ColKey, slot: any): RoomDirective => {
 
     // If no rooms require coverage (e.g., Front Room merged / everyone offsite), return empty list.
     return active;
-  };
+  }, [getRoomDirective]);
 
-  const forcedAssignmentForSlotRoom = (slot: any, col: ColKey): ID | null => {
+  const forcedAssignmentForSlotRoom = useCallback((slot: any, col: ColKey): ID | null => {
     const d = getRoomDirective(col, slot);
     return d?.forcedId ? String(d.forcedId) : null;
-  };
+  }, [getRoomDirective]);
 
 
-const hasFrontRoom = useMemo(() => {
-  const existing = floatingAssignments || {};
-  return Object.values(existing).some((row: any) => !!row?.frontRoom);
-}, [floatingAssignments]);
+const excludedFloatingStaffIds = useMemo(() => {
+  const ids = new Set<string>([
+    '2c00094c-4a46-43fd-b5b8-de891bf5a7e3',
+    '20',
+  ]);
+  (staff || [])
+    .filter((member: any) => isExcludedFromFloating(member))
+    .forEach((member: any) => ids.add(String(member.id)));
+  return ids;
+}, [staff]);
+
+const hasExcludedFloatingAssignment = useMemo(() => {
+  if (!excludedFloatingStaffIds.size) return false;
+  return Object.values(floatingAssignments || {}).some((row: any) =>
+    ROOM_KEYS.some((room) => excludedFloatingStaffIds.has(String(row?.[room] || ''))),
+  );
+}, [excludedFloatingStaffIds, floatingAssignments]);
 
 useEffect(() => {
-  // 🔥 Auto-build using *onsite* working staff only
-  if (!hasFrontRoom && onsiteWorking.length && updateSchedule) {
-    const next = buildAutoAssignments(
-      onsiteWorking,
-      TIME_SLOTS,
-      activeRoomsForSlot,
-      (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroupsForLogic),
-      forcedAssignmentForSlotRoom,
-    );
-    updateSchedule({ floatingAssignments: next });
-    push('Floating assignments updated', 'floating');
+  // Clean any previously saved Mikaela assignments without reshuffling anyone else.
+  if (!hasExcludedFloatingAssignment || !updateSchedule) return;
+
+  const next = Object.fromEntries(
+    Object.entries(floatingAssignments || {}).map(([slotId, rawRow]) => {
+      const row = { ...((rawRow && typeof rawRow === 'object') ? rawRow : {}) } as any;
+      ROOM_KEYS.forEach((room) => {
+        if (excludedFloatingStaffIds.has(String(row?.[room] || ''))) {
+          delete row[room];
+        }
+      });
+      return [slotId, row];
+    }),
+  );
+
+  updateSchedule({ floatingAssignments: next });
+  push('Mikaela removed from floating assignments', 'floating');
+}, [
+  excludedFloatingStaffIds,
+  floatingAssignments,
+  hasExcludedFloatingAssignment,
+  push,
+  updateSchedule,
+]);
+
+const hasAnyFloatingAssignment = useMemo(() => {
+  const existing = floatingAssignments || {};
+  return Object.values(existing).some((row: any) =>
+    ROOM_KEYS.some((room) => {
+      const staffId = String(row?.[room] || '');
+      return Boolean(staffId) && !excludedFloatingStaffIds.has(staffId);
+    }),
+  );
+}, [excludedFloatingStaffIds, floatingAssignments]);
+
+const autoBuildDateRef = useRef<string | null>(null);
+
+useEffect(() => {
+  const scheduleKey = String(selectedDate || 'current');
+
+  // Once a schedule already has any valid floating assignment, regard it as
+  // configured. Previously this checked Front Room only, which repeatedly rebuilt
+  // valid Scotty/Twins rosters when Front Room did not require coverage.
+  if (hasAnyFloatingAssignment) {
+    autoBuildDateRef.current = scheduleKey;
+    return;
   }
-}, [hasFrontRoom, onsiteWorking, updateSchedule, TIME_SLOTS, activeRoomsForSlot, outingGroupsForLogic, forcedAssignmentForSlotRoom, push]);
+
+  if (
+    autoBuildDateRef.current === scheduleKey ||
+    !participantsDbReady ||
+    !onsiteWorking.length ||
+    !TIME_SLOTS.length ||
+    !updateSchedule
+  ) {
+    return;
+  }
+
+  autoBuildDateRef.current = scheduleKey;
+  const next = buildAutoAssignments(
+    onsiteWorking,
+    TIME_SLOTS,
+    activeRoomsForSlot,
+    (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroupsForLogic),
+    forcedAssignmentForSlotRoom,
+  );
+  updateSchedule({ floatingAssignments: next });
+  push('Floating assignments created', 'floating');
+}, [
+  hasAnyFloatingAssignment,
+  onsiteWorking,
+  updateSchedule,
+  TIME_SLOTS,
+  activeRoomsForSlot,
+  outingGroupsForLogic,
+  forcedAssignmentForSlotRoom,
+  push,
+  selectedDate,
+  participantsDbReady,
+]);
 
   const handleShuffle = () => {
     if (readOnly) {
@@ -1128,6 +1222,7 @@ useEffect(() => {
       activeRoomsForSlot,
       (slot, staffId) => !isStaffOffsiteForSlot(slot, staffId, outingGroupsForLogic),
       forcedAssignmentForSlotRoom,
+      true,
     );
     updateSchedule({ floatingAssignments: next });
     push('Floating assignments updated', 'floating');
@@ -1917,7 +2012,6 @@ type CellProps = {
 function CellButton({ label, onPress, style, gender, fsoTag }: CellProps) {
   const lower = label.toLowerCase();
   const isEmpty = lower.startsWith('tap to assign');
-  const isOffsite = lower === 'outing (offsite)';
 
   const genderColor =
     String(gender || '').toLowerCase() === 'female'
@@ -2034,7 +2128,7 @@ class FloatingErrorBoundary extends React.Component<{ children: React.ReactNode 
     return { hasError: true, error };
   }
   componentDidCatch(error: any, info: any) {
-    // eslint-disable-next-line no-console
+     
     console.error('Floating screen crashed:', error, info);
   }
   render() {
