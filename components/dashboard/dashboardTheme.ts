@@ -2,7 +2,7 @@ import type { DashboardOperationalPhase, DashboardPage, ReminderPage, RoomKey } 
 
 export const HOUSE_ID = "B2";
 export const ROTATE_MS = 15_000;
-export const DASHBOARD_REFRESH_MS = 180_000;
+export const DASHBOARD_REFRESH_MS = 60_000;
 
 export const DASHBOARD_OPERATIONAL_TIMES = {
   arrivalsStart: 8 * 60,

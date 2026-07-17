@@ -246,24 +246,42 @@ return () => clearInterval(timer);
 
 useEffect(() => {
 let cancelled = false;
+let refreshInFlight = false;
 
 const refreshDashboard = async () => {
+if (refreshInFlight || cancelled) return;
+refreshInFlight = true;
+
 try {
 await refreshScheduleFromSupabase(HOUSE_ID);
 await fetchEventsMeetingsVisits();
 if (!cancelled) setLastDashboardRefresh(new Date());
 } catch (error) {
 console.error("[dashboard] failed to refresh schedule", error);
+} finally {
+refreshInFlight = false;
 }
 };
 
-const timer = setInterval(() => {
-void refreshDashboard();
-}, DASHBOARD_REFRESH_MS);
+const requestRefresh = () => {
+if (!cancelled) void refreshDashboard();
+};
+
+const handleVisibilityChange = () => {
+if (document.visibilityState === "visible") requestRefresh();
+};
+
+const timer = setInterval(requestRefresh, DASHBOARD_REFRESH_MS);
+window.addEventListener("focus", requestRefresh);
+window.addEventListener("online", requestRefresh);
+document.addEventListener("visibilitychange", handleVisibilityChange);
 
 return () => {
 cancelled = true;
 clearInterval(timer);
+window.removeEventListener("focus", requestRefresh);
+window.removeEventListener("online", requestRefresh);
+document.removeEventListener("visibilitychange", handleVisibilityChange);
 };
 }, []);
 
