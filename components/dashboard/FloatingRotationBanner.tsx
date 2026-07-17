@@ -268,12 +268,14 @@ export function FloatingRotationBanner({
     previousSlot !== null;
   const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
 
-  const upNextSlot =
-    slots.find(
-      (slot) =>
-        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
-        currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
-    ) || null;
+  const canShowUpNext = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.officialStart + 30;
+  const upNextSlot = canShowUpNext
+    ? slots.find(
+        (slot) =>
+          currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
+          currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
+      ) || null
+    : null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
   const upNextSubtitle =

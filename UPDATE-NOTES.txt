@@ -1,0 +1,18 @@
+DAILY SCHEDULE APP — DASHBOARD COMPACT TILE UPDATE
+
+Apply these files to the current preview branch:
+  components/dashboard/TeamAssignmentsPanel.tsx
+  components/dashboard/DropoffsPanel.tsx
+  components/dashboard/CleaningPanel.tsx
+  components/dashboard/FloatingRotationBanner.tsx
+  components/dashboard/dashboardStyles.ts
+
+Changes:
+- Team Assignments: four tiles across, single-line Staff > Participants layout.
+- Drop Offs: four tiles across, single-line Staff > Participants layout.
+- Cleaning: four tiles across, single-line Task > Staff layout.
+- Reduced tile height, padding and font sizing to keep all rows above the floating banner.
+- Floating banner displays On Now only from 10:00–10:29.
+- Up Next is enabled from 10:30 onward, while preserving the existing 2-minutes-before to 5-minutes-after rotation window.
+
+This patch does not change package.json, pnpm-lock.yaml, Supabase, or any dependency configuration.

@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { ScrollView, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { styles } from "./dashboardStyles";
 
 export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
@@ -23,7 +24,20 @@ export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
       <ScrollView style={styles.innerScroll} contentContainerStyle={styles.cleaningGrid}>
         {assignedRows.map((row) => (
           <View key={row.id} style={styles.cleaningCard}>
-            <Text style={styles.cleaningTask}>{row.chore}</Text>
+            <Text
+              style={styles.cleaningTask}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              accessibilityLabel={row.chore}
+            >
+              {row.chore}
+            </Text>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={18}
+              color="#9CA3AF"
+              style={styles.cleaningChevron}
+            />
             <View
               style={[
                 styles.cleaningAssignedPill,
@@ -36,6 +50,7 @@ export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
               <Text
                 style={[styles.cleaningAssignedText, { color: row.staffTextColor }]}
                 numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 {row.assigned}
               </Text>

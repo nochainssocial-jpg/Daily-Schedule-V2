@@ -42,6 +42,12 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
                   {row.staffName}
                 </Text>
               </View>
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color="#9CA3AF"
+                style={styles.assignmentChevron}
+              />
               <View style={styles.assignmentParticipantList}>
                 {row.items.map((item: any) => {
                   const label = item.locationLabel
