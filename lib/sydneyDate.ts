@@ -1,4 +1,6 @@
-const SYDNEY_TIMEZONE = 'Australia/Sydney';
+import { APP_TIME_ZONE } from '@/constants/location';
+
+const SYDNEY_TIMEZONE = APP_TIME_ZONE;
 
 function localDateKey(date: Date): string {
   return [

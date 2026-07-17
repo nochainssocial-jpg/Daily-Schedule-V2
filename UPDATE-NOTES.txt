@@ -1,0 +1,9 @@
+Cleaning tile refinement
+========================
+
+- Cleaning tiles remain four across.
+- Tile minimum height increased from 50px to 68px (approximately 136%).
+- Assigned staff name now appears on the left.
+- A small right chevron separates the staff member from the task.
+- Cleaning task appears to the right and may wrap to two lines.
+- Team Assignments, Drop Offs and floating-banner timing remain unchanged from the prior compact dashboard update.

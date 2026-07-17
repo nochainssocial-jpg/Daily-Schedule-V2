@@ -151,7 +151,7 @@ export default function StaffSettingsScreen() {
     const message = `Remove ${member.name} from the staff list? This action cannot be undone.`;
 
     if (Platform.OS === 'web') {
-      // eslint-disable-next-line no-restricted-globals
+       
       const ok = typeof confirm === 'function' ? confirm(message) : true;
       if (ok) void doDelete();
       return;

@@ -4,9 +4,7 @@ import { View, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import {
   Home as HomeIcon,
-  Edit as Edit3Icon,
   Share2 as Share2Icon,
-  Settings as SettingsIcon,
   Handshake as HandshakeIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';

@@ -1,4 +1,5 @@
 import { getSydneyMinutesSinceMidnight } from '@/lib/sydneyDate';
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 // app/edit/index.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Stack, useRouter } from "expo-router";
@@ -246,14 +247,14 @@ export default function EditHubScreen() {
   const router = useRouter();
   const { outingGroups = [], staff = [], participants = [] } = useSchedule() as {
     outingGroups?: OutingGroup[];
-    staff?: Array<{ id: string | number; name?: string | null }>;
-    participants?: Array<{ id: string | number; name?: string | null }>;
+    staff?: { id: string | number; name?: string | null }[];
+    participants?: { id: string | number; name?: string | null }[];
   };
 
   const [clockTick, setClockTick] = useState(0);
 
   useEffect(() => {
-    void initScheduleForToday("B2").catch((e) => {
+    void initScheduleForToday(DEFAULT_LOCATION_ID).catch((e) => {
       console.error("initScheduleForToday failed (edit hub):", e);
     });
   }, []);

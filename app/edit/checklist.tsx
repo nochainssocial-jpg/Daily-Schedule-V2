@@ -1,14 +1,13 @@
 // CHECKLIST.TSX — STAFF CHECKBOX AUTO-SAVE PATCH
 // --------------------------------------------------
 
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 import React, { useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
   StyleSheet,
   View,
-  Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { useSchedule } from '@/hooks/schedule-store';
 import { masterStaff as STATIC_STAFF } from '@/constants/data';
@@ -24,15 +23,9 @@ type ID = string;
 type ChecklistSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 const MAX_WIDTH = 880;
-const HOUSE_ID = 'B2';
+const HOUSE_ID = DEFAULT_LOCATION_ID;
 
 export default function EditChecklistScreen() {
-  const { width, height } = useWindowDimensions();
-  const isMobileWeb =
-    Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
-      width < 900 ||
-      height < 700);
 
   const schedule = useSchedule();
   const {

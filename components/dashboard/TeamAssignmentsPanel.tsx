@@ -65,10 +65,17 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
                 </Text>
               </View>
 
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={18}
+                color="#9CA3AF"
+                style={styles.assignmentChevron}
+              />
+
               <View style={styles.assignmentParticipantList}>
                 {row.participantItems.length === 0 && (
                   <View style={styles.assignmentUnassignedChip}>
-                    <Text style={styles.assignmentUnassignedText}>
+                    <Text style={styles.assignmentUnassignedText} numberOfLines={1}>
                       No participant assigned
                     </Text>
                   </View>

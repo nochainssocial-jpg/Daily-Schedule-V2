@@ -12,11 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { useSchedule } from '@/hooks/schedule-store';
-import {
-  chores,
-  type Staff,
-  type Chore,
-} from '@/constants/data';
+import { type Staff, type Chore } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
@@ -70,8 +66,6 @@ function getOutingWindowMinutes(outingGroup: any): {
 }
 
 export default function CleaningEditScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores: rawChores, checklistItems, timeSlots } = useSchedule() as any;
-
   const { width, height } = useWindowDimensions();
   const isMobileWeb =
     Platform.OS === 'web' &&
@@ -81,6 +75,7 @@ export default function CleaningEditScreen() {
       height < 700);
 
   const {
+    chores: rawChores = [],
     staff,
     workingStaff,
     cleaningAssignments = {},

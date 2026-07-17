@@ -1,3 +1,4 @@
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
 // hooks/schedule-store.ts
 import { useMemo } from "react";
 import { create } from "zustand";
@@ -176,7 +177,7 @@ export type ScheduleState = ScheduleSnapshot & {
 // Helpers
 // ----------------------------------------------------------------------------------
 
-const DEFAULT_HOUSE_ID = "B2";
+const DEFAULT_HOUSE_ID = DEFAULT_LOCATION_ID;
 const OUTING_AUTO_RESET_MINUTES = 17 * 60;
 
 function minutesSinceMidnight(date = new Date()): number {

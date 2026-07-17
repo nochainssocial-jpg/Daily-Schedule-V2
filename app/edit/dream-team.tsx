@@ -11,8 +11,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons , Ionicons } from '@expo/vector-icons';
 
 import SaveExit from '@/components/SaveExit';
 import { getOutingBySlot } from '@/lib/outingSlots';
@@ -25,7 +24,7 @@ import { supabase } from '@/lib/supabase';
 
 type ID = string;
 
-const STAFF_SCORE_KEYS: Array<keyof any> = [
+const STAFF_SCORE_KEYS: (keyof any)[] = [
   'experience_level',
   'behaviour_capability',
   'personal_care_skill',
@@ -56,8 +55,6 @@ const sortByName = (list: any[]) =>
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
 export default function EditDreamTeamScreen() {
-  const { staff: masterStaff, participants: masterParticipants, chores, checklistItems, timeSlots } = useSchedule() as any;
-
   const { width } = useWindowDimensions();
   const { push } = useNotifications();
   const isAdmin = useIsAdmin();

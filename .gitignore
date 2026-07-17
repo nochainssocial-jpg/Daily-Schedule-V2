@@ -143,3 +143,10 @@ vite.config.ts.timestamp-*
 
 expo-env.d.ts
 # @end expo-cli
+# Local Expo and operating-system artefacts
+.expo/
+.DS_Store
+
+# Temporary patch/backup archives must not be committed
+*.zip
+*.before-*

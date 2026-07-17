@@ -15,9 +15,8 @@ const formatAusDate = (iso?: string) => {
 };
 
 export default function SchedulePrintable() {
-  const { staff: masterStaff, participants: masterParticipants, chores: rawChores, checklistItems, timeSlots } = useSchedule() as any;
-
   const {
+    chores: rawChores = [],
     staff,
     participants,
     workingStaff,
