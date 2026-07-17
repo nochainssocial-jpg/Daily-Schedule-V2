@@ -24,20 +24,6 @@ export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
       <ScrollView style={styles.innerScroll} contentContainerStyle={styles.cleaningGrid}>
         {assignedRows.map((row) => (
           <View key={row.id} style={styles.cleaningCard}>
-            <Text
-              style={styles.cleaningTask}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              accessibilityLabel={row.chore}
-            >
-              {row.chore}
-            </Text>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={18}
-              color="#9CA3AF"
-              style={styles.cleaningChevron}
-            />
             <View
               style={[
                 styles.cleaningAssignedPill,
@@ -55,6 +41,20 @@ export function CleaningPanel({ cleaningRows }: { cleaningRows: any[] }) {
                 {row.assigned}
               </Text>
             </View>
+            <MaterialCommunityIcons
+              name="chevron-right"
+              size={18}
+              color="#9CA3AF"
+              style={styles.cleaningChevron}
+            />
+            <Text
+              style={styles.cleaningTask}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+              accessibilityLabel={row.chore}
+            >
+              {row.chore}
+            </Text>
           </View>
         ))}
       </ScrollView>
