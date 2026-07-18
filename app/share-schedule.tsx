@@ -104,11 +104,6 @@ export default function AdminAccessScreen() {
               this device.
             </Text>
 
-            <Text style={styles.modeLabel}>
-              Current mode:{' '}
-              {mode === 'b2-readonly' ? 'B2 read-only' : 'Administrator'}
-            </Text>
-
             <Text style={styles.label}>Admin PIN</Text>
 
             <View style={styles.row}>
