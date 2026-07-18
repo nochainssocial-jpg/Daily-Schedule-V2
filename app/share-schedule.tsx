@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+
 import {
   Image,
   Platform,
@@ -10,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+
 import { useAccessControl } from '@/hooks/access-control';
 import { useNotifications } from '@/hooks/notifications';
 import Footer from '@/components/Footer';
@@ -18,9 +20,15 @@ import { ROUTES } from '@/constants/ROUTES';
 const MAX_WIDTH = 880;
 
 export default function AdminAccessScreen() {
-  const { mode, setB2ReadOnly, setAdminMd, setAdminBruno, setAdminJessica } =
-    useAccessControl();
+  const {
+    mode,
+    setB2ReadOnly,
+    setAdminMd,
+    setAdminBruno,
+    setAdminJessica,
+  } = useAccessControl();
   const { push } = useNotifications();
+
   const [adminPin, setAdminPin] = useState('');
   const [pinError, setPinError] = useState('');
   const adminPinRef = useRef<TextInput | null>(null);
@@ -73,7 +81,7 @@ export default function AdminAccessScreen() {
     setB2ReadOnly();
     setPinError('');
     setAdminPin('');
-    push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+    push('Read-only Mode - NO EDITING ALLOWED', 'general');
     router.replace(ROUTES.HOME);
   };
 
@@ -92,14 +100,17 @@ export default function AdminAccessScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Admin Access</Text>
             <Text style={styles.cardDescription}>
-              Enter an authorised PIN to enable schedule creation and editing on this device.
+              Enter an authorised PIN to enable schedule creation and editing on
+              this device.
             </Text>
 
             <Text style={styles.modeLabel}>
-              Current mode: {mode === 'b2-readonly' ? 'B2 read-only' : 'Administrator'}
+              Current mode:{' '}
+              {mode === 'b2-readonly' ? 'B2 read-only' : 'Administrator'}
             </Text>
 
             <Text style={styles.label}>Admin PIN</Text>
+
             <View style={styles.row}>
               <TextInput
                 ref={adminPinRef}
@@ -134,16 +145,8 @@ export default function AdminAccessScreen() {
               style={[styles.button, styles.readOnlyButton]}
               activeOpacity={0.9}
             >
-              <Text style={styles.readOnlyButtonText}>Use B2 Read-Only Mode</Text>
+              <Text style={styles.readOnlyButtonText}>Read-only Mode</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.noticeCard}>
-            <Text style={styles.noticeTitle}>Schedule access update</Text>
-            <Text style={styles.noticeText}>
-              Share codes have been retired. Location PIN access will be introduced with the
-              multi-location rollout.
-            </Text>
           </View>
         </View>
       </ScrollView>
@@ -234,7 +237,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   adminButton: {
-    backgroundColor: '#A855F7',
+    backgroundColor: '#16A34A',
   },
   buttonText: {
     color: '#FFFFFF',
@@ -244,33 +247,16 @@ const styles = StyleSheet.create({
     marginTop: 18,
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: '#F54FA5',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#DC2626',
+    backgroundColor: '#DC2626',
   },
   readOnlyButtonText: {
-    color: '#F54FA5',
-    fontWeight: '700',
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
   errorText: {
     marginTop: 10,
     color: '#B91C1C',
     fontWeight: '700',
-  },
-  noticeCard: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
-    padding: 18,
-  },
-  noticeTitle: {
-    color: '#3730A3',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  noticeText: {
-    marginTop: 6,
-    color: '#4F46E5',
-    lineHeight: 21,
   },
 });
