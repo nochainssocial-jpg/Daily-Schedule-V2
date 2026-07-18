@@ -1,26 +1,27 @@
 // components/NotificationToaster.tsx
+
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   Animated,
+  StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
 import { Bell, X } from 'lucide-react-native';
+
 import { useNotifications } from '@/hooks/notifications';
 
-// Fallback colour if we have no category mapping
 const DEFAULT_BLUE = '#0084ff';
 
-// Map categories -> title + message
 const CATEGORY_STYLES: Record<
   string,
   {
     title: string;
     message: string;
+    bg?: string;
   }
->  = {
+> = {
   'dream-team': {
     title: 'Changes to Schedule',
     message: 'Dream Team Updated',
@@ -45,7 +46,6 @@ const CATEGORY_STYLES: Record<
     title: 'Changes to Schedule',
     message: 'Team Daily Assignments Updated',
   },
-  // Pickups tab uses category "pickups" in push(...)
   pickups: {
     title: 'Changes to Schedule',
     message: 'Team Daily Assignments Updated',
@@ -67,7 +67,6 @@ export default function NotificationToaster() {
 
     setVisible(true);
 
-    // slide in + fade in
     Animated.parallel([
       Animated.timing(translateX, {
         toValue: 0,
@@ -105,23 +104,24 @@ export default function NotificationToaster() {
   const styleForCategory =
     (current.category && CATEGORY_STYLES[current.category]) || null;
 
+  const incomingMessage = current.message || '';
+  const isReadOnlyNotification = /read[- ]only/i.test(incomingMessage);
+
   let bgColor = styleForCategory?.bg ?? DEFAULT_BLUE;
-  const message = current.message || '';
-
-  // Override colours for B2 / Admin access-control toasts
-  if (message.includes('B2') && /read[- ]only/i.test(message)) {
-    // B2 read-only mode: always red with white text
-    bgColor = '#ed002cff';
-  } else if (/^Admin Mode Enabled/i.test(message)) {
-    // Admin mode: green with white text
-    bgColor = '#01bb23ff';
-  }
-
-  const title =
+  let displayTitle =
     styleForCategory?.title ||
     (current.category
       ? current.category[0].toUpperCase() + current.category.slice(1)
       : 'Update');
+  let displayMessage = incomingMessage;
+
+  if (isReadOnlyNotification) {
+    bgColor = '#ED002C';
+    displayTitle = 'Read-only Mode';
+    displayMessage = 'NO EDITING ALLOWED';
+  } else if (/^Admin Mode Enabled/i.test(incomingMessage)) {
+    bgColor = '#01BB23';
+  }
 
   return (
     <Animated.View
@@ -141,10 +141,10 @@ export default function NotificationToaster() {
 
         <View style={{ flex: 1 }}>
           <Text style={styles.title} numberOfLines={1}>
-            {title}
+            {displayTitle}
           </Text>
           <Text style={styles.message} numberOfLines={2}>
-            {current.message}
+            {displayMessage}
           </Text>
         </View>
 
@@ -163,30 +163,26 @@ export default function NotificationToaster() {
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    // Dropped down so it sits just under the header + SaveExit
     top: 130,
     right: 50,
     width: 320,
     zIndex: 200,
   },
-panel: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderRadius: 14,
-  paddingVertical: 10,
-  paddingHorizontal: 12,
-  // backgroundColor is now set dynamically per category
-  shadowColor: '#000',
-  shadowOpacity: 0.16,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 4 },
-  elevation: 4,
-  gap: 8,
-
-  // ⭐ Added border
-  borderWidth: 2,
-  borderColor: '#00B0FF',
-},
+  panel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#00B0FF',
+  },
   iconWrap: {
     width: 28,
     height: 28,
