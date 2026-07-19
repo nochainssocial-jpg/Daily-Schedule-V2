@@ -116,7 +116,8 @@ function isEveryone(staff: any): boolean {
   return name === 'everyone';
 }
 
-// Operational restriction: Mikaela may float in Scotty and Twins, but not Front Room.
+// Operational restriction: Mikaela may float in Scotty and ordinary Twins slots,
+// but not Front Room or Twins nappy-change (FSO) slots.
 function isMikaela(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   const id = String(staff?.id || '').trim().toLowerCase();
@@ -615,8 +616,9 @@ function buildAutoAssignments(
       }
       let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
 
-      // Mikaela may be assigned to Scotty or Twins, but never Front Room.
-      if (col === 'frontRoom') {
+      // Mikaela may be assigned to Scotty or ordinary Twins rotations,
+      // but never Front Room or Twins nappy-change (FSO) slots.
+      if (col === 'frontRoom' || (col === 'twins' && fso)) {
         candidates = candidates.filter((s) => !isMikaela(s));
       }
 
@@ -841,7 +843,7 @@ function FloatingScreenInner() {
     }
     // FSO applies only to Twins column and only for slots tagged as FSO
     const slot = (TIME_SLOTS || []).find((ts: any) => String(ts.id) === String(slotId));
-    const isFsoSlot = col === 'twins' && Boolean((slot as any)?.fso);
+    const isFsoSlot = col === 'twins' && isFSOTwinsSlot(slot);
     setPick({ slotId: String(slotId), col, fso: isFsoSlot });
     setOpen(true);
   };
@@ -869,7 +871,11 @@ function FloatingScreenInner() {
       (member: any) => String(member?.id) === String(staffId),
     );
     if (pick.col === 'frontRoom' && isMikaela(selectedStaff)) {
-      push?.('Mikaela is available for Scotty and Twins only.', 'floating');
+      push?.('Mikaela is available for Scotty and ordinary Twins rotations only.', 'floating');
+      return;
+    }
+    if (pick.col === 'twins' && pick.fso && isMikaela(selectedStaff)) {
+      push?.('Mikaela cannot be assigned to Twins nappy-change (FSO) slots.', 'floating');
       return;
     }
 
@@ -923,7 +929,8 @@ function FloatingScreenInner() {
         const id = String(s.id);
 
         // Never include the "Everyone" pseudo-staff.
-        // Mikaela remains in the pool for Scotty and Twins; Front Room is filtered per room.
+        // Mikaela remains in the pool for Scotty and ordinary Twins slots;
+        // Front Room and Twins FSO restrictions are applied per room/slot.
         if (isEveryone(s)) return false;
 
         // Must be in the working staff list
@@ -1136,33 +1143,67 @@ const mikaelaStaffIds = useMemo(() => {
   return ids;
 }, [staff]);
 
-const hasMikaelaFrontRoomAssignment = useMemo(() => {
+const hasRestrictedMikaelaAssignment = useMemo(() => {
   if (!mikaelaStaffIds.size) return false;
-  return Object.values(floatingAssignments || {}).some((row: any) =>
-    mikaelaStaffIds.has(String(row?.frontRoom || '')),
-  );
-}, [mikaelaStaffIds, floatingAssignments]);
+
+  return Object.entries(floatingAssignments || {}).some(([slotId, rawRow]) => {
+    const row = (rawRow && typeof rawRow === 'object') ? rawRow as any : {};
+    if (mikaelaStaffIds.has(String(row?.frontRoom || ''))) return true;
+
+    const slot = (TIME_SLOTS || []).find(
+      (timeSlot: any) => String(timeSlot?.id) === String(slotId),
+    );
+    return (
+      isFSOTwinsSlot(slot) &&
+      mikaelaStaffIds.has(String(row?.twins || ''))
+    );
+  });
+}, [mikaelaStaffIds, floatingAssignments, TIME_SLOTS]);
 
 useEffect(() => {
-  // Clean only previously saved Front Room assignments for Mikaela.
-  // Existing Scotty and Twins assignments remain untouched.
-  if (!hasMikaelaFrontRoomAssignment || !updateSchedule) return;
+  // Clean previously saved restricted assignments for Mikaela while preserving
+  // all Scotty and ordinary Twins rotations.
+  if (!hasRestrictedMikaelaAssignment || !updateSchedule) return;
+
+  let removedFrontRoom = false;
+  let removedTwinsFso = false;
 
   const next = Object.fromEntries(
     Object.entries(floatingAssignments || {}).map(([slotId, rawRow]) => {
       const row = { ...((rawRow && typeof rawRow === 'object') ? rawRow : {}) } as any;
+
       if (mikaelaStaffIds.has(String(row?.frontRoom || ''))) {
         delete row.frontRoom;
+        removedFrontRoom = true;
       }
+
+      const slot = (TIME_SLOTS || []).find(
+        (timeSlot: any) => String(timeSlot?.id) === String(slotId),
+      );
+      if (
+        isFSOTwinsSlot(slot) &&
+        mikaelaStaffIds.has(String(row?.twins || ''))
+      ) {
+        delete row.twins;
+        removedTwinsFso = true;
+      }
+
       return [slotId, row];
     }),
   );
 
   updateSchedule({ floatingAssignments: next });
-  push('Mikaela removed from Front Room floating assignments', 'floating');
+
+  if (removedFrontRoom && removedTwinsFso) {
+    push('Mikaela removed from Front Room and Twins FSO assignments', 'floating');
+  } else if (removedFrontRoom) {
+    push('Mikaela removed from Front Room floating assignments', 'floating');
+  } else if (removedTwinsFso) {
+    push('Mikaela removed from Twins nappy-change (FSO) assignments', 'floating');
+  }
 }, [
   floatingAssignments,
-  hasMikaelaFrontRoomAssignment,
+  hasRestrictedMikaelaAssignment,
   mikaelaStaffIds,
   push,
   updateSchedule,
@@ -1912,6 +1953,7 @@ useEffect(() => {
                 .filter(
                   (s: any) => {
                     if (pick?.fso && String(s.gender || '').toLowerCase() !== 'female') return false;
+                    if (pick?.fso && isMikaela(s)) return false;
                     if (pick?.col === 'frontRoom' && isMikaela(s)) return false;
                     const slot = (TIME_SLOTS || []).find((ts) => String(ts.id) === String(pick?.slotId));
                     // Exclude outing staff during the outing window for this slot
@@ -1927,7 +1969,7 @@ useEffect(() => {
             {pick?.fso &&
               (onsiteWorking || []).every(
                 (s: any) =>
-                  String(s.gender || '').toLowerCase() !== 'female',
+                  String(s.gender || '').toLowerCase() !== 'female' || isMikaela(s),
               ) && (
                 <View
                   style={{
