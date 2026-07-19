@@ -116,8 +116,8 @@ function isEveryone(staff: any): boolean {
   return name === 'everyone';
 }
 
-// Operational exclusion: Mikaela must not be assigned to floating duties.
-function isExcludedFromFloating(staff: any): boolean {
+// Operational restriction: Mikaela may float in Scotty and Twins, but not Front Room.
+function isMikaela(staff: any): boolean {
   const name = String(staff?.name || '').trim().toLowerCase();
   const id = String(staff?.id || '').trim().toLowerCase();
   return (
@@ -615,6 +615,11 @@ function buildAutoAssignments(
       }
       let candidates = working.filter((s) => !thisSlotStaff.has(s.id));
 
+      // Mikaela may be assigned to Scotty or Twins, but never Front Room.
+      if (col === 'frontRoom') {
+        candidates = candidates.filter((s) => !isMikaela(s));
+      }
+
       // Exclude staff who are offsite (on outing) during this slot
       if (isStaffAvailableForSlot) {
         candidates = candidates.filter((s) => isStaffAvailableForSlot(slot, String(s.id)));
@@ -859,6 +864,15 @@ function FloatingScreenInner() {
 
   const choose = (staffId: string) => {
     if (!pick) return;
+
+    const selectedStaff = (staff || []).find(
+      (member: any) => String(member?.id) === String(staffId),
+    );
+    if (pick.col === 'frontRoom' && isMikaela(selectedStaff)) {
+      push?.('Mikaela is available for Scotty and Twins only.', 'floating');
+      return;
+    }
+
     setCell(pick.slotId, pick.col, String(staffId));
     setOpen(false);
     setPick(null);
@@ -908,8 +922,9 @@ function FloatingScreenInner() {
       return (staff || []).filter((s: any) => {
         const id = String(s.id);
 
-        // Never include the "Everyone" pseudo-staff or operational exclusions.
-        if (isEveryone(s) || isExcludedFromFloating(s)) return false;
+        // Never include the "Everyone" pseudo-staff.
+        // Mikaela remains in the pool for Scotty and Twins; Front Room is filtered per room.
+        if (isEveryone(s)) return false;
 
         // Must be in the working staff list
         if (!workingSet.has(id)) return false;
@@ -1110,46 +1125,45 @@ const getRoomDirective = useCallback((col: ColKey, slot: any): RoomDirective => 
   }, [getRoomDirective]);
 
 
-const excludedFloatingStaffIds = useMemo(() => {
+const mikaelaStaffIds = useMemo(() => {
   const ids = new Set<string>([
     '2c00094c-4a46-43fd-b5b8-de891bf5a7e3',
     '20',
   ]);
   (staff || [])
-    .filter((member: any) => isExcludedFromFloating(member))
+    .filter((member: any) => isMikaela(member))
     .forEach((member: any) => ids.add(String(member.id)));
   return ids;
 }, [staff]);
 
-const hasExcludedFloatingAssignment = useMemo(() => {
-  if (!excludedFloatingStaffIds.size) return false;
+const hasMikaelaFrontRoomAssignment = useMemo(() => {
+  if (!mikaelaStaffIds.size) return false;
   return Object.values(floatingAssignments || {}).some((row: any) =>
-    ROOM_KEYS.some((room) => excludedFloatingStaffIds.has(String(row?.[room] || ''))),
+    mikaelaStaffIds.has(String(row?.frontRoom || '')),
   );
-}, [excludedFloatingStaffIds, floatingAssignments]);
+}, [mikaelaStaffIds, floatingAssignments]);
 
 useEffect(() => {
-  // Clean any previously saved Mikaela assignments without reshuffling anyone else.
-  if (!hasExcludedFloatingAssignment || !updateSchedule) return;
+  // Clean only previously saved Front Room assignments for Mikaela.
+  // Existing Scotty and Twins assignments remain untouched.
+  if (!hasMikaelaFrontRoomAssignment || !updateSchedule) return;
 
   const next = Object.fromEntries(
     Object.entries(floatingAssignments || {}).map(([slotId, rawRow]) => {
       const row = { ...((rawRow && typeof rawRow === 'object') ? rawRow : {}) } as any;
-      ROOM_KEYS.forEach((room) => {
-        if (excludedFloatingStaffIds.has(String(row?.[room] || ''))) {
-          delete row[room];
-        }
-      });
+      if (mikaelaStaffIds.has(String(row?.frontRoom || ''))) {
+        delete row.frontRoom;
+      }
       return [slotId, row];
     }),
   );
 
   updateSchedule({ floatingAssignments: next });
-  push('Mikaela removed from floating assignments', 'floating');
+  push('Mikaela removed from Front Room floating assignments', 'floating');
 }, [
-  excludedFloatingStaffIds,
   floatingAssignments,
-  hasExcludedFloatingAssignment,
+  hasMikaelaFrontRoomAssignment,
+  mikaelaStaffIds,
   push,
   updateSchedule,
 ]);
@@ -1157,12 +1171,9 @@ useEffect(() => {
 const hasAnyFloatingAssignment = useMemo(() => {
   const existing = floatingAssignments || {};
   return Object.values(existing).some((row: any) =>
-    ROOM_KEYS.some((room) => {
-      const staffId = String(row?.[room] || '');
-      return Boolean(staffId) && !excludedFloatingStaffIds.has(staffId);
-    }),
+    ROOM_KEYS.some((room) => Boolean(String(row?.[room] || ''))),
   );
-}, [excludedFloatingStaffIds, floatingAssignments]);
+}, [floatingAssignments]);
 
 const autoBuildDateRef = useRef<string | null>(null);
 
@@ -1901,6 +1912,7 @@ useEffect(() => {
                 .filter(
                   (s: any) => {
                     if (pick?.fso && String(s.gender || '').toLowerCase() !== 'female') return false;
+                    if (pick?.col === 'frontRoom' && isMikaela(s)) return false;
                     const slot = (TIME_SLOTS || []).find((ts) => String(ts.id) === String(pick?.slotId));
                     // Exclude outing staff during the outing window for this slot
                     if (slot && isStaffOffsiteForSlot(slot, String(s.id), outingGroupsForLogic)) return false;
