@@ -1,42 +1,48 @@
 // app/home.tsx
 import React, { useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Image,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
   useWindowDimensions,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ROUTES } from '@/constants/ROUTES';
+
 import Footer from '@/components/Footer';
-import ScheduleBanner from '@/components/ScheduleBanner';
+import LocationScheduleStatusBanner from '@/components/LocationScheduleStatusBanner';
+import {
+  DEFAULT_LOCATION_ID,
+  HOME_SCHEDULE_LOCATIONS,
+} from '@/constants/location';
+import { ROUTES } from '@/constants/ROUTES';
 import { initScheduleForToday } from '@/hooks/schedule-store';
 
 const MAX_WIDTH = 880;
 
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
+
   const isMobileWeb =
     Platform.OS === 'web' &&
-    ((typeof navigator !== 'undefined' && /iPhone|Android/i.test(navigator.userAgent)) ||
+    ((typeof navigator !== 'undefined' &&
+      /iPhone|Android/i.test(navigator.userAgent)) ||
       width < 900 ||
       height < 700);
 
-useEffect(() => {
-  void initScheduleForToday('B2').catch((e) => {
-    console.error('initScheduleForToday failed (home):', e);
-  });
-}, []);
+  useEffect(() => {
+    void initScheduleForToday(DEFAULT_LOCATION_ID).catch((error) => {
+      console.error('initScheduleForToday failed (home):', error);
+    });
+  }, []);
 
   const showWebBranding = Platform.OS === 'web' && !isMobileWeb;
 
   return (
     <View style={styles.screen}>
-      {/* Large washed-out background logo – web only */}
       {showWebBranding && (
         <Image
           source={require('../assets/images/nochains-bg.png')}
@@ -45,7 +51,6 @@ useEffect(() => {
         />
       )}
 
-            {/* NEW – I Heart NDIS logo on the left side (web only) */}
       {showWebBranding && (
         <Image
           source={require('../assets/images/IheartNDIS.png')}
@@ -54,7 +59,6 @@ useEffect(() => {
         />
       )}
 
-      {/* Round logo in top-right – web only */}
       {showWebBranding && (
         <Image
           source={require('../assets/images/nochains-round.png')}
@@ -72,8 +76,15 @@ useEffect(() => {
             fine-tune the day from the Edit Hub.
           </Text>
 
-          {/* Banner showing loaded/created schedule status */}
-          <ScheduleBanner />
+          <View style={styles.statusStack}>
+            {HOME_SCHEDULE_LOCATIONS.map((location) => (
+              <LocationScheduleStatusBanner
+                key={location.id}
+                locationId={location.id}
+                locationName={location.name}
+              />
+            ))}
+          </View>
 
           <View style={styles.startContainer}>
             <Image
@@ -85,7 +96,6 @@ useEffect(() => {
           </View>
 
           <View style={styles.buttonRow}>
-            {/* New: Admin Login – same style as Go to Edit Hub */}
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={() => router.push(ROUTES.SHARE)}
@@ -93,7 +103,7 @@ useEffect(() => {
             >
               <Text style={styles.secondaryLabel}>Admin Login</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.primaryButton}
               onPress={() => router.push(ROUTES.CREATE)}
@@ -109,35 +119,6 @@ useEffect(() => {
             >
               <Text style={styles.secondaryLabel}>Go to Edit Hub</Text>
             </TouchableOpacity>
-
-          </View>
-
-          {/* Quick Start Guide Updated */}
-          <View style={styles.guide}>
-            <Text style={styles.guideTitle}>Quick Start Guide</Text>
-            <Text style={styles.step}>
-              1.)  Select your Dream Team (who is working at B2).
-            </Text>
-            <Text style={styles.step}>
-              2.)  Mark which participants are attending today.
-            </Text>
-            <Text style={styles.step}>
-              3.)  Assign attending participants to your team.
-            </Text>
-            <Text style={styles.step}>
-              4.)  Assign participants to your drop-off team.
-            </Text>
-            <Text style={styles.step}>
-              5.)  Choose who completes the End of Shift Checklist.
-            </Text>
-            <Text style={styles.step}>
-              6.)  Floating and end of shift cleaning assignments
-              will be automated by the app.
-            </Text>
-            <Text style={styles.step}>
-              7.)  Use the Edit Hub to refine assignments, floating, cleaning, and
-              transport.
-            </Text>
           </View>
         </View>
       </ScrollView>
@@ -157,14 +138,13 @@ const styles = StyleSheet.create({
   scroll: {
     paddingVertical: 32,
     alignItems: 'center',
-    paddingBottom: 160,
+    paddingBottom: 120,
   },
   inner: {
     width: '100%',
     maxWidth: MAX_WIDTH,
     paddingHorizontal: 24,
   },
-  // Large washed-out background logo
   bgLogo: {
     position: 'absolute',
     width: 1400,
@@ -174,7 +154,6 @@ const styles = StyleSheet.create({
     top: 10,
     pointerEvents: 'none',
   },
-  // Round logo in top-right corner
   cornerLogo: {
     position: 'absolute',
     width: 140,
@@ -203,9 +182,13 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     opacity: 0.75,
-    marginBottom: 24,
+    marginBottom: 20,
     color: '#4c3b5c',
     textAlign: 'center',
+  },
+  statusStack: {
+    gap: 10,
+    marginBottom: 34,
   },
   startContainer: {
     alignItems: 'center',
@@ -214,6 +197,13 @@ const styles = StyleSheet.create({
   startImage: {
     width: 160,
     height: 160,
+  },
+  greeting: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#332244',
+    textAlign: 'center',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -244,32 +234,5 @@ const styles = StyleSheet.create({
     color: '#F54FA5',
     fontWeight: '500',
     fontSize: 14,
-  },
-  guide: {
-    marginTop: 8,
-    padding: 20,
-    borderRadius: 12,
-    backgroundColor: '#e3f2fd',
-    borderWidth: 1,
-    borderColor: '#b6d4f0',
-  },
-  guideTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 10,
-    color: '#1e3c64',
-    textAlign: 'center',
-  },
-  step: {
-    fontSize: 16,
-    marginBottom: 10,
-    color: '#2a446e',
-  },
-  greeting: {
-    marginTop: 12,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#332244',
-    textAlign: 'center',
   },
 });
