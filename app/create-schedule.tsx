@@ -966,7 +966,9 @@ snapshot = {
         floatingAssignments: state.floatingAssignments ?? {},
         cleaningAssignments: state.cleaningAssignments ?? {},
 
-        finalChecklist: state.finalChecklist ?? {},
+        // A new daily schedule must always begin with every closing task unticked.
+        // Never inherit checklist completion from the previously loaded schedule.
+        finalChecklist: {},
         finalChecklistStaff: state.finalChecklistStaff ?? finalChecklistStaff,
 
         pickupParticipants: state.pickupParticipants ?? pickupParticipants,
@@ -1034,6 +1036,8 @@ snapshot = {
     baseSchedule.getState().setActiveScheduleRecord(result.data);
     baseSchedule.setState((current) => ({
       ...current,
+      // Keep the local store consistent with the newly inserted daily snapshot.
+      finalChecklist: {},
       date: scheduleDate,
       banner: { type: 'created', scheduleDate },
       hasInitialisedToday: true,

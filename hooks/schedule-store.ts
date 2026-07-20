@@ -692,6 +692,8 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
         syncOutingCompatibility({
           ...state,
           ...snapshot,
+          // Always replace the prior day's checklist object rather than reusing it.
+          finalChecklist: { ...(snapshot.finalChecklist || {}) },
         } as ScheduleState),
       );
       resolve();

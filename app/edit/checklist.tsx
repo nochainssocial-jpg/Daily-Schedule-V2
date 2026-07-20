@@ -282,6 +282,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   itemRow: {
-    paddingVertical: 4,
+    width: '100%',
+    marginBottom: 6,
   },
 });

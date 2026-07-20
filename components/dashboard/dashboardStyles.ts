@@ -978,9 +978,9 @@ flex: 1,
 cleaningGrid: {
 flexDirection: "row",
 flexWrap: "wrap",
-justifyContent: "space-between",
+justifyContent: "flex-start",
 rowGap: 8 as any,
-columnGap: 0 as any,
+columnGap: "1.13%" as any,
 paddingBottom: 8,
 },
 cleaningCard: {

@@ -100,7 +100,7 @@ export async function persistFinish(params: PersistParams) {
     pickupParticipants = [],
     helperPickupStaff = [],
 
-    finalChecklist = { isPrinted: false, isSigned: false },
+    finalChecklist = {},
     finalChecklistStaff = null,
 
     recentSnapshots = [],
