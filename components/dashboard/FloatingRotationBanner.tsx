@@ -32,9 +32,8 @@ type Props = {
   currentMinutes: number;
 };
 
-const ROTATION_PREVIEW_BEFORE_MINUTES = 2;
+const ROTATION_PREVIEW_BEFORE_MINUTES = 3;
 const ROTATION_PREVIEW_AFTER_MINUTES = 5;
-const FIRST_UP_NEXT_DISPLAY_MINUTES = 10 * 60 + 30;
 
 function staffInitials(name: string): string {
   const parts = String(name || "")
@@ -238,7 +237,7 @@ export function FloatingRotationBanner({
       ? `${upNextSlot.label} · starts in ${minutesToNext} min`
       : "";
   const showUpNext =
-    currentMinutes >= FIRST_UP_NEXT_DISPLAY_MINUTES && upNextSlot !== null;
+    upNextSlot !== null && upNextSlot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart;
 
   return (
     <View style={styles.floatingBannerOverlay} pointerEvents="none">
