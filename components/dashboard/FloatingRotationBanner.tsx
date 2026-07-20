@@ -1,5 +1,5 @@
-import React, { memo, useEffect, useMemo } from "react";
-import { Image, Platform, Text, View } from "react-native";
+import React, { memo, useMemo } from "react";
+import { Image, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
 import type { RoomKey } from "./dashboardTypes";
@@ -35,7 +35,6 @@ type Props = {
 const ROTATION_PREVIEW_BEFORE_MINUTES = 2;
 const ROTATION_PREVIEW_AFTER_MINUTES = 5;
 const FIRST_UP_NEXT_DISPLAY_MINUTES = 10 * 60 + 30;
-const SCROLL_KEYFRAMES_ID = "floating-rotation-banner-keyframes";
 
 function staffInitials(name: string): string {
   const parts = String(name || "")
@@ -73,21 +72,6 @@ function normalisePhotoKey(name?: string | null): StaffPhotoKey | null {
 function getStaffPhotoSource(person: any): ImageSourcePropType | null {
   const key = normalisePhotoKey(person?.name);
   return key ? STAFF_PHOTO_ASSETS[key] || null : null;
-}
-
-function injectScrollingKeyframes() {
-  if (Platform.OS !== "web" || typeof document === "undefined") return;
-  if (document.getElementById(SCROLL_KEYFRAMES_ID)) return;
-
-  const style = document.createElement("style");
-  style.id = SCROLL_KEYFRAMES_ID;
-  style.innerHTML = `
-    @keyframes floatingRotationBannerScroll {
-      0% { transform: translate3d(0, 0, 0); }
-      100% { transform: translate3d(-50%, 0, 0); }
-    }
-  `;
-  document.head.appendChild(style);
 }
 
 function buildSlotAssignments({
@@ -170,28 +154,6 @@ const FloatingBannerRow = memo(function FloatingBannerRow({
   assignments: FloatingBannerAssignment[];
   variant: "upNext" | "current";
 }) {
-  const assignmentKey = assignments
-    .map((item) => `${item.room}:${item.staffId || "empty"}:${item.staffName}`)
-    .join("|");
-
-  const renderAssignmentGroup = (copy: "primary" | "duplicate") => (
-    <View
-      key={`${copy}-${assignmentKey}`}
-      style={[
-        styles.floatingBannerScrollerGroup,
-        Platform.OS === "web" ? (styles.floatingBannerScrollerGroupWeb as any) : null,
-      ]}
-      aria-hidden={copy === "duplicate" ? true : undefined}
-    >
-      {assignments.map((item) => (
-        <FloatingStaffCard
-          key={`${copy}-${item.room}-${item.staffId || "empty"}`}
-          item={item}
-        />
-      ))}
-    </View>
-  );
-
   return (
     <View
       style={[
@@ -219,16 +181,14 @@ const FloatingBannerRow = memo(function FloatingBannerRow({
         </Text>
         <Text style={styles.floatingBannerRowSubtitle}>{subtitle}</Text>
       </View>
-      <View style={styles.floatingBannerScrollerWindow}>
-        <View
-          style={[
-            styles.floatingBannerScrollerTrack,
-            Platform.OS === "web" ? (styles.floatingBannerScrollerTrackWeb as any) : null,
-          ]}
-        >
-          {renderAssignmentGroup("primary")}
-          {renderAssignmentGroup("duplicate")}
-        </View>
+
+      <View style={styles.floatingBannerAssignmentsGrid}>
+        {assignments.map((item) => (
+          <FloatingStaffCard
+            key={`${item.room}-${item.staffId || "empty"}`}
+            item={item}
+          />
+        ))}
       </View>
     </View>
   );
@@ -240,10 +200,6 @@ export function FloatingRotationBanner({
   staffById,
   currentMinutes,
 }: Props) {
-  useEffect(() => {
-    injectScrollingKeyframes();
-  }, []);
-
   const slots = useMemo(() => {
     return (displayTimeSlots || [])
       .map((slot, index) =>
