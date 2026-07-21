@@ -155,6 +155,7 @@ const eventTypeOptions = [
   "Behaviour Support",
   "Speech Pathologist",
   "Physiotherapy",
+  "OT - Occupational Therapy",
   "Podiatrist",
   "Doctor's Appointment",
   "Training",
