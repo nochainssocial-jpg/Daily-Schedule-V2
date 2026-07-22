@@ -28,7 +28,8 @@ import {
 } from '@/lib/propertySupport';
 import { getSydneyDateKey } from '@/lib/sydneyDate';
 
-const MAX_WIDTH = 980;
+const MAX_WIDTH = 1275;
+const ACTIONS_MAX_WIDTH = 880;
 const ACCENT = '#0F9F8F';
 const SOFT_TEAL = '#CCFBF1';
 const HOUSE_ID = DEFAULT_LOCATION_ID;
@@ -181,6 +182,29 @@ export default function PropertySupportScreen() {
 
   return (
     <View style={styles.screen}>
+      <View style={styles.actionBar}>
+        <View style={styles.actionBarInner}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            disabled={saving}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={readOnly || saving}
+            style={[
+              styles.saveButton,
+              (readOnly || saving) && styles.buttonDisabled,
+            ]}
+          >
+            {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
+            <Text style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save & Exit'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerCard}>
           <View style={styles.headerIcon}>
@@ -311,29 +335,6 @@ export default function PropertySupportScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <View style={styles.footerInner}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            disabled={saving}
-            style={styles.cancelButton}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={readOnly || saving}
-            style={[
-              styles.saveButton,
-              (readOnly || saving) && styles.buttonDisabled,
-            ]}
-          >
-            {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
-            <Text style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save & Exit'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <Modal
         visible={openLocationCard !== null}
         transparent
@@ -397,8 +398,8 @@ const styles = StyleSheet.create({
     maxWidth: MAX_WIDTH,
     alignSelf: 'center',
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 28,
+    paddingTop: 14,
+    paddingBottom: 24,
   },
   headerCard: {
     flexDirection: 'row',
@@ -407,13 +408,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#99F6E4',
     borderRadius: 18,
-    padding: 18,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
   },
   headerIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 15,
     backgroundColor: SOFT_TEAL,
     alignItems: 'center',
     justifyContent: 'center',
@@ -427,8 +428,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  title: { color: '#134E4A', fontSize: 25, fontWeight: '900', marginTop: 2 },
-  subtitle: { color: '#475569', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  title: { color: '#134E4A', fontSize: 23, fontWeight: '900', marginTop: 1 },
+  subtitle: { color: '#475569', fontSize: 12, lineHeight: 17, marginTop: 3 },
   noticeCard: {
     flexDirection: 'row',
     gap: 10,
@@ -444,17 +445,17 @@ const styles = StyleSheet.create({
   cardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 12,
     alignItems: 'flex-start',
   },
   cardsGridCompact: { flexDirection: 'column' },
   assignmentCard: {
-    width: '48.9%',
+    width: '49.4%',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#99F6E4',
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 16,
+    padding: 13,
     ...Platform.select({
       web: { boxShadow: '0 8px 22px rgba(15, 118, 110, 0.08)' } as any,
       default: {
@@ -471,7 +472,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 8,
   },
   cardEyebrow: {
     color: '#0F766E',
@@ -480,13 +481,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  cardTitle: { color: '#134E4A', fontSize: 18, fontWeight: '900', marginTop: 2 },
+  cardTitle: { color: '#134E4A', fontSize: 17, fontWeight: '900', marginTop: 1 },
   clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 9,
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
@@ -497,11 +498,11 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 12,
     fontWeight: '900',
-    marginTop: 10,
-    marginBottom: 7,
+    marginTop: 6,
+    marginBottom: 4,
   },
   dropdown: {
-    minHeight: 44,
+    minHeight: 40,
     borderWidth: 1,
     borderColor: '#99F6E4',
     borderRadius: 11,
@@ -514,14 +515,14 @@ const styles = StyleSheet.create({
   },
   dropdownValue: { flex: 1, color: '#134E4A', fontSize: 14, fontWeight: '800' },
   placeholderText: { flex: 1, color: '#94A3B8', fontSize: 13, fontWeight: '600' },
-  staffGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  staffGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
   staffChip: {
     maxWidth: '48%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#99F6E4',
@@ -541,28 +542,29 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   notesInput: {
-    minHeight: 82,
+    minHeight: 58,
+    maxHeight: 64,
     borderWidth: 1,
     borderColor: '#99F6E4',
     borderRadius: 11,
     backgroundColor: '#F8FFFD',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     color: '#1E293B',
     fontSize: 13,
     lineHeight: 18,
   },
   fieldDisabled: { opacity: 0.55 },
   buttonDisabled: { opacity: 0.45 },
-  footer: {
+  actionBar: {
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  footerInner: {
-    maxWidth: MAX_WIDTH,
+  actionBarInner: {
+    maxWidth: ACTIONS_MAX_WIDTH,
     width: '100%',
     alignSelf: 'center',
     flexDirection: 'row',
