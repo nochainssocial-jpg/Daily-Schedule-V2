@@ -1532,8 +1532,8 @@ dailyPhaseTextComplete: { color: "#166534" },
 
 dailyProgressOverlay: {
 position: "absolute" as any,
-left: "8%",
-right: "32%",
+left: "4%",
+right: "4%",
 bottom: 52,
 zIndex: 48,
 },

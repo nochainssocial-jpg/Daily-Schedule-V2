@@ -3,7 +3,6 @@ import { View } from "react-native";
 import {
   Car,
   CheckSquare,
-  Play,
   Sparkles,
   Star,
   Utensils,
@@ -28,8 +27,8 @@ type Props = {
 
 const SEGMENTS: Segment[] = [
   { key: "setup", label: "Morning Setup", start: 8 * 60, end: 10 * 60, Icon: Wrench },
-  { key: "start", label: "Day Program Start", start: 10 * 60, end: 10 * 60 + 5, Icon: Play },
-  { key: "activities-am", label: "Morning Activities", start: 10 * 60 + 5, end: 11 * 60, Icon: Users },
+  { key: "start", label: "Day Program Start", start: 10 * 60, end: 10 * 60 + 5, Icon: Users },
+  { key: "activities-am", label: "Morning Activities", start: 10 * 60 + 5, end: 11 * 60, Icon: Star },
   { key: "lunch", label: "Lunch", start: 11 * 60, end: 12 * 60, Icon: Utensils },
   { key: "activities-pm", label: "Afternoon Activities", start: 12 * 60, end: 13 * 60, Icon: Star },
   { key: "cleaning", label: "Cleaning", start: 13 * 60, end: 14 * 60, Icon: Sparkles },
