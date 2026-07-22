@@ -15,6 +15,9 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
+import { STAFF_PHOTO_ASSETS, type StaffPhotoKey } from "@/components/dashboard/staffPhotoAssets";
+import { useAccessControl } from "@/hooks/access-control";
+
 import Footer from "@/components/Footer";
 import ScheduleBanner from "@/components/ScheduleBanner";
 import OutingSummaryBanner from "@/components/OutingSummaryBanner";
@@ -23,6 +26,17 @@ import { getOutingSlot, resolveOutingTiming } from "@/lib/outingSlots";
 
 const MAX_WIDTH = 960;
 const showWebBranding = Platform.OS === "web";
+
+type AdminIdentity = {
+  name: string;
+  photoKey: StaffPhotoKey;
+};
+
+const ADMIN_IDENTITIES = {
+  "admin-md": { name: "Dalida", photoKey: "Dalida" },
+  "admin-bruno": { name: "Bruno", photoKey: "Bruno" },
+  "admin-jessica": { name: "Jessica", photoKey: "Jessica" },
+} satisfies Record<string, AdminIdentity>;
 
 type CardConfig = {
   key: string;
@@ -255,10 +269,49 @@ function buildVisibleOutings(
     .slice(0, 3);
 }
 
+function AdminIdentityCard({ identity }: { identity: AdminIdentity }) {
+  const photoSource = STAFF_PHOTO_ASSETS[identity.photoKey];
+
+  return (
+    <View style={styles.adminIdentityCard}>
+      <View style={styles.adminPhotoFrame}>
+        {photoSource ? (
+          <Image
+            source={photoSource}
+            style={styles.adminPhoto}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.adminPhotoFallback}>
+            <Text style={styles.adminPhotoFallbackText}>
+              {identity.name.slice(0, 1).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={styles.adminOnlineDot} />
+      </View>
+
+      <View style={styles.adminIdentityText}>
+        <Text style={styles.adminIdentityEyebrow}>ADMIN ACCESS</Text>
+        <Text style={styles.adminIdentityName} numberOfLines={1}>
+          {identity.name}
+        </Text>
+        <Text style={styles.adminIdentityStatus}>Logged in</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function EditHubScreen() {
   const router = useRouter();
   const { width: viewportWidth } = useWindowDimensions();
   const isCompactLayout = viewportWidth < 900;
+  const useInlineAdminIdentity = viewportWidth < 1240;
+  const accessMode = useAccessControl((state) => state.mode);
+  const adminIdentity =
+    accessMode in ADMIN_IDENTITIES
+      ? ADMIN_IDENTITIES[accessMode as keyof typeof ADMIN_IDENTITIES]
+      : null;
   const { outingGroups = [], staff = [], participants = [] } = useSchedule() as {
     outingGroups?: OutingGroup[];
     staff?: { id: string | number; name?: string | null }[];
@@ -304,8 +357,21 @@ export default function EditHubScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.inner}>
-          <ScheduleBanner />
+        <View style={styles.pageFrame}>
+          {adminIdentity && !useInlineAdminIdentity ? (
+            <View style={styles.adminIdentityDock}>
+              <AdminIdentityCard identity={adminIdentity} />
+            </View>
+          ) : null}
+
+          <View style={styles.inner}>
+            {adminIdentity && useInlineAdminIdentity ? (
+              <View style={styles.adminIdentityInline}>
+                <AdminIdentityCard identity={adminIdentity} />
+              </View>
+            ) : null}
+
+            <ScheduleBanner />
 
           {visibleOutings.length > 0 && (
             <View style={styles.outingSummaryRow}>
@@ -437,6 +503,7 @@ export default function EditHubScreen() {
             </View>
           </View>
         </View>
+        </View>
       </ScrollView>
 
       <Footer />
@@ -471,6 +538,104 @@ const styles = StyleSheet.create({
     left: -600,
     top: 10,
     pointerEvents: "none",
+  },
+  pageFrame: {
+    width: "100%",
+    alignItems: "center",
+    position: "relative",
+  },
+  adminIdentityDock: {
+    position: "absolute",
+    left: 24,
+    top: 0,
+    zIndex: 5,
+  },
+  adminIdentityInline: {
+    width: "100%",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  adminIdentityCard: {
+    width: 174,
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(245,79,165,0.22)",
+    shadowColor: "#6B2149",
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  adminPhotoFrame: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    padding: 2,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    marginRight: 10,
+    position: "relative",
+    shadowColor: "#9D174D",
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  adminPhoto: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 23,
+  },
+  adminPhotoFallback: {
+    flex: 1,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FCE7F3",
+  },
+  adminPhotoFallbackText: {
+    color: "#9D174D",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  adminOnlineDot: {
+    position: "absolute",
+    right: 0,
+    bottom: 1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#22C55E",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  adminIdentityText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  adminIdentityEyebrow: {
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.7,
+    color: "#9D174D",
+    fontWeight: "800",
+  },
+  adminIdentityName: {
+    marginTop: 2,
+    fontSize: 14,
+    lineHeight: 17,
+    color: "#1F2937",
+    fontWeight: "700",
+  },
+  adminIdentityStatus: {
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 14,
+    color: "#6B7280",
   },
   columns: {
     marginTop: 18,
