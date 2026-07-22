@@ -357,6 +357,10 @@ shadowOpacity: 0.04,
 shadowRadius: 8,
 shadowOffset: { width: 0, height: 3 },
 },
+floatingPanel: {
+flex: 0,
+paddingBottom: 0,
+},
 panelHeaderRow: {
 flexDirection: "row",
 justifyContent: "space-between",
@@ -608,6 +612,9 @@ borderColor: "#E5E7EB",
 borderRadius: 16,
 overflow: "hidden",
 marginTop: 2,
+},
+floatingTableCompact: {
+flex: 0,
 },
 floatRow: {
 flexDirection: "row",
