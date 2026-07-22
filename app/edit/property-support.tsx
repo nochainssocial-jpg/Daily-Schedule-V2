@@ -32,6 +32,9 @@ const MAX_WIDTH = 1275;
 const ACTIONS_MAX_WIDTH = 880;
 const ACCENT = '#0F9F8F';
 const SOFT_TEAL = '#CCFBF1';
+const PARTICIPANT_ACCENT = '#7C3AED';
+const PROPERTY_SUPPORT_COUNT = 2;
+const TOTAL_SUPPORT_COUNT = 4;
 const HOUSE_ID = DEFAULT_LOCATION_ID;
 
 function hasAnyContent(assignment: PropertySupportAssignment) {
@@ -86,17 +89,34 @@ export default function PropertySupportScreen() {
           return;
         }
 
-        setLocations(result.locations.filter((location) => location.isActive));
-        const saved = result.record?.assignments || [];
+        const activeLocations = result.locations.filter((location) => location.isActive);
+        setLocations(activeLocations);
+
+        const saved = (result.record?.assignments || [])
+          .slice(0, TOTAL_SUPPORT_COUNT)
+          .map((assignment, index) => {
+            if (index < PROPERTY_SUPPORT_COUNT || !assignment.propertyLocationId) {
+              return assignment;
+            }
+
+            const previousLocation = activeLocations.find(
+              (location) => String(location.id) === String(assignment.propertyLocationId),
+            );
+
+            return previousLocation
+              ? { ...assignment, propertyLocationId: previousLocation.name }
+              : assignment;
+          });
+
         setAssignments([
           ...saved,
-          ...emptyPropertySupportAssignments(Math.max(0, 4 - saved.length)).map(
-            (item, index) => ({
-              ...item,
-              id: `property-support-${saved.length + index + 1}`,
-            }),
-          ),
-        ].slice(0, 4));
+          ...emptyPropertySupportAssignments(
+            Math.max(0, TOTAL_SUPPORT_COUNT - saved.length),
+          ).map((item, index) => ({
+            ...item,
+            id: `property-support-${saved.length + index + 1}`,
+          })),
+        ].slice(0, TOTAL_SUPPORT_COUNT));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -146,8 +166,15 @@ export default function PropertySupportScreen() {
     );
 
     if (incompleteIndex >= 0) {
+      const isParticipantSupport = incompleteIndex >= PROPERTY_SUPPORT_COUNT;
+      const cardNumber = isParticipantSupport
+        ? incompleteIndex - PROPERTY_SUPPORT_COUNT + 1
+        : incompleteIndex + 1;
+
       push(
-        `Property Support ${incompleteIndex + 1}: select a property and at least one staff member.`,
+        isParticipantSupport
+          ? `Participant Support ${cardNumber}: enter a property/location and select at least one staff member.`
+          : `Property Support ${cardNumber}: select a property and at least one staff member.`,
         'general',
       );
       return;
@@ -165,7 +192,7 @@ export default function PropertySupportScreen() {
       router.back();
     } catch (error) {
       console.error('[property support] failed to save', error);
-      push('Property Support changes could not be saved. Please try again.', 'general');
+      push('Support changes could not be saved. Please try again.', 'general');
     } finally {
       setSaving(false);
     }
@@ -175,7 +202,7 @@ export default function PropertySupportScreen() {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator size="large" color={ACCENT} />
-        <Text style={styles.loadingText}>Loading Property Support…</Text>
+        <Text style={styles.loadingText}>Loading support assignments…</Text>
       </View>
     );
   }
@@ -212,9 +239,9 @@ export default function PropertySupportScreen() {
           </View>
           <View style={styles.headerTextBlock}>
             <Text style={styles.eyebrow}>Edit Hub</Text>
-            <Text style={styles.title}>Property Support</Text>
+            <Text style={styles.title}>Property & Participant Support</Text>
             <Text style={styles.subtitle}>
-              Assign staff working at Day Program to property support visits for today.
+              Assign staff to two property support visits and two participant support visits for today.
             </Text>
           </View>
         </View>
@@ -223,27 +250,51 @@ export default function PropertySupportScreen() {
           <View style={styles.noticeCard}>
             <Ionicons name="information-circle-outline" size={22} color="#0F766E" />
             <Text style={styles.noticeText}>
-              No property locations are configured yet. Add active rows to the new
-              property_locations table before creating assignments.
+              No property locations are configured yet. The two Participant Support cards remain available, but Property Support requires active rows in the property_locations table.
             </Text>
           </View>
         ) : null}
 
         <View style={[styles.cardsGrid, isCompact && styles.cardsGridCompact]}>
           {assignments.map((assignment, index) => {
-            const selectedLocation = locations.find(
-              (location) => location.id === assignment.propertyLocationId,
-            );
+            const isParticipantSupport = index >= PROPERTY_SUPPORT_COUNT;
+            const cardNumber = isParticipantSupport
+              ? index - PROPERTY_SUPPORT_COUNT + 1
+              : index + 1;
+            const selectedLocation = isParticipantSupport
+              ? undefined
+              : locations.find(
+                  (location) => location.id === assignment.propertyLocationId,
+                );
 
             return (
               <View
                 key={assignment.id}
-                style={[styles.assignmentCard, isCompact && styles.assignmentCardCompact]}
+                style={[
+                  styles.assignmentCard,
+                  isParticipantSupport && styles.participantAssignmentCard,
+                  isCompact && styles.assignmentCardCompact,
+                ]}
               >
                 <View style={styles.cardHeader}>
                   <View>
-                    <Text style={styles.cardEyebrow}>Property visit</Text>
-                    <Text style={styles.cardTitle}>Property Support {index + 1}</Text>
+                    <Text
+                      style={[
+                        styles.cardEyebrow,
+                        isParticipantSupport && styles.participantCardEyebrow,
+                      ]}
+                    >
+                      {isParticipantSupport ? 'Participant support' : 'Property visit'}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        isParticipantSupport && styles.participantCardTitle,
+                      ]}
+                    >
+                      {isParticipantSupport ? 'Participant Support' : 'Property Support'}{' '}
+                      {cardNumber}
+                    </Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => clearCard(index)}
@@ -258,23 +309,43 @@ export default function PropertySupportScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.fieldLabel}>Property</Text>
-                <TouchableOpacity
-                  disabled={readOnly || locations.length === 0}
-                  onPress={() => setOpenLocationCard(index)}
-                  style={[
-                    styles.dropdown,
-                    (readOnly || locations.length === 0) && styles.fieldDisabled,
-                  ]}
-                >
-                  <Text
-                    style={selectedLocation ? styles.dropdownValue : styles.placeholderText}
-                    numberOfLines={1}
+                <Text style={styles.fieldLabel}>
+                  {isParticipantSupport ? 'Property / support location' : 'Property'}
+                </Text>
+                {isParticipantSupport ? (
+                  <TextInput
+                    editable={!readOnly}
+                    value={assignment.propertyLocationId}
+                    onChangeText={(propertyLocationId) =>
+                      updateAssignment(index, { propertyLocationId })
+                    }
+                    placeholder="Enter property or support location…"
+                    placeholderTextColor="#94A3B8"
+                    style={[
+                      styles.locationInput,
+                      styles.participantField,
+                      readOnly && styles.fieldDisabled,
+                    ]}
+                    maxLength={120}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    disabled={readOnly || locations.length === 0}
+                    onPress={() => setOpenLocationCard(index)}
+                    style={[
+                      styles.dropdown,
+                      (readOnly || locations.length === 0) && styles.fieldDisabled,
+                    ]}
                   >
-                    {selectedLocation?.name || 'Select property location'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color="#0F766E" />
-                </TouchableOpacity>
+                    <Text
+                      style={selectedLocation ? styles.dropdownValue : styles.placeholderText}
+                      numberOfLines={1}
+                    >
+                      {selectedLocation?.name || 'Select property location'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={18} color="#0F766E" />
+                  </TouchableOpacity>
+                )}
 
                 <Text style={styles.fieldLabel}>Staff attending</Text>
                 {availableStaff.length === 0 ? (
@@ -293,18 +364,29 @@ export default function PropertySupportScreen() {
                           onPress={() => toggleStaff(index, staffId)}
                           style={[
                             styles.staffChip,
-                            selected && styles.staffChipSelected,
+                            isParticipantSupport && styles.participantStaffChip,
+                            selected &&
+                              (isParticipantSupport
+                                ? styles.participantStaffChipSelected
+                                : styles.staffChipSelected),
                             readOnly && styles.fieldDisabled,
                           ]}
                         >
                           <Ionicons
                             name={selected ? 'checkmark-circle' : 'ellipse-outline'}
                             size={16}
-                            color={selected ? '#FFFFFF' : '#0F766E'}
+                            color={
+                              selected
+                                ? '#FFFFFF'
+                                : isParticipantSupport
+                                  ? PARTICIPANT_ACCENT
+                                  : '#0F766E'
+                            }
                           />
                           <Text
                             style={[
                               styles.staffChipText,
+                              isParticipantSupport && styles.participantStaffChipText,
                               selected && styles.staffChipTextSelected,
                             ]}
                             numberOfLines={1}
@@ -317,15 +399,25 @@ export default function PropertySupportScreen() {
                   </View>
                 )}
 
-                <Text style={styles.fieldLabel}>Task details</Text>
+                <Text style={styles.fieldLabel}>
+                  {isParticipantSupport ? 'Support details' : 'Task details'}
+                </Text>
                 <TextInput
                   editable={!readOnly}
                   multiline
                   value={assignment.notes}
                   onChangeText={(notes) => updateAssignment(index, { notes })}
-                  placeholder="Enter the tasks to be completed at this property…"
+                  placeholder={
+                    isParticipantSupport
+                      ? 'Enter participant support details…'
+                      : 'Enter the tasks to be completed at this property…'
+                  }
                   placeholderTextColor="#94A3B8"
-                  style={[styles.notesInput, readOnly && styles.fieldDisabled]}
+                  style={[
+                    styles.notesInput,
+                    isParticipantSupport && styles.participantField,
+                    readOnly && styles.fieldDisabled,
+                  ]}
                   textAlignVertical="top"
                   maxLength={300}
                 />
@@ -467,6 +559,14 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  participantAssignmentCard: {
+    backgroundColor: '#FAF7FF',
+    borderColor: '#C4B5FD',
+    ...Platform.select({
+      web: { boxShadow: '0 8px 22px rgba(124, 58, 237, 0.08)' } as any,
+      default: { shadowColor: PARTICIPANT_ACCENT },
+    }),
+  },
   assignmentCardCompact: { width: '100%' },
   cardHeader: {
     flexDirection: 'row',
@@ -481,7 +581,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+  participantCardEyebrow: { color: '#6D28D9' },
   cardTitle: { color: '#134E4A', fontSize: 17, fontWeight: '900', marginTop: 1 },
+  participantCardTitle: { color: '#5B21B6' },
   clearButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,6 +615,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  locationInput: {
+    minHeight: 40,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    color: '#4C1D95',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  participantField: {
+    borderColor: '#C4B5FD',
+    backgroundColor: '#FFFFFF',
+  },
   dropdownValue: { flex: 1, color: '#134E4A', fontSize: 14, fontWeight: '800' },
   placeholderText: { flex: 1, color: '#94A3B8', fontSize: 13, fontWeight: '600' },
   staffGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
@@ -529,7 +644,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDFA',
   },
   staffChipSelected: { backgroundColor: ACCENT, borderColor: ACCENT },
+  participantStaffChip: {
+    borderColor: '#C4B5FD',
+    backgroundColor: '#F5F3FF',
+  },
+  participantStaffChipSelected: {
+    backgroundColor: PARTICIPANT_ACCENT,
+    borderColor: PARTICIPANT_ACCENT,
+  },
   staffChipText: { color: '#115E59', fontSize: 12, fontWeight: '800', flexShrink: 1 },
+  participantStaffChipText: { color: '#5B21B6' },
   staffChipTextSelected: { color: '#FFFFFF' },
   emptyStaffText: {
     color: '#B45309',
