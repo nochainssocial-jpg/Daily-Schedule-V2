@@ -153,6 +153,7 @@ const categoryFilterOptions: { label: string; value: FilterCategory }[] = [
 
 const eventTypeOptions = [
   "Behaviour Support",
+  "Occupational Therapist",
   "Speech Pathologist",
   "Physiotherapy",
   "Podiatrist",
