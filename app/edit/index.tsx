@@ -11,6 +11,7 @@ import {
   Pressable,
   Image,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -32,7 +33,7 @@ type CardConfig = {
   route: string; // absolute path
 };
 
-const CARDS: CardConfig[] = [
+const SCHEDULE_CARDS: CardConfig[] = [
   {
     key: "dream-team",
     title: "The Dream Team (Working at B2)",
@@ -48,33 +49,6 @@ const CARDS: CardConfig[] = [
     icon: "happy-outline",
     iconBg: "#E0F2FE",
     route: "/edit/participants",
-  },
-  {
-    key: "outings",
-    title: "Drive / Outing / Off-site",
-    description:
-      "Set up any drives or outings so cleaning and floating only use onsite staff.",
-    icon: "car-outline",
-    iconBg: "#FFE4CC",
-    route: "/edit/outings",
-  },
-  {
-    key: "property-support",
-    title: "Property Support",
-    description:
-      "Assign Day Program staff to property visits and record the tasks required.",
-    icon: "home-outline",
-    iconBg: "#CCFBF1",
-    route: "/edit/property-support",
-  },
-  {
-    key: "events-meetings-visits",
-    title: "Events | Meetings | Visits",
-    description:
-      "Add centre events, meetings and external visits for the dashboard.",
-    icon: "calendar-outline",
-    iconBg: "#FEF3C7",
-    route: "/edit/events-meetings-visits",
   },
   {
     key: "assignments",
@@ -122,6 +96,35 @@ const CARDS: CardConfig[] = [
   },
 ];
 
+const ADDITIONAL_OPERATION_CARDS: CardConfig[] = [
+  {
+    key: "outings",
+    title: "Drive / Outing / Off-site",
+    description:
+      "Set up drives and outings independently while keeping onsite availability accurate.",
+    icon: "car-outline",
+    iconBg: "#FFE4CC",
+    route: "/edit/outings",
+  },
+  {
+    key: "property-support",
+    title: "Property Support",
+    description:
+      "Assign Day Program staff to property visits and record the tasks required.",
+    icon: "home-outline",
+    iconBg: "#CCFBF1",
+    route: "/edit/property-support",
+  },
+  {
+    key: "events-meetings-visits",
+    title: "Events | Meetings | Visits",
+    description:
+      "Add centre events, meetings and external visits for the dashboard.",
+    icon: "calendar-outline",
+    iconBg: "#FEF3C7",
+    route: "/edit/events-meetings-visits",
+  },
+];
 type OutingGroup = {
   id?: string | null;
   name?: string | null;
@@ -254,6 +257,8 @@ function buildVisibleOutings(
 
 export default function EditHubScreen() {
   const router = useRouter();
+  const { width: viewportWidth } = useWindowDimensions();
+  const isCompactLayout = viewportWidth < 900;
   const { outingGroups = [], staff = [], participants = [] } = useSchedule() as {
     outingGroups?: OutingGroup[];
     staff?: { id: string | number; name?: string | null }[];
@@ -329,36 +334,107 @@ export default function EditHubScreen() {
             </View>
           )}
 
-          <View style={styles.cardList}>
-            {CARDS.map((card) => (
-              <Pressable
-                key={card.key}
-                style={({ pressed }) => [
-                  styles.card,
-                  pressed && styles.cardPressed,
-                ]}
-                onPress={() => router.push(card.route)}
-              >
-                <View
-                  style={[styles.iconBubble, { backgroundColor: card.iconBg }]}
-                >
-                  {card.key === "floating" ? (
-                    <MaterialCommunityIcons
-                      name="account-clock"
-                      size={20}
-                      color="#4B5563"
-                    />
-                  ) : (
-                    <Ionicons name={card.icon} size={20} color="#4B5563" />
-                  )}
+          <View
+            style={[
+              styles.columns,
+              isCompactLayout && styles.columnsStacked,
+            ]}
+          >
+            <View
+              style={[
+                styles.sectionPanel,
+                styles.scheduleSection,
+                isCompactLayout && styles.sectionPanelStacked,
+              ]}
+            >
+              <View style={styles.sectionHeadingRow}>
+                <View style={[styles.sectionHeadingIcon, styles.scheduleHeadingIcon]}>
+                  <Ionicons name="create-outline" size={18} color="#9D174D" />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{card.title}</Text>
-                  <Text style={styles.cardDescription}>{card.description}</Text>
+                <View style={styles.sectionHeadingText}>
+                  <Text style={styles.sectionTitle}>Today&apos;s Schedule</Text>
+                  <Text style={styles.sectionDescription}>
+                    Edit the people, assignments and end-of-day duties stored in today&apos;s schedule.
+                  </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-              </Pressable>
-            ))}
+              </View>
+
+              <View style={styles.cardList}>
+                {SCHEDULE_CARDS.map((card) => (
+                  <Pressable
+                    key={card.key}
+                    style={({ pressed }) => [
+                      styles.card,
+                      pressed && styles.cardPressed,
+                    ]}
+                    onPress={() => router.push(card.route)}
+                  >
+                    <View
+                      style={[styles.iconBubble, { backgroundColor: card.iconBg }]}
+                    >
+                      {card.key === "floating" ? (
+                        <MaterialCommunityIcons
+                          name="account-clock"
+                          size={20}
+                          color="#4B5563"
+                        />
+                      ) : (
+                        <Ionicons name={card.icon} size={20} color="#4B5563" />
+                      )}
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={styles.cardTitle}>{card.title}</Text>
+                      <Text style={styles.cardDescription}>{card.description}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.sectionPanel,
+                styles.operationsSection,
+                isCompactLayout && styles.sectionPanelStacked,
+              ]}
+            >
+              <View style={styles.sectionHeadingRow}>
+                <View style={[styles.sectionHeadingIcon, styles.operationsHeadingIcon]}>
+                  <Ionicons name="options-outline" size={18} color="#0F766E" />
+                </View>
+                <View style={styles.sectionHeadingText}>
+                  <Text style={styles.sectionTitle}>Additional Operations</Text>
+                  <Text style={styles.sectionDescription}>
+                    Manage operational items that can exist independently of schedule creation.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cardList}>
+                {ADDITIONAL_OPERATION_CARDS.map((card) => (
+                  <Pressable
+                    key={card.key}
+                    style={({ pressed }) => [
+                      styles.card,
+                      pressed && styles.cardPressed,
+                    ]}
+                    onPress={() => router.push(card.route)}
+                  >
+                    <View
+                      style={[styles.iconBubble, { backgroundColor: card.iconBg }]}
+                    >
+                      <Ionicons name={card.icon} size={20} color="#4B5563" />
+                    </View>
+                    <View style={styles.cardText}>
+                      <Text style={styles.cardTitle}>{card.title}</Text>
+                      <Text style={styles.cardDescription}>{card.description}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -396,8 +472,72 @@ const styles = StyleSheet.create({
     top: 10,
     pointerEvents: "none",
   },
+  columns: {
+    marginTop: 18,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 18,
+  },
+  columnsStacked: {
+    flexDirection: "column",
+  },
+  sectionPanel: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    minWidth: 0,
+  },
+  scheduleSection: {
+    flex: 1.55,
+    backgroundColor: "rgba(255,255,255,0.48)",
+    borderColor: "#F3D7E7",
+  },
+  operationsSection: {
+    flex: 1,
+    backgroundColor: "rgba(240,253,250,0.72)",
+    borderColor: "#BFE8E1",
+  },
+  sectionPanelStacked: {
+    width: "100%",
+    flex: 0,
+  },
+  sectionHeadingRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    minHeight: 48,
+  },
+  sectionHeadingIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  scheduleHeadingIcon: {
+    backgroundColor: "#FCE7F3",
+  },
+  operationsHeadingIcon: {
+    backgroundColor: "#CCFBF1",
+  },
+  sectionHeadingText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: "700",
+  },
+  sectionDescription: {
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#6B7280",
+  },
   cardList: {
-    marginTop: 16,
+    marginTop: 12,
     width: "100%",
   },
   card: {
@@ -417,6 +557,10 @@ const styles = StyleSheet.create({
   cardPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.997 }],
+  },
+  cardText: {
+    flex: 1,
+    minWidth: 0,
   },
   cardTitle: {
     fontSize: 14,
