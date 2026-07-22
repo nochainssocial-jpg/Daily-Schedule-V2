@@ -43,6 +43,7 @@ export default function EditLayout() {
   const independentRoute =
     routeName === 'index' ||
     routeName === 'outings' ||
+    routeName === 'property-support' ||
     routeName === 'events-meetings-visits';
 
   if (!independentRoute && (todayScheduleStatus === 'idle' || todayScheduleStatus === 'loading')) {
