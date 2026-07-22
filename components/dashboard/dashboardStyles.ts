@@ -618,7 +618,11 @@ overflow: "hidden",
 marginTop: 2,
 },
 floatingTableCompact: {
-flex: 0,
+// Keep the table at its natural row height. `flex: 0` becomes a zero
+// flex-basis on React Native Web, which hides all table rows.
+flexGrow: 0,
+flexShrink: 0,
+flexBasis: "auto" as any,
 },
 floatRow: {
 flexDirection: "row",
