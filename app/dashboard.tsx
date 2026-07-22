@@ -12,6 +12,7 @@ import { ChecklistPanel } from "@/components/dashboard/ChecklistPanel";
 import { CleaningPanel } from "@/components/dashboard/CleaningPanel";
 import { DashboardFrame } from "@/components/dashboard/DashboardFrame";
 import { DailyPhasePills } from "@/components/dashboard/DailyPhasePills";
+import { DailyProgressBar } from "@/components/dashboard/DailyProgressBar";
 import { DropoffsPanel } from "@/components/dashboard/DropoffsPanel";
 import { PropertySupportPanel } from "@/components/dashboard/PropertySupportPanel";
 import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetingsVisitsPanel";
@@ -1043,6 +1044,7 @@ return (
           currentMinutes={currentMinutes}
         />
       ) : null}
+      <DailyProgressBar currentMinutes={currentMinutes} />
       <DailyPhasePills
         currentMinutes={currentMinutes}
         dashboardNow={dashboardNow}

@@ -5,16 +5,7 @@ import { DASHBOARD_OPERATIONAL_TIMES } from "./dashboardTheme";
 import { getOutingPhase, todayISODate } from "./dashboardUtils";
 import { styles } from "./dashboardStyles";
 
-type PillTone =
-  | "morning"
-  | "active"
-  | "outing"
-  | "meeting"
-  | "lunch"
-  | "cleaning"
-  | "lounge"
-  | "dropoffs"
-  | "complete";
+type PillTone = "outing" | "meeting";
 
 type DailyPhasePill = {
   key: string;
@@ -29,11 +20,6 @@ type Props = {
   todayEventsMeetingsVisits: EventMeetingVisitRecord[];
 };
 
-const LUNCH_START = 11 * 60;
-const LUNCH_END = 12 * 60;
-const CLEANING_END = 14 * 60;
-const LOUNGE_START = 14 * 60;
-const LOUNGE_END = 14 * 60 + 15;
 const OUTING_WINDOW_END = 14 * 60;
 
 function parseEventTime(value?: string | null): number | null {
@@ -93,16 +79,6 @@ function isMeetingOrVisitActive(
 }
 
 const toneStyles: Record<PillTone, { pill: any; dot: any; text: any }> = {
-  morning: {
-    pill: styles.dailyPhasePillMorning,
-    dot: styles.dailyPhaseDotMorning,
-    text: styles.dailyPhaseTextMorning,
-  },
-  active: {
-    pill: styles.dailyPhasePillActive,
-    dot: styles.dailyPhaseDotActive,
-    text: styles.dailyPhaseTextActive,
-  },
   outing: {
     pill: styles.dailyPhasePillOuting,
     dot: styles.dailyPhaseDotOuting,
@@ -112,31 +88,6 @@ const toneStyles: Record<PillTone, { pill: any; dot: any; text: any }> = {
     pill: styles.dailyPhasePillMeeting,
     dot: styles.dailyPhaseDotMeeting,
     text: styles.dailyPhaseTextMeeting,
-  },
-  lunch: {
-    pill: styles.dailyPhasePillLunch,
-    dot: styles.dailyPhaseDotLunch,
-    text: styles.dailyPhaseTextLunch,
-  },
-  cleaning: {
-    pill: styles.dailyPhasePillCleaning,
-    dot: styles.dailyPhaseDotCleaning,
-    text: styles.dailyPhaseTextCleaning,
-  },
-  lounge: {
-    pill: styles.dailyPhasePillLounge,
-    dot: styles.dailyPhaseDotLounge,
-    text: styles.dailyPhaseTextLounge,
-  },
-  dropoffs: {
-    pill: styles.dailyPhasePillDropoffs,
-    dot: styles.dailyPhaseDotDropoffs,
-    text: styles.dailyPhaseTextDropoffs,
-  },
-  complete: {
-    pill: styles.dailyPhasePillComplete,
-    dot: styles.dailyPhaseDotComplete,
-    text: styles.dailyPhaseTextComplete,
   },
 };
 
@@ -149,14 +100,6 @@ export function DailyPhasePills({
   const pills = useMemo<DailyPhasePill[]>(() => {
     const next: DailyPhasePill[] = [];
     const times = DASHBOARD_OPERATIONAL_TIMES;
-
-    if (currentMinutes >= times.arrivalsStart && currentMinutes < times.officialStart) {
-      next.push({ key: "morning", label: "Morning Setup", tone: "morning" });
-    }
-
-    if (currentMinutes >= times.officialStart && currentMinutes < times.programEnds) {
-      next.push({ key: "active", label: "Day Program Active", tone: "active" });
-    }
 
     const outingInProgress =
       currentMinutes >= times.officialStart &&
@@ -177,26 +120,6 @@ export function DailyPhasePills({
         label: "Meeting / Visit in Progress",
         tone: "meeting",
       });
-    }
-
-    if (currentMinutes >= LUNCH_START && currentMinutes < LUNCH_END) {
-      next.push({ key: "lunch", label: "Lunch Time", tone: "lunch" });
-    }
-
-    if (currentMinutes >= times.cleaningStarts && currentMinutes < CLEANING_END) {
-      next.push({ key: "cleaning", label: "Cleaning in Progress", tone: "cleaning" });
-    }
-
-    if (currentMinutes >= times.dropoffsStart && currentMinutes < times.programEnds) {
-      next.push({ key: "dropoffs", label: "Drop Offs", tone: "dropoffs" });
-    }
-
-    if (currentMinutes >= LOUNGE_START && currentMinutes < LOUNGE_END) {
-      next.push({ key: "lounge", label: "Move to Lounge Room", tone: "lounge" });
-    }
-
-    if (currentMinutes >= times.programEnds) {
-      return [{ key: "complete", label: "Day Program Complete", tone: "complete" }];
     }
 
     return next;
