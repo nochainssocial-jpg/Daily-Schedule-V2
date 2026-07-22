@@ -358,7 +358,11 @@ shadowRadius: 8,
 shadowOffset: { width: 0, height: 3 },
 },
 floatingPanel: {
-flex: 0,
+// Keep the panel at its natural content height. Using `flex: 0` also sets
+// flexBasis to 0 on React Native Web, which collapses the entire table.
+flexGrow: 0,
+flexShrink: 0,
+flexBasis: "auto" as any,
 paddingBottom: 0,
 },
 panelHeaderRow: {
