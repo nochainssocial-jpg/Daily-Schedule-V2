@@ -744,65 +744,6 @@ function FloatingScreenInner() {
     return m;
   }, [staff]);
 
-  const [validationAttempted, setValidationAttempted] = useState(false);
-
-  const floatingConflicts = useMemo<FloatingConflict[]>(() => {
-    const conflicts: FloatingConflict[] = [];
-
-    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
-      const slotId = String(slot.id ?? idx);
-      const row = floatingAssignments?.[slotId];
-      if (!row || typeof row !== 'object') return;
-
-      const roomsByStaff = new Map<string, ColKey[]>();
-      ROOM_KEYS.forEach((room) => {
-        const rawStaffId = row[room];
-        if (!rawStaffId) return;
-        const staffId = String(rawStaffId);
-        const rooms = roomsByStaff.get(staffId) ?? [];
-        rooms.push(room);
-        roomsByStaff.set(staffId, rooms);
-      });
-
-      roomsByStaff.forEach((rooms, staffId) => {
-        if (rooms.length < 2) return;
-        conflicts.push({
-          slotId,
-          slotLabel:
-            slot.displayTime ||
-            `${slot.startTime ?? ''}${slot.endTime ? ` - ${slot.endTime}` : ''}` ||
-            slotId,
-          staffId,
-          staffName: staffById[staffId]?.name || 'Unknown staff member',
-          rooms,
-        });
-      });
-    });
-
-    return conflicts;
-  }, [TIME_SLOTS, floatingAssignments, staffById]);
-
-  const conflictingCells = useMemo(() => {
-    const keys = new Set<string>();
-    floatingConflicts.forEach((conflict) => {
-      conflict.rooms.forEach((room) => keys.add(conflictCellKey(conflict.slotId, room)));
-    });
-    return keys;
-  }, [floatingConflicts]);
-
-  const validateBeforeSave = () => {
-    setValidationAttempted(true);
-    if (floatingConflicts.length === 0) return true;
-
-    const first = floatingConflicts[0];
-    const roomNames = first.rooms.map((room) => ROOM_LABELS[room]).join(' and ');
-    push?.(
-      `Changes not saved: ${first.staffName} is assigned to ${roomNames} at ${first.slotLabel}. Correct the highlighted cells.`,
-      'floating',
-    );
-    return false;
-  };
-
   const [ratingMap, setRatingMap] = useState<Record<string, ParticipantRatingRow>>({});
 
   useEffect(() => {
@@ -1111,6 +1052,84 @@ const getRoomDirective = useCallback((col: ColKey, slot: any): RoomDirective => 
   const counts = roomCountsForSlot(col, slot);
   return { active: counts.onsite > 0, forcedId: null };
 }, [isRoomOffsiteForSlot, roomCountsForSlot, roomNotAttending]);
+
+
+  const [validationAttempted, setValidationAttempted] = useState(false);
+
+  const floatingConflicts = useMemo<FloatingConflict[]>(() => {
+    const conflicts: FloatingConflict[] = [];
+
+    (TIME_SLOTS || []).forEach((slot: any, idx: number) => {
+      const slotId = String(slot.id ?? idx);
+      const row = floatingAssignments?.[slotId];
+      if (!row || typeof row !== 'object') return;
+
+      const roomsByStaff = new Map<string, ColKey[]>();
+      ROOM_KEYS.forEach((room) => {
+        // Only validate cells that are genuinely active and visible for this slot.
+        // Hidden stale values can remain behind an Outing (offsite), Not attending,
+        // or merged Front Room cell and must not be treated as duplicates.
+        const directive = getRoomDirective(room, slot);
+        if (!directive.active) return;
+
+        const rawStaffId = row[room];
+        if (!rawStaffId) return;
+        const staffId = String(rawStaffId);
+        if (staffId.startsWith('__')) return;
+
+        // A staff member who is offsite in this time window is not an active
+        // floating assignment, even if an older value remains in the row.
+        if (isStaffOffsiteForSlot(slot, staffId, outingGroupsForLogic)) return;
+
+        const rooms = roomsByStaff.get(staffId) ?? [];
+        rooms.push(room);
+        roomsByStaff.set(staffId, rooms);
+      });
+
+      roomsByStaff.forEach((rooms, staffId) => {
+        if (rooms.length < 2) return;
+        conflicts.push({
+          slotId,
+          slotLabel:
+            slot.displayTime ||
+            `${slot.startTime ?? ''}${slot.endTime ? ` - ${slot.endTime}` : ''}` ||
+            slotId,
+          staffId,
+          staffName: staffById[staffId]?.name || 'Unknown staff member',
+          rooms,
+        });
+      });
+    });
+
+    return conflicts;
+  }, [
+    TIME_SLOTS,
+    floatingAssignments,
+    getRoomDirective,
+    outingGroupsForLogic,
+    staffById,
+  ]);
+
+  const conflictingCells = useMemo(() => {
+    const keys = new Set<string>();
+    floatingConflicts.forEach((conflict) => {
+      conflict.rooms.forEach((room) => keys.add(conflictCellKey(conflict.slotId, room)));
+    });
+    return keys;
+  }, [floatingConflicts]);
+
+  const validateBeforeSave = () => {
+    setValidationAttempted(true);
+    if (floatingConflicts.length === 0) return true;
+
+    const first = floatingConflicts[0];
+    const roomNames = first.rooms.map((room) => ROOM_LABELS[room]).join(' and ');
+    push?.(
+      `Changes not saved: ${first.staffName} is assigned to ${roomNames} at ${first.slotLabel}. Correct the highlighted cells.`,
+      'floating',
+    );
+    return false;
+  };
   const activeRoomsForSlot = useCallback((slot: any): ColKey[] => {
     // Rooms requiring staff coverage for this slot, ordered by priority.
     // Twins are always highest needs.
