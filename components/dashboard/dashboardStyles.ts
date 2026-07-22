@@ -1440,7 +1440,7 @@ padding: 18,
 
 dailyPhasePillOverlay: {
 position: "absolute" as any,
-right: 68,
+right: "5%",
 bottom: 88,
 zIndex: 55,
 width: 225,
@@ -1532,9 +1532,9 @@ dailyPhaseTextComplete: { color: "#166534" },
 
 dailyProgressOverlay: {
 position: "absolute" as any,
-left: "4%",
-right: "4%",
-bottom: 52,
+left: "5%",
+right: "5%",
+bottom: 32,
 zIndex: 48,
 },
 dailyProgressTrack: {
@@ -1605,7 +1605,7 @@ justifyContent: "center",
 
 floatingBannerOverlay: {
 position: "absolute" as any,
-left: "8%",
+left: "5%",
 right: "32%",
 bottom: 88,
 zIndex: 40,
