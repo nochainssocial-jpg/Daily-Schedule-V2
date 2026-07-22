@@ -698,13 +698,17 @@ color: "#059669",
 fontWeight: "900",
 },
 outingGrid: {
-flex: 1,
+// Keep the outing cards at their natural content height. The previous
+// `flex: 1` stretched the drive card down behind the floating banner,
+// live-status pills and progress bar.
+flexGrow: 0,
+flexShrink: 0,
+flexBasis: "auto" as any,
 flexDirection: "row",
+alignItems: "stretch",
 gap: 16,
 marginTop: 12,
-// Reserve the lower overlay lane so the outing card border finishes cleanly
-// above the progress bar rather than continuing behind it.
-marginBottom: 44,
+marginBottom: 0,
 },
 outingCard: {
 flex: 1,
