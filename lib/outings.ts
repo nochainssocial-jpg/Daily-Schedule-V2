@@ -9,6 +9,7 @@ export type DailyOutingsRecord = {
   house: string;
   outingDate: string;
   outings: OutingGroup[];
+  archivedOutings: OutingGroup[];
   autoResetEnabled: boolean;
   lastAutoResetDate?: string;
   createdAt?: string | null;
@@ -53,6 +54,7 @@ function mapRow(row: any): DailyOutingsRecord {
     house: String(row.house),
     outingDate: String(row.outing_date),
     outings: normaliseOutings(row.outings),
+    archivedOutings: normaliseOutings(row.archived_outings),
     autoResetEnabled: row.auto_reset_enabled !== false,
     lastAutoResetDate: row.last_auto_reset_date || undefined,
     createdAt: row.created_at ?? null,
@@ -82,11 +84,12 @@ export async function saveOutingsForDate(args: {
   house: string;
   outingDate: string;
   outings: OutingGroup[];
+  archivedOutings?: OutingGroup[];
   autoResetEnabled?: boolean;
   lastAutoResetDate?: string;
 }) {
   const outingDate = normaliseSydneyDateKey(args.outingDate);
-  const payload = {
+  const payload: Record<string, unknown> = {
     house: args.house,
     outing_date: outingDate,
     outings: normaliseOutings(args.outings),
@@ -94,13 +97,30 @@ export async function saveOutingsForDate(args: {
     last_auto_reset_date: args.lastAutoResetDate || null,
     updated_at: new Date().toISOString(),
   };
+  if (Array.isArray(args.archivedOutings) && args.archivedOutings.length > 0) {
+    payload.archived_outings = normaliseOutings(args.archivedOutings);
+  }
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(TABLE)
       .upsert(payload, { onConflict: 'house,outing_date' })
       .select('*')
       .single();
+
+    // Keep the existing outing reset operational if the app is deployed a few
+    // minutes before the archive migration is applied.
+    if (error && 'archived_outings' in payload) {
+      const legacyPayload = { ...payload };
+      delete legacyPayload.archived_outings;
+      const retry = await supabase
+        .from(TABLE)
+        .upsert(legacyPayload, { onConflict: 'house,outing_date' })
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) return { ok: false as const, error, data: null };
     return { ok: true as const, data: mapRow(data) };

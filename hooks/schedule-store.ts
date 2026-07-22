@@ -739,6 +739,10 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
   resetOutings: async (options = {}) => {
     const resetDateKey = toTodayKey();
     const isAuto = options.reason === "auto";
+    const beforeReset = get();
+    const outingsToArchive = isAuto
+      ? normalizeOutingGroupsFromSnapshot(beforeReset)
+      : [];
 
     set((state) => {
       const next = clearOutingsFromSnapshot(
@@ -762,6 +766,9 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
           house: current.activeScheduleHouse || DEFAULT_HOUSE_ID,
           outingDate: resetDateKey,
           outings: [],
+          ...(outingsToArchive.length > 0
+            ? { archivedOutings: outingsToArchive }
+            : {}),
           autoResetEnabled: current.outingAutoResetEnabled !== false,
           lastAutoResetDate: isAuto ? resetDateKey : current.outingLastAutoResetDate,
         });

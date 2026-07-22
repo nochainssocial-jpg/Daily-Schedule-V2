@@ -50,19 +50,18 @@ export default function AdminHomeScreen() {
 
   const goToStaffTracker = () => router.push('/admin/daily-assignments-tracker');
   const goToCleaningTracker = () => router.push('/admin/daily-cleaning-tracker');
-  const goToStaffReport = () => router.push('/admin/daily-assignments');
-  const goToCleaningReport = () => router.push('/admin/cleaning-assignments');
+  const goToFloatingTracker = () => router.push('/admin/floating-assignments-tracker');
 
   const content = isAdmin ? (
     <>
       <Text style={styles.title}>Admin</Text>
       <Text style={styles.subtitle}>
-        Weekly trackers and reports to keep team assignments and cleaning
-        distribution fair and transparent.
+        Weekly trackers to review team assignments, cleaning and floating
+        distribution clearly and fairly.
       </Text>
 
       {/* TRACKER SECTION */}
-      <Text style={styles.sectionHeader}>Daily tracker</Text>
+      <Text style={styles.sectionHeader}>Weekly trackers</Text>
       <View style={styles.grid}>
         <AdminTile
           title="Team Daily Assignments Tracker"
@@ -76,24 +75,11 @@ export default function AdminHomeScreen() {
           iconName="broom"
           onPress={goToCleaningTracker}
         />
-      </View>
-
-      {/* REPORTS SECTION */}
-      <Text style={[styles.sectionHeader, styles.sectionHeaderSpacing]}>
-        Weekly reports
-      </Text>
-      <View style={styles.grid}>
         <AdminTile
-          title="Team Daily Assignment – Weekly Report"
-          subtitle="Full weekly summary of who worked where each day."
-          iconName="chart-bar-stacked"
-          onPress={goToStaffReport}
-        />
-        <AdminTile
-          title="Cleaning Assignment – Weekly Report"
-          subtitle="Weekly summary of how cleaning has been distributed."
-          iconName="chart-bar-stacked"
-          onPress={goToCleaningReport}
+          title="Floating Assignments Tracker"
+          subtitle="Weekly fairness overview based on onsite staff availability."
+          iconName="account-clock"
+          onPress={goToFloatingTracker}
         />
       </View>
     </>
@@ -102,7 +88,7 @@ export default function AdminHomeScreen() {
       <Text style={styles.title}>Admin area</Text>
       <Text style={styles.subtitle}>
         Please enable Admin Mode with your PIN on the Share screen to access
-        weekly trackers and reports.
+        weekly trackers.
       </Text>
     </>
   );
@@ -175,10 +161,6 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 10,
   },
-  sectionHeaderSpacing: {
-    marginTop: 22,
-  },
-
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -71,26 +71,13 @@ export default function AdminLayout() {
           ),
         }}
       />
-
-      {/* WEEKLY REPORTS */}
       <Stack.Screen
-        name="daily-assignments"
+        name="floating-assignments-tracker"
         options={{
           headerTitle: () => (
             <AdminHeaderTitle
-              iconName="chart-bar-stacked"
-              label="Team Daily Assignment – Weekly Report"
-            />
-          ),
-        }}
-      />
-      <Stack.Screen
-        name="cleaning-assignments"
-        options={{
-          headerTitle: () => (
-            <AdminHeaderTitle
-              iconName="chart-bar-stacked"
-              label="Cleaning Assignment – Weekly Report"
+              iconName="account-clock"
+              label="Floating Assignments Tracker"
             />
           ),
         }}
