@@ -340,25 +340,33 @@ export default function PropertySupportScreen() {
         animationType="fade"
         onRequestClose={() => setOpenLocationCard(null)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setOpenLocationCard(null)}>
-          <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Property</Text>
-              <TouchableOpacity onPress={() => setOpenLocationCard(null)}>
+              <TouchableOpacity
+                onPress={() => setOpenLocationCard(null)}
+                activeOpacity={0.8}
+              >
                 <Ionicons name="close" size={24} color="#334155" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalList}>
+            <ScrollView
+              style={styles.modalList}
+              keyboardShouldPersistTaps="handled"
+            >
               {locations.map((location) => (
                 <TouchableOpacity
                   key={location.id}
                   style={styles.modalOption}
+                  activeOpacity={0.8}
                   onPress={() => {
-                    if (openLocationCard !== null) {
-                      updateAssignment(openLocationCard, {
-                        propertyLocationId: location.id,
-                      });
-                    }
+                    const cardIndex = openLocationCard;
+                    if (cardIndex === null) return;
+
+                    updateAssignment(cardIndex, {
+                      propertyLocationId: String(location.id),
+                    });
                     setOpenLocationCard(null);
                   }}
                 >
@@ -367,8 +375,8 @@ export default function PropertySupportScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
