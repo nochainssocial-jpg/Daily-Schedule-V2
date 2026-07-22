@@ -158,6 +158,14 @@ export default function EditLayout() {
             ),
           }}
         />
+        <Stack.Screen
+          name="property-support"
+          options={{
+            headerTitle: () => (
+              <EditHeaderTitle label="Property Support" />
+            ),
+          }}
+        />
 
         <Stack.Screen
           name="checklist"

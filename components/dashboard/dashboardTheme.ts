@@ -42,6 +42,7 @@ export const DASHBOARD_PAGE_THEMES: Record<DashboardPage, { background: string; 
   cleaning: { background: "#DCFCE7", accent: "#22C55E" },
   checklist: { background: "#E5ECFF", accent: "#6366F1" },
   dropoffs: { background: "#FFD0B5", accent: "#FB7185" },
+  propertySupport: { background: "#CCFBF1", accent: "#0F9F8F" },
   morningSetup: { background: "#FFF4FA", accent: "#F54FA5" },
   incidentReports: { background: "#FFF4FA", accent: "#F54FA5" },
   behaviourObservations: { background: "#FFF4FA", accent: "#F54FA5" },
@@ -196,6 +197,8 @@ export function pageLabel(page: DashboardPage): string {
       return "End of Shift Checklist";
     case "dropoffs":
       return "Drop Offs";
+    case "propertySupport":
+      return "Property Support";
     case "morningSetup":
       return "Morning Setup";
     case "incidentReports":

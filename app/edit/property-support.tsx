@@ -1,0 +1,620 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+
+import { DEFAULT_LOCATION_ID } from '@/constants/location';
+import { useIsAdmin } from '@/hooks/access-control';
+import { useNotifications } from '@/hooks/notifications';
+import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
+import {
+  emptyPropertySupportAssignments,
+  fetchPropertySupportData,
+  savePropertySupportForDate,
+  type PropertyLocation,
+  type PropertySupportAssignment,
+} from '@/lib/propertySupport';
+import { getSydneyDateKey } from '@/lib/sydneyDate';
+
+const MAX_WIDTH = 980;
+const ACCENT = '#0F9F8F';
+const SOFT_TEAL = '#CCFBF1';
+const HOUSE_ID = DEFAULT_LOCATION_ID;
+
+function hasAnyContent(assignment: PropertySupportAssignment) {
+  return Boolean(
+    assignment.propertyLocationId ||
+      assignment.staffIds.length > 0 ||
+      assignment.notes.trim(),
+  );
+}
+
+export default function PropertySupportScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 820;
+  const isAdmin = useIsAdmin();
+  const readOnly = !isAdmin;
+  const { push } = useNotifications();
+  const { staff = [], workingStaff = [] } = useSchedule();
+
+  const [locations, setLocations] = useState<PropertyLocation[]>([]);
+  const [assignments, setAssignments] = useState<PropertySupportAssignment[]>(
+    emptyPropertySupportAssignments(),
+  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [openLocationCard, setOpenLocationCard] = useState<number | null>(null);
+
+  const todayKey = getSydneyDateKey();
+
+  const availableStaff = useMemo(() => {
+    const workingSet = new Set((workingStaff || []).map(String));
+    return (staff || [])
+      .filter((person: any) => workingSet.has(String(person.id)))
+      .filter((person: any) => String(person.name || '').trim().toLowerCase() !== 'everyone')
+      .sort((a: any, b: any) =>
+        String(a.name || '').localeCompare(String(b.name || ''), 'en-AU'),
+      );
+  }, [staff, workingStaff]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      try {
+        await initScheduleForToday(HOUSE_ID);
+        const result = await fetchPropertySupportData(HOUSE_ID, todayKey);
+        if (cancelled) return;
+
+        if (!result.ok) {
+          console.error('[property support] failed to load', result.error);
+          push('Property Support could not be loaded from Supabase.', 'general');
+          return;
+        }
+
+        setLocations(result.locations.filter((location) => location.isActive));
+        const saved = result.record?.assignments || [];
+        setAssignments([
+          ...saved,
+          ...emptyPropertySupportAssignments(Math.max(0, 4 - saved.length)).map(
+            (item, index) => ({
+              ...item,
+              id: `property-support-${saved.length + index + 1}`,
+            }),
+          ),
+        ].slice(0, 4));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [push, todayKey]);
+
+  const updateAssignment = (
+    index: number,
+    patch: Partial<PropertySupportAssignment>,
+  ) => {
+    if (readOnly) return;
+    setAssignments((current) =>
+      current.map((assignment, assignmentIndex) =>
+        assignmentIndex === index ? { ...assignment, ...patch } : assignment,
+      ),
+    );
+  };
+
+  const toggleStaff = (index: number, staffId: string) => {
+    const current = assignments[index];
+    const selected = new Set(current.staffIds.map(String));
+    if (selected.has(staffId)) selected.delete(staffId);
+    else selected.add(staffId);
+    updateAssignment(index, { staffIds: Array.from(selected) });
+  };
+
+  const clearCard = (index: number) => {
+    updateAssignment(index, {
+      propertyLocationId: '',
+      staffIds: [],
+      notes: '',
+    });
+  };
+
+  const handleSave = async () => {
+    if (saving || readOnly) return;
+
+    const incompleteIndex = assignments.findIndex(
+      (assignment) =>
+        hasAnyContent(assignment) &&
+        (!assignment.propertyLocationId || assignment.staffIds.length === 0),
+    );
+
+    if (incompleteIndex >= 0) {
+      push(
+        `Property Support ${incompleteIndex + 1}: select a property and at least one staff member.`,
+        'general',
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await savePropertySupportForDate({
+        house: HOUSE_ID,
+        supportDate: todayKey,
+        assignments,
+      });
+
+      if (!result.ok) throw result.error;
+      router.back();
+    } catch (error) {
+      console.error('[property support] failed to save', error);
+      push('Property Support changes could not be saved. Please try again.', 'general');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={ACCENT} />
+        <Text style={styles.loadingText}>Loading Property Support…</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.headerCard}>
+          <View style={styles.headerIcon}>
+            <Ionicons name="home-outline" size={28} color="#0F766E" />
+          </View>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.eyebrow}>Edit Hub</Text>
+            <Text style={styles.title}>Property Support</Text>
+            <Text style={styles.subtitle}>
+              Assign staff working at Day Program to property support visits for today.
+            </Text>
+          </View>
+        </View>
+
+        {locations.length === 0 ? (
+          <View style={styles.noticeCard}>
+            <Ionicons name="information-circle-outline" size={22} color="#0F766E" />
+            <Text style={styles.noticeText}>
+              No property locations are configured yet. Add active rows to the new
+              property_locations table before creating assignments.
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={[styles.cardsGrid, isCompact && styles.cardsGridCompact]}>
+          {assignments.map((assignment, index) => {
+            const selectedLocation = locations.find(
+              (location) => location.id === assignment.propertyLocationId,
+            );
+
+            return (
+              <View
+                key={assignment.id}
+                style={[styles.assignmentCard, isCompact && styles.assignmentCardCompact]}
+              >
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={styles.cardEyebrow}>Property visit</Text>
+                    <Text style={styles.cardTitle}>Property Support {index + 1}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => clearCard(index)}
+                    disabled={readOnly || !hasAnyContent(assignment)}
+                    style={[
+                      styles.clearButton,
+                      (readOnly || !hasAnyContent(assignment)) && styles.buttonDisabled,
+                    ]}
+                  >
+                    <Ionicons name="trash-outline" size={17} color="#B91C1C" />
+                    <Text style={styles.clearButtonText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.fieldLabel}>Property</Text>
+                <TouchableOpacity
+                  disabled={readOnly || locations.length === 0}
+                  onPress={() => setOpenLocationCard(index)}
+                  style={[
+                    styles.dropdown,
+                    (readOnly || locations.length === 0) && styles.fieldDisabled,
+                  ]}
+                >
+                  <Text
+                    style={selectedLocation ? styles.dropdownValue : styles.placeholderText}
+                    numberOfLines={1}
+                  >
+                    {selectedLocation?.name || 'Select property location'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color="#0F766E" />
+                </TouchableOpacity>
+
+                <Text style={styles.fieldLabel}>Staff attending</Text>
+                {availableStaff.length === 0 ? (
+                  <Text style={styles.emptyStaffText}>
+                    No staff have been selected as working at Day Program today.
+                  </Text>
+                ) : (
+                  <View style={styles.staffGrid}>
+                    {availableStaff.map((person: any) => {
+                      const staffId = String(person.id);
+                      const selected = assignment.staffIds.includes(staffId);
+                      return (
+                        <Pressable
+                          key={staffId}
+                          disabled={readOnly}
+                          onPress={() => toggleStaff(index, staffId)}
+                          style={[
+                            styles.staffChip,
+                            selected && styles.staffChipSelected,
+                            readOnly && styles.fieldDisabled,
+                          ]}
+                        >
+                          <Ionicons
+                            name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                            size={16}
+                            color={selected ? '#FFFFFF' : '#0F766E'}
+                          />
+                          <Text
+                            style={[
+                              styles.staffChipText,
+                              selected && styles.staffChipTextSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {person.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <Text style={styles.fieldLabel}>Task details</Text>
+                <TextInput
+                  editable={!readOnly}
+                  multiline
+                  value={assignment.notes}
+                  onChangeText={(notes) => updateAssignment(index, { notes })}
+                  placeholder="Enter the tasks to be completed at this property…"
+                  placeholderTextColor="#94A3B8"
+                  style={[styles.notesInput, readOnly && styles.fieldDisabled]}
+                  textAlignVertical="top"
+                  maxLength={300}
+                />
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <View style={styles.footerInner}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            disabled={saving}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={readOnly || saving}
+            style={[
+              styles.saveButton,
+              (readOnly || saving) && styles.buttonDisabled,
+            ]}
+          >
+            {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
+            <Text style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save & Exit'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Modal
+        visible={openLocationCard !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpenLocationCard(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setOpenLocationCard(null)}>
+          <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Property</Text>
+              <TouchableOpacity onPress={() => setOpenLocationCard(null)}>
+                <Ionicons name="close" size={24} color="#334155" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalList}>
+              {locations.map((location) => (
+                <TouchableOpacity
+                  key={location.id}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    if (openLocationCard !== null) {
+                      updateAssignment(openLocationCard, {
+                        propertyLocationId: location.id,
+                      });
+                    }
+                    setOpenLocationCard(null);
+                  }}
+                >
+                  <Ionicons name="home-outline" size={20} color="#0F766E" />
+                  <Text style={styles.modalOptionText}>{location.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#F8FAFC' },
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: { color: '#475569', fontSize: 15, fontWeight: '700' },
+  scrollContent: {
+    width: '100%',
+    maxWidth: MAX_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 28,
+  },
+  headerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 16,
+  },
+  headerIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: SOFT_TEAL,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  headerTextBlock: { flex: 1 },
+  eyebrow: {
+    color: '#0F766E',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  title: { color: '#134E4A', fontSize: 25, fontWeight: '900', marginTop: 2 },
+  subtitle: { color: '#475569', fontSize: 13, lineHeight: 19, marginTop: 4 },
+  noticeCard: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
+  noticeText: { flex: 1, color: '#115E59', fontSize: 13, lineHeight: 19 },
+  cardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    alignItems: 'flex-start',
+  },
+  cardsGridCompact: { flexDirection: 'column' },
+  assignmentCard: {
+    width: '48.9%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 18,
+    padding: 16,
+    ...Platform.select({
+      web: { boxShadow: '0 8px 22px rgba(15, 118, 110, 0.08)' } as any,
+      default: {
+        shadowColor: '#0F766E',
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 2,
+      },
+    }),
+  },
+  assignmentCardCompact: { width: '100%' },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  cardEyebrow: {
+    color: '#0F766E',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  cardTitle: { color: '#134E4A', fontSize: 18, fontWeight: '900', marginTop: 2 },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 9,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  clearButtonText: { color: '#B91C1C', fontSize: 12, fontWeight: '800' },
+  fieldLabel: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 10,
+    marginBottom: 7,
+  },
+  dropdown: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 11,
+    backgroundColor: '#F8FFFD',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  dropdownValue: { flex: 1, color: '#134E4A', fontSize: 14, fontWeight: '800' },
+  placeholderText: { flex: 1, color: '#94A3B8', fontSize: 13, fontWeight: '600' },
+  staffGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  staffChip: {
+    maxWidth: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    backgroundColor: '#F0FDFA',
+  },
+  staffChipSelected: { backgroundColor: ACCENT, borderColor: ACCENT },
+  staffChipText: { color: '#115E59', fontSize: 12, fontWeight: '800', flexShrink: 1 },
+  staffChipTextSelected: { color: '#FFFFFF' },
+  emptyStaffText: {
+    color: '#B45309',
+    fontSize: 12,
+    lineHeight: 18,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 10,
+    padding: 10,
+  },
+  notesInput: {
+    minHeight: 82,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    borderRadius: 11,
+    backgroundColor: '#F8FFFD',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#1E293B',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  fieldDisabled: { opacity: 0.55 },
+  buttonDisabled: { opacity: 0.45 },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  footerInner: {
+    maxWidth: MAX_WIDTH,
+    width: '100%',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F54927',
+  },
+  cancelButtonText: { color: '#475569', fontSize: 13, fontWeight: '700' },
+  saveButton: {
+    minWidth: 122,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#10B981',
+  },
+  saveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '72%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalTitle: { color: '#134E4A', fontSize: 18, fontWeight: '900' },
+  modalList: { maxHeight: 420 },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalOptionText: { color: '#334155', fontSize: 14, fontWeight: '800' },
+});

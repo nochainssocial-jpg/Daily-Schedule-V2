@@ -59,6 +59,15 @@ const CARDS: CardConfig[] = [
     route: "/edit/outings",
   },
   {
+    key: "property-support",
+    title: "Property Support",
+    description:
+      "Assign Day Program staff to property visits and record the tasks required.",
+    icon: "home-outline",
+    iconBg: "#CCFBF1",
+    route: "/edit/property-support",
+  },
+  {
     key: "events-meetings-visits",
     title: "Events | Meetings | Visits",
     description:

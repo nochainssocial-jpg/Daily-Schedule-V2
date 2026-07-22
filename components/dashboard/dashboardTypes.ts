@@ -9,6 +9,7 @@ export type DashboardPage =
   | "cleaning"
   | "checklist"
   | "dropoffs"
+  | "propertySupport"
   | "morningSetup"
   | "incidentReports"
   | "behaviourObservations"

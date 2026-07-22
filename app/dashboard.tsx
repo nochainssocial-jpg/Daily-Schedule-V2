@@ -13,6 +13,7 @@ import { CleaningPanel } from "@/components/dashboard/CleaningPanel";
 import { DashboardFrame } from "@/components/dashboard/DashboardFrame";
 import { DailyPhasePills } from "@/components/dashboard/DailyPhasePills";
 import { DropoffsPanel } from "@/components/dashboard/DropoffsPanel";
+import { PropertySupportPanel } from "@/components/dashboard/PropertySupportPanel";
 import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetingsVisitsPanel";
 import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
 import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
@@ -22,6 +23,12 @@ import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
 import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
 import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
+import {
+  fetchPropertySupportData,
+  type PropertyLocation,
+  type PropertySupportAssignment,
+} from "@/lib/propertySupport";
+import { getSydneyDateKey } from "@/lib/sydneyDate";
 import {
   DASHBOARD_OPERATIONAL_TIMES,
   DASHBOARD_PAGE_THEMES,
@@ -95,6 +102,8 @@ const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
+const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([]);
+const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
 const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false);
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
@@ -211,6 +220,20 @@ console.error("[dashboard] failed to load events, meetings and visits", error);
 }
 }, [isPreviewMode]);
 
+const fetchPropertySupport = useCallback(async () => {
+try {
+const result = await fetchPropertySupportData(HOUSE_ID, getSydneyDateKey());
+if (!result.ok) {
+console.error("[dashboard] failed to load property support", result.error);
+return;
+}
+setPropertyLocations(result.locations);
+setPropertySupportAssignments(result.record?.assignments || []);
+} catch (error) {
+console.error("[dashboard] failed to load property support", error);
+}
+}, []);
+
 useEffect(() => {
 let cancelled = false;
 
@@ -223,7 +246,7 @@ await initScheduleForToday(HOUSE_ID);
 // chores, checklist items, and Supabase time slots available.
 if (!cancelled) {
 await useSchedule.getState().loadMasterData();
-await fetchEventsMeetingsVisits();
+await Promise.all([fetchEventsMeetingsVisits(), fetchPropertySupport()]);
 setLastDashboardRefresh(new Date());
 }
 } catch (error) {
@@ -236,7 +259,7 @@ void initialiseDashboard();
 return () => {
 cancelled = true;
 };
-}, [fetchEventsMeetingsVisits]);
+}, [fetchEventsMeetingsVisits, fetchPropertySupport]);
 
 useEffect(() => {
 const timer = setInterval(() => setTick((value) => value + 1), 30_000);
@@ -253,7 +276,7 @@ refreshInFlight = true;
 
 try {
 await refreshScheduleFromSupabase(HOUSE_ID);
-await fetchEventsMeetingsVisits();
+await Promise.all([fetchEventsMeetingsVisits(), fetchPropertySupport()]);
 if (!cancelled) setLastDashboardRefresh(new Date());
 } catch (error) {
 console.error("[dashboard] failed to refresh schedule", error);
@@ -282,7 +305,7 @@ window.removeEventListener("focus", requestRefresh);
 window.removeEventListener("online", requestRefresh);
 document.removeEventListener("visibilitychange", handleVisibilityChange);
 };
-}, [fetchEventsMeetingsVisits]);
+}, [fetchEventsMeetingsVisits, fetchPropertySupport]);
 
 const staffById = useMemo(
 () =>
@@ -549,6 +572,26 @@ participantsById,
 getAssignmentTheme,
 ]);
 
+const propertyLocationById = useMemo(
+() => new Map((propertyLocations || []).map((location) => [String(location.id), location])),
+[propertyLocations],
+);
+
+const propertySupportRows = useMemo(() => {
+return (propertySupportAssignments || [])
+.map((assignment) => ({
+id: assignment.id,
+propertyName:
+propertyLocationById.get(String(assignment.propertyLocationId))?.name || "Property",
+staffNames: assignment.staffIds
+.map((staffId) => String(staffById.get(String(staffId))?.name || ""))
+.filter(Boolean),
+notes: String(assignment.notes || "").trim(),
+}))
+.filter((row) => row.propertyName && row.staffNames.length > 0)
+.slice(0, 4);
+}, [propertyLocationById, propertySupportAssignments, staffById]);
+
 const displayTimeSlots = useMemo(
 () => (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [],
 [timeSlots],
@@ -670,8 +713,10 @@ const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
 const hasChecklistData =
 Boolean(finalChecklistStaff) || checklistRows.some((row) => row.checked);
 const hasDropoffAssignments = dropoffRows.length > 0;
+const hasPropertySupportAssignments = propertySupportRows.length > 0;
 const showCleaningPanel = hasCleaningAssignments && cleaningIsOperational;
 const showDropoffsPanel = hasDropoffAssignments && dropoffsAreOperational;
+const showPropertySupportPanel = hasPropertySupportAssignments && dropoffsAreOperational;
 const showChecklistPanel = hasChecklistData && checklistIsOperational;
 
 const visibleEventsMeetingsVisits = useMemo(() => {
@@ -733,6 +778,7 @@ add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "departureWindow") {
 add("dropoffs", showDropoffsPanel);
+add("propertySupport", showPropertySupportPanel);
 add("floating", showFloatingPanel);
 add("cleaning", showCleaningPanel);
 add("outings", visibleOutings.length > 0);
@@ -742,6 +788,7 @@ add("staffCelebrations", hasStaffCelebrations);
 } else {
 add("checklist", showChecklistPanel);
 add("dropoffs", showDropoffsPanel);
+add("propertySupport", showPropertySupportPanel);
 add("cleaning", showCleaningPanel);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("team", dailyAssignmentsAreOperational);
@@ -760,6 +807,7 @@ reminderBurstActive,
 showChecklistPanel,
 showCleaningPanel,
 showDropoffsPanel,
+showPropertySupportPanel,
 visibleOutings.length,
 ]);
 
@@ -901,6 +949,10 @@ return <CleaningPanel cleaningRows={cleaningRows} />;
 
 if (currentPage === "dropoffs") {
 return <DropoffsPanel dropoffRows={dropoffRows} />;
+}
+
+if (currentPage === "propertySupport") {
+return <PropertySupportPanel propertySupportRows={propertySupportRows} />;
 }
 
 if (isReminderPage(currentPage)) {
