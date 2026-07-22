@@ -363,7 +363,8 @@ floatingPanel: {
 flexGrow: 0,
 flexShrink: 0,
 flexBasis: "auto" as any,
-paddingBottom: 0,
+// Leave a small clean cushion below the final 2:00–2:30pm row.
+paddingBottom: 12,
 },
 panelHeaderRow: {
 flexDirection: "row",
@@ -701,6 +702,9 @@ flex: 1,
 flexDirection: "row",
 gap: 16,
 marginTop: 12,
+// Reserve the lower overlay lane so the outing card border finishes cleanly
+// above the progress bar rather than continuing behind it.
+marginBottom: 44,
 },
 outingCard: {
 flex: 1,
@@ -1456,7 +1460,7 @@ padding: 18,
 dailyPhasePillOverlay: {
 position: "absolute" as any,
 right: "5%",
-bottom: 88,
+bottom: 78,
 zIndex: 55,
 width: 225,
 alignItems: "flex-end",
@@ -1622,7 +1626,7 @@ floatingBannerOverlay: {
 position: "absolute" as any,
 left: "5%",
 right: "32%",
-bottom: 88,
+bottom: 78,
 zIndex: 40,
 },
 floatingBannerGlassPanel: {
