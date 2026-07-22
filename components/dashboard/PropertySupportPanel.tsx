@@ -36,12 +36,13 @@ export function PropertySupportPanel({
           style={styles.innerScroll}
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={propertySupportRows.length > 4}
         >
           {propertySupportRows.map((row, index) => (
             <View key={row.id} style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.iconCircle}>
-                  <MaterialCommunityIcons name="home-heart" size={26} color="#0F766E" />
+                  <MaterialCommunityIcons name="home-heart" size={21} color="#0F766E" />
                 </View>
                 <View style={styles.cardHeadingBlock}>
                   <Text style={styles.visitLabel}>Property support {index + 1}</Text>
@@ -52,8 +53,8 @@ export function PropertySupportPanel({
               </View>
 
               <View style={styles.staffPill}>
-                <MaterialCommunityIcons name="account-group" size={18} color="#115E59" />
-                <Text style={styles.staffNames} numberOfLines={2}>
+                <MaterialCommunityIcons name="account-group" size={16} color="#115E59" />
+                <Text style={styles.staffNames} numberOfLines={1}>
                   {row.staffNames.join(', ')}
                 </Text>
               </View>
@@ -61,7 +62,7 @@ export function PropertySupportPanel({
               {row.notes ? (
                 <View style={styles.notesBox}>
                   <Text style={styles.notesLabel}>Tasks</Text>
-                  <Text style={styles.notesText} numberOfLines={4}>
+                  <Text style={styles.notesText} numberOfLines={2}>
                     {row.notes}
                   </Text>
                 </View>
@@ -78,90 +79,102 @@ const styles = StyleSheet.create({
   panel: {
     flex: 1,
     paddingHorizontal: 26,
-    paddingTop: 22,
-    paddingBottom: 18,
+    paddingTop: 16,
+    // The floating rotation banner sits over the lower portion of the dashboard.
+    // Reserving this space keeps both rows of Property Support cards fully visible.
+    paddingBottom: 150,
   },
   panelHeaderRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   panelEyebrow: {
+    color: '#0F766E',
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.75,
+  },
+  panelTitle: {
+    color: '#134E4A',
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '900',
+    marginTop: 1,
+  },
+  progressText: {
     color: '#0F766E',
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
-  panelTitle: {
-    color: '#134E4A',
-    fontSize: 30,
-    lineHeight: 35,
-    fontWeight: '900',
-    marginTop: 2,
+  innerScroll: {
+    flex: 1,
+    maxHeight: 304,
   },
-  progressText: {
-    color: '#0F766E',
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '900',
-  },
-  innerScroll: { flex: 1 },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'stretch',
-    gap: 14,
-    paddingBottom: 4,
+    alignContent: 'flex-start',
+    justifyContent: 'space-between',
+    rowGap: 12,
+    paddingBottom: 2,
   },
   card: {
-    width: '49.25%',
-    minHeight: 188,
+    width: '49.2%',
+    height: 146,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#5EEAD4',
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    overflow: 'hidden',
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#CCFBF1',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  cardHeadingBlock: { flex: 1 },
+  cardHeadingBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
   visitLabel: {
     color: '#0F766E',
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 9,
+    lineHeight: 11,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.55,
+    letterSpacing: 0.5,
   },
   propertyName: {
     color: '#134E4A',
-    fontSize: 21,
-    lineHeight: 25,
+    fontSize: 17,
+    lineHeight: 20,
     fontWeight: '900',
-    marginTop: 2,
+    marginTop: 1,
   },
   staffPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 13,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 12,
+    gap: 7,
+    marginTop: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
     backgroundColor: '#F0FDFA',
     borderWidth: 1,
     borderColor: '#99F6E4',
@@ -169,33 +182,34 @@ const styles = StyleSheet.create({
   staffNames: {
     flex: 1,
     color: '#115E59',
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: '900',
   },
   notesBox: {
     flex: 1,
-    marginTop: 11,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderRadius: 12,
+    minHeight: 42,
+    marginTop: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   notesLabel: {
     color: '#64748B',
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: 8,
+    lineHeight: 10,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.55,
-    marginBottom: 3,
+    letterSpacing: 0.5,
+    marginBottom: 1,
   },
   notesText: {
     color: '#334155',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: '700',
   },
   emptyState: {
