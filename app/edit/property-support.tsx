@@ -22,6 +22,7 @@ import { initScheduleForToday, useSchedule } from '@/hooks/schedule-store';
 import {
   emptyPropertySupportAssignments,
   fetchPropertySupportData,
+  restorePropertySupportAssignmentSlots,
   savePropertySupportForDate,
   type PropertyLocation,
   type PropertySupportAssignment,
@@ -92,31 +93,29 @@ export default function PropertySupportScreen() {
         const activeLocations = result.locations.filter((location) => location.isActive);
         setLocations(activeLocations);
 
-        const saved = (result.record?.assignments || [])
-          .slice(0, TOTAL_SUPPORT_COUNT)
-          .map((assignment, index) => {
-            if (index < PROPERTY_SUPPORT_COUNT || !assignment.propertyLocationId) {
-              return assignment;
-            }
+        // Rebuild the four permanent card slots from each assignment ID.
+        // This prevents a saved Participant Support entry from shifting into a
+        // Property Support card when earlier cards are empty.
+        const restoredAssignments = restorePropertySupportAssignmentSlots(
+          result.record?.assignments || [],
+          TOTAL_SUPPORT_COUNT,
+        ).map((assignment, index) => {
+          if (index < PROPERTY_SUPPORT_COUNT || !assignment.propertyLocationId) {
+            return assignment;
+          }
 
-            const previousLocation = activeLocations.find(
-              (location) => String(location.id) === String(assignment.propertyLocationId),
-            );
+          // Compatibility with entries previously stored using a property UUID.
+          const previousLocation = activeLocations.find(
+            (location) =>
+              String(location.id) === String(assignment.propertyLocationId),
+          );
 
-            return previousLocation
-              ? { ...assignment, propertyLocationId: previousLocation.name }
-              : assignment;
-          });
+          return previousLocation
+            ? { ...assignment, propertyLocationId: previousLocation.name }
+            : assignment;
+        });
 
-        setAssignments([
-          ...saved,
-          ...emptyPropertySupportAssignments(
-            Math.max(0, TOTAL_SUPPORT_COUNT - saved.length),
-          ).map((item, index) => ({
-            ...item,
-            id: `property-support-${saved.length + index + 1}`,
-          })),
-        ].slice(0, TOTAL_SUPPORT_COUNT));
+        setAssignments(restoredAssignments);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -182,10 +181,20 @@ export default function PropertySupportScreen() {
 
     setSaving(true);
     try {
+      // Re-apply each permanent card ID immediately before saving.
+      // The position and ID together guarantee that all four tiles reload
+      // into the same individual card.
+      const canonicalAssignments = assignments
+        .slice(0, TOTAL_SUPPORT_COUNT)
+        .map((assignment, index) => ({
+          ...assignment,
+          id: `property-support-${index + 1}`,
+        }));
+
       const result = await savePropertySupportForDate({
         house: HOUSE_ID,
         supportDate: todayKey,
-        assignments,
+        assignments: canonicalAssignments,
       });
 
       if (!result.ok) throw result.error;
