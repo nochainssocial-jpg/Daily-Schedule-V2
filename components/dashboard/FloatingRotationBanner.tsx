@@ -307,7 +307,6 @@ export function FloatingRotationBanner({
   return (
     <View style={styles.floatingBannerOverlay} pointerEvents="none">
       <View style={styles.floatingBannerGlassPanel}>
-        <Text style={styles.floatingBannerPanelTitle}>Floating Assignments</Text>
         {showUpNext && upNextSlot ? (
           <FloatingBannerRow
             title="Up Next"

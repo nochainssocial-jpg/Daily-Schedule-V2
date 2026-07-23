@@ -1646,13 +1646,6 @@ shadowRadius: 10,
 shadowOffset: { width: 0, height: 5 },
 gap: 4,
 },
-floatingBannerPanelTitle: {
-fontSize: 14,
-lineHeight: 16,
-fontWeight: "900",
-color: "#111827",
-marginBottom: 0,
-},
 floatingBannerRow: {
 minHeight: 42,
 flexDirection: "row",
