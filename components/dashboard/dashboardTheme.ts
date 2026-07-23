@@ -8,9 +8,11 @@ export const DASHBOARD_REFRESH_MS = 60_000;
 export const DASHBOARD_OPERATIONAL_TIMES = {
   arrivalsStart: 8 * 60,
   officialStart: 10 * 60,
-  lunchStarts: 11 * 60 + 30,
+  dayProgramStartEnds: 10 * 60 + 5,
   floatingBannerStarts: 10 * 60 + 30,
   dailyAssignmentsHide: 11 * 60 + 30,
+  lunchStarts: 11 * 60 + 30,
+  afternoonActivitiesStart: 12 * 60 + 30,
   cleaningStarts: 13 * 60,
   dropoffsStart: 14 * 60,
   floatingEnds: 14 * 60 + 30,

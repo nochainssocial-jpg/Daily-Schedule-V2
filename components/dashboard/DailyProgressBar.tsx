@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { View } from "react-native";
 import {
   Car,
+  CheckCircle2,
   CheckSquare,
   Sparkles,
   Star,
@@ -26,27 +27,72 @@ type Props = {
   currentMinutes: number;
 };
 
+const TIMES = DASHBOARD_OPERATIONAL_TIMES;
+
 const SEGMENTS: Segment[] = [
-  { key: "setup", label: "Morning Setup", start: 8 * 60, end: 10 * 60, Icon: Wrench },
-  { key: "start", label: "Day Program Start", start: 10 * 60, end: 10 * 60 + 5, Icon: Users },
+  {
+    key: "setup",
+    label: "Morning Setup",
+    start: TIMES.arrivalsStart,
+    end: TIMES.officialStart,
+    Icon: Wrench,
+  },
+  {
+    key: "start",
+    label: "Day Program Start",
+    start: TIMES.officialStart,
+    end: TIMES.dayProgramStartEnds,
+    Icon: Users,
+  },
   {
     key: "activities-am",
     label: "Morning Activities",
-    start: 10 * 60 + 5,
-    end: DASHBOARD_OPERATIONAL_TIMES.lunchStarts,
+    start: TIMES.dayProgramStartEnds,
+    end: TIMES.lunchStarts,
     Icon: Star,
   },
   {
     key: "lunch",
     label: "Lunch",
-    start: DASHBOARD_OPERATIONAL_TIMES.lunchStarts,
-    end: 12 * 60,
+    start: TIMES.lunchStarts,
+    end: TIMES.afternoonActivitiesStart,
     Icon: Utensils,
   },
-  { key: "activities-pm", label: "Afternoon Activities", start: 12 * 60, end: 13 * 60, Icon: Star },
-  { key: "cleaning", label: "Cleaning", start: 13 * 60, end: 14 * 60, Icon: Sparkles },
-  { key: "dropoffs", label: "Drop-offs", start: 14 * 60, end: 15 * 60, Icon: Car },
-  { key: "complete", label: "Checklist and Complete", start: 15 * 60, end: null, Icon: CheckSquare },
+  {
+    key: "activities-pm",
+    label: "Afternoon Activities",
+    start: TIMES.afternoonActivitiesStart,
+    end: TIMES.cleaningStarts,
+    Icon: Star,
+  },
+  {
+    key: "cleaning",
+    label: "Cleaning",
+    start: TIMES.cleaningStarts,
+    end: TIMES.dropoffsStart,
+    Icon: Sparkles,
+  },
+  {
+    key: "dropoffs",
+    label: "Drop-offs / Lounge Transition",
+    start: TIMES.dropoffsStart,
+    end: TIMES.checklistStarts,
+    Icon: Car,
+  },
+  {
+    key: "checklist",
+    label: "End-of-Shift Checklist",
+    start: TIMES.checklistStarts,
+    end: TIMES.programEnds,
+    Icon: CheckSquare,
+  },
+  {
+    key: "complete",
+    label: "Day Program Complete",
+    start: TIMES.programEnds,
+    end: null,
+    Icon: CheckCircle2,
+  },
 ];
 
 function getState(segment: Segment, currentMinutes: number): ProgressState {
