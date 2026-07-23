@@ -26,6 +26,7 @@ import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPane
 import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
 import {
   fetchPropertySupportData,
+  PROPERTY_SUPPORT_AUTO_RESET_MINUTES,
   type PropertyLocation,
   type PropertySupportAssignment,
 } from "@/lib/propertySupport";
@@ -109,6 +110,7 @@ const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
 const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const propertySupportResetDateRef = useRef<string | null>(null);
 
 const {
 date,
@@ -269,6 +271,16 @@ useEffect(() => {
 const timer = setInterval(() => setTick((value) => value + 1), 30_000);
 return () => clearInterval(timer);
 }, []);
+
+useEffect(() => {
+if (isPreviewMode || currentMinutes < PROPERTY_SUPPORT_AUTO_RESET_MINUTES) return;
+
+const dateKey = getSydneyDateKey();
+if (propertySupportResetDateRef.current === dateKey) return;
+propertySupportResetDateRef.current = dateKey;
+
+void fetchPropertySupport();
+}, [currentMinutes, fetchPropertySupport, isPreviewMode, tick]);
 
 useEffect(() => {
 let cancelled = false;

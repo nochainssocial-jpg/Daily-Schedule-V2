@@ -1,9 +1,15 @@
 import { supabase } from '@/lib/supabase';
-import { normaliseSydneyDateKey } from '@/lib/sydneyDate';
+import {
+  getSydneyDateKey,
+  getSydneyMinutesSinceMidnight,
+  getSydneyTimeParts,
+  normaliseSydneyDateKey,
+} from '@/lib/sydneyDate';
 
 const LOCATIONS_TABLE = 'property_locations';
 const DAILY_TABLE = 'daily_property_support';
 const DEFAULT_ASSIGNMENT_COUNT = 4;
+export const PROPERTY_SUPPORT_AUTO_RESET_MINUTES = 17 * 60;
 
 export type PropertyLocation = {
   id: string;
@@ -175,6 +181,34 @@ export async function fetchPropertyLocations(house: string) {
   }
 }
 
+export function shouldAutoResetPropertySupport(
+  supportDate: string,
+  now = new Date(),
+) {
+  const dateKey = normaliseSydneyDateKey(supportDate, now);
+  return (
+    dateKey === getSydneyDateKey(now) &&
+    getSydneyMinutesSinceMidnight(now) >= PROPERTY_SUPPORT_AUTO_RESET_MINUTES
+  );
+}
+
+function wasUpdatedAfterDailyReset(
+  record: DailyPropertySupportRecord,
+  supportDate: string,
+) {
+  if (!record.updatedAt) return false;
+
+  const updatedAt = new Date(record.updatedAt);
+  if (Number.isNaN(updatedAt.getTime())) return false;
+
+  const updatedSydney = getSydneyTimeParts(updatedAt);
+  return (
+    updatedSydney.dateKey === normaliseSydneyDateKey(supportDate) &&
+    updatedSydney.hours * 60 + updatedSydney.minutes >=
+      PROPERTY_SUPPORT_AUTO_RESET_MINUTES
+  );
+}
+
 export async function fetchPropertySupportForDate(
   house: string,
   supportDate: string,
@@ -190,10 +224,31 @@ export async function fetchPropertySupportForDate(
       .maybeSingle();
 
     if (error) return { ok: false as const, error, data: null };
-    return {
-      ok: true as const,
-      data: data ? mapDailyRecord(data) : null,
-    };
+    if (!data) return { ok: true as const, data: null };
+
+    const record = mapDailyRecord(data);
+
+    // Property and Participant Support are operational day-only entries.
+    // Once 5:00pm Sydney time is reached, compact the current day's four
+    // permanent card slots back to an empty payload. The updated_at timestamp
+    // acts as the once-per-day reset marker, so MD can enter fresh information
+    // after the reset without it being cleared again.
+    if (
+      record.assignments.length > 0 &&
+      shouldAutoResetPropertySupport(dateKey) &&
+      !wasUpdatedAfterDailyReset(record, dateKey)
+    ) {
+      const resetResult = await savePropertySupportForDate({
+        house,
+        supportDate: dateKey,
+        assignments: emptyPropertySupportAssignments(),
+      });
+
+      if (!resetResult.ok) return resetResult;
+      return resetResult;
+    }
+
+    return { ok: true as const, data: record };
   } catch (error) {
     return { ok: false as const, error, data: null };
   }
