@@ -4,7 +4,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export type PropertySupportDashboardRow = {
   id: string;
-  propertyName: string;
+  supportType: 'property' | 'participant';
+  supportNumber: number;
+  locationName: string;
   staffNames: string[];
   notes: string;
 };
@@ -18,18 +20,19 @@ export function PropertySupportPanel({
     <View style={styles.panel}>
       <View style={styles.panelHeaderRow}>
         <View>
-          <Text style={styles.panelEyebrow}>Afternoon property visits</Text>
-          <Text style={styles.panelTitle}>Property Support</Text>
+          <Text style={styles.panelEyebrow}>Afternoon support visits</Text>
+          <Text style={styles.panelTitle}>Property & Participant Support</Text>
         </View>
         <Text style={styles.progressText}>
-          {propertySupportRows.length} {propertySupportRows.length === 1 ? 'visit' : 'visits'}
+          {propertySupportRows.length}{' '}
+          {propertySupportRows.length === 1 ? 'support visit' : 'support visits'}
         </Text>
       </View>
 
       {propertySupportRows.length === 0 ? (
         <View style={styles.emptyState}>
-          <MaterialCommunityIcons name="home-heart" size={44} color="#94A3B8" />
-          <Text style={styles.emptyText}>No property support visits assigned.</Text>
+          <MaterialCommunityIcons name="home-account" size={44} color="#94A3B8" />
+          <Text style={styles.emptyText}>No support visits assigned.</Text>
         </View>
       ) : (
         <ScrollView
@@ -38,37 +41,87 @@ export function PropertySupportPanel({
           showsVerticalScrollIndicator={false}
           scrollEnabled={propertySupportRows.length > 4}
         >
-          {propertySupportRows.map((row, index) => (
-            <View key={row.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.iconCircle}>
-                  <MaterialCommunityIcons name="home-heart" size={21} color="#0F766E" />
+          {propertySupportRows.map((row) => {
+            const isParticipantSupport = row.supportType === 'participant';
+
+            return (
+              <View
+                key={row.id}
+                style={[
+                  styles.card,
+                  isParticipantSupport && styles.participantCard,
+                ]}
+              >
+                <View style={styles.cardHeader}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      isParticipantSupport && styles.participantIconCircle,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={isParticipantSupport ? 'account-heart' : 'home-heart'}
+                      size={21}
+                      color={isParticipantSupport ? '#6D28D9' : '#0F766E'}
+                    />
+                  </View>
+                  <View style={styles.cardHeadingBlock}>
+                    <Text
+                      style={[
+                        styles.visitLabel,
+                        isParticipantSupport && styles.participantVisitLabel,
+                      ]}
+                    >
+                      {isParticipantSupport ? 'Participant support' : 'Property support'}{' '}
+                      {row.supportNumber}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.locationName,
+                        isParticipantSupport && styles.participantLocationName,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {row.locationName}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.cardHeadingBlock}>
-                  <Text style={styles.visitLabel}>Property support {index + 1}</Text>
-                  <Text style={styles.propertyName} numberOfLines={2}>
-                    {row.propertyName}
+
+                <View
+                  style={[
+                    styles.staffPill,
+                    isParticipantSupport && styles.participantStaffPill,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="account-group"
+                    size={16}
+                    color={isParticipantSupport ? '#6D28D9' : '#115E59'}
+                  />
+                  <Text
+                    style={[
+                      styles.staffNames,
+                      isParticipantSupport && styles.participantStaffNames,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {row.staffNames.join(', ')}
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.staffPill}>
-                <MaterialCommunityIcons name="account-group" size={16} color="#115E59" />
-                <Text style={styles.staffNames} numberOfLines={1}>
-                  {row.staffNames.join(', ')}
-                </Text>
+                {row.notes ? (
+                  <View style={styles.notesBox}>
+                    <Text style={styles.notesLabel}>
+                      {isParticipantSupport ? 'Support details' : 'Tasks'}
+                    </Text>
+                    <Text style={styles.notesText} numberOfLines={2}>
+                      {row.notes}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-
-              {row.notes ? (
-                <View style={styles.notesBox}>
-                  <Text style={styles.notesLabel}>Tasks</Text>
-                  <Text style={styles.notesText} numberOfLines={2}>
-                    {row.notes}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>
@@ -81,7 +134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
     paddingTop: 16,
     // The floating rotation banner sits over the lower portion of the dashboard.
-    // Reserving this space keeps both rows of Property Support cards fully visible.
+    // Reserving this space keeps both rows of support cards fully visible.
     paddingBottom: 150,
   },
   panelHeaderRow: {
@@ -134,6 +187,10 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     overflow: 'hidden',
   },
+  participantCard: {
+    backgroundColor: '#FCFAFF',
+    borderColor: '#C4B5FD',
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -148,6 +205,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
+  participantIconCircle: {
+    backgroundColor: '#EDE9FE',
+  },
   cardHeadingBlock: {
     flex: 1,
     minWidth: 0,
@@ -160,12 +220,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  propertyName: {
+  participantVisitLabel: {
+    color: '#6D28D9',
+  },
+  locationName: {
     color: '#134E4A',
     fontSize: 17,
     lineHeight: 20,
     fontWeight: '900',
     marginTop: 1,
+  },
+  participantLocationName: {
+    color: '#4C1D95',
   },
   staffPill: {
     flexDirection: 'row',
@@ -179,12 +245,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#99F6E4',
   },
+  participantStaffPill: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+  },
   staffNames: {
     flex: 1,
     color: '#115E59',
     fontSize: 12,
     lineHeight: 15,
     fontWeight: '900',
+  },
+  participantStaffNames: {
+    color: '#5B21B6',
   },
   notesBox: {
     flex: 1,
