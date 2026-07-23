@@ -580,16 +580,31 @@ const propertyLocationById = useMemo(
 
 const propertySupportRows = useMemo(() => {
 return (propertySupportAssignments || [])
-.map((assignment) => ({
-id: assignment.id,
-propertyName:
-propertyLocationById.get(String(assignment.propertyLocationId))?.name || "Property",
+.map((assignment, assignmentIndex) => {
+const id = String(assignment.id || `property-support-${assignmentIndex + 1}`);
+const idMatch = id.match(/^property-support-(\d+)$/);
+const slotNumber = idMatch ? Number(idMatch[1]) : assignmentIndex + 1;
+const isParticipantSupport = slotNumber >= 3;
+const supportNumber = isParticipantSupport ? slotNumber - 2 : slotNumber;
+const rawLocation = String(assignment.propertyLocationId || "").trim();
+
+return {
+id,
+sortOrder: slotNumber,
+supportType: isParticipantSupport ? ("participant" as const) : ("property" as const),
+supportNumber,
+locationName: isParticipantSupport
+? rawLocation
+: propertyLocationById.get(rawLocation)?.name || "",
 staffNames: assignment.staffIds
 .map((staffId) => String(staffById.get(String(staffId))?.name || ""))
 .filter(Boolean),
 notes: String(assignment.notes || "").trim(),
-}))
-.filter((row) => row.propertyName && row.staffNames.length > 0)
+};
+})
+.filter((row) => row.locationName && row.staffNames.length > 0)
+.sort((a, b) => a.sortOrder - b.sortOrder)
+.map(({ sortOrder: _sortOrder, ...row }) => row)
 .slice(0, 4);
 }, [propertyLocationById, propertySupportAssignments, staffById]);
 
