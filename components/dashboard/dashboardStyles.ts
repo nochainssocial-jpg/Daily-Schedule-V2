@@ -357,15 +357,6 @@ shadowOpacity: 0.04,
 shadowRadius: 8,
 shadowOffset: { width: 0, height: 3 },
 },
-floatingPanel: {
-// Keep the panel at its natural content height. Using `flex: 0` also sets
-// flexBasis to 0 on React Native Web, which collapses the entire table.
-flexGrow: 0,
-flexShrink: 0,
-flexBasis: "auto" as any,
-// Leave a small clean cushion below the final 2:00–2:30pm row.
-paddingBottom: 12,
-},
 panelHeaderRow: {
 flexDirection: "row",
 justifyContent: "space-between",
@@ -484,9 +475,9 @@ justifyContent: "center",
 assignmentGrid: {
 flexDirection: "row",
 flexWrap: "wrap",
-justifyContent: "flex-start",
+justifyContent: "space-between",
 rowGap: 8 as any,
-columnGap: "1.13%" as any,
+columnGap: 0 as any,
 paddingHorizontal: 4,
 paddingTop: 2,
 paddingBottom: 8,
@@ -618,13 +609,6 @@ borderRadius: 16,
 overflow: "hidden",
 marginTop: 2,
 },
-floatingTableCompact: {
-// Keep the table at its natural row height. `flex: 0` becomes a zero
-// flex-basis on React Native Web, which hides all table rows.
-flexGrow: 0,
-flexShrink: 0,
-flexBasis: "auto" as any,
-},
 floatRow: {
 flexDirection: "row",
 minHeight: 29,
@@ -698,17 +682,10 @@ color: "#059669",
 fontWeight: "900",
 },
 outingGrid: {
-// Keep the outing cards at their natural content height. The previous
-// `flex: 1` stretched the drive card down behind the floating banner,
-// live-status pills and progress bar.
-flexGrow: 0,
-flexShrink: 0,
-flexBasis: "auto" as any,
+flex: 1,
 flexDirection: "row",
-alignItems: "stretch",
 gap: 16,
 marginTop: 12,
-marginBottom: 0,
 },
 outingCard: {
 flex: 1,
@@ -1463,8 +1440,8 @@ padding: 18,
 
 dailyPhasePillOverlay: {
 position: "absolute" as any,
-right: "5%",
-bottom: 78,
+right: 68,
+bottom: 54,
 zIndex: 55,
 width: 225,
 alignItems: "flex-end",
@@ -1553,84 +1530,11 @@ borderColor: "#86EFAC",
 dailyPhaseDotComplete: { backgroundColor: "#16A34A" },
 dailyPhaseTextComplete: { color: "#166534" },
 
-dailyProgressOverlay: {
-position: "absolute" as any,
-left: "5%",
-right: "5%",
-bottom: 32,
-zIndex: 48,
-},
-dailyProgressTrack: {
-height: 28,
-flexDirection: "row",
-borderRadius: 999,
-borderWidth: 1,
-borderColor: "rgba(139,155,163,0.42)" as any,
-backgroundColor: "#E8EEF0",
-overflow: "hidden",
-shadowColor: "#000",
-shadowOpacity: 0.09,
-shadowRadius: 7,
-shadowOffset: { width: 0, height: 3 },
-},
-dailyProgressSegment: {
-flex: 1,
-position: "relative",
-alignItems: "center",
-justifyContent: "center",
-backgroundColor: "#D7E0E3",
-overflow: "hidden",
-},
-dailyProgressSegmentFirst: {
-borderTopLeftRadius: 999,
-borderBottomLeftRadius: 999,
-},
-dailyProgressSegmentLast: {
-borderTopRightRadius: 999,
-borderBottomRightRadius: 999,
-},
-dailyProgressSegmentDivider: {
-borderLeftWidth: 1,
-borderLeftColor: "rgba(255,255,255,0.72)" as any,
-},
-dailyProgressSegmentCompleted: {
-backgroundColor: "#67B5AE",
-},
-dailyProgressSegmentCurrent: {
-backgroundColor: "#267F8A",
-},
-dailyProgressCurrentFill: {
-position: "absolute" as any,
-left: 0,
-top: 0,
-bottom: 0,
-backgroundColor: "rgba(154,221,215,0.34)" as any,
-},
-dailyProgressCurrentGlow: {
-position: "absolute" as any,
-left: 2,
-right: 2,
-top: 2,
-bottom: 2,
-borderRadius: 999,
-borderWidth: 1,
-borderColor: "#9ADDD7",
-shadowColor: "#9ADDD7",
-shadowOpacity: 0.65,
-shadowRadius: 6,
-shadowOffset: { width: 0, height: 0 },
-},
-dailyProgressIconWrap: {
-zIndex: 2,
-alignItems: "center",
-justifyContent: "center",
-},
-
 floatingBannerOverlay: {
 position: "absolute" as any,
-left: "5%",
+left: "8%",
 right: "32%",
-bottom: 78,
+bottom: 54,
 zIndex: 40,
 },
 floatingBannerGlassPanel: {
@@ -1728,6 +1632,14 @@ backgroundColor: "rgba(255,255,255,0.9)" as any,
 paddingHorizontal: 7,
 paddingVertical: 3,
 },
+floatingBannerStaffCardOffsite: {
+backgroundColor: "rgba(254,226,226,0.92)" as any,
+borderColor: "#FCA5A5",
+},
+floatingBannerStaffCardNotAttending: {
+backgroundColor: "rgba(229,231,235,0.92)" as any,
+borderColor: "#D1D5DB",
+},
 floatingBannerAvatarWrap: {
 width: 30,
 height: 30,
@@ -1749,6 +1661,12 @@ justifyContent: "center",
 borderRadius: 999,
 backgroundColor: "#FCE7F3",
 },
+floatingBannerInitialsAvatarOffsite: {
+backgroundColor: "#FECACA",
+},
+floatingBannerInitialsAvatarNotAttending: {
+backgroundColor: "#D1D5DB",
+},
 floatingBannerInitialsText: {
 fontSize: 11,
 fontWeight: "900",
@@ -1763,6 +1681,14 @@ fontSize: 13,
 lineHeight: 15,
 fontWeight: "900",
 color: "#111827",
+},
+floatingBannerStaffNameOffsite: {
+color: "#991B1B",
+fontSize: 11,
+},
+floatingBannerStaffNameNotAttending: {
+color: "#6B7280",
+fontSize: 11,
 },
 floatingBannerRoomName: {
 marginTop: 1,

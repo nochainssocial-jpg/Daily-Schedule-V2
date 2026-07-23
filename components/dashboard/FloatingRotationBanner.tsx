@@ -3,9 +3,14 @@ import { Image, Text, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
 import { DASHBOARD_OPERATIONAL_TIMES, ROOM_KEYS, ROOM_LABELS } from "./dashboardTheme";
 import type { RoomKey } from "./dashboardTypes";
-import { isFsoSlot, minutesToTimeLabel, slotWindow } from "./dashboardUtils";
+import { minutesToTimeLabel, slotWindow } from "./dashboardUtils";
 import { STAFF_PHOTO_ASSETS, type StaffPhotoKey } from "./staffPhotoAssets";
 import { styles } from "./dashboardStyles";
+import {
+  buildFloatingDisplayContext,
+  resolveFloatingCellState,
+  type FloatingCellVariant,
+} from "./floatingDisplayLogic";
 
 type FloatingBannerAssignment = {
   room: RoomKey;
@@ -15,6 +20,7 @@ type FloatingBannerAssignment = {
   staffName: string;
   photoSource: ImageSourcePropType | null;
   initials: string;
+  variant: FloatingCellVariant;
 };
 
 type FloatingBannerSlot = {
@@ -30,10 +36,12 @@ type Props = {
   floatingAssignments: any;
   staffById: Map<string, any>;
   currentMinutes: number;
+  participantsById: Map<string, any>;
+  attendingParticipants: any[];
+  activeOutings?: any[];
 };
 
 const ROTATION_PREVIEW_BEFORE_MINUTES = 3;
-const ROTATION_PREVIEW_AFTER_MINUTES = 5;
 
 function staffInitials(name: string): string {
   const parts = String(name || "")
@@ -78,11 +86,13 @@ function buildSlotAssignments({
   index,
   floatingAssignments,
   staffById,
+  displayContext,
 }: {
   slot: any;
   index: number;
   floatingAssignments: any;
   staffById: Map<string, any>;
+  displayContext: ReturnType<typeof buildFloatingDisplayContext>;
 }): FloatingBannerSlot | null {
   const { start, end } = slotWindow(slot);
   if (start == null || end == null || end <= start) return null;
@@ -93,19 +103,32 @@ function buildSlotAssignments({
   const row = floatingAssignments?.[slotId] || {};
 
   const assignments = ROOM_KEYS.map((room) => {
-    const staffId = row?.[room] ? String(row[room]) : null;
-    const person = staffId ? staffById.get(staffId) : null;
-    const staffName = person?.name ? String(person.name) : "Unassigned";
-    const fso = room === "twins" && isFsoSlot(slot);
+    const cell = resolveFloatingCellState({
+      room,
+      slot,
+      row,
+      staffById,
+      context: displayContext,
+    });
+    const staffName = cell.label;
 
     return {
       room,
-      roomLabel: room === "twins" ? (fso ? "Twins (FSO)" : "Twins") : ROOM_LABELS[room],
-      isFso: fso,
-      staffId,
+      roomLabel:
+        room === "twins"
+          ? cell.showFso
+            ? "Twins (FSO)"
+            : "Twins"
+          : ROOM_LABELS[room],
+      isFso: cell.showFso,
+      staffId: cell.staffId,
       staffName,
-      photoSource: person ? getStaffPhotoSource(person) : null,
+      photoSource:
+        cell.variant === "normal" && cell.staffPerson
+          ? getStaffPhotoSource(cell.staffPerson)
+          : null,
       initials: staffInitials(staffName),
+      variant: cell.variant,
     };
   });
 
@@ -120,18 +143,45 @@ function buildSlotAssignments({
 
 const FloatingStaffCard = memo(function FloatingStaffCard({ item }: { item: FloatingBannerAssignment }) {
   return (
-    <View style={styles.floatingBannerStaffCard}>
+    <View
+      style={[
+        styles.floatingBannerStaffCard,
+        item.variant === "offsite" ? styles.floatingBannerStaffCardOffsite : null,
+        item.variant === "notAttending"
+          ? styles.floatingBannerStaffCardNotAttending
+          : null,
+      ]}
+    >
       <View style={styles.floatingBannerAvatarWrap}>
         {item.photoSource ? (
           <Image source={item.photoSource} style={styles.floatingBannerAvatar} resizeMode="cover" />
         ) : (
-          <View style={styles.floatingBannerInitialsAvatar}>
+          <View
+            style={[
+              styles.floatingBannerInitialsAvatar,
+              item.variant === "offsite"
+                ? styles.floatingBannerInitialsAvatarOffsite
+                : null,
+              item.variant === "notAttending"
+                ? styles.floatingBannerInitialsAvatarNotAttending
+                : null,
+            ]}
+          >
             <Text style={styles.floatingBannerInitialsText}>{item.initials}</Text>
           </View>
         )}
       </View>
       <View style={styles.floatingBannerStaffTextBlock}>
-        <Text style={styles.floatingBannerStaffName} numberOfLines={1}>
+        <Text
+          style={[
+            styles.floatingBannerStaffName,
+            item.variant === "offsite" ? styles.floatingBannerStaffNameOffsite : null,
+            item.variant === "notAttending"
+              ? styles.floatingBannerStaffNameNotAttending
+              : null,
+          ]}
+          numberOfLines={1}
+        >
           {item.staffName}
         </Text>
         <Text style={styles.floatingBannerRoomName} numberOfLines={1}>
@@ -198,14 +248,33 @@ export function FloatingRotationBanner({
   floatingAssignments,
   staffById,
   currentMinutes,
+  participantsById,
+  attendingParticipants,
+  activeOutings = [],
 }: Props) {
+  const displayContext = useMemo(
+    () =>
+      buildFloatingDisplayContext({
+        participantsById,
+        attendingParticipants,
+        activeOutings,
+      }),
+    [participantsById, attendingParticipants, activeOutings],
+  );
+
   const slots = useMemo(() => {
     return (displayTimeSlots || [])
       .map((slot, index) =>
-        buildSlotAssignments({ slot, index, floatingAssignments, staffById }),
+        buildSlotAssignments({
+          slot,
+          index,
+          floatingAssignments,
+          staffById,
+          displayContext,
+        }),
       )
       .filter(Boolean) as FloatingBannerSlot[];
-  }, [displayTimeSlots, floatingAssignments, staffById]);
+  }, [displayTimeSlots, floatingAssignments, staffById, displayContext]);
 
   if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return null;
   if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return null;
@@ -216,19 +285,15 @@ export function FloatingRotationBanner({
   );
   if (activeIndex < 0) return null;
 
-  const activeSlot = slots[activeIndex];
-  const previousSlot = activeIndex > 0 ? slots[activeIndex - 1] : null;
-  const activeSlotStillSettling =
-    currentMinutes >= activeSlot.start &&
-    currentMinutes < activeSlot.start + ROTATION_PREVIEW_AFTER_MINUTES &&
-    previousSlot !== null;
-  const currentSlot = activeSlotStillSettling ? previousSlot : activeSlot;
+  // Keep the banner's On Now row locked to the same slot highlighted in the table.
+  const currentSlot = slots[activeIndex];
 
+  // Only preview a genuinely future slot. Once it starts, it becomes On Now immediately.
   const upNextSlot =
     slots.find(
       (slot) =>
-        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES &&
-        currentMinutes < slot.start + ROTATION_PREVIEW_AFTER_MINUTES,
+        slot.start > currentMinutes &&
+        currentMinutes >= slot.start - ROTATION_PREVIEW_BEFORE_MINUTES,
     ) || null;
 
   const minutesToNext = upNextSlot ? upNextSlot.start - currentMinutes : null;
