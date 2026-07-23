@@ -154,6 +154,9 @@ const cleaningIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.clea
 const dropoffsAreOperational =
 currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.dropoffsStart &&
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
+const supportIsOperational =
+currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
 const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
 const dailyAssignmentsAreOperational =
 currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
@@ -732,7 +735,7 @@ const hasDropoffAssignments = dropoffRows.length > 0;
 const hasPropertySupportAssignments = propertySupportRows.length > 0;
 const showCleaningPanel = hasCleaningAssignments && cleaningIsOperational;
 const showDropoffsPanel = hasDropoffAssignments && dropoffsAreOperational;
-const showPropertySupportPanel = hasPropertySupportAssignments && dropoffsAreOperational;
+const showPropertySupportPanel = hasPropertySupportAssignments && supportIsOperational;
 const showChecklistPanel = hasChecklistData && checklistIsOperational;
 
 const visibleEventsMeetingsVisits = useMemo(() => {
@@ -782,12 +785,14 @@ add("floating", showFloatingPanel);
 } else if (operationalPhase === "activeProgram") {
 add("floating", showFloatingPanel);
 add("outings", visibleOutings.length > 0);
+add("propertySupport", showPropertySupportPanel);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "cleaningActive") {
 add("floating", showFloatingPanel);
 add("cleaning", showCleaningPanel);
+add("propertySupport", showPropertySupportPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("team", dailyAssignmentsAreOperational);

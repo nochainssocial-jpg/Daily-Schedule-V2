@@ -20,7 +20,7 @@ export function PropertySupportPanel({
     <View style={styles.panel}>
       <View style={styles.panelHeaderRow}>
         <View>
-          <Text style={styles.panelEyebrow}>Afternoon support visits</Text>
+          <Text style={styles.panelEyebrow}>Today’s support visits</Text>
           <Text style={styles.panelTitle}>Property & Participant Support</Text>
         </View>
         <Text style={styles.progressText}>
