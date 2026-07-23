@@ -41,7 +41,7 @@ export function FloatingAssignmentsPanel({
   );
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, styles.floatingPanel]}>
       <View style={styles.panelHeaderRow}>
         <View>
           <Text style={styles.panelEyebrow}>Current operational view</Text>
@@ -53,7 +53,7 @@ export function FloatingAssignmentsPanel({
         </View>
       </View>
 
-      <View style={styles.floatingTable}>
+      <View style={[styles.floatingTable, styles.floatingTableCompact]}>
         <View style={[styles.floatRow, styles.floatHeaderRow]}>
           <Text style={[styles.floatCell, styles.floatTimeCell, styles.floatHeaderText]}>Time</Text>
           {ROOM_KEYS.map((room) => (
