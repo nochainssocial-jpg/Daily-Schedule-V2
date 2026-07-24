@@ -10,6 +10,7 @@ import {
   Wrench,
 } from "lucide-react-native";
 import { styles } from "./dashboardStyles";
+import { DASHBOARD_OPERATIONAL_TIMES } from "./dashboardTheme";
 
 type ProgressState = "completed" | "current" | "upcoming";
 
@@ -26,14 +27,69 @@ type Props = {
 };
 
 const SEGMENTS: Segment[] = [
-  { key: "setup", label: "Morning Setup", start: 8 * 60, end: 10 * 60, Icon: Wrench },
-  { key: "start", label: "Day Program Start", start: 10 * 60, end: 10 * 60 + 5, Icon: Users },
-  { key: "activities-am", label: "Morning Activities", start: 10 * 60 + 5, end: 11 * 60, Icon: Star },
-  { key: "lunch", label: "Lunch", start: 11 * 60, end: 12 * 60, Icon: Utensils },
-  { key: "activities-pm", label: "Afternoon Activities", start: 12 * 60, end: 13 * 60, Icon: Star },
-  { key: "cleaning", label: "Cleaning", start: 13 * 60, end: 14 * 60, Icon: Sparkles },
-  { key: "dropoffs", label: "Drop-offs", start: 14 * 60, end: 15 * 60, Icon: Car },
-  { key: "complete", label: "Checklist and Complete", start: 15 * 60, end: null, Icon: CheckSquare },
+  {
+    key: "setup",
+    label: "Morning Setup",
+    start: DASHBOARD_OPERATIONAL_TIMES.arrivalsStart,
+    end: DASHBOARD_OPERATIONAL_TIMES.officialStart,
+    Icon: Wrench,
+  },
+  {
+    key: "start",
+    label: "Day Program Start",
+    start: DASHBOARD_OPERATIONAL_TIMES.officialStart,
+    end: DASHBOARD_OPERATIONAL_TIMES.dayProgramStartEnds,
+    Icon: Users,
+  },
+  {
+    key: "activities-am",
+    label: "Morning Activities",
+    start: DASHBOARD_OPERATIONAL_TIMES.dayProgramStartEnds,
+    end: DASHBOARD_OPERATIONAL_TIMES.lunchStarts,
+    Icon: Star,
+  },
+  {
+    key: "lunch",
+    label: "Lunch",
+    start: DASHBOARD_OPERATIONAL_TIMES.lunchStarts,
+    end: DASHBOARD_OPERATIONAL_TIMES.afternoonActivitiesStart,
+    Icon: Utensils,
+  },
+  {
+    key: "activities-pm",
+    label: "Afternoon Activities",
+    start: DASHBOARD_OPERATIONAL_TIMES.afternoonActivitiesStart,
+    end: DASHBOARD_OPERATIONAL_TIMES.cleaningStarts,
+    Icon: Star,
+  },
+  {
+    key: "cleaning",
+    label: "Cleaning",
+    start: DASHBOARD_OPERATIONAL_TIMES.cleaningStarts,
+    end: DASHBOARD_OPERATIONAL_TIMES.dropoffsStart,
+    Icon: Sparkles,
+  },
+  {
+    key: "dropoffs",
+    label: "Drop-offs / Lounge Transition",
+    start: DASHBOARD_OPERATIONAL_TIMES.dropoffsStart,
+    end: DASHBOARD_OPERATIONAL_TIMES.checklistStarts,
+    Icon: Car,
+  },
+  {
+    key: "checklist",
+    label: "End-of-Shift Checklist",
+    start: DASHBOARD_OPERATIONAL_TIMES.checklistStarts,
+    end: DASHBOARD_OPERATIONAL_TIMES.programEnds,
+    Icon: CheckSquare,
+  },
+  {
+    key: "complete",
+    label: "Day Program Complete",
+    start: DASHBOARD_OPERATIONAL_TIMES.programEnds,
+    end: null,
+    Icon: CheckSquare,
+  },
 ];
 
 function getState(segment: Segment, currentMinutes: number): ProgressState {
