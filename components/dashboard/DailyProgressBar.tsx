@@ -3,6 +3,7 @@ import { View } from "react-native";
 import {
   Car,
   CheckSquare,
+  CheckCircle,
   Sparkles,
   Star,
   Utensils,
@@ -88,7 +89,7 @@ const SEGMENTS: Segment[] = [
     label: "Day Program Complete",
     start: DASHBOARD_OPERATIONAL_TIMES.programEnds,
     end: null,
-    Icon: CheckSquare,
+    Icon: CheckCircle,
   },
 ];
 
