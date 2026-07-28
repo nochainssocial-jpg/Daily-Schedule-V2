@@ -1,11 +1,12 @@
 // FINAL AUTO-GROUP INBOX SERIES MANAGER - series save fix: update/insert/archive
 // app/edit/events-meetings-visits.tsx
 import { DEFAULT_LOCATION_ID } from '@/constants/location';
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +24,14 @@ import { supabase } from "@/lib/supabase";
 
 const MAX_WIDTH = 960;
 const HOUSE = DEFAULT_LOCATION_ID;
+const POSTER_BUCKET = "event-posters";
+const POSTER_MAX_BYTES = 15 * 1024 * 1024;
+const POSTER_ACCEPTED_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
 
 type MainCategory = "Event" | "Meeting" | "Visit";
 type EventStatus =
@@ -57,6 +66,10 @@ type EventsMeetingsVisitsRecord = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  poster_url?: string | null;
+  poster_storage_path?: string | null;
+  poster_file_type?: string | null;
+  poster_file_name?: string | null;
   is_recurring?: boolean;
   recurrence_group_id?: string | null;
   recurrence_frequency?: RecurrenceFrequency | null;
@@ -92,6 +105,10 @@ type FormState = {
   autoArchive: boolean;
   status: EventStatus;
   notes: string;
+  posterUrl: string;
+  posterStoragePath: string;
+  posterFileType: string;
+  posterFileName: string;
   recurring: boolean;
   recurrenceFrequency: RecurrenceFrequency;
   recurrenceDays: WeekdayKey[];
@@ -118,6 +135,10 @@ const blankForm: FormState = {
   autoArchive: true,
   status: "Scheduled",
   notes: "",
+  posterUrl: "",
+  posterStoragePath: "",
+  posterFileType: "",
+  posterFileName: "",
   recurring: false,
   recurrenceFrequency: "weekly",
   recurrenceDays: [],
@@ -437,6 +458,30 @@ function generateUuid() {
   });
 }
 
+function posterFileType(file: any) {
+  const declaredType = String(file?.type || "").toLowerCase();
+  if (POSTER_ACCEPTED_TYPES.has(declaredType)) return declaredType;
+
+  const fileName = String(file?.name || "").toLowerCase();
+  if (/\.jpe?g$/.test(fileName)) return "image/jpeg";
+  if (/\.png$/.test(fileName)) return "image/png";
+  if (/\.webp$/.test(fileName)) return "image/webp";
+  if (/\.pdf$/.test(fileName)) return "application/pdf";
+  return "";
+}
+
+function posterExtension(fileType: string, fileName: string) {
+  const suppliedExtension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  if (suppliedExtension && ["jpg", "jpeg", "png", "webp", "pdf"].includes(suppliedExtension)) {
+    return suppliedExtension === "jpeg" ? "jpg" : suppliedExtension;
+  }
+
+  if (fileType === "image/png") return "png";
+  if (fileType === "image/webp") return "webp";
+  if (fileType === "application/pdf") return "pdf";
+  return "jpg";
+}
+
 function compareEventsByDateTime(
   first: EventsMeetingsVisitsRecord,
   second: EventsMeetingsVisitsRecord,
@@ -663,6 +708,9 @@ export default function EventsMeetingsVisitsScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [guideEnabled, setGuideEnabled] = useState(true);
+  const [pendingPosterFile, setPendingPosterFile] = useState<any>(null);
+  const [pendingPosterPreviewUrl, setPendingPosterPreviewUrl] = useState<string | null>(null);
+  const posterInputRef = useRef<any>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("Inbox");
@@ -716,6 +764,11 @@ export default function EventsMeetingsVisitsScreen() {
   }, [listItems, searchQuery, statusFilter, categoryFilter]);
 
   const selectedCount = selectedIds.size;
+  const posterPreviewUrl = pendingPosterPreviewUrl || form.posterUrl || null;
+  const posterPreviewType = pendingPosterFile
+    ? posterFileType(pendingPosterFile)
+    : form.posterFileType;
+  const posterDisplayName = pendingPosterFile?.name || form.posterFileName || "Event poster";
 
   const visibleIds = useMemo(
     () => filteredItems.map((listItem) => listItem.key),
@@ -728,6 +781,63 @@ export default function EventsMeetingsVisitsScreen() {
       visibleIds.every((id) => selectedIds.has(id)),
     [selectedIds, visibleIds],
   );
+
+  useEffect(() => {
+    return () => {
+      if (pendingPosterPreviewUrl?.startsWith("blob:") && typeof URL !== "undefined") {
+        URL.revokeObjectURL(pendingPosterPreviewUrl);
+      }
+    };
+  }, [pendingPosterPreviewUrl]);
+
+  function clearPendingPosterSelection() {
+    if (pendingPosterPreviewUrl?.startsWith("blob:") && typeof URL !== "undefined") {
+      URL.revokeObjectURL(pendingPosterPreviewUrl);
+    }
+    setPendingPosterFile(null);
+    setPendingPosterPreviewUrl(null);
+    if (posterInputRef.current) posterInputRef.current.value = "";
+  }
+
+  function handleChoosePoster() {
+    if (Platform.OS !== "web") {
+      Alert.alert("Poster upload", "Poster uploads are available from the web Edit Hub.");
+      return;
+    }
+    posterInputRef.current?.click?.();
+  }
+
+  function handlePosterFileSelected(event: any) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+
+    const fileType = posterFileType(file);
+    if (!fileType) {
+      Alert.alert("Unsupported poster", "Use a PNG, JPG, WebP or PDF file.");
+      event.target.value = "";
+      return;
+    }
+
+    if (Number(file.size || 0) > POSTER_MAX_BYTES) {
+      Alert.alert("Poster is too large", "Please keep the poster file below 15 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    clearPendingPosterSelection();
+    setPendingPosterFile(file);
+    if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+      setPendingPosterPreviewUrl(URL.createObjectURL(file));
+    }
+  }
+
+  function handleRemovePoster() {
+    clearPendingPosterSelection();
+    updateForm("posterUrl", "");
+    updateForm("posterStoragePath", "");
+    updateForm("posterFileType", "");
+    updateForm("posterFileName", "");
+  }
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -768,6 +878,7 @@ export default function EventsMeetingsVisitsScreen() {
   }
 
   function handleEdit(listItem: EventsMeetingsVisitsListItem) {
+    clearPendingPosterSelection();
     const sortedGroupItems = [...listItem.items].sort(compareEventsByDateTime);
     const sourceItem = sortedGroupItems[0] || listItem.representative;
     const finalItem = sortedGroupItems[sortedGroupItems.length - 1] || sourceItem;
@@ -806,6 +917,10 @@ export default function EventsMeetingsVisitsScreen() {
       autoArchive: sourceItem.auto_archive,
       status: sourceItem.status || "Scheduled",
       notes: sourceItem.notes || "",
+      posterUrl: sourceItem.poster_url || "",
+      posterStoragePath: sourceItem.poster_storage_path || "",
+      posterFileType: sourceItem.poster_file_type || "",
+      posterFileName: sourceItem.poster_file_name || "",
       recurring: isSeries,
       recurrenceFrequency:
         sourceItem.recurrence_frequency === "fortnightly" ||
@@ -822,6 +937,7 @@ export default function EventsMeetingsVisitsScreen() {
   }
 
   function handleCancelEdit() {
+    clearPendingPosterSelection();
     setEditingId(null);
     setEditingGroupId(null);
     setEditingSeriesIds([]);
@@ -997,6 +1113,45 @@ export default function EventsMeetingsVisitsScreen() {
 
     setSaving(true);
 
+    let uploadedPosterPath: string | null = null;
+    const previousPosterStoragePath = form.posterStoragePath || null;
+    let resolvedPosterUrl = form.posterUrl || null;
+    let resolvedPosterStoragePath = form.posterStoragePath || null;
+    let resolvedPosterFileType = form.posterFileType || null;
+    let resolvedPosterFileName = form.posterFileName || null;
+
+    if (pendingPosterFile) {
+      const fileType = posterFileType(pendingPosterFile);
+      const extension = posterExtension(fileType, String(pendingPosterFile.name || "poster"));
+      const storagePath = `${HOUSE}/${Date.now()}-${generateUuid()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from(POSTER_BUCKET)
+        .upload(storagePath, pendingPosterFile, {
+          contentType: fileType,
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setSaving(false);
+        console.error("Error uploading event poster:", uploadError);
+        Alert.alert(
+          "Poster upload failed",
+          uploadError.message || "The poster could not be uploaded. Confirm the event-posters migration has been run.",
+        );
+        return;
+      }
+
+      uploadedPosterPath = storagePath;
+      const { data: publicUrlData } = supabase.storage
+        .from(POSTER_BUCKET)
+        .getPublicUrl(storagePath);
+      resolvedPosterUrl = publicUrlData.publicUrl;
+      resolvedPosterStoragePath = storagePath;
+      resolvedPosterFileType = fileType;
+      resolvedPosterFileName = String(pendingPosterFile.name || "Event poster");
+    }
+
     const { data: userData } = await supabase.auth.getUser();
 
     const basePayload = {
@@ -1016,6 +1171,10 @@ export default function EventsMeetingsVisitsScreen() {
       auto_archive: form.autoArchive,
       status: form.status,
       notes: form.notes.trim() || null,
+      poster_url: resolvedPosterUrl,
+      poster_storage_path: resolvedPosterStoragePath,
+      poster_file_type: resolvedPosterFileType,
+      poster_file_name: resolvedPosterFileName,
     };
 
     let usedRecurrenceColumnFallback = false;
@@ -1171,6 +1330,9 @@ export default function EventsMeetingsVisitsScreen() {
     setSaving(false);
 
     if (saveError) {
+      if (uploadedPosterPath) {
+        await supabase.storage.from(POSTER_BUCKET).remove([uploadedPosterPath]);
+      }
       console.error("Error saving event, meeting or visit:", saveError);
       const message =
         saveError?.message ||
@@ -1179,6 +1341,25 @@ export default function EventsMeetingsVisitsScreen() {
         "The item could not be saved.";
       Alert.alert("Save failed", String(message));
       return;
+    }
+
+    if (
+      previousPosterStoragePath &&
+      previousPosterStoragePath !== resolvedPosterStoragePath
+    ) {
+      const { count: remainingPosterReferences, error: referenceCheckError } = await supabase
+        .from("events_meetings_visits")
+        .select("id", { count: "exact", head: true })
+        .eq("poster_storage_path", previousPosterStoragePath);
+
+      if (!referenceCheckError && (remainingPosterReferences || 0) === 0) {
+        const { error: removePosterError } = await supabase.storage
+          .from(POSTER_BUCKET)
+          .remove([previousPosterStoragePath]);
+        if (removePosterError) {
+          console.warn("Saved item but could not remove the replaced poster file", removePosterError);
+        }
+      }
     }
 
     setSearchQuery("");
@@ -1899,6 +2080,68 @@ export default function EventsMeetingsVisitsScreen() {
                   maxLength={10}
                   style={styles.input}
                 />
+              </View>
+            </View>
+
+            <View style={styles.posterPanel}>
+              <View style={styles.posterPanelHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.posterPanelTitle}>Dashboard poster, optional</Text>
+                  <Text style={styles.posterPanelHint}>
+                    Recommended: 1920 × 1080 landscape PNG, JPG or WebP. PDF is also supported. Maximum 15 MB.
+                  </Text>
+                </View>
+                <Ionicons name="image-outline" size={24} color="#92400E" />
+              </View>
+
+              {Platform.OS === "web"
+                ? React.createElement("input", {
+                    ref: posterInputRef,
+                    type: "file",
+                    accept: "image/png,image/jpeg,image/webp,application/pdf",
+                    onChange: handlePosterFileSelected,
+                    style: { display: "none" },
+                  })
+                : null}
+
+              {posterPreviewUrl ? (
+                <View style={styles.posterPreviewCard}>
+                  {posterPreviewType === "application/pdf" ? (
+                    <View style={styles.posterPdfPreview}>
+                      <Ionicons name="document-text-outline" size={34} color="#B91C1C" />
+                      <Text style={styles.posterPreviewName} numberOfLines={2}>
+                        {posterDisplayName}
+                      </Text>
+                      <Text style={styles.posterPreviewMeta}>PDF poster ready for dashboard</Text>
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: posterPreviewUrl }}
+                      style={styles.posterImagePreview}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              ) : (
+                <View style={styles.posterEmptyPreview}>
+                  <Ionicons name="images-outline" size={28} color="#9CA3AF" />
+                  <Text style={styles.posterEmptyText}>No poster attached. The dashboard will display no poster page.</Text>
+                </View>
+              )}
+
+              <View style={styles.posterButtonRow}>
+                <Pressable style={styles.posterChooseButton} onPress={handleChoosePoster}>
+                  <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.posterChooseButtonText}>
+                    {posterPreviewUrl ? "Replace Poster" : "Choose Poster"}
+                  </Text>
+                </Pressable>
+                {posterPreviewUrl ? (
+                  <Pressable style={styles.posterRemoveButton} onPress={handleRemovePoster}>
+                    <Ionicons name="trash-outline" size={17} color="#B91C1C" />
+                    <Text style={styles.posterRemoveButtonText}>Remove</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
 
@@ -2827,6 +3070,122 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "800",
+  },
+  posterPanel: {
+    marginTop: 16,
+    marginBottom: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    backgroundColor: "#FFFBEB",
+    padding: 12,
+  },
+  posterPanelHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 10,
+  },
+  posterPanelTitle: {
+    fontSize: 14,
+    color: "#7C2D12",
+    fontWeight: "900",
+  },
+  posterPanelHint: {
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#92400E",
+    fontWeight: "600",
+  },
+  posterPreviewCard: {
+    height: 220,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  posterImagePreview: {
+    width: "100%",
+    height: "100%",
+  },
+  posterPdfPreview: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  posterPreviewName: {
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 13,
+    color: "#111827",
+    fontWeight: "800",
+  },
+  posterPreviewMeta: {
+    marginTop: 4,
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  posterEmptyPreview: {
+    minHeight: 100,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#D1D5DB",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  posterEmptyText: {
+    marginTop: 7,
+    textAlign: "center",
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  posterButtonRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  posterChooseButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 12,
+    backgroundColor: "#92400E",
+    paddingHorizontal: 14,
+  },
+  posterChooseButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  posterRemoveButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: 13,
+  },
+  posterRemoveButtonText: {
+    color: "#B91C1C",
+    fontSize: 12,
+    fontWeight: "900",
   },
   listHeaderRow: {
     flexDirection: "row",
