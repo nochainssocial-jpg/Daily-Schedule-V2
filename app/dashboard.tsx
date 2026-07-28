@@ -16,6 +16,7 @@ import { DailyProgressBar } from "@/components/dashboard/DailyProgressBar";
 import { DropoffsPanel } from "@/components/dashboard/DropoffsPanel";
 import { PropertySupportPanel } from "@/components/dashboard/PropertySupportPanel";
 import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetingsVisitsPanel";
+import { EventPosterPanel } from "@/components/dashboard/EventPosterPanel";
 import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
 import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
 import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
@@ -771,6 +772,15 @@ return visibleEventsMeetingsVisits
 }, [dashboardNow, visibleEventsMeetingsVisits]);
 
 const hasEventsMeetingsVisits = visibleEventsMeetingsVisits.length > 0;
+const visibleEventPosters = useMemo(
+() => visibleEventsMeetingsVisits.filter((item) => Boolean(String(item.poster_url || "").trim())),
+[visibleEventsMeetingsVisits],
+);
+const featuredEventPosterIndex = visibleEventPosters.length > 0
+? Math.floor(dashboardNow.getTime() / ROTATE_MS) % visibleEventPosters.length
+: 0;
+const featuredEventPoster = visibleEventPosters[featuredEventPosterIndex] || null;
+const hasEventPoster = Boolean(featuredEventPoster);
 
 const staffCelebrationItems = useMemo(() => {
 return buildStaffCelebrationItems(staff, tick);
@@ -791,6 +801,7 @@ if (operationalPhase === "arrivalSetup") {
 add("morningSetup", morningSetupIsOperational);
 add("team", dailyAssignmentsAreOperational);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
 add("outings", visibleOutings.length > 0);
 add("staffCelebrations", hasStaffCelebrations);
 add("floating", showFloatingPanel);
@@ -799,6 +810,7 @@ add("floating", showFloatingPanel);
 add("outings", visibleOutings.length > 0);
 add("propertySupport", showPropertySupportPanel);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "cleaningActive") {
@@ -807,6 +819,7 @@ add("cleaning", showCleaningPanel);
 add("propertySupport", showPropertySupportPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else if (operationalPhase === "departureWindow") {
@@ -816,6 +829,7 @@ add("floating", showFloatingPanel);
 add("cleaning", showCleaningPanel);
 add("outings", visibleOutings.length > 0);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 } else {
@@ -824,6 +838,7 @@ add("dropoffs", showDropoffsPanel);
 add("propertySupport", showPropertySupportPanel);
 add("cleaning", showCleaningPanel);
 add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
 }
@@ -831,6 +846,7 @@ add("staffCelebrations", hasStaffCelebrations);
 return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
 }, [
 hasEventsMeetingsVisits,
+hasEventPoster,
 dailyAssignmentsAreOperational,
 morningSetupIsOperational,
 showFloatingPanel,
@@ -963,6 +979,16 @@ return (
   visibleEventsMeetingsVisits={visibleEventsMeetingsVisits}
   todayEventsMeetingsVisits={todayEventsMeetingsVisits}
   upcomingEventsMeetingsVisits={upcomingEventsMeetingsVisits}
+/>
+);
+}
+
+if (currentPage === "eventPoster" && featuredEventPoster) {
+return (
+<EventPosterPanel
+  item={featuredEventPoster}
+  position={featuredEventPosterIndex + 1}
+  total={visibleEventPosters.length}
 />
 );
 }
