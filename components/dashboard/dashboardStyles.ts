@@ -843,7 +843,7 @@ color: "#991B1B",
 eventPosterDetailsCard: {
 flex: 1,
 minWidth: 0,
-aspectRatio: 25 / 18,
+aspectRatio: 1.52,
 alignSelf: "flex-start",
 borderRadius: 18,
 borderWidth: 1,
