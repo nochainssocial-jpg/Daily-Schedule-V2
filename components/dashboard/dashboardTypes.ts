@@ -5,6 +5,7 @@ export type DashboardPage =
   | "floating"
   | "outings"
   | "eventsMeetingsVisits"
+  | "eventPoster"
   | "staffCelebrations"
   | "cleaning"
   | "checklist"
@@ -53,4 +54,8 @@ export type EventMeetingVisitRecord = {
   auto_archive: boolean;
   status: "Scheduled" | "Active" | "Completed" | "Cancelled" | "Archived";
   notes: string | null;
+  poster_url?: string | null;
+  poster_storage_path?: string | null;
+  poster_file_type?: string | null;
+  poster_file_name?: string | null;
 };
