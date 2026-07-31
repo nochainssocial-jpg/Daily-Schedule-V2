@@ -22,6 +22,7 @@ type Props = {
   floatingAlarmEnabled?: boolean;
   floatingAlarmSupported?: boolean;
   onToggleFloatingAlarm?: () => void;
+  onTestFloatingAlarm?: () => void;
   currentMinutes?: number | null;
   isPreviewMode?: boolean;
   previewTimeLabel?: string | null;
@@ -48,6 +49,7 @@ export function DashboardFrame({
   floatingAlarmEnabled = false,
   floatingAlarmSupported = false,
   onToggleFloatingAlarm,
+  onTestFloatingAlarm,
   currentMinutes = null,
   isPreviewMode = false,
   previewTimeLabel = null,
@@ -186,6 +188,21 @@ export function DashboardFrame({
               <Pressable onPress={onNextPage} style={styles.manualNavButton}>
                 <Text style={styles.manualNavButtonText}>→</Text>
               </Pressable>
+              {isPreviewMode && floatingAlarmSupported && onTestFloatingAlarm ? (
+                <Pressable
+                  onPress={onTestFloatingAlarm}
+                  accessibilityRole="button"
+                  accessibilityLabel="Test floating rotation alarm"
+                  style={styles.alarmTestBar}
+                >
+                  <MaterialCommunityIcons
+                    name="volume-high"
+                    size={15}
+                    color="#7C2D12"
+                  />
+                  <Text style={styles.alarmTestBarText}>Test Alarm</Text>
+                </Pressable>
+              ) : null}
               {floatingAlarmSupported && onToggleFloatingAlarm ? (
                 <Pressable
                   onPress={onToggleFloatingAlarm}

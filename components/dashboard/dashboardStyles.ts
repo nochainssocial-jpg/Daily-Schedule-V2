@@ -171,6 +171,24 @@ lineHeight: 16,
 fontWeight: "900",
 textAlign: "right",
 },
+alarmTestBar: {
+flexDirection: "row",
+alignItems: "center",
+gap: 5,
+paddingHorizontal: 9,
+paddingVertical: 4,
+borderRadius: 999,
+borderWidth: 1,
+borderColor: "#FDBA74",
+backgroundColor: "#FFF7ED",
+},
+alarmTestBarText: {
+color: "#7C2D12",
+fontSize: 9,
+fontWeight: "900",
+textTransform: "uppercase",
+letterSpacing: 0.45,
+},
 alarmToggleBar: {
 flexDirection: "row",
 alignItems: "center",
@@ -1971,3 +1989,4 @@ color: "#475569",
 },
 
 });
+

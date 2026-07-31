@@ -62,9 +62,10 @@ import {
 } from "@/components/dashboard/staffCelebrationData";
 import {
   floatingRotationAlarmKey,
+  getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
-  isFloatingRotationAlarmMinute,
   playFloatingRotationChime,
+  unlockDashboardAudio,
 } from "@/components/dashboard/dashboardAudio";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
@@ -652,10 +653,17 @@ const hasFloatingAssignments = useMemo(
 );
 const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
-const floatingAlarmKey = useMemo(() => {
-if (!isFloatingRotationAlarmMinute(currentMinutes)) return null;
-return floatingRotationAlarmKey(date, currentMinutes);
-}, [date, currentMinutes]);
+const floatingAlarmMinute = useMemo(
+() => getFloatingRotationAlarmMinute(currentMinutes),
+[currentMinutes],
+);
+const floatingAlarmKey = useMemo(
+() =>
+floatingAlarmMinute === null
+? null
+: floatingRotationAlarmKey(date, floatingAlarmMinute),
+[date, floatingAlarmMinute],
+);
 
 useEffect(() => {
 if (!floatingAlarmEnabled || !floatingAlarmKey) return;
@@ -685,6 +693,25 @@ void playFloatingRotationChime().then((played) => {
   }
 });
 }, [floatingAlarmEnabled, floatingAlarmKey]);
+
+const handleTestFloatingAlarm = () => {
+void playFloatingRotationChime();
+};
+
+useEffect(() => {
+if (typeof window === "undefined" || !floatingAlarmEnabled) return;
+
+const unlockOnInteraction = () => {
+void unlockDashboardAudio();
+};
+
+window.addEventListener("pointerdown", unlockOnInteraction, { once: true });
+window.addEventListener("keydown", unlockOnInteraction, { once: true });
+return () => {
+window.removeEventListener("pointerdown", unlockOnInteraction);
+window.removeEventListener("keydown", unlockOnInteraction);
+};
+}, [floatingAlarmEnabled]);
 
 const handleToggleFloatingAlarm = () => {
 const nextEnabled = !floatingAlarmEnabled;
@@ -1114,6 +1141,7 @@ return (
   floatingAlarmEnabled={floatingAlarmEnabled}
   floatingAlarmSupported={isDashboardAlarmSupported()}
   onToggleFloatingAlarm={handleToggleFloatingAlarm}
+  onTestFloatingAlarm={handleTestFloatingAlarm}
   currentMinutes={currentMinutes}
   isPreviewMode={isPreviewMode}
   previewTimeLabel={previewTimeLabel}

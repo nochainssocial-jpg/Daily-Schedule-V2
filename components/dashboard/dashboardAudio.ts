@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 const FIRST_FLOATING_ROTATION_MINUTES = 10 * 60 + 30;
 const LAST_FLOATING_ROTATION_MINUTES = 14 * 60;
 const FLOATING_ROTATION_INTERVAL_MINUTES = 30;
+const FLOATING_ALARM_GRACE_MINUTES = 2;
 
 type WebAudioWindow = typeof window & {
   webkitAudioContext?: typeof AudioContext;
@@ -36,6 +37,25 @@ export function isFloatingRotationAlarmMinute(minutes: number): boolean {
   );
 }
 
+export function getFloatingRotationAlarmMinute(
+  minutes: number,
+  graceMinutes = FLOATING_ALARM_GRACE_MINUTES,
+): number | null {
+  if (minutes < FIRST_FLOATING_ROTATION_MINUTES) return null;
+
+  const cappedMinutes = Math.min(minutes, LAST_FLOATING_ROTATION_MINUTES);
+  const elapsed = cappedMinutes - FIRST_FLOATING_ROTATION_MINUTES;
+  const rotationMinute =
+    FIRST_FLOATING_ROTATION_MINUTES +
+    Math.floor(elapsed / FLOATING_ROTATION_INTERVAL_MINUTES) *
+      FLOATING_ROTATION_INTERVAL_MINUTES;
+
+  if (!isFloatingRotationAlarmMinute(rotationMinute)) return null;
+  if (minutes - rotationMinute < 0 || minutes - rotationMinute > graceMinutes) return null;
+
+  return rotationMinute;
+}
+
 export function floatingRotationAlarmKey(
   date: string | null | undefined,
   minutes: number,
@@ -43,7 +63,7 @@ export function floatingRotationAlarmKey(
   return `${date || "today"}:floating-alarm:${minutes}`;
 }
 
-export async function playFloatingRotationChime(): Promise<boolean> {
+export async function unlockDashboardAudio(): Promise<boolean> {
   const AudioContextConstructor = getAudioContextConstructor();
   if (!AudioContextConstructor) return false;
 
@@ -53,6 +73,21 @@ export async function playFloatingRotationChime(): Promise<boolean> {
     if (context.state === "suspended") {
       await context.resume();
     }
+    return context.state === "running";
+  } catch (error) {
+    console.warn("[dashboard alarm] unable to unlock browser audio", error);
+    return false;
+  }
+}
+
+export async function playFloatingRotationChime(): Promise<boolean> {
+  const AudioContextConstructor = getAudioContextConstructor();
+  if (!AudioContextConstructor) return false;
+
+  try {
+    const unlocked = await unlockDashboardAudio();
+    if (!unlocked || !sharedAudioContext) return false;
+    const context = sharedAudioContext;
 
     const masterGain = context.createGain();
     masterGain.gain.setValueAtTime(0.0001, context.currentTime);
