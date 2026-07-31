@@ -21,6 +21,8 @@ type Props = {
   pageTheme: { background: string; accent: string };
   floatingAlarmEnabled?: boolean;
   floatingAlarmSupported?: boolean;
+  floatingAlarmAudioStatus?: "locked" | "ready" | "played" | "blocked" | "unsupported";
+  onEnableDashboardSounds?: () => void;
   onToggleFloatingAlarm?: () => void;
   onTestFloatingAlarm?: () => void;
   currentMinutes?: number | null;
@@ -48,6 +50,8 @@ export function DashboardFrame({
   pageTheme,
   floatingAlarmEnabled = false,
   floatingAlarmSupported = false,
+  floatingAlarmAudioStatus = "locked",
+  onEnableDashboardSounds,
   onToggleFloatingAlarm,
   onTestFloatingAlarm,
   currentMinutes = null,
@@ -188,7 +192,42 @@ export function DashboardFrame({
               <Pressable onPress={onNextPage} style={styles.manualNavButton}>
                 <Text style={styles.manualNavButtonText}>→</Text>
               </Pressable>
-              {isPreviewMode && floatingAlarmSupported && onTestFloatingAlarm ? (
+              {floatingAlarmEnabled && floatingAlarmSupported && onEnableDashboardSounds ? (
+                <Pressable
+                  onPress={onEnableDashboardSounds}
+                  accessibilityRole="button"
+                  accessibilityLabel="Enable dashboard sounds and play a test chime"
+                  style={[
+                    styles.alarmEnableBar,
+                    (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") &&
+                      styles.alarmEnableBarReady,
+                    floatingAlarmAudioStatus === "blocked" && styles.alarmEnableBarBlocked,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={
+                      floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played"
+                        ? "volume-high"
+                        : "volume-off"
+                    }
+                    size={15}
+                    color={floatingAlarmAudioStatus === "blocked" ? "#991B1B" : "#1F2937"}
+                  />
+                  <Text style={styles.alarmEnableBarText}>
+                    {floatingAlarmAudioStatus === "played"
+                      ? "Alarm Played"
+                      : floatingAlarmAudioStatus === "ready"
+                        ? "Sounds Enabled"
+                        : floatingAlarmAudioStatus === "blocked"
+                          ? "Enable Sounds Again"
+                          : "Enable Dashboard Sounds"}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {isPreviewMode &&
+              floatingAlarmSupported &&
+              onTestFloatingAlarm &&
+              (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") ? (
                 <Pressable
                   onPress={onTestFloatingAlarm}
                   accessibilityRole="button"

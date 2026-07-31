@@ -65,7 +65,6 @@ import {
   getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
   playFloatingRotationChime,
-  unlockDashboardAudio,
 } from "@/components/dashboard/dashboardAudio";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
@@ -111,6 +110,9 @@ const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVis
 const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([]);
 const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
 const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(true);
+const [floatingAlarmAudioStatus, setFloatingAlarmAudioStatus] = useState<
+  "locked" | "ready" | "played" | "blocked" | "unsupported"
+>("locked");
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
 const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -682,7 +684,11 @@ if (typeof window !== "undefined") {
 }
 
 void playFloatingRotationChime().then((played) => {
-  if (!played) return;
+  if (!played) {
+    setFloatingAlarmAudioStatus("blocked");
+    return;
+  }
+  setFloatingAlarmAudioStatus("ready");
   playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
   if (typeof window !== "undefined") {
     try {
@@ -694,24 +700,28 @@ void playFloatingRotationChime().then((played) => {
 });
 }, [floatingAlarmEnabled, floatingAlarmKey]);
 
-const handleTestFloatingAlarm = () => {
-void playFloatingRotationChime();
+const handleEnableDashboardSounds = async () => {
+if (!isDashboardAlarmSupported()) {
+  setFloatingAlarmAudioStatus("unsupported");
+  return;
+}
+
+const played = await playFloatingRotationChime();
+setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+if (played && typeof window !== "undefined") {
+  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+}
 };
 
-useEffect(() => {
-if (typeof window === "undefined" || !floatingAlarmEnabled) return;
+const handleTestFloatingAlarm = async () => {
+const played = await playFloatingRotationChime();
+setFloatingAlarmAudioStatus(played ? "played" : "blocked");
 
-const unlockOnInteraction = () => {
-void unlockDashboardAudio();
+if (played && typeof window !== "undefined") {
+  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+}
 };
-
-window.addEventListener("pointerdown", unlockOnInteraction, { once: true });
-window.addEventListener("keydown", unlockOnInteraction, { once: true });
-return () => {
-window.removeEventListener("pointerdown", unlockOnInteraction);
-window.removeEventListener("keydown", unlockOnInteraction);
-};
-}, [floatingAlarmEnabled]);
 
 const handleToggleFloatingAlarm = () => {
 const nextEnabled = !floatingAlarmEnabled;
@@ -728,9 +738,8 @@ if (typeof window !== "undefined") {
   }
 }
 
-// The test chime also unlocks browser audio after a staff interaction.
-if (nextEnabled) {
-  void playFloatingRotationChime();
+if (!nextEnabled) {
+  setFloatingAlarmAudioStatus("locked");
 }
 };
 
@@ -1140,6 +1149,8 @@ return (
   pageTheme={pageTheme}
   floatingAlarmEnabled={floatingAlarmEnabled}
   floatingAlarmSupported={isDashboardAlarmSupported()}
+  floatingAlarmAudioStatus={floatingAlarmAudioStatus}
+  onEnableDashboardSounds={handleEnableDashboardSounds}
   onToggleFloatingAlarm={handleToggleFloatingAlarm}
   onTestFloatingAlarm={handleTestFloatingAlarm}
   currentMinutes={currentMinutes}
