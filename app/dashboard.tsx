@@ -64,7 +64,8 @@ import {
   floatingRotationAlarmKey,
   getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
-  playFloatingRotationChime,
+  playFloatingAlarmTest,
+  playFloatingRotationAnnouncement,
 } from "@/components/dashboard/dashboardAudio";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
@@ -683,7 +684,7 @@ if (typeof window !== "undefined") {
   }
 }
 
-void playFloatingRotationChime().then((played) => {
+void playFloatingRotationAnnouncement().then((played) => {
   if (!played) {
     setFloatingAlarmAudioStatus("blocked");
     return;
@@ -706,7 +707,7 @@ if (!isDashboardAlarmSupported()) {
   return;
 }
 
-const played = await playFloatingRotationChime();
+const played = await playFloatingAlarmTest();
 setFloatingAlarmAudioStatus(played ? "played" : "blocked");
 
 if (played && typeof window !== "undefined") {
@@ -715,7 +716,7 @@ if (played && typeof window !== "undefined") {
 };
 
 const handleTestFloatingAlarm = async () => {
-const played = await playFloatingRotationChime();
+const played = await playFloatingAlarmTest();
 setFloatingAlarmAudioStatus(played ? "played" : "blocked");
 
 if (played && typeof window !== "undefined") {
