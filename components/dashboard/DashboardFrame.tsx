@@ -25,6 +25,7 @@ type Props = {
   onEnableDashboardSounds?: () => void;
   onToggleFloatingAlarm?: () => void;
   onTestFloatingAlarm?: () => void;
+  onTestRotationAlarm?: () => void;
   currentMinutes?: number | null;
   isPreviewMode?: boolean;
   previewTimeLabel?: string | null;
@@ -54,6 +55,7 @@ export function DashboardFrame({
   onEnableDashboardSounds,
   onToggleFloatingAlarm,
   onTestFloatingAlarm,
+  onTestRotationAlarm,
   currentMinutes = null,
   isPreviewMode = false,
   previewTimeLabel = null,
@@ -240,6 +242,24 @@ export function DashboardFrame({
                     color="#7C2D12"
                   />
                   <Text style={styles.alarmTestBarText}>Test Alarm</Text>
+                </Pressable>
+              ) : null}
+              {isPreviewMode &&
+              floatingAlarmSupported &&
+              onTestRotationAlarm &&
+              (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") ? (
+                <Pressable
+                  onPress={onTestRotationAlarm}
+                  accessibilityRole="button"
+                  accessibilityLabel="Test live floating rotation announcement"
+                  style={styles.alarmTestBar}
+                >
+                  <MaterialCommunityIcons
+                    name="bullhorn"
+                    size={15}
+                    color="#7C2D12"
+                  />
+                  <Text style={styles.alarmTestBarText}>Test Rotation Alarm</Text>
                 </Pressable>
               ) : null}
               {floatingAlarmSupported && onToggleFloatingAlarm ? (

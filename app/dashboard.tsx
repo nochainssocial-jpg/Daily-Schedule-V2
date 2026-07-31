@@ -724,6 +724,15 @@ if (played && typeof window !== "undefined") {
 }
 };
 
+const handleTestRotationAlarm = async () => {
+const played = await playFloatingRotationAnnouncement();
+setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+if (played && typeof window !== "undefined") {
+  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+}
+};
+
 const handleToggleFloatingAlarm = () => {
 const nextEnabled = !floatingAlarmEnabled;
 setFloatingAlarmEnabled(nextEnabled);
@@ -1154,6 +1163,7 @@ return (
   onEnableDashboardSounds={handleEnableDashboardSounds}
   onToggleFloatingAlarm={handleToggleFloatingAlarm}
   onTestFloatingAlarm={handleTestFloatingAlarm}
+  onTestRotationAlarm={handleTestRotationAlarm}
   currentMinutes={currentMinutes}
   isPreviewMode={isPreviewMode}
   previewTimeLabel={previewTimeLabel}
