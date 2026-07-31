@@ -72,6 +72,7 @@ import {
 const MANUAL_ROTATION_RESUME_MS = 90_000;
 const REMINDER_BURST_MINUTE = 15;
 const REMINDER_BURST_DURATION_MINUTES = 1;
+const FLOATING_ALARM_PREFERENCE_KEY = "dashboard:floating-alarm-enabled";
 
 
 const FLOATING_ROOM_KEYS = ["frontRoom", "scotty", "twins"] as const;
@@ -108,7 +109,7 @@ const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(nu
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
 const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([]);
 const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
-const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(false);
+const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(true);
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
 const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,6 +136,21 @@ attendingParticipants = [],
 outingGroups = [],
 outingGroup = null,
 } = useSchedule() as any;
+
+useEffect(() => {
+if (typeof window === "undefined") return;
+
+try {
+  const savedPreference = window.localStorage.getItem(FLOATING_ALARM_PREFERENCE_KEY);
+  if (savedPreference === "false") {
+    setFloatingAlarmEnabled(false);
+  } else if (savedPreference === "true") {
+    setFloatingAlarmEnabled(true);
+  }
+} catch {
+  // Keep the operational default enabled when storage is unavailable.
+}
+}, []);
 
 const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
 const previewMinutes = useMemo(
@@ -673,6 +689,17 @@ void playFloatingRotationChime().then((played) => {
 const handleToggleFloatingAlarm = () => {
 const nextEnabled = !floatingAlarmEnabled;
 setFloatingAlarmEnabled(nextEnabled);
+
+if (typeof window !== "undefined") {
+  try {
+    window.localStorage.setItem(
+      FLOATING_ALARM_PREFERENCE_KEY,
+      String(nextEnabled),
+    );
+  } catch {
+    // The in-memory setting remains active when storage is unavailable.
+  }
+}
 
 // The test chime also unlocks browser audio after a staff interaction.
 if (nextEnabled) {
