@@ -61,10 +61,11 @@ import {
   splitStaffCelebrations,
 } from "@/components/dashboard/staffCelebrationData";
 import {
-  buildUpcomingFloatingRotationAnnouncement,
-  isDashboardSpeechSupported,
-  speakDashboardAnnouncement,
-} from "@/components/dashboard/dashboardVoice";
+  floatingRotationAlarmKey,
+  isDashboardAlarmSupported,
+  isFloatingRotationAlarmMinute,
+  playFloatingRotationChime,
+} from "@/components/dashboard/dashboardAudio";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
 
@@ -107,9 +108,9 @@ const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(nu
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
 const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([]);
 const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
-const [voiceAnnouncementsEnabled, setVoiceAnnouncementsEnabled] = useState(false);
+const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(false);
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
-const spokenFloatingRotationKeysRef = useRef<Set<string>>(new Set());
+const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
 const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 const propertySupportResetDateRef = useRef<string | null>(null);
 
@@ -635,46 +636,47 @@ const hasFloatingAssignments = useMemo(
 );
 const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
-const upcomingFloatingRotationAnnouncement = useMemo(
-() =>
-buildUpcomingFloatingRotationAnnouncement({
-  date,
-  displayTimeSlots,
-  floatingAssignments,
-  staffById,
-  tick,
-  currentMinutes,
-  noticeMinutes: 1,
-}),
-[date, displayTimeSlots, floatingAssignments, staffById, tick, currentMinutes],
-);
+const floatingAlarmKey = useMemo(() => {
+if (!isFloatingRotationAlarmMinute(currentMinutes)) return null;
+return floatingRotationAlarmKey(date, currentMinutes);
+}, [date, currentMinutes]);
 
 useEffect(() => {
-if (!voiceAnnouncementsEnabled) return;
-if (!upcomingFloatingRotationAnnouncement) return;
-if (!isDashboardSpeechSupported()) return;
+if (!floatingAlarmEnabled || !floatingAlarmKey) return;
+if (!isDashboardAlarmSupported()) return;
+if (playedFloatingAlarmKeysRef.current.has(floatingAlarmKey)) return;
 
-const { key, message } = upcomingFloatingRotationAnnouncement;
-if (spokenFloatingRotationKeysRef.current.has(key)) return;
-
-const spoken = speakDashboardAnnouncement(message);
-if (spoken) {
-spokenFloatingRotationKeysRef.current.add(key);
+if (typeof window !== "undefined") {
+  try {
+    if (window.sessionStorage.getItem(floatingAlarmKey) === "played") {
+      playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
+      return;
+    }
+  } catch {
+    // Continue with in-memory duplicate protection when storage is unavailable.
+  }
 }
-}, [voiceAnnouncementsEnabled, upcomingFloatingRotationAnnouncement]);
 
-const handleToggleVoiceAnnouncements = () => {
-const nextEnabled = !voiceAnnouncementsEnabled;
-setVoiceAnnouncementsEnabled(nextEnabled);
+void playFloatingRotationChime().then((played) => {
+  if (!played) return;
+  playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(floatingAlarmKey, "played");
+    } catch {
+      // In-memory protection is sufficient for this session.
+    }
+  }
+});
+}, [floatingAlarmEnabled, floatingAlarmKey]);
 
+const handleToggleFloatingAlarm = () => {
+const nextEnabled = !floatingAlarmEnabled;
+setFloatingAlarmEnabled(nextEnabled);
+
+// The test chime also unlocks browser audio after a staff interaction.
 if (nextEnabled) {
-speakDashboardAnnouncement("Voice announcements enabled.");
-} else if (isDashboardSpeechSupported()) {
-try {
-window.speechSynthesis?.cancel();
-} catch {
-// Ignore browser speech cancellation failures.
-}
+  void playFloatingRotationChime();
 }
 };
 
@@ -1082,9 +1084,9 @@ return (
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
-  voiceAnnouncementsEnabled={voiceAnnouncementsEnabled}
-  voiceAnnouncementsSupported={isDashboardSpeechSupported()}
-  onToggleVoiceAnnouncements={handleToggleVoiceAnnouncements}
+  floatingAlarmEnabled={floatingAlarmEnabled}
+  floatingAlarmSupported={isDashboardAlarmSupported()}
+  onToggleFloatingAlarm={handleToggleFloatingAlarm}
   currentMinutes={currentMinutes}
   isPreviewMode={isPreviewMode}
   previewTimeLabel={previewTimeLabel}

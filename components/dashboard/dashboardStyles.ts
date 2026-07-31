@@ -171,27 +171,10 @@ lineHeight: 16,
 fontWeight: "900",
 textAlign: "right",
 },
-voiceToggle: {
-marginTop: 7,
-paddingHorizontal: 11,
-paddingVertical: 6,
-borderRadius: 999,
-borderWidth: 1,
-borderColor: "rgba(255,255,255,0.72)",
-backgroundColor: "rgba(255,255,255,0.14)",
-},
-voiceToggleEnabled: {
-backgroundColor: "rgba(255,255,255,0.28)",
-},
-voiceToggleText: {
-color: "#FFFFFF",
-fontSize: 11,
-fontWeight: "900",
-textTransform: "uppercase",
-letterSpacing: 0.5,
-},
-
-voiceToggleBar: {
+alarmToggleBar: {
+flexDirection: "row",
+alignItems: "center",
+gap: 5,
 paddingHorizontal: 9,
 paddingVertical: 4,
 borderRadius: 999,
@@ -199,11 +182,11 @@ borderWidth: 1,
 borderColor: "#D1D5DB",
 backgroundColor: "#F9FAFB",
 },
-voiceToggleBarEnabled: {
+alarmToggleBarEnabled: {
 backgroundColor: "#DCFCE7",
 borderColor: "#86EFAC",
 },
-voiceToggleBarText: {
+alarmToggleBarText: {
 color: "#374151",
 fontSize: 9,
 fontWeight: "900",

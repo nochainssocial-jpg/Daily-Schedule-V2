@@ -19,9 +19,9 @@ type Props = {
   pageIndex: number;
   pageCount: number;
   pageTheme: { background: string; accent: string };
-  voiceAnnouncementsEnabled?: boolean;
-  voiceAnnouncementsSupported?: boolean;
-  onToggleVoiceAnnouncements?: () => void;
+  floatingAlarmEnabled?: boolean;
+  floatingAlarmSupported?: boolean;
+  onToggleFloatingAlarm?: () => void;
   currentMinutes?: number | null;
   isPreviewMode?: boolean;
   previewTimeLabel?: string | null;
@@ -45,9 +45,9 @@ export function DashboardFrame({
   pageIndex,
   pageCount,
   pageTheme,
-  voiceAnnouncementsEnabled = false,
-  voiceAnnouncementsSupported = false,
-  onToggleVoiceAnnouncements,
+  floatingAlarmEnabled = false,
+  floatingAlarmSupported = false,
+  onToggleFloatingAlarm,
   currentMinutes = null,
   isPreviewMode = false,
   previewTimeLabel = null,
@@ -186,6 +186,30 @@ export function DashboardFrame({
               <Pressable onPress={onNextPage} style={styles.manualNavButton}>
                 <Text style={styles.manualNavButtonText}>→</Text>
               </Pressable>
+              {floatingAlarmSupported && onToggleFloatingAlarm ? (
+                <Pressable
+                  onPress={onToggleFloatingAlarm}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    floatingAlarmEnabled
+                      ? "Turn floating rotation alarm off"
+                      : "Turn floating rotation alarm on"
+                  }
+                  style={[
+                    styles.alarmToggleBar,
+                    floatingAlarmEnabled && styles.alarmToggleBarEnabled,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={floatingAlarmEnabled ? "bell-ring" : "bell-off-outline"}
+                    size={15}
+                    color={floatingAlarmEnabled ? "#166534" : "#374151"}
+                  />
+                  <Text style={styles.alarmToggleBarText}>
+                    {floatingAlarmEnabled ? "Alarm On" : "Alarm Off"}
+                  </Text>
+                </Pressable>
+              ) : null}
               {fullscreenSupported ? (
                 <Pressable
                   onPress={toggleFullscreen}
