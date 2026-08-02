@@ -269,35 +269,60 @@ function buildVisibleOutings(
     .slice(0, 3);
 }
 
-function AdminIdentityCard({ identity }: { identity: AdminIdentity }) {
+function formatSessionRemaining(remainingMs: number) {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function AdminIdentityCard({
+  identity,
+  remainingMs,
+}: {
+  identity: AdminIdentity;
+  remainingMs: number;
+}) {
   const photoSource = STAFF_PHOTO_ASSETS[identity.photoKey];
+  const isFinalMinute = remainingMs <= 60_000;
 
   return (
-    <View style={styles.adminIdentityCard}>
-      <View style={styles.adminPhotoFrame}>
-        {photoSource ? (
-          <Image
-            source={photoSource}
-            style={styles.adminPhoto}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.adminPhotoFallback}>
-            <Text style={styles.adminPhotoFallbackText}>
-              {identity.name.slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <View style={styles.adminOnlineDot} />
+    <View style={styles.adminIdentityBadge}>
+      <View style={styles.adminIdentityCard}>
+        <View style={styles.adminPhotoFrame}>
+          {photoSource ? (
+            <Image
+              source={photoSource}
+              style={styles.adminPhoto}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.adminPhotoFallback}>
+              <Text style={styles.adminPhotoFallbackText}>
+                {identity.name.slice(0, 1).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.adminOnlineDot} />
+        </View>
+
+        <View style={styles.adminIdentityText}>
+          <Text style={styles.adminIdentityEyebrow}>ADMIN ACCESS</Text>
+          <Text style={styles.adminIdentityName} numberOfLines={1}>
+            {identity.name}
+          </Text>
+          <Text style={styles.adminIdentityStatus}>Logged in</Text>
+        </View>
       </View>
 
-      <View style={styles.adminIdentityText}>
-        <Text style={styles.adminIdentityEyebrow}>ADMIN ACCESS</Text>
-        <Text style={styles.adminIdentityName} numberOfLines={1}>
-          {identity.name}
-        </Text>
-        <Text style={styles.adminIdentityStatus}>Logged in</Text>
-      </View>
+      <Text
+        style={[
+          styles.adminSessionCountdown,
+          isFinalMinute && styles.adminSessionCountdownUrgent,
+        ]}
+      >
+        Session expires in {formatSessionRemaining(remainingMs)}
+      </Text>
     </View>
   );
 }
@@ -308,6 +333,9 @@ export default function EditHubScreen() {
   const isCompactLayout = viewportWidth < 900;
   const useInlineAdminIdentity = viewportWidth < 1240;
   const accessMode = useAccessControl((state) => state.mode);
+  const adminSessionExpiresAt = useAccessControl(
+    (state) => state.adminSessionExpiresAt,
+  );
   const adminIdentity =
     accessMode in ADMIN_IDENTITIES
       ? ADMIN_IDENTITIES[accessMode as keyof typeof ADMIN_IDENTITIES]
@@ -319,6 +347,7 @@ export default function EditHubScreen() {
   };
 
   const [clockTick, setClockTick] = useState(0);
+  const [sessionNow, setSessionNow] = useState(() => Date.now());
 
   useEffect(() => {
     void initScheduleForToday(DEFAULT_LOCATION_ID).catch((e) => {
@@ -330,6 +359,18 @@ export default function EditHubScreen() {
     const timer = setInterval(() => setClockTick((value) => value + 1), 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!adminIdentity || !adminSessionExpiresAt) return;
+
+    setSessionNow(Date.now());
+    const timer = setInterval(() => setSessionNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [adminIdentity, adminSessionExpiresAt]);
+
+  const adminSessionRemainingMs = adminSessionExpiresAt
+    ? Math.max(0, adminSessionExpiresAt - sessionNow)
+    : 0;
 
   const visibleOutings = useMemo(() => {
     void clockTick;
@@ -360,14 +401,20 @@ export default function EditHubScreen() {
         <View style={styles.pageFrame}>
           {adminIdentity && !useInlineAdminIdentity ? (
             <View style={styles.adminIdentityDock}>
-              <AdminIdentityCard identity={adminIdentity} />
+              <AdminIdentityCard
+                identity={adminIdentity}
+                remainingMs={adminSessionRemainingMs}
+              />
             </View>
           ) : null}
 
           <View style={styles.inner}>
             {adminIdentity && useInlineAdminIdentity ? (
               <View style={styles.adminIdentityInline}>
-                <AdminIdentityCard identity={adminIdentity} />
+                <AdminIdentityCard
+                  identity={adminIdentity}
+                  remainingMs={adminSessionRemainingMs}
+                />
               </View>
             ) : null}
 
@@ -555,8 +602,12 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 12,
   },
-  adminIdentityCard: {
+  adminIdentityBadge: {
     width: 174,
+    alignItems: "center",
+  },
+  adminIdentityCard: {
+    width: "100%",
     minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
@@ -636,6 +687,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     color: "#6B7280",
+  },
+  adminSessionCountdown: {
+    marginTop: 4,
+    fontSize: 10,
+    lineHeight: 13,
+    color: "#DC2626",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  adminSessionCountdownUrgent: {
+    color: "#B91C1C",
+    fontWeight: "800",
   },
   columns: {
     marginTop: 18,

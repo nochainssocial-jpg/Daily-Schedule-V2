@@ -8,6 +8,7 @@ import {
   Handshake as HandshakeIcon,
 } from 'lucide-react-native';
 import NotificationToaster from '@/components/NotificationToaster';
+import AdminSessionManager from '@/components/AdminSessionManager';
 
 const PINK = '#F54FA5';
 const WHITE = '#FFFFFF';
@@ -38,6 +39,8 @@ function HeaderTitle({
 export default function RootLayout() {
   return (
     <>
+      <AdminSessionManager />
+
       {/* 🔔 Single global toaster for non-admin / non-edit screens */}
       <NotificationToaster />
 
