@@ -444,29 +444,6 @@ export default function EditAssignmentsScreen() {
 
   const outingIsActive = activeOutingEntries.length > 0;
 
-  // Ensure training staff do not keep participant assignments
-  React.useEffect(() => {
-    if (!assignmentsMap) return;
-    if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
-
-    const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
-    const current = assignmentsMap as Record<ID, ID | null>;
-    let changed = false;
-    const next: Record<ID, ID | null> = { ...current };
-
-    Object.entries(current).forEach(([pid, sid]) => {
-      if (!sid) return;
-      if (trainingIds.has(sid as ID)) {
-        next[pid as ID] = null;
-        changed = true;
-      }
-    });
-
-    if (changed) {
-      updateSchedule({ assignments: next });
-    }
-  }, [assignmentsMap, trainingStaffToday, updateSchedule]);
-
   // Helper: current owner for a participant (if any)
   const getOwner = (participantId: ID): ID | null => {
     const sid = assignmentsMap[participantId];

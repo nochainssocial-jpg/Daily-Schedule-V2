@@ -545,6 +545,106 @@ function normalizeDropoffAssignments(
   return result;
 }
 
+function getStaffAssignmentCounts(assignments: unknown): Map<ID, number> {
+  const counts = new Map<ID, number>();
+
+  if (!isPlainRecord(assignments)) return counts;
+
+  Object.entries(assignments).forEach(([recordKey, recordValue]) => {
+    // Older compatibility shape: staffId -> participantIds[].
+    if (Array.isArray(recordValue)) {
+      const staffId = String(recordKey) as ID;
+      counts.set(staffId, (counts.get(staffId) || 0) + recordValue.length);
+      return;
+    }
+
+    // Current shape: participantId -> staffId.
+    if (recordValue === null || recordValue === undefined || recordValue === "") {
+      return;
+    }
+
+    const staffId = String(recordValue) as ID;
+    counts.set(staffId, (counts.get(staffId) || 0) + 1);
+  });
+
+  return counts;
+}
+
+function normalizeTrainingRelationships(snapshot: any): {
+  trainingStaffToday: ID[];
+  trainingShadowAssignments: TrainingShadowAssignments;
+} {
+  const rawTrainingSet = new Set<ID>(
+    Array.isArray(snapshot?.trainingStaffToday)
+      ? snapshot.trainingStaffToday.filter(Boolean).map((id: unknown) => String(id))
+      : [],
+  );
+  const assignmentCounts = getStaffAssignmentCounts(snapshot?.assignments);
+  const normalizedShadows: TrainingShadowAssignments = {};
+
+  if (isPlainRecord(snapshot?.trainingShadowAssignments)) {
+    Object.entries(snapshot.trainingShadowAssignments).forEach(
+      ([rawMentorId, rawTraineeId]) => {
+        if (!rawMentorId || !rawTraineeId) return;
+
+        const firstId = String(rawMentorId) as ID;
+        const secondId = String(rawTraineeId) as ID;
+        if (firstId === secondId) return;
+
+        const firstMarkedTraining = rawTrainingSet.has(firstId);
+        const secondMarkedTraining = rawTrainingSet.has(secondId);
+        const firstHasAssignments = (assignmentCounts.get(firstId) || 0) > 0;
+        const secondHasAssignments = (assignmentCounts.get(secondId) || 0) > 0;
+
+        // The saved relationship is mentor -> trainee. Earlier builds could
+        // accidentally save both the pair and the training flag backwards.
+        // Participant ownership is therefore the strongest signal: the staff
+        // member retaining participants is the mentor. Use the training flag
+        // only when assignment ownership cannot distinguish the pair.
+        const shouldReverse =
+          (!firstHasAssignments && secondHasAssignments) ||
+          (firstHasAssignments === secondHasAssignments &&
+            firstMarkedTraining &&
+            !secondMarkedTraining);
+
+        const mentorId = shouldReverse ? secondId : firstId;
+        const traineeId = shouldReverse ? firstId : secondId;
+
+        // Keep one clear relationship per mentor/trainee and discard stale
+        // conflicts rather than allowing duplicate or circular displays.
+        if (normalizedShadows[mentorId]) return;
+        if (
+          Object.values(normalizedShadows).some(
+            (existingTraineeId) => String(existingTraineeId || "") === traineeId,
+          )
+        ) {
+          return;
+        }
+        if (
+          Object.values(normalizedShadows).some(
+            (existingTraineeId) => String(existingTraineeId || "") === mentorId,
+          ) || normalizedShadows[traineeId]
+        ) {
+          return;
+        }
+
+        normalizedShadows[mentorId] = traineeId;
+      },
+    );
+  }
+
+  const normalizedTrainingSet = new Set<ID>(rawTrainingSet);
+  Object.entries(normalizedShadows).forEach(([mentorId, traineeId]) => {
+    normalizedTrainingSet.delete(String(mentorId));
+    if (traineeId) normalizedTrainingSet.add(String(traineeId));
+  });
+
+  return {
+    trainingStaffToday: Array.from(normalizedTrainingSet),
+    trainingShadowAssignments: normalizedShadows,
+  };
+}
+
 function toTodayKey(date = new Date()): string {
   return getSydneyDateKey(date);
 }
@@ -556,20 +656,13 @@ function normaliseSnapshotForStore(snapshot: any): ScheduleSnapshot {
 
   const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot);
 
-  const normalizedTrainingShadows: TrainingShadowAssignments = {};
-  if (isPlainRecord((snapshot as any)?.trainingShadowAssignments)) {
-    Object.entries((snapshot as any).trainingShadowAssignments).forEach(
-      ([mentorId, traineeId]) => {
-        if (!mentorId || !traineeId) return;
-        normalizedTrainingShadows[String(mentorId)] = String(traineeId);
-      },
-    );
-  }
+  const normalizedTraining = normalizeTrainingRelationships(snapshot);
 
   return syncOutingCompatibility({
     ...makeInitialSnapshot(),
     ...(snapshot as ScheduleSnapshot),
-    trainingShadowAssignments: normalizedTrainingShadows,
+    trainingStaffToday: normalizedTraining.trainingStaffToday,
+    trainingShadowAssignments: normalizedTraining.trainingShadowAssignments,
     dropoffAssignments: normalizedDropoffs,
     outingGroups: normalizedOutingGroups,
     outingGroup: normalizedOutingGroups[0] ?? null,
