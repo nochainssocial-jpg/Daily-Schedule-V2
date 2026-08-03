@@ -1,0 +1,1243 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { getOutingBySlot, resolveOutingTiming } from "@/lib/outingSlots";
+import { initScheduleForToday, refreshScheduleFromSupabase, useSchedule } from "@/hooks/schedule-store";
+import {
+  DEFAULT_CHORES as STATIC_CHORES,
+  DEFAULT_CHECKLIST as STATIC_CHECKLIST_ITEMS,
+  TIME_SLOTS,
+} from "@/constants/data";
+
+import { ChecklistPanel } from "@/components/dashboard/ChecklistPanel";
+import { CleaningPanel } from "@/components/dashboard/CleaningPanel";
+import { DashboardFrame } from "@/components/dashboard/DashboardFrame";
+import { DailyPhasePills } from "@/components/dashboard/DailyPhasePills";
+import { DailyProgressBar } from "@/components/dashboard/DailyProgressBar";
+import { DropoffsPanel } from "@/components/dashboard/DropoffsPanel";
+import { PropertySupportPanel } from "@/components/dashboard/PropertySupportPanel";
+import { EventsMeetingsVisitsPanel } from "@/components/dashboard/EventsMeetingsVisitsPanel";
+import { EventPosterPanel } from "@/components/dashboard/EventPosterPanel";
+import { FloatingAssignmentsPanel } from "@/components/dashboard/FloatingAssignmentsPanel";
+import { FloatingRotationBanner } from "@/components/dashboard/FloatingRotationBanner";
+import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
+import { NoSchedulePanel } from "@/components/dashboard/NoSchedulePanel";
+import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
+import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
+import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
+import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
+import {
+  fetchPropertySupportData,
+  PROPERTY_SUPPORT_AUTO_RESET_MINUTES,
+  type PropertyLocation,
+  type PropertySupportAssignment,
+} from "@/lib/propertySupport";
+import { getSydneyDateKey } from "@/lib/sydneyDate";
+import {
+  DASHBOARD_OPERATIONAL_TIMES,
+  DASHBOARD_PAGE_THEMES,
+  DASHBOARD_REFRESH_MS,
+  HOUSE_ID,
+  REMINDER_PAGE_ORDER,
+  ROTATE_MS,
+  STAFF_OTHER_COLOR,
+  isReminderPage,
+} from "@/components/dashboard/dashboardTheme";
+import {
+  buildDashboardDateAtMinutes,
+  colorForStaff,
+  getDashboardOperationalPhase,
+  getOutingPhase,
+  hasOutingContent,
+  isEventDashboardExpired,
+  isEventDashboardVisible,
+  minutesToTimeLabel,
+  nowMinutes,
+  parsePreviewTimeToMinutes,
+  sortEventsMeetingsVisits,
+  todayISODate,
+} from "@/components/dashboard/dashboardUtils";
+import {
+  buildStaffCelebrationItems,
+  splitStaffCelebrations,
+} from "@/components/dashboard/staffCelebrationData";
+import {
+  armDashboardAudio,
+  floatingRotationAlarmKey,
+  getFloatingRotationAlarmMinute,
+  isDashboardAlarmSupported,
+  playFloatingAlarmTest,
+  playFloatingRotationAnnouncement,
+} from "@/components/dashboard/dashboardAudio";
+
+// Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
+
+const MANUAL_ROTATION_RESUME_MS = 90_000;
+const REMINDER_BURST_MINUTE = 15;
+const REMINDER_BURST_DURATION_MINUTES = 1;
+const FLOATING_ALARM_PREFERENCE_KEY = "dashboard:floating-alarm-enabled";
+
+
+const FLOATING_ROOM_KEYS = ["frontRoom", "scotty", "twins"] as const;
+
+function hasAssignedFloatingStaff(value: any): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  // Compatibility with the older direct room shape.
+  if (FLOATING_ROOM_KEYS.some((room) => Boolean(value?.[room]))) return true;
+
+  // Current shape: time-slot id -> room assignments.
+  return Object.values(value).some(
+    (row: any) =>
+      row &&
+      typeof row === "object" &&
+      FLOATING_ROOM_KEYS.some((room) => Boolean(row?.[room])),
+  );
+}
+
+function getPreviewTimeParam(): string | null {
+if (typeof window === "undefined") return null;
+
+try {
+return new URLSearchParams(window.location.search).get("previewTime");
+} catch {
+return null;
+}
+}
+
+export default function DashboardScreen() {
+const [pageIndex, setPageIndex] = useState(0);
+const [tick, setTick] = useState(0);
+const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
+const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
+const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([]);
+const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
+const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(true);
+const [floatingAlarmAudioStatus, setFloatingAlarmAudioStatus] = useState<
+  "locked" | "arming" | "ready" | "played" | "blocked" | "unsupported"
+>("locked");
+const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
+const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
+const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const propertySupportResetDateRef = useRef<string | null>(null);
+
+const {
+date,
+todayScheduleStatus,
+scheduleLoadError,
+staff = [],
+participants = [],
+workingStaff = [],
+timeSlots = [],
+chores = [],
+checklistItems = [],
+assignments = {},
+floatingAssignments = {},
+cleaningAssignments = {},
+finalChecklist = {},
+finalChecklistStaff = null,
+dropoffAssignments = {},
+dropoffLocations = {},
+attendingParticipants = [],
+outingGroups = [],
+outingGroup = null,
+} = useSchedule() as any;
+
+useEffect(() => {
+if (typeof window === "undefined") return;
+
+try {
+  const savedPreference = window.localStorage.getItem(FLOATING_ALARM_PREFERENCE_KEY);
+  if (savedPreference === "false") {
+    setFloatingAlarmEnabled(false);
+  } else if (savedPreference === "true") {
+    setFloatingAlarmEnabled(true);
+  }
+} catch {
+  // Keep the operational default enabled when storage is unavailable.
+}
+}, []);
+
+const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
+const previewMinutes = useMemo(
+() => parsePreviewTimeToMinutes(previewTimeParam),
+[previewTimeParam],
+);
+const isPreviewMode = previewMinutes !== null;
+const currentMinutes = previewMinutes ?? nowMinutes();
+const dashboardNow = useMemo(() => {
+void tick; // Recompute the live dashboard clock on each 30-second tick.
+return isPreviewMode
+? buildDashboardDateAtMinutes(date, currentMinutes)
+: new Date();
+}, [date, currentMinutes, isPreviewMode, tick]);
+const operationalPhase = useMemo(
+() => getDashboardOperationalPhase(currentMinutes),
+[currentMinutes],
+);
+const previewTimeLabel = isPreviewMode ? minutesToTimeLabel(currentMinutes) : null;
+const cleaningIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.cleaningStarts;
+const dropoffsAreOperational =
+currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.dropoffsStart &&
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
+const supportIsOperational =
+currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.programEnds;
+const checklistIsOperational = currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.checklistStarts;
+const dailyAssignmentsAreOperational =
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.dailyAssignmentsHide;
+const morningSetupIsOperational =
+currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.arrivalsStart &&
+currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart;
+const floatingIsOperational = currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingEnds;
+const reminderBurstMinute = currentMinutes % 60;
+const reminderBurstActive =
+reminderBurstMinute >= REMINDER_BURST_MINUTE &&
+reminderBurstMinute < REMINDER_BURST_MINUTE + REMINDER_BURST_DURATION_MINUTES;
+
+const fetchEventsMeetingsVisits = useCallback(async () => {
+try {
+const { data, error } = await supabase
+.from("events_meetings_visits")
+.select("*")
+.eq("house", HOUSE_ID)
+.eq("dashboard_visible", true)
+.order("event_date", { ascending: true })
+.order("start_time", { ascending: true });
+
+if (error) {
+console.error("[dashboard] failed to load events, meetings and visits", error);
+return;
+}
+
+const records = (data || []) as EventMeetingVisitRecord[];
+let nextRecords = records;
+
+// Auto-archive is never run while using previewTime, so testing the dashboard
+// cannot modify live records.
+if (!isPreviewMode) {
+const expiredAutoArchiveIds = records
+.filter(
+(item) =>
+item.auto_archive &&
+item.status !== "Archived" &&
+item.status !== "Cancelled" &&
+isEventDashboardExpired(item, Date.now()),
+)
+.map((item) => item.id);
+
+if (expiredAutoArchiveIds.length > 0) {
+const { error: archiveError } = await supabase
+.from("events_meetings_visits")
+.update({ status: "Archived" })
+.eq("house", HOUSE_ID)
+.in("id", expiredAutoArchiveIds);
+
+if (archiveError) {
+console.error("[dashboard] failed to auto-archive expired events", archiveError);
+} else {
+const archivedIds = new Set(expiredAutoArchiveIds);
+nextRecords = records.map((item) =>
+archivedIds.has(item.id) ? { ...item, status: "Archived" as const } : item,
+);
+}
+}
+}
+
+setEventsMeetingsVisits(nextRecords);
+} catch (error) {
+console.error("[dashboard] failed to load events, meetings and visits", error);
+}
+}, [isPreviewMode]);
+
+const fetchPropertySupport = useCallback(async () => {
+try {
+const result = await fetchPropertySupportData(HOUSE_ID, getSydneyDateKey());
+if (!result.ok) {
+console.error("[dashboard] failed to load property support", result.error);
+return;
+}
+setPropertyLocations(result.locations);
+setPropertySupportAssignments(result.record?.assignments || []);
+} catch (error) {
+console.error("[dashboard] failed to load property support", error);
+}
+}, []);
+
+useEffect(() => {
+let cancelled = false;
+
+async function initialiseDashboard() {
+try {
+await initScheduleForToday(HOUSE_ID);
+
+// initScheduleForToday can merge the saved snapshot over the store.
+// Re-load master data afterwards so dashboard-only pages still have
+// chores, checklist items, and Supabase time slots available.
+if (!cancelled) {
+await useSchedule.getState().loadMasterData();
+await Promise.all([fetchEventsMeetingsVisits(), fetchPropertySupport()]);
+setLastDashboardRefresh(new Date());
+}
+} catch (error) {
+console.error("[dashboard] failed to initialise schedule", error);
+}
+}
+
+void initialiseDashboard();
+
+return () => {
+cancelled = true;
+};
+}, [fetchEventsMeetingsVisits, fetchPropertySupport]);
+
+useEffect(() => {
+const timer = setInterval(() => setTick((value) => value + 1), 30_000);
+return () => clearInterval(timer);
+}, []);
+
+useEffect(() => {
+if (isPreviewMode || currentMinutes < PROPERTY_SUPPORT_AUTO_RESET_MINUTES) return;
+
+const dateKey = getSydneyDateKey();
+if (propertySupportResetDateRef.current === dateKey) return;
+propertySupportResetDateRef.current = dateKey;
+
+void fetchPropertySupport();
+}, [currentMinutes, fetchPropertySupport, isPreviewMode, tick]);
+
+useEffect(() => {
+let cancelled = false;
+let refreshInFlight = false;
+
+const refreshDashboard = async () => {
+if (refreshInFlight || cancelled) return;
+refreshInFlight = true;
+
+try {
+await refreshScheduleFromSupabase(HOUSE_ID);
+await Promise.all([fetchEventsMeetingsVisits(), fetchPropertySupport()]);
+if (!cancelled) setLastDashboardRefresh(new Date());
+} catch (error) {
+console.error("[dashboard] failed to refresh schedule", error);
+} finally {
+refreshInFlight = false;
+}
+};
+
+const requestRefresh = () => {
+if (!cancelled) void refreshDashboard();
+};
+
+const handleVisibilityChange = () => {
+if (document.visibilityState === "visible") requestRefresh();
+};
+
+const timer = setInterval(requestRefresh, DASHBOARD_REFRESH_MS);
+window.addEventListener("focus", requestRefresh);
+window.addEventListener("online", requestRefresh);
+document.addEventListener("visibilitychange", handleVisibilityChange);
+
+return () => {
+cancelled = true;
+clearInterval(timer);
+window.removeEventListener("focus", requestRefresh);
+window.removeEventListener("online", requestRefresh);
+document.removeEventListener("visibilitychange", handleVisibilityChange);
+};
+}, [fetchEventsMeetingsVisits, fetchPropertySupport]);
+
+const staffById = useMemo(
+() =>
+new Map((staff || []).map((person: any) => [String(person.id), person])),
+[staff],
+);
+
+const participantsById = useMemo(
+() =>
+new Map(
+(participants || []).map((person: any) => [String(person.id), person]),
+),
+[participants],
+);
+
+const activeOutings = useMemo(() => {
+const groups = Array.isArray(outingGroups)
+? outingGroups
+: outingGroup
+? [outingGroup]
+: [];
+return groups
+.map((group: any) => resolveOutingTiming(group, groups as any))
+.slice(0, 3)
+.filter(hasOutingContent);
+}, [outingGroups, outingGroup]);
+
+const visibleOutings = useMemo(
+() => activeOutings.filter((outing) => getOutingPhase(outing, currentMinutes) !== "none"),
+[activeOutings, currentMinutes],
+);
+
+const outing1StaffIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 0)?.staffIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+
+const outing2StaffIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 1)?.staffIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+
+const outing1ParticipantIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 0)?.participantIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+
+const outing2ParticipantIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 1)?.participantIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+const safetyTransportStaffIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 2)?.staffIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+
+const safetyTransportParticipantIds = useMemo(
+() =>
+new Set<string>(
+((getOutingBySlot(visibleOutings, 2)?.participantIds ?? []) as any[]).map(String),
+),
+[visibleOutings],
+);
+
+
+const getParticipantTheme = useCallback((participantId: string) => {
+if (outing1ParticipantIds.has(participantId)) return "outing1" as const;
+if (outing2ParticipantIds.has(participantId)) return "outing2" as const;
+if (safetyTransportParticipantIds.has(participantId)) return "outing3" as const;
+return "onsite" as const;
+}, [outing1ParticipantIds, outing2ParticipantIds, safetyTransportParticipantIds]);
+
+const getAssignmentTheme = useCallback((staffId: string, participantIds: string[]) => {
+// Direct staff outing membership wins first. This keeps the dashboard aligned
+// with the Edit Hub outing banners when staff have been explicitly placed on
+// Outing 1, Outing 2, or Additional Transport.
+if (outing1StaffIds.has(staffId)) return "outing1" as const;
+if (outing2StaffIds.has(staffId)) return "outing2" as const;
+if (safetyTransportStaffIds.has(staffId)) return "outing3" as const;
+
+// If staff were not directly placed on an outing, infer the tile colour from
+// their assigned participants. This covers the common operational case where
+// the assigned staff member follows their participant onto the outing.
+if (participantIds.some((id) => outing1ParticipantIds.has(id))) {
+return "outing1" as const;
+}
+if (participantIds.some((id) => outing2ParticipantIds.has(id))) {
+return "outing2" as const;
+}
+if (participantIds.some((id) => safetyTransportParticipantIds.has(id))) {
+return "outing3" as const;
+}
+return "onsite" as const;
+}, [
+outing1StaffIds,
+outing2StaffIds,
+safetyTransportStaffIds,
+outing1ParticipantIds,
+outing2ParticipantIds,
+safetyTransportParticipantIds,
+]);
+
+const teamAssignmentRows = useMemo(() => {
+const byStaff = new Map<string, string[]>();
+const workingSet = new Set((workingStaff || []).map(String));
+
+// Always include every member of today's Dream Team, even when a participant
+// has not yet been allocated to them. This keeps the dashboard headcount aligned
+// with the Dream Team editor.
+if (workingSet.size > 0) {
+workingSet.forEach((staffId) => {
+if (staffById.has(staffId)) byStaff.set(staffId, []);
+});
+}
+
+Object.entries(assignments || {}).forEach(
+([rawParticipantId, rawStaffId]) => {
+if (Array.isArray(rawStaffId)) {
+// Compatibility with older/reverse shapes: staffId -> participantIds[].
+const staffId = String(rawParticipantId);
+if (!staffById.has(staffId)) return;
+rawStaffId.forEach((pid) => {
+const participantId = String(pid);
+if (!participantsById.has(participantId)) return;
+const list = byStaff.get(staffId) || [];
+if (!list.includes(participantId)) list.push(participantId);
+byStaff.set(staffId, list);
+});
+return;
+}
+
+if (!rawStaffId) return;
+const participantId = String(rawParticipantId);
+const staffId = String(rawStaffId);
+if (!staffById.has(staffId) || !participantsById.has(participantId))
+return;
+
+const list = byStaff.get(staffId) || [];
+if (!list.includes(participantId)) list.push(participantId);
+byStaff.set(staffId, list);
+},
+);
+
+return Array.from(byStaff.entries())
+.map(([staffId, participantIds]) => {
+const staffPerson = staffById.get(staffId);
+const staffName = String(staffPerson?.name || staffId);
+const staffColor = colorForStaff(staffPerson);
+const filteredParticipantIds = participantIds.filter((id) => {
+const name = String(participantsById.get(id)?.name || id)
+.trim()
+.toLowerCase();
+return name !== "zara" && name !== "zoya";
+});
+const participantItems = filteredParticipantIds
+.map((id) => ({
+id,
+name: String(participantsById.get(id)?.name || id),
+theme: getParticipantTheme(id),
+}))
+.sort((a, b) => a.name.localeCompare(b.name, "en-AU"));
+
+return {
+staffId,
+staffName,
+staffColor,
+staffTextColor: "#FFFFFF",
+participantIds: filteredParticipantIds,
+participantNames: participantItems.map((item) => item.name),
+participantItems,
+theme: getAssignmentTheme(staffId, filteredParticipantIds),
+isWorking: workingSet.size === 0 || workingSet.has(staffId),
+};
+})
+.filter((row) => row.isWorking)
+.filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
+.sort((a, b) => a.staffName.localeCompare(b.staffName, "en-AU"));
+}, [
+assignments,
+staffById,
+participantsById,
+workingStaff,
+getAssignmentTheme,
+getParticipantTheme,
+]);
+
+const dropoffRows = useMemo(() => {
+const byStaff = new Map<
+string,
+{ participantName: string; locationLabel: string }[]
+>();
+
+Object.entries(dropoffAssignments || {}).forEach(
+([participantIdRaw, assignmentRaw]) => {
+if (!assignmentRaw) return;
+const participantId = String(participantIdRaw);
+const assignment: any = assignmentRaw;
+const staffId =
+typeof assignment === "string" ? assignment : assignment.staffId;
+const locationId =
+typeof assignment === "object"
+? assignment.locationId
+: dropoffLocations?.[participantId];
+if (!staffId || !staffById.has(String(staffId))) return;
+
+const participantName = String(
+participantsById.get(participantId)?.name || participantId,
+);
+const locationLabel =
+locationId === null || locationId === undefined || locationId === ""
+? ""
+: `Location ${locationId}`;
+
+const list = byStaff.get(String(staffId)) || [];
+list.push({ participantName, locationLabel });
+byStaff.set(String(staffId), list);
+},
+);
+
+return Array.from(byStaff.entries())
+.map(([staffId, items]) => {
+const staffPerson = staffById.get(staffId);
+const staffName = String(staffPerson?.name || staffId);
+const staffColor = colorForStaff(staffPerson);
+const participantIds = items.map((item) => {
+const found = Array.from(participantsById.entries()).find(
+([, p]) => String(p?.name || "") === item.participantName,
+);
+return found?.[0] || "";
+});
+return {
+staffId,
+staffName,
+staffColor,
+staffTextColor: "#FFFFFF",
+items: items.sort((a, b) =>
+a.participantName.localeCompare(b.participantName, "en-AU"),
+),
+theme: getAssignmentTheme(staffId, participantIds.filter(Boolean)),
+};
+})
+.filter((row) => row.staffName.trim().toLowerCase() !== "everyone")
+.sort((a, b) => a.staffName.localeCompare(b.staffName, "en-AU"));
+}, [
+dropoffAssignments,
+dropoffLocations,
+staffById,
+participantsById,
+getAssignmentTheme,
+]);
+
+const propertyLocationById = useMemo(
+() => new Map((propertyLocations || []).map((location) => [String(location.id), location])),
+[propertyLocations],
+);
+
+const propertySupportRows = useMemo(() => {
+return (propertySupportAssignments || [])
+.map((assignment, assignmentIndex) => {
+const id = String(assignment.id || `property-support-${assignmentIndex + 1}`);
+const idMatch = id.match(/^property-support-(\d+)$/);
+const slotNumber = idMatch ? Number(idMatch[1]) : assignmentIndex + 1;
+const isParticipantSupport = slotNumber >= 3;
+const supportNumber = isParticipantSupport ? slotNumber - 2 : slotNumber;
+const rawLocation = String(assignment.propertyLocationId || "").trim();
+
+return {
+id,
+sortOrder: slotNumber,
+supportType: isParticipantSupport ? ("participant" as const) : ("property" as const),
+supportNumber,
+locationName: isParticipantSupport
+? rawLocation
+: propertyLocationById.get(rawLocation)?.name || "",
+staffNames: assignment.staffIds
+.map((staffId) => String(staffById.get(String(staffId))?.name || ""))
+.filter(Boolean),
+notes: String(assignment.notes || "").trim(),
+};
+})
+.filter((row) => row.locationName && row.staffNames.length > 0)
+.sort((a, b) => a.sortOrder - b.sortOrder)
+.map(({ sortOrder: _sortOrder, ...row }) => row)
+.slice(0, 4);
+}, [propertyLocationById, propertySupportAssignments, staffById]);
+
+const displayTimeSlots = useMemo(
+() => (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [],
+[timeSlots],
+);
+
+const hasFloatingAssignments = useMemo(
+() => hasAssignedFloatingStaff(floatingAssignments),
+[floatingAssignments],
+);
+const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
+
+const runScheduledFloatingAlarm = useCallback(async (
+  alarmMinute: number,
+  options: { bypassDuplicateProtection?: boolean; source?: "live" | "simulation" } = {},
+) => {
+  if (!floatingAlarmEnabled || !isDashboardAlarmSupported()) return false;
+
+  const alarmDate = isPreviewMode ? date : getSydneyDateKey();
+  const alarmKey = floatingRotationAlarmKey(alarmDate, alarmMinute);
+
+  if (!options.bypassDuplicateProtection) {
+    if (playedFloatingAlarmKeysRef.current.has(alarmKey)) return false;
+    if (typeof window !== "undefined") {
+      try {
+        if (window.sessionStorage.getItem(alarmKey) === "played") {
+          playedFloatingAlarmKeysRef.current.add(alarmKey);
+          return false;
+        }
+      } catch {
+        // Continue with in-memory duplicate protection.
+      }
+    }
+  }
+
+  console.info("[dashboard alarm] scheduled trigger", {
+    source: options.source || "live",
+    alarmMinute,
+    alarmKey,
+  });
+
+  const played = await playFloatingRotationAnnouncement();
+  if (!played) {
+    console.warn("[dashboard alarm] scheduled playback failed", { alarmMinute, alarmKey });
+    setFloatingAlarmAudioStatus("blocked");
+    return false;
+  }
+
+  setFloatingAlarmAudioStatus("ready");
+  if (!options.bypassDuplicateProtection) {
+    playedFloatingAlarmKeysRef.current.add(alarmKey);
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(alarmKey, "played");
+      } catch {
+        // In-memory protection is sufficient for this session.
+      }
+    }
+  }
+
+  console.info("[dashboard alarm] scheduled playback succeeded", { alarmMinute, alarmKey });
+  return true;
+}, [date, floatingAlarmEnabled, isPreviewMode]);
+
+useEffect(() => {
+  if (isPreviewMode || !floatingAlarmEnabled || !isDashboardAlarmSupported()) return;
+
+  const checkForScheduledAlarm = () => {
+    const liveMinutes = nowMinutes();
+    const alarmMinute = getFloatingRotationAlarmMinute(liveMinutes);
+    if (alarmMinute === null) return;
+    void runScheduledFloatingAlarm(alarmMinute, { source: "live" });
+  };
+
+  checkForScheduledAlarm();
+  const timer = window.setInterval(checkForScheduledAlarm, 5_000);
+  return () => window.clearInterval(timer);
+}, [floatingAlarmEnabled, isPreviewMode, runScheduledFloatingAlarm]);
+
+const handleEnableDashboardSounds = async () => {
+  if (!isDashboardAlarmSupported()) {
+    setFloatingAlarmAudioStatus("unsupported");
+    return;
+  }
+
+  setFloatingAlarmAudioStatus("arming");
+  const armed = await armDashboardAudio();
+  if (!armed) {
+    setFloatingAlarmAudioStatus("blocked");
+    return;
+  }
+
+  const played = await playFloatingAlarmTest();
+  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+  if (played && typeof window !== "undefined") {
+    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+  }
+};
+
+const handleTestFloatingAlarm = async () => {
+  const played = await playFloatingAlarmTest();
+  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+  if (played && typeof window !== "undefined") {
+    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+  }
+};
+
+const handleTestRotationAlarm = async () => {
+  const played = await playFloatingRotationAnnouncement();
+  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+  if (played && typeof window !== "undefined") {
+    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+  }
+};
+
+const handleSimulateScheduledAlarm = async () => {
+  const simulatedMinute = getFloatingRotationAlarmMinute(currentMinutes, 30) ?? currentMinutes;
+  const played = await runScheduledFloatingAlarm(simulatedMinute, {
+    bypassDuplicateProtection: true,
+    source: "simulation",
+  });
+  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+  if (played && typeof window !== "undefined") {
+    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+  }
+};
+
+const handleToggleFloatingAlarm = () => {
+const nextEnabled = !floatingAlarmEnabled;
+setFloatingAlarmEnabled(nextEnabled);
+
+if (typeof window !== "undefined") {
+  try {
+    window.localStorage.setItem(
+      FLOATING_ALARM_PREFERENCE_KEY,
+      String(nextEnabled),
+    );
+  } catch {
+    // The in-memory setting remains active when storage is unavailable.
+  }
+}
+
+if (!nextEnabled) {
+  setFloatingAlarmAudioStatus("locked");
+}
+};
+
+const displayChores = useMemo(
+() => (chores && chores.length ? chores : STATIC_CHORES) || [],
+[chores],
+);
+const displayChecklistItems = useMemo(
+() =>
+(checklistItems && checklistItems.length
+? checklistItems
+: STATIC_CHECKLIST_ITEMS) || [],
+[checklistItems],
+);
+
+const cleaningRows = useMemo(() => {
+return (displayChores || [])
+.slice()
+.sort((a: any, b: any) =>
+String(a.name).localeCompare(String(b.name), "en-AU"),
+)
+.map((chore: any) => {
+const staffId = cleaningAssignments?.[String(chore.id)];
+const staffPerson = staffId ? staffById.get(String(staffId)) : null;
+const staffColor = staffPerson ? colorForStaff(staffPerson) : STAFF_OTHER_COLOR;
+const assigned = staffId
+? staffPerson?.name || "Assigned"
+: "Not assigned";
+return {
+id: String(chore.id),
+chore: chore.name || chore.label || String(chore.id),
+assigned,
+staffColor,
+staffTextColor: "#FFFFFF",
+complete: Boolean(staffId),
+};
+});
+}, [displayChores, cleaningAssignments, staffById]);
+
+const checklistRows = useMemo(() => {
+return (displayChecklistItems || []).map((item: any) => {
+const id = String(item.id);
+return {
+id,
+label: item.name || item.label || id,
+checked: Boolean(finalChecklist?.[id]),
+};
+});
+}, [displayChecklistItems, finalChecklist]);
+
+const completedChecklist = checklistRows.filter(
+(item) => item.checked,
+).length;
+const selectedFinalStaffPerson = finalChecklistStaff
+? staffById.get(String(finalChecklistStaff))
+: null;
+const selectedFinalStaff = finalChecklistStaff
+? selectedFinalStaffPerson?.name || "Selected"
+: "Not selected";
+const selectedFinalStaffColor = selectedFinalStaffPerson
+? colorForStaff(selectedFinalStaffPerson)
+: "#E5E7EB";
+const selectedFinalStaffTextColor = selectedFinalStaffPerson
+? "#FFFFFF"
+: "#6B7280";
+
+const hasCleaningAssignments = cleaningRows.some((row) => row.complete);
+const hasChecklistData =
+Boolean(finalChecklistStaff) || checklistRows.some((row) => row.checked);
+const hasDropoffAssignments = dropoffRows.length > 0;
+const hasPropertySupportAssignments = propertySupportRows.length > 0;
+const showCleaningPanel = hasCleaningAssignments && cleaningIsOperational;
+const showDropoffsPanel = hasDropoffAssignments && dropoffsAreOperational;
+const showPropertySupportPanel = hasPropertySupportAssignments && supportIsOperational;
+const showChecklistPanel = hasChecklistData && checklistIsOperational;
+
+const visibleEventsMeetingsVisits = useMemo(() => {
+return (eventsMeetingsVisits || [])
+.filter((item) => isEventDashboardVisible(item, tick, dashboardNow.getTime()))
+.sort(sortEventsMeetingsVisits);
+}, [dashboardNow, eventsMeetingsVisits, tick]);
+
+const todayEventsMeetingsVisits = useMemo(() => {
+const today = todayISODate(dashboardNow);
+return visibleEventsMeetingsVisits.filter(
+(item) => String(item.event_date).slice(0, 10) === today,
+);
+}, [dashboardNow, visibleEventsMeetingsVisits]);
+
+const upcomingEventsMeetingsVisits = useMemo(() => {
+const today = todayISODate(dashboardNow);
+return visibleEventsMeetingsVisits
+.filter((item) => String(item.event_date).slice(0, 10) > today)
+.slice(0, 6);
+}, [dashboardNow, visibleEventsMeetingsVisits]);
+
+const hasEventsMeetingsVisits = visibleEventsMeetingsVisits.length > 0;
+const visibleEventPosters = useMemo(
+() => visibleEventsMeetingsVisits.filter((item) => Boolean(String(item.poster_url || "").trim())),
+[visibleEventsMeetingsVisits],
+);
+const featuredEventPosterIndex = visibleEventPosters.length > 0
+? Math.floor(dashboardNow.getTime() / ROTATE_MS) % visibleEventPosters.length
+: 0;
+const featuredEventPoster = visibleEventPosters[featuredEventPosterIndex] || null;
+const hasEventPoster = Boolean(featuredEventPoster);
+
+const staffCelebrationItems = useMemo(() => {
+return buildStaffCelebrationItems(staff, tick);
+}, [staff, tick]);
+
+const { today: todayStaffCelebrations, upcoming: upcomingStaffCelebrations } =
+useMemo(() => splitStaffCelebrations(staffCelebrationItems), [staffCelebrationItems]);
+
+const hasStaffCelebrations = staffCelebrationItems.length > 0;
+
+const pages = useMemo<DashboardPage[]>(() => {
+const list: DashboardPage[] = [];
+const add = (page: DashboardPage, condition = true) => {
+if (condition && !list.includes(page)) list.push(page);
+};
+
+if (operationalPhase === "arrivalSetup") {
+add("morningSetup", morningSetupIsOperational);
+add("team", dailyAssignmentsAreOperational);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
+add("outings", visibleOutings.length > 0);
+add("staffCelebrations", hasStaffCelebrations);
+add("floating", showFloatingPanel);
+} else if (operationalPhase === "activeProgram") {
+add("floating", showFloatingPanel);
+add("outings", visibleOutings.length > 0);
+add("propertySupport", showPropertySupportPanel);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
+add("team", dailyAssignmentsAreOperational);
+add("staffCelebrations", hasStaffCelebrations);
+} else if (operationalPhase === "cleaningActive") {
+add("floating", showFloatingPanel);
+add("cleaning", showCleaningPanel);
+add("propertySupport", showPropertySupportPanel);
+add("outings", visibleOutings.length > 0);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
+add("team", dailyAssignmentsAreOperational);
+add("staffCelebrations", hasStaffCelebrations);
+} else if (operationalPhase === "departureWindow") {
+add("dropoffs", showDropoffsPanel);
+add("propertySupport", showPropertySupportPanel);
+add("floating", showFloatingPanel);
+add("cleaning", showCleaningPanel);
+add("outings", visibleOutings.length > 0);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
+add("team", dailyAssignmentsAreOperational);
+add("staffCelebrations", hasStaffCelebrations);
+} else {
+add("checklist", showChecklistPanel);
+add("dropoffs", showDropoffsPanel);
+add("propertySupport", showPropertySupportPanel);
+add("cleaning", showCleaningPanel);
+add("eventsMeetingsVisits", hasEventsMeetingsVisits);
+add("eventPoster", hasEventPoster);
+add("team", dailyAssignmentsAreOperational);
+add("staffCelebrations", hasStaffCelebrations);
+}
+
+return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
+}, [
+hasEventsMeetingsVisits,
+hasEventPoster,
+dailyAssignmentsAreOperational,
+morningSetupIsOperational,
+showFloatingPanel,
+hasStaffCelebrations,
+operationalPhase,
+reminderBurstActive,
+showChecklistPanel,
+showCleaningPanel,
+showDropoffsPanel,
+showPropertySupportPanel,
+visibleOutings.length,
+]);
+
+useEffect(() => {
+setPageIndex(0);
+}, [reminderBurstActive]);
+
+useEffect(() => {
+if (!autoRotationEnabled || pages.length <= 1) return;
+
+const timer = setInterval(() => {
+setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
+}, ROTATE_MS);
+return () => clearInterval(timer);
+}, [autoRotationEnabled, pages.length]);
+
+useEffect(() => {
+if (pageIndex >= pages.length) setPageIndex(0);
+}, [pageIndex, pages.length]);
+
+const clearAutoResumeTimer = useCallback(() => {
+if (autoResumeTimerRef.current) {
+  clearTimeout(autoResumeTimerRef.current);
+  autoResumeTimerRef.current = null;
+}
+}, []);
+
+const pauseAutoRotationBriefly = useCallback(() => {
+setAutoRotationEnabled(false);
+clearAutoResumeTimer();
+autoResumeTimerRef.current = setTimeout(() => {
+  setAutoRotationEnabled(true);
+  autoResumeTimerRef.current = null;
+}, MANUAL_ROTATION_RESUME_MS);
+}, [clearAutoResumeTimer]);
+
+const handlePreviousPage = useCallback(() => {
+pauseAutoRotationBriefly();
+setPageIndex((value) => {
+  const count = Math.max(1, pages.length);
+  return (value - 1 + count) % count;
+});
+}, [pages.length, pauseAutoRotationBriefly]);
+
+const handleNextPage = useCallback(() => {
+pauseAutoRotationBriefly();
+setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
+}, [pages.length, pauseAutoRotationBriefly]);
+
+const handleToggleAutoRotation = useCallback(() => {
+clearAutoResumeTimer();
+setAutoRotationEnabled((value) => !value);
+}, [clearAutoResumeTimer]);
+
+useEffect(() => {
+return () => clearAutoResumeTimer();
+}, [clearAutoResumeTimer]);
+
+useEffect(() => {
+if (typeof window === "undefined") return;
+
+const handleKeyDown = (event: any) => {
+  const target = event.target as any;
+  const tagName = target?.tagName?.toLowerCase?.();
+  if (tagName === "input" || tagName === "textarea" || target?.isContentEditable) return;
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    handlePreviousPage();
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    handleNextPage();
+  } else if (event.key === " ") {
+    event.preventDefault();
+    handleToggleAutoRotation();
+  }
+};
+
+window.addEventListener("keydown", handleKeyDown);
+return () => window.removeEventListener("keydown", handleKeyDown);
+}, [handleNextPage, handlePreviousPage, handleToggleAutoRotation]);
+
+const currentPage = pages[pageIndex] || "floating";
+const pageTheme = DASHBOARD_PAGE_THEMES[currentPage] || DASHBOARD_PAGE_THEMES.team;
+
+const renderCurrentPanel = () => {
+if (currentPage === "team") {
+return <TeamAssignmentsPanel teamAssignmentRows={teamAssignmentRows} />;
+}
+
+if (currentPage === "floating") {
+return (
+<FloatingAssignmentsPanel
+  displayTimeSlots={displayTimeSlots}
+  floatingAssignments={floatingAssignments}
+  staffById={staffById}
+  participantsById={participantsById}
+  attendingParticipants={attendingParticipants}
+  activeOutings={visibleOutings}
+  tick={tick}
+  currentMinutes={currentMinutes}
+/>
+);
+}
+
+if (currentPage === "outings") {
+return (
+<OutingsPanel
+  activeOutings={visibleOutings}
+  staffById={staffById}
+  participantsById={participantsById}
+  currentMinutes={currentMinutes}
+/>
+);
+}
+
+if (currentPage === "eventsMeetingsVisits") {
+return (
+<EventsMeetingsVisitsPanel
+  visibleEventsMeetingsVisits={visibleEventsMeetingsVisits}
+  todayEventsMeetingsVisits={todayEventsMeetingsVisits}
+  upcomingEventsMeetingsVisits={upcomingEventsMeetingsVisits}
+/>
+);
+}
+
+if (currentPage === "eventPoster" && featuredEventPoster) {
+return (
+<EventPosterPanel
+  item={featuredEventPoster}
+  position={featuredEventPosterIndex + 1}
+  total={visibleEventPosters.length}
+/>
+);
+}
+
+if (currentPage === "staffCelebrations") {
+return (
+<StaffCelebrationsPanel
+  todayCelebrations={todayStaffCelebrations}
+  upcomingCelebrations={upcomingStaffCelebrations}
+/>
+);
+}
+
+if (currentPage === "cleaning") {
+return <CleaningPanel cleaningRows={cleaningRows} />;
+}
+
+if (currentPage === "dropoffs") {
+return <DropoffsPanel dropoffRows={dropoffRows} />;
+}
+
+if (currentPage === "propertySupport") {
+return <PropertySupportPanel propertySupportRows={propertySupportRows} />;
+}
+
+if (isReminderPage(currentPage)) {
+return <ReminderPanel currentPage={currentPage} />;
+}
+
+return (
+<ChecklistPanel
+  checklistRows={checklistRows}
+  completedChecklist={completedChecklist}
+  selectedFinalStaff={selectedFinalStaff}
+  selectedFinalStaffColor={selectedFinalStaffColor}
+  selectedFinalStaffTextColor={selectedFinalStaffTextColor}
+/>
+);
+};
+
+if (todayScheduleStatus === "idle" || todayScheduleStatus === "loading") {
+return (
+<DashboardFrame
+  date={date}
+  tick={tick}
+  lastDashboardRefresh={lastDashboardRefresh}
+  currentPage="team"
+  pageIndex={0}
+  pageCount={1}
+  pageTheme={DASHBOARD_PAGE_THEMES.team}
+  currentMinutes={currentMinutes}
+  isPreviewMode={isPreviewMode}
+  previewTimeLabel={previewTimeLabel}
+  autoRotationEnabled={false}
+  floatingOverlay={null}
+>
+  <NoSchedulePanel loading />
+</DashboardFrame>
+);
+}
+
+if (todayScheduleStatus === "missing" || todayScheduleStatus === "error") {
+return (
+<DashboardFrame
+  date={date}
+  tick={tick}
+  lastDashboardRefresh={lastDashboardRefresh}
+  currentPage="team"
+  pageIndex={0}
+  pageCount={1}
+  pageTheme={DASHBOARD_PAGE_THEMES.team}
+  currentMinutes={currentMinutes}
+  isPreviewMode={isPreviewMode}
+  previewTimeLabel={previewTimeLabel}
+  autoRotationEnabled={false}
+  floatingOverlay={null}
+>
+  <NoSchedulePanel
+    errorMessage={todayScheduleStatus === "error" ? scheduleLoadError : null}
+  />
+</DashboardFrame>
+);
+}
+
+return (
+<DashboardFrame
+  date={date}
+  tick={tick}
+  lastDashboardRefresh={lastDashboardRefresh}
+  currentPage={currentPage}
+  pageIndex={pageIndex}
+  pageCount={pages.length}
+  pageTheme={pageTheme}
+  floatingAlarmEnabled={floatingAlarmEnabled}
+  floatingAlarmSupported={isDashboardAlarmSupported()}
+  floatingAlarmAudioStatus={floatingAlarmAudioStatus}
+  onEnableDashboardSounds={handleEnableDashboardSounds}
+  onToggleFloatingAlarm={handleToggleFloatingAlarm}
+  onTestFloatingAlarm={handleTestFloatingAlarm}
+  onTestRotationAlarm={handleTestRotationAlarm}
+  onSimulateScheduledAlarm={handleSimulateScheduledAlarm}
+  currentMinutes={currentMinutes}
+  isPreviewMode={isPreviewMode}
+  previewTimeLabel={previewTimeLabel}
+  autoRotationEnabled={autoRotationEnabled}
+  onPreviousPage={handlePreviousPage}
+  onNextPage={handleNextPage}
+  onToggleAutoRotation={handleToggleAutoRotation}
+  floatingOverlay={
+    <>
+      {hasFloatingAssignments ? (
+        <FloatingRotationBanner
+          displayTimeSlots={displayTimeSlots}
+          floatingAssignments={floatingAssignments}
+          staffById={staffById}
+          participantsById={participantsById}
+          attendingParticipants={attendingParticipants}
+          activeOutings={visibleOutings}
+          currentMinutes={currentMinutes}
+        />
+      ) : null}
+      <DailyProgressBar currentMinutes={currentMinutes} />
+      <DailyPhasePills
+        currentMinutes={currentMinutes}
+        dashboardNow={dashboardNow}
+        outings={activeOutings}
+        todayEventsMeetingsVisits={todayEventsMeetingsVisits}
+      />
+    </>
+  }
+>
+  {renderCurrentPanel()}
+</DashboardFrame>
+);
+}
