@@ -65,6 +65,7 @@ import {
   floatingRotationAlarmKey,
   getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
+  playDashboardAudio,
   playFloatingRotationAnnouncement,
 } from "@/components/dashboard/dashboardAudio";
 
@@ -764,7 +765,15 @@ const handleToggleFloatingAlarm = async () => {
   } catch {}
 
   const armed = await armDashboardAudio();
-  setFloatingAlarmAudioStatus(armed ? "ready" : "blocked");
+  if (!armed) {
+    setFloatingAlarmAudioStatus("blocked");
+    return;
+  }
+
+  // Windows Chrome/Edge may require real audible playback during the
+  // user gesture before allowing later scheduled announcements.
+  const confirmed = await playDashboardAudio("test");
+  setFloatingAlarmAudioStatus(confirmed ? "played" : "blocked");
 };
 
 const displayChores = useMemo(
