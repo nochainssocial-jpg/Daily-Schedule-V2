@@ -221,33 +221,9 @@ flexDirection: "row",
 alignItems: "center",
 justifyContent: "space-between",
 },
-currentPanelLeft: {
-flexDirection: "row",
-alignItems: "center",
-gap: 10,
-flexShrink: 1,
-},
 currentPanelBarTv: {
 height: 34,
 paddingHorizontal: 30,
-},
-currentPanelPill: {
-paddingHorizontal: 16,
-paddingVertical: 6,
-borderRadius: 999,
-backgroundColor: "#111827",
-},
-currentPanelLabel: {
-fontSize: 12,
-fontWeight: "800",
-color: "#FFFFFF",
-},
-currentPanelLabelTv: {
-fontSize: 10,
-},
-currentPanelValue: {
-fontWeight: "900",
-color: "#FFFFFF",
 },
 currentPanelCount: {
 fontSize: 11,
@@ -258,8 +234,10 @@ currentPanelCountTv: {
 fontSize: 10,
 },
 panelControlsRow: {
+flex: 1,
 flexDirection: "row",
 alignItems: "center",
+justifyContent: "space-between",
 gap: 10,
 },
 manualNavControls: {

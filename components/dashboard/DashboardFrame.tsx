@@ -2,20 +2,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable, View, Text, useWindowDimensions } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { styles } from "./dashboardStyles";
-import {
-  DASHBOARD_REFRESH_MS,
-  HOUSE_ID,
-  ROTATE_MS,
-  pageLabel,
-} from "./dashboardTheme";
-import type { DashboardPage } from "./dashboardTypes";
+import { DASHBOARD_REFRESH_MS, HOUSE_ID, ROTATE_MS } from "./dashboardTheme";
 import { formatDateKey, timeLabel, timeNowLabel } from "./dashboardUtils";
 
 type Props = {
   date?: string | null;
   tick: number;
   lastDashboardRefresh: Date | null;
-  currentPage: DashboardPage;
   pageIndex: number;
   pageCount: number;
   pageTheme: { background: string; accent: string };
@@ -42,7 +35,6 @@ export function DashboardFrame({
   date,
   tick,
   lastDashboardRefresh,
-  currentPage,
   pageIndex,
   pageCount,
   pageTheme,
@@ -161,13 +153,6 @@ export function DashboardFrame({
       </View>
 
       <View style={[styles.currentPanelBar, isTvDisplay && styles.currentPanelBarTv]}>
-        <View style={styles.currentPanelLeft}>
-          <View style={[styles.currentPanelPill, { backgroundColor: pageTheme.accent }]}> 
-            <Text style={[styles.currentPanelLabel, isTvDisplay && styles.currentPanelLabelTv]}>
-              Now Displaying: <Text style={styles.currentPanelValue}>{pageLabel(currentPage)}</Text>
-            </Text>
-          </View>
-        </View>
         <View style={styles.panelControlsRow}>
           {onPreviousPage && onNextPage && onToggleAutoRotation ? (
             <View style={[styles.manualNavControls, isTvDisplay && styles.manualNavControlsTv]}>

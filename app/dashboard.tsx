@@ -1124,7 +1124,6 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
-  currentPage="team"
   pageIndex={0}
   pageCount={1}
   pageTheme={DASHBOARD_PAGE_THEMES.team}
@@ -1145,7 +1144,6 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
-  currentPage="team"
   pageIndex={0}
   pageCount={1}
   pageTheme={DASHBOARD_PAGE_THEMES.team}
@@ -1167,7 +1165,6 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
-  currentPage={currentPage}
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
