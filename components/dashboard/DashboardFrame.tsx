@@ -21,11 +21,12 @@ type Props = {
   pageTheme: { background: string; accent: string };
   floatingAlarmEnabled?: boolean;
   floatingAlarmSupported?: boolean;
-  floatingAlarmAudioStatus?: "locked" | "ready" | "played" | "blocked" | "unsupported";
+  floatingAlarmAudioStatus?: "locked" | "arming" | "ready" | "played" | "blocked" | "unsupported";
   onEnableDashboardSounds?: () => void;
   onToggleFloatingAlarm?: () => void;
   onTestFloatingAlarm?: () => void;
   onTestRotationAlarm?: () => void;
+  onSimulateScheduledAlarm?: () => void;
   currentMinutes?: number | null;
   isPreviewMode?: boolean;
   previewTimeLabel?: string | null;
@@ -56,6 +57,7 @@ export function DashboardFrame({
   onToggleFloatingAlarm,
   onTestFloatingAlarm,
   onTestRotationAlarm,
+  onSimulateScheduledAlarm,
   currentMinutes = null,
   isPreviewMode = false,
   previewTimeLabel = null,
@@ -218,7 +220,9 @@ export function DashboardFrame({
                   <Text style={styles.alarmEnableBarText}>
                     {floatingAlarmAudioStatus === "played"
                       ? "Alarm Played"
-                      : floatingAlarmAudioStatus === "ready"
+                      : floatingAlarmAudioStatus === "arming"
+                        ? "Arming Audio..."
+                        : floatingAlarmAudioStatus === "ready"
                         ? "Sounds Enabled"
                         : floatingAlarmAudioStatus === "blocked"
                           ? "Enable Sounds Again"
@@ -260,6 +264,24 @@ export function DashboardFrame({
                     color="#7C2D12"
                   />
                   <Text style={styles.alarmTestBarText}>Test Rotation Alarm</Text>
+                </Pressable>
+              ) : null}
+              {isPreviewMode &&
+              floatingAlarmSupported &&
+              onSimulateScheduledAlarm &&
+              (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") ? (
+                <Pressable
+                  onPress={onSimulateScheduledAlarm}
+                  accessibilityRole="button"
+                  accessibilityLabel="Simulate the live floating rotation scheduler"
+                  style={styles.alarmSchedulerTestBar}
+                >
+                  <MaterialCommunityIcons
+                    name="timer-play-outline"
+                    size={15}
+                    color="#1E3A8A"
+                  />
+                  <Text style={styles.alarmSchedulerTestBarText}>Simulate Scheduler</Text>
                 </Pressable>
               ) : null}
               {floatingAlarmSupported && onToggleFloatingAlarm ? (

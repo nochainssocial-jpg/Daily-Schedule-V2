@@ -16,38 +16,150 @@ const ROTATION_AUDIO_SOURCES = [
 ] as const;
 
 type DashboardAudioKind = "test" | "rotation";
+type WebAudioWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
 
-let activeAudio: HTMLAudioElement | null = null;
-const audioPlayers = new Map<DashboardAudioKind, HTMLAudioElement>();
-
-function getAudioSources(kind: DashboardAudioKind) {
-  return kind === "test" ? TEST_AUDIO_SOURCES : ROTATION_AUDIO_SOURCES;
-}
-
-function getOrCreateAudio(kind: DashboardAudioKind): HTMLAudioElement | null {
-  if (!isDashboardAlarmSupported()) return null;
-
-  const existing = audioPlayers.get(kind);
-  if (existing) return existing;
-
-  const [primarySource] = getAudioSources(kind);
-  const audio = new Audio(primarySource);
-  audio.preload = "auto";
-  audio.volume = 1;
-  audioPlayers.set(kind, audio);
-  return audio;
-}
-
-export function prepareDashboardAudio(): boolean {
-  if (!isDashboardAlarmSupported()) return false;
-
-  getOrCreateAudio("test")?.load();
-  getOrCreateAudio("rotation")?.load();
-  return true;
-}
+let audioContext: AudioContext | null = null;
+let keepAliveOscillator: OscillatorNode | null = null;
+let keepAliveGain: GainNode | null = null;
+let audioBuffers: Partial<Record<DashboardAudioKind, AudioBuffer>> = {};
+let audioArmPromise: Promise<boolean> | null = null;
+let activeSource: AudioBufferSourceNode | null = null;
 
 export function isDashboardAlarmSupported(): boolean {
-  return Platform.OS === "web" && typeof window !== "undefined" && typeof Audio !== "undefined";
+  if (Platform.OS !== "web" || typeof window === "undefined") return false;
+  const audioWindow = window as WebAudioWindow;
+  return Boolean(audioWindow.AudioContext || audioWindow.webkitAudioContext);
+}
+
+function getAudioContextConstructor(): typeof AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const audioWindow = window as WebAudioWindow;
+  return audioWindow.AudioContext || audioWindow.webkitAudioContext || null;
+}
+
+function ensureAudioContext(): AudioContext | null {
+  if (audioContext) return audioContext;
+  const AudioContextConstructor = getAudioContextConstructor();
+  if (!AudioContextConstructor) return null;
+  audioContext = new AudioContextConstructor();
+  return audioContext;
+}
+
+async function decodeFirstSupportedSource(
+  context: AudioContext,
+  sources: readonly string[],
+): Promise<AudioBuffer | null> {
+  for (const source of sources) {
+    try {
+      const response = await fetch(source, { cache: "force-cache" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const arrayBuffer = await response.arrayBuffer();
+      return await context.decodeAudioData(arrayBuffer.slice(0));
+    } catch (error) {
+      console.warn(`[dashboard audio] unable to decode ${source}`, error);
+    }
+  }
+  return null;
+}
+
+function startKeepAlive(context: AudioContext) {
+  if (keepAliveOscillator || keepAliveGain) return;
+
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  gain.gain.value = 0.000001;
+  oscillator.frequency.value = 20;
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start();
+
+  keepAliveOscillator = oscillator;
+  keepAliveGain = gain;
+}
+
+export async function armDashboardAudio(): Promise<boolean> {
+  if (!isDashboardAlarmSupported()) return false;
+  if (audioBuffers.test && audioBuffers.rotation && audioContext?.state === "running") {
+    return true;
+  }
+  if (audioArmPromise) return audioArmPromise;
+
+  audioArmPromise = (async () => {
+    const context = ensureAudioContext();
+    if (!context) return false;
+
+    try {
+      if (context.state !== "running") await context.resume();
+      startKeepAlive(context);
+
+      const [testBuffer, rotationBuffer] = await Promise.all([
+        audioBuffers.test || decodeFirstSupportedSource(context, TEST_AUDIO_SOURCES),
+        audioBuffers.rotation || decodeFirstSupportedSource(context, ROTATION_AUDIO_SOURCES),
+      ]);
+
+      if (!testBuffer || !rotationBuffer) return false;
+      audioBuffers = { test: testBuffer, rotation: rotationBuffer };
+      return context.state === "running";
+    } catch (error) {
+      console.warn("[dashboard audio] unable to arm dashboard audio", error);
+      return false;
+    } finally {
+      audioArmPromise = null;
+    }
+  })();
+
+  return audioArmPromise;
+}
+
+export function isDashboardAudioArmed(): boolean {
+  return Boolean(
+    audioContext?.state === "running" && audioBuffers.test && audioBuffers.rotation,
+  );
+}
+
+export async function playDashboardAudio(kind: DashboardAudioKind): Promise<boolean> {
+  if (!isDashboardAlarmSupported()) return false;
+
+  const context = ensureAudioContext();
+  if (!context) return false;
+
+  try {
+    if (!audioBuffers[kind]) {
+      const armed = await armDashboardAudio();
+      if (!armed) return false;
+    }
+
+    if (context.state !== "running") {
+      await context.resume();
+    }
+
+    const buffer = audioBuffers[kind];
+    if (!buffer || context.state !== "running") return false;
+
+    if (activeSource) {
+      try {
+        activeSource.stop();
+      } catch {
+        // The previous source may already have finished.
+      }
+    }
+
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.onended = () => {
+      if (activeSource === source) activeSource = null;
+    };
+    activeSource = source;
+    source.start(0);
+    return true;
+  } catch (error) {
+    console.warn(`[dashboard audio] unable to play ${kind} audio`, error);
+    return false;
+  }
 }
 
 export function isFloatingRotationAlarmMinute(minutes: number): boolean {
@@ -83,49 +195,6 @@ export function floatingRotationAlarmKey(
   minutes: number,
 ): string {
   return `${date || "today"}:floating-alarm:${minutes}`;
-}
-
-async function playPersistentAudio(kind: DashboardAudioKind): Promise<boolean> {
-  const sources = getAudioSources(kind);
-  let audio = getOrCreateAudio(kind);
-  if (!audio) return false;
-
-  for (let index = 0; index < sources.length; index += 1) {
-    try {
-      if (activeAudio && activeAudio !== audio) {
-        activeAudio.pause();
-        activeAudio.currentTime = 0;
-      }
-
-      if (audio.src !== new URL(sources[index], window.location.href).href) {
-        audio.src = sources[index];
-        audio.load();
-      }
-
-      activeAudio = audio;
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = 1;
-      await audio.play();
-      return true;
-    } catch (error) {
-      console.warn(`[dashboard alarm] unable to play ${sources[index]}`, error);
-      if (index + 1 < sources.length) {
-        audio = new Audio(sources[index + 1]);
-        audio.preload = "auto";
-        audio.volume = 1;
-        audioPlayers.set(kind, audio);
-      }
-    }
-  }
-
-  return false;
-}
-
-export async function playDashboardAudio(kind: DashboardAudioKind): Promise<boolean> {
-  if (!isDashboardAlarmSupported()) return false;
-  prepareDashboardAudio();
-  return playPersistentAudio(kind);
 }
 
 export async function playFloatingAlarmTest(): Promise<boolean> {
