@@ -22,11 +22,7 @@ type Props = {
   floatingAlarmEnabled?: boolean;
   floatingAlarmSupported?: boolean;
   floatingAlarmAudioStatus?: "locked" | "arming" | "ready" | "played" | "blocked" | "unsupported";
-  onEnableDashboardSounds?: () => void;
   onToggleFloatingAlarm?: () => void;
-  onTestFloatingAlarm?: () => void;
-  onTestRotationAlarm?: () => void;
-  onSimulateScheduledAlarm?: () => void;
   currentMinutes?: number | null;
   isPreviewMode?: boolean;
   previewTimeLabel?: string | null;
@@ -53,11 +49,7 @@ export function DashboardFrame({
   floatingAlarmEnabled = false,
   floatingAlarmSupported = false,
   floatingAlarmAudioStatus = "locked",
-  onEnableDashboardSounds,
   onToggleFloatingAlarm,
-  onTestFloatingAlarm,
-  onTestRotationAlarm,
-  onSimulateScheduledAlarm,
   currentMinutes = null,
   isPreviewMode = false,
   previewTimeLabel = null,
@@ -196,115 +188,50 @@ export function DashboardFrame({
               <Pressable onPress={onNextPage} style={styles.manualNavButton}>
                 <Text style={styles.manualNavButtonText}>→</Text>
               </Pressable>
-              {floatingAlarmEnabled && floatingAlarmSupported && onEnableDashboardSounds ? (
-                <Pressable
-                  onPress={onEnableDashboardSounds}
-                  accessibilityRole="button"
-                  accessibilityLabel="Enable dashboard sounds and play a test chime"
-                  style={[
-                    styles.alarmEnableBar,
-                    (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") &&
-                      styles.alarmEnableBarReady,
-                    floatingAlarmAudioStatus === "blocked" && styles.alarmEnableBarBlocked,
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={
-                      floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played"
-                        ? "volume-high"
-                        : "volume-off"
-                    }
-                    size={15}
-                    color={floatingAlarmAudioStatus === "blocked" ? "#991B1B" : "#1F2937"}
-                  />
-                  <Text style={styles.alarmEnableBarText}>
-                    {floatingAlarmAudioStatus === "played"
-                      ? "Alarm Played"
-                      : floatingAlarmAudioStatus === "arming"
-                        ? "Arming Audio..."
-                        : floatingAlarmAudioStatus === "ready"
-                        ? "Sounds Enabled"
-                        : floatingAlarmAudioStatus === "blocked"
-                          ? "Enable Sounds Again"
-                          : "Enable Dashboard Sounds"}
-                  </Text>
-                </Pressable>
-              ) : null}
-              {isPreviewMode &&
-              floatingAlarmSupported &&
-              onTestFloatingAlarm &&
-              (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") ? (
-                <Pressable
-                  onPress={onTestFloatingAlarm}
-                  accessibilityRole="button"
-                  accessibilityLabel="Test floating rotation alarm"
-                  style={styles.alarmTestBar}
-                >
-                  <MaterialCommunityIcons
-                    name="volume-high"
-                    size={15}
-                    color="#7C2D12"
-                  />
-                  <Text style={styles.alarmTestBarText}>Test Alarm</Text>
-                </Pressable>
-              ) : null}
-              {isPreviewMode &&
-              floatingAlarmSupported &&
-              onTestRotationAlarm &&
-              (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") ? (
-                <Pressable
-                  onPress={onTestRotationAlarm}
-                  accessibilityRole="button"
-                  accessibilityLabel="Test live floating rotation announcement"
-                  style={styles.alarmTestBar}
-                >
-                  <MaterialCommunityIcons
-                    name="bullhorn"
-                    size={15}
-                    color="#7C2D12"
-                  />
-                  <Text style={styles.alarmTestBarText}>Test Rotation Alarm</Text>
-                </Pressable>
-              ) : null}
-              {isPreviewMode &&
-              floatingAlarmSupported &&
-              onSimulateScheduledAlarm &&
-              (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played") ? (
-                <Pressable
-                  onPress={onSimulateScheduledAlarm}
-                  accessibilityRole="button"
-                  accessibilityLabel="Simulate the live floating rotation scheduler"
-                  style={styles.alarmSchedulerTestBar}
-                >
-                  <MaterialCommunityIcons
-                    name="timer-play-outline"
-                    size={15}
-                    color="#1E3A8A"
-                  />
-                  <Text style={styles.alarmSchedulerTestBarText}>Simulate Scheduler</Text>
-                </Pressable>
-              ) : null}
               {floatingAlarmSupported && onToggleFloatingAlarm ? (
                 <Pressable
                   onPress={onToggleFloatingAlarm}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    floatingAlarmEnabled
-                      ? "Turn floating rotation alarm off"
-                      : "Turn floating rotation alarm on"
+                    floatingAlarmEnabled &&
+                    (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played")
+                      ? "Disable dashboard audio"
+                      : "Enable dashboard audio"
                   }
                   style={[
                     styles.alarmToggleBar,
-                    floatingAlarmEnabled && styles.alarmToggleBarEnabled,
+                    floatingAlarmEnabled &&
+                      (floatingAlarmAudioStatus === "ready" ||
+                        floatingAlarmAudioStatus === "played") &&
+                      styles.alarmToggleBarEnabled,
+                    floatingAlarmAudioStatus === "blocked" && styles.alarmToggleBarBlocked,
                   ]}
                 >
                   <MaterialCommunityIcons
-                    name={floatingAlarmEnabled ? "bell-ring" : "bell-off-outline"}
+                    name={
+                      floatingAlarmEnabled &&
+                      (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played")
+                        ? "volume-high"
+                        : "volume-off"
+                    }
                     size={15}
-                    color={floatingAlarmEnabled ? "#166534" : "#374151"}
+                    color={
+                      floatingAlarmEnabled &&
+                      (floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played")
+                        ? "#166534"
+                        : "#374151"
+                    }
                   />
                   <Text style={styles.alarmToggleBarText}>
-                    {floatingAlarmEnabled ? "Alarm On" : "Alarm Off"}
+                    {floatingAlarmAudioStatus === "arming"
+                      ? "Enabling Audio..."
+                      : floatingAlarmEnabled &&
+                          (floatingAlarmAudioStatus === "ready" ||
+                            floatingAlarmAudioStatus === "played")
+                        ? "Audio On"
+                        : floatingAlarmAudioStatus === "blocked" || floatingAlarmEnabled
+                          ? "Enable Audio"
+                          : "Audio Off"}
                   </Text>
                 </Pressable>
               ) : null}

@@ -65,7 +65,6 @@ import {
   floatingRotationAlarmKey,
   getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
-  playFloatingAlarmTest,
   playFloatingRotationAnnouncement,
 } from "@/components/dashboard/dashboardAudio";
 
@@ -156,6 +155,20 @@ try {
   // Keep the operational default enabled when storage is unavailable.
 }
 }, []);
+
+useEffect(() => {
+  if (!floatingAlarmEnabled || !isDashboardAlarmSupported()) return;
+
+  let cancelled = false;
+  setFloatingAlarmAudioStatus("arming");
+  void armDashboardAudio().then((armed) => {
+    if (!cancelled) setFloatingAlarmAudioStatus(armed ? "ready" : "locked");
+  });
+
+  return () => {
+    cancelled = true;
+  };
+}, [floatingAlarmEnabled]);
 
 const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
 const previewMinutes = useMemo(
@@ -724,75 +737,34 @@ useEffect(() => {
   return () => window.clearInterval(timer);
 }, [floatingAlarmEnabled, isPreviewMode, runScheduledFloatingAlarm]);
 
-const handleEnableDashboardSounds = async () => {
+const handleToggleFloatingAlarm = async () => {
   if (!isDashboardAlarmSupported()) {
     setFloatingAlarmAudioStatus("unsupported");
     return;
   }
 
-  setFloatingAlarmAudioStatus("arming");
-  const armed = await armDashboardAudio();
-  if (!armed) {
-    setFloatingAlarmAudioStatus("blocked");
+  const audioIsReady =
+    floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played";
+
+  // When audio is operational, the button acts as a normal on/off toggle.
+  if (floatingAlarmEnabled && audioIsReady) {
+    setFloatingAlarmEnabled(false);
+    setFloatingAlarmAudioStatus("locked");
+    try {
+      window.localStorage.setItem(FLOATING_ALARM_PREFERENCE_KEY, "false");
+    } catch {}
     return;
   }
 
-  const played = await playFloatingAlarmTest();
-  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-
-  if (played && typeof window !== "undefined") {
-    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-  }
-};
-
-const handleTestFloatingAlarm = async () => {
-  const played = await playFloatingAlarmTest();
-  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-
-  if (played && typeof window !== "undefined") {
-    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-  }
-};
-
-const handleTestRotationAlarm = async () => {
-  const played = await playFloatingRotationAnnouncement();
-  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-
-  if (played && typeof window !== "undefined") {
-    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-  }
-};
-
-const handleSimulateScheduledAlarm = async () => {
-  const simulatedMinute = getFloatingRotationAlarmMinute(currentMinutes, 30) ?? currentMinutes;
-  const played = await runScheduledFloatingAlarm(simulatedMinute, {
-    bypassDuplicateProtection: true,
-    source: "simulation",
-  });
-  setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-  if (played && typeof window !== "undefined") {
-    window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-  }
-};
-
-const handleToggleFloatingAlarm = () => {
-const nextEnabled = !floatingAlarmEnabled;
-setFloatingAlarmEnabled(nextEnabled);
-
-if (typeof window !== "undefined") {
+  // When disabled or browser-blocked, this same button enables and arms audio.
+  setFloatingAlarmEnabled(true);
+  setFloatingAlarmAudioStatus("arming");
   try {
-    window.localStorage.setItem(
-      FLOATING_ALARM_PREFERENCE_KEY,
-      String(nextEnabled),
-    );
-  } catch {
-    // The in-memory setting remains active when storage is unavailable.
-  }
-}
+    window.localStorage.setItem(FLOATING_ALARM_PREFERENCE_KEY, "true");
+  } catch {}
 
-if (!nextEnabled) {
-  setFloatingAlarmAudioStatus("locked");
-}
+  const armed = await armDashboardAudio();
+  setFloatingAlarmAudioStatus(armed ? "ready" : "blocked");
 };
 
 const displayChores = useMemo(
@@ -1202,11 +1174,7 @@ return (
   floatingAlarmEnabled={floatingAlarmEnabled}
   floatingAlarmSupported={isDashboardAlarmSupported()}
   floatingAlarmAudioStatus={floatingAlarmAudioStatus}
-  onEnableDashboardSounds={handleEnableDashboardSounds}
   onToggleFloatingAlarm={handleToggleFloatingAlarm}
-  onTestFloatingAlarm={handleTestFloatingAlarm}
-  onTestRotationAlarm={handleTestRotationAlarm}
-  onSimulateScheduledAlarm={handleSimulateScheduledAlarm}
   currentMinutes={currentMinutes}
   isPreviewMode={isPreviewMode}
   previewTimeLabel={previewTimeLabel}
