@@ -18,6 +18,33 @@ const ROTATION_AUDIO_SOURCES = [
 type DashboardAudioKind = "test" | "rotation";
 
 let activeAudio: HTMLAudioElement | null = null;
+const audioPlayers = new Map<DashboardAudioKind, HTMLAudioElement>();
+
+function getAudioSources(kind: DashboardAudioKind) {
+  return kind === "test" ? TEST_AUDIO_SOURCES : ROTATION_AUDIO_SOURCES;
+}
+
+function getOrCreateAudio(kind: DashboardAudioKind): HTMLAudioElement | null {
+  if (!isDashboardAlarmSupported()) return null;
+
+  const existing = audioPlayers.get(kind);
+  if (existing) return existing;
+
+  const [primarySource] = getAudioSources(kind);
+  const audio = new Audio(primarySource);
+  audio.preload = "auto";
+  audio.volume = 1;
+  audioPlayers.set(kind, audio);
+  return audio;
+}
+
+export function prepareDashboardAudio(): boolean {
+  if (!isDashboardAlarmSupported()) return false;
+
+  getOrCreateAudio("test")?.load();
+  getOrCreateAudio("rotation")?.load();
+  return true;
+}
 
 export function isDashboardAlarmSupported(): boolean {
   return Platform.OS === "web" && typeof window !== "undefined" && typeof Audio !== "undefined";
@@ -58,34 +85,47 @@ export function floatingRotationAlarmKey(
   return `${date || "today"}:floating-alarm:${minutes}`;
 }
 
-async function tryPlaySource(source: string): Promise<boolean> {
-  try {
-    if (activeAudio) {
-      activeAudio.pause();
-      activeAudio.currentTime = 0;
-    }
+async function playPersistentAudio(kind: DashboardAudioKind): Promise<boolean> {
+  const sources = getAudioSources(kind);
+  let audio = getOrCreateAudio(kind);
+  if (!audio) return false;
 
-    const audio = new Audio(source);
-    activeAudio = audio;
-    audio.preload = "auto";
-    audio.volume = 1;
-    await audio.play();
-    return true;
-  } catch (error) {
-    console.warn(`[dashboard alarm] unable to play ${source}`, error);
-    return false;
+  for (let index = 0; index < sources.length; index += 1) {
+    try {
+      if (activeAudio && activeAudio !== audio) {
+        activeAudio.pause();
+        activeAudio.currentTime = 0;
+      }
+
+      if (audio.src !== new URL(sources[index], window.location.href).href) {
+        audio.src = sources[index];
+        audio.load();
+      }
+
+      activeAudio = audio;
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 1;
+      await audio.play();
+      return true;
+    } catch (error) {
+      console.warn(`[dashboard alarm] unable to play ${sources[index]}`, error);
+      if (index + 1 < sources.length) {
+        audio = new Audio(sources[index + 1]);
+        audio.preload = "auto";
+        audio.volume = 1;
+        audioPlayers.set(kind, audio);
+      }
+    }
   }
+
+  return false;
 }
 
 export async function playDashboardAudio(kind: DashboardAudioKind): Promise<boolean> {
   if (!isDashboardAlarmSupported()) return false;
-
-  const sources = kind === "test" ? TEST_AUDIO_SOURCES : ROTATION_AUDIO_SOURCES;
-  for (const source of sources) {
-    if (await tryPlaySource(source)) return true;
-  }
-
-  return false;
+  prepareDashboardAudio();
+  return playPersistentAudio(kind);
 }
 
 export async function playFloatingAlarmTest(): Promise<boolean> {

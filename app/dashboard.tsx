@@ -66,6 +66,7 @@ import {
   isDashboardAlarmSupported,
   playFloatingAlarmTest,
   playFloatingRotationAnnouncement,
+  prepareDashboardAudio,
 } from "@/components/dashboard/dashboardAudio";
 
 // Dashboard reminder tabs added: Incident Reports, Behaviour Observations, Participant Communication Forms, Phone Usage.
@@ -116,6 +117,7 @@ const [floatingAlarmAudioStatus, setFloatingAlarmAudioStatus] = useState<
 >("locked");
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
+const floatingAlarmInFlightRef = useRef(false);
 const autoResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 const propertySupportResetDateRef = useRef<string | null>(null);
 
@@ -656,50 +658,78 @@ const hasFloatingAssignments = useMemo(
 );
 const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
-const floatingAlarmMinute = useMemo(
-() => getFloatingRotationAlarmMinute(currentMinutes),
-[currentMinutes],
-);
-const floatingAlarmKey = useMemo(
-() =>
-floatingAlarmMinute === null
-? null
-: floatingRotationAlarmKey(date, floatingAlarmMinute),
-[date, floatingAlarmMinute],
-);
-
 useEffect(() => {
-if (!floatingAlarmEnabled || !floatingAlarmKey) return;
-if (!isDashboardAlarmSupported()) return;
-if (playedFloatingAlarmKeysRef.current.has(floatingAlarmKey)) return;
+if (!floatingAlarmEnabled || !isDashboardAlarmSupported()) return;
 
-if (typeof window !== "undefined") {
-  try {
-    if (window.sessionStorage.getItem(floatingAlarmKey) === "played") {
-      playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
-      return;
-    }
-  } catch {
-    // Continue with in-memory duplicate protection when storage is unavailable.
-  }
-}
+let cancelled = false;
 
-void playFloatingRotationAnnouncement().then((played) => {
-  if (!played) {
-    setFloatingAlarmAudioStatus("blocked");
-    return;
-  }
-  setFloatingAlarmAudioStatus("ready");
-  playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
+const checkAndPlayFloatingAlarm = async (minutes: number) => {
+  const alarmMinute = getFloatingRotationAlarmMinute(minutes);
+  if (alarmMinute === null || floatingAlarmInFlightRef.current) return;
+
+  const alarmKey = floatingRotationAlarmKey(date, alarmMinute);
+  if (playedFloatingAlarmKeysRef.current.has(alarmKey)) return;
+
   if (typeof window !== "undefined") {
     try {
-      window.sessionStorage.setItem(floatingAlarmKey, "played");
+      if (window.sessionStorage.getItem(alarmKey) === "played") {
+        playedFloatingAlarmKeysRef.current.add(alarmKey);
+        return;
+      }
     } catch {
-      // In-memory protection is sufficient for this session.
+      // Continue with in-memory duplicate protection when storage is unavailable.
     }
   }
-});
-}, [floatingAlarmEnabled, floatingAlarmKey]);
+
+  floatingAlarmInFlightRef.current = true;
+  console.info(`[dashboard alarm] firing rotation alarm for ${alarmMinute}`);
+
+  try {
+    const played = await playFloatingRotationAnnouncement();
+    if (cancelled) return;
+
+    if (!played) {
+      setFloatingAlarmAudioStatus("blocked");
+      console.warn(`[dashboard alarm] playback failed for ${alarmMinute}`);
+      return;
+    }
+
+    setFloatingAlarmAudioStatus("ready");
+    playedFloatingAlarmKeysRef.current.add(alarmKey);
+
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(alarmKey, "played");
+      } catch {
+        // In-memory protection is sufficient for this session.
+      }
+    }
+  } finally {
+    floatingAlarmInFlightRef.current = false;
+  }
+};
+
+prepareDashboardAudio();
+
+if (isPreviewMode) {
+  void checkAndPlayFloatingAlarm(currentMinutes);
+  return () => {
+    cancelled = true;
+  };
+}
+
+const runLiveCheck = () => {
+  void checkAndPlayFloatingAlarm(nowMinutes());
+};
+
+runLiveCheck();
+const timer = window.setInterval(runLiveCheck, 5_000);
+
+return () => {
+  cancelled = true;
+  window.clearInterval(timer);
+};
+}, [currentMinutes, date, floatingAlarmEnabled, isPreviewMode]);
 
 const handleEnableDashboardSounds = async () => {
 if (!isDashboardAlarmSupported()) {
@@ -707,6 +737,7 @@ if (!isDashboardAlarmSupported()) {
   return;
 }
 
+prepareDashboardAudio();
 const played = await playFloatingAlarmTest();
 setFloatingAlarmAudioStatus(played ? "played" : "blocked");
 
