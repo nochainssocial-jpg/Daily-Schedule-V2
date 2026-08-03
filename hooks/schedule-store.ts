@@ -43,6 +43,9 @@ export type FloatingAssignments =
 
 export type CleaningAssignments = Record<ID, ID | null>;
 
+// Mentor staff ID -> trainee/shadowing staff ID for the current day.
+export type TrainingShadowAssignments = Record<ID, ID | null>;
+
 export type DropoffAssignment = {
   staffId: ID | null;
   locationId: number | null;
@@ -61,6 +64,9 @@ export type ScheduleSnapshot = {
 
   // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday: ID[];
+
+  // Mentor staff -> trainee/shadowing staff for the current day.
+  trainingShadowAssignments: TrainingShadowAssignments;
 
   // Supports the current staff -> participant[] shape and older participant -> staff shape.
   assignments: Record<ID, ID[] | ID | null>;
@@ -191,6 +197,7 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     workingStaff: [],
     attendingParticipants: [],
     trainingStaffToday: [],
+    trainingShadowAssignments: {},
     assignments: {},
     floatingAssignments: {
       frontRoom: null,
@@ -549,9 +556,20 @@ function normaliseSnapshotForStore(snapshot: any): ScheduleSnapshot {
 
   const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot);
 
+  const normalizedTrainingShadows: TrainingShadowAssignments = {};
+  if (isPlainRecord((snapshot as any)?.trainingShadowAssignments)) {
+    Object.entries((snapshot as any).trainingShadowAssignments).forEach(
+      ([mentorId, traineeId]) => {
+        if (!mentorId || !traineeId) return;
+        normalizedTrainingShadows[String(mentorId)] = String(traineeId);
+      },
+    );
+  }
+
   return syncOutingCompatibility({
     ...makeInitialSnapshot(),
     ...(snapshot as ScheduleSnapshot),
+    trainingShadowAssignments: normalizedTrainingShadows,
     dropoffAssignments: normalizedDropoffs,
     outingGroups: normalizedOutingGroups,
     outingGroup: normalizedOutingGroups[0] ?? null,

@@ -9,6 +9,7 @@ import {
   Platform,
   useWindowDimensions,
   Linking,
+  Modal,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSchedule } from '@/hooks/schedule-store';
@@ -208,6 +209,7 @@ export default function EditAssignmentsScreen() {
     workingStaff,
     attendingParticipants,
     trainingStaffToday = [],
+    trainingShadowAssignments = {},
     outingGroups = [],
     outingGroup, // legacy fallback for older saved schedules
     updateSchedule,
@@ -225,13 +227,38 @@ export default function EditAssignmentsScreen() {
     (workingStaff && workingStaff.length ? (workingStaff as ID[]) : []) as ID[],
   );
 
-  // Staff rows: working staff only, plus "Everyone", excluding Antoinette.
+  const trainingSet = React.useMemo(
+    () => new Set<ID>((trainingStaffToday as ID[]) || []),
+    [trainingStaffToday],
+  );
+
+  const trainingShadowMap = React.useMemo<Record<ID, ID>>(() => {
+    const next: Record<ID, ID> = {};
+    Object.entries(trainingShadowAssignments || {}).forEach(
+      ([mentorId, traineeId]) => {
+        if (!mentorId || !traineeId) return;
+        next[String(mentorId)] = String(traineeId);
+      },
+    );
+    return next;
+  }, [trainingShadowAssignments]);
+
+  const shadowTraineeSet = React.useMemo(
+    () => new Set<ID>(Object.values(trainingShadowMap).map(String)),
+    [trainingShadowMap],
+  );
+
+  // Staff rows: working staff only, plus "Everyone", excluding Antoinette
+  // and anyone shadowing another staff member today.
   const rowStaff = staffSource.filter((s) => {
-    const inWorking = workingSet.has(s.id as ID);
+    const staffId = String(s.id) as ID;
+    const inWorking = workingSet.has(staffId);
     const everyone = isEveryone(s.name);
     const anto = isAntoinette(s.name);
+    const isTraining =
+      trainingSet.has(staffId) || shadowTraineeSet.has(staffId);
 
-    if (anto) return false;
+    if (anto || isTraining) return false;
     if (workingSet.size) {
       return inWorking || everyone;
     }
@@ -247,6 +274,9 @@ export default function EditAssignmentsScreen() {
 
   const [hoveredProfile, setHoveredProfile] =
     React.useState<ParticipantProfileHover | null>(null);
+
+  const [trainingMentorId, setTrainingMentorId] =
+    React.useState<ID | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -330,11 +360,6 @@ export default function EditAssignmentsScreen() {
       cancelled = true;
     };
   }, []);
-
-  const trainingSet = React.useMemo(
-    () => new Set<ID>((trainingStaffToday as ID[]) || []),
-    [trainingStaffToday],
-  );
 
   // Canonical assignments (in store): participantId -> staffId | null
   const assignmentsMap = React.useMemo<Record<ID, ID | null>>(
@@ -468,6 +493,215 @@ export default function EditAssignmentsScreen() {
 
     updateSchedule({ assignments: next });
     push('Team daily assignments updated', 'assignments');
+  };
+
+  const openTrainingPicker = (mentorId: ID) => {
+    if (readOnly) {
+      push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
+      return;
+    }
+
+    const mentor = staffSource.find((staff) => String(staff.id) === String(mentorId));
+    if (!mentor || isEveryone(mentor.name)) return;
+    setTrainingMentorId(String(mentorId));
+  };
+
+  const assignTrainingShadow = (traineeId: ID) => {
+    if (!trainingMentorId || readOnly) return;
+
+    const mentorId = String(trainingMentorId) as ID;
+    const selectedTraineeId = String(traineeId) as ID;
+    const nextShadows: Record<ID, ID | null> = { ...trainingShadowMap };
+    const previousTraineeId = nextShadows[mentorId]
+      ? String(nextShadows[mentorId])
+      : null;
+
+    // A trainee can shadow only one mentor, and a mentor cannot simultaneously
+    // be used as another staff member's trainee.
+    Object.entries(nextShadows).forEach(([existingMentorId, existingTraineeId]) => {
+      if (
+        String(existingTraineeId || '') === selectedTraineeId ||
+        existingMentorId === selectedTraineeId
+      ) {
+        delete nextShadows[existingMentorId];
+      }
+    });
+    nextShadows[mentorId] = selectedTraineeId;
+
+    const nextTraining = new Set<ID>((trainingStaffToday as ID[]) || []);
+    nextTraining.add(selectedTraineeId);
+
+    if (
+      previousTraineeId &&
+      previousTraineeId !== selectedTraineeId &&
+      !Object.values(nextShadows).some(
+        (id) => String(id || '') === previousTraineeId,
+      )
+    ) {
+      nextTraining.delete(previousTraineeId);
+    }
+
+    const nextAssignments: Record<ID, ID | null> = { ...assignmentsMap };
+    Object.entries(nextAssignments).forEach(([participantId, ownerId]) => {
+      if (String(ownerId || '') === selectedTraineeId) {
+        nextAssignments[participantId] = null;
+      }
+    });
+
+    updateSchedule({
+      trainingStaffToday: Array.from(nextTraining),
+      trainingShadowAssignments: nextShadows,
+      assignments: nextAssignments,
+    });
+    setTrainingMentorId(null);
+    push('Training shadow assignment updated', 'assignments');
+  };
+
+  const removeTrainingShadow = () => {
+    if (!trainingMentorId || readOnly) return;
+
+    const mentorId = String(trainingMentorId) as ID;
+    const nextShadows: Record<ID, ID | null> = { ...trainingShadowMap };
+    const traineeId = nextShadows[mentorId]
+      ? String(nextShadows[mentorId])
+      : null;
+    delete nextShadows[mentorId];
+
+    const nextTraining = new Set<ID>((trainingStaffToday as ID[]) || []);
+    if (
+      traineeId &&
+      !Object.values(nextShadows).some((id) => String(id || '') === traineeId)
+    ) {
+      nextTraining.delete(traineeId);
+    }
+
+    updateSchedule({
+      trainingStaffToday: Array.from(nextTraining),
+      trainingShadowAssignments: nextShadows,
+    });
+    setTrainingMentorId(null);
+    push('Training shadow assignment removed', 'assignments');
+  };
+
+  const renderTrainingPicker = () => {
+    if (!trainingMentorId) return null;
+
+    const mentor = staffSource.find(
+      (staff) => String(staff.id) === String(trainingMentorId),
+    );
+    const currentTraineeId = trainingShadowMap[trainingMentorId] || null;
+    const pairedTraineeIds = new Set(
+      Object.values(trainingShadowMap).filter(Boolean).map(String),
+    );
+    const activeMentorIds = new Set(Object.keys(trainingShadowMap).map(String));
+
+    const candidates = staffSource
+      .filter((staff) => {
+        const candidateId = String(staff.id);
+        if (!workingSet.has(candidateId)) return false;
+        if (candidateId === String(trainingMentorId)) return false;
+        if (isEveryone(staff.name) || isAntoinette(staff.name)) return false;
+        if (
+          activeMentorIds.has(candidateId) &&
+          candidateId !== String(currentTraineeId || '')
+        ) {
+          return false;
+        }
+        if (
+          pairedTraineeIds.has(candidateId) &&
+          candidateId !== String(currentTraineeId || '')
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || ''), 'en-AU'),
+      );
+
+    return (
+      <Modal
+        transparent
+        visible
+        animationType="fade"
+        onRequestClose={() => setTrainingMentorId(null)}
+      >
+        <View style={styles.trainingModalBackdrop}>
+          <View style={styles.trainingModalCard}>
+            <View style={styles.trainingModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trainingModalTitle}>Assign staff in training</Text>
+                <Text style={styles.trainingModalSubtitle}>
+                  Select the staff member shadowing {mentor?.name || 'this staff member'}.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setTrainingMentorId(null)}
+                style={styles.trainingModalClose}
+              >
+                <Ionicons name="close" size={20} color="#475467" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.trainingCandidateScroll}>
+              <View style={styles.trainingCandidateList}>
+                {candidates.map((candidate) => {
+                  const candidateId = String(candidate.id) as ID;
+                  const selected = String(currentTraineeId || '') === candidateId;
+                  return (
+                    <TouchableOpacity
+                      key={candidateId}
+                      onPress={() => assignTrainingShadow(candidateId)}
+                      activeOpacity={0.82}
+                      style={[
+                        styles.trainingCandidate,
+                        selected && styles.trainingCandidateSelected,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.trainingCandidateColor,
+                          { backgroundColor: candidate.color || '#D0D5DD' },
+                        ]}
+                      />
+                      <Text style={styles.trainingCandidateName}>
+                        {candidate.name}
+                      </Text>
+                      {trainingSet.has(candidateId) && (
+                        <Text style={styles.trainingCandidateStatus}>
+                          In training
+                        </Text>
+                      )}
+                      {selected && (
+                        <Ionicons name="checkmark-circle" size={20} color="#0F766E" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {candidates.length === 0 && (
+                  <Text style={styles.trainingCandidateEmpty}>
+                    No other working staff are available.
+                  </Text>
+                )}
+              </View>
+            </ScrollView>
+
+            {currentTraineeId && (
+              <TouchableOpacity
+                onPress={removeTrainingShadow}
+                activeOpacity={0.82}
+                style={styles.removeTrainingButton}
+              >
+                <Text style={styles.removeTrainingButtonText}>
+                  Remove training link
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   const renderProfileModal = () => {
@@ -749,8 +983,9 @@ export default function EditAssignmentsScreen() {
           <Text style={styles.title}>Team Daily Assignments</Text>
           <Text style={styles.subtitle}>
             Working staff @ B2 (including Everyone) with their individual
-            participant assignments. Tap a name to move them between staff
-            members.
+            participant assignments. Tap a participant to move them between
+            staff members. Press and hold a staff name to assign someone who is
+            shadowing them in training.
           </Text>
 
           {rowStaff.length === 0 ? (
@@ -771,8 +1006,13 @@ export default function EditAssignmentsScreen() {
                 const band = getScoreBand(score);
                 const showScore = isAdmin && score > 0;
 
-                const isTraining = trainingSet.has(staffId);
-                const canAssign = !isTraining;
+                const shadowTraineeId = trainingShadowMap[staffId] || null;
+                const shadowTrainee = shadowTraineeId
+                  ? staffSource.find(
+                      (person) => String(person.id) === String(shadowTraineeId),
+                    )
+                  : null;
+                const canAssign = true;
 
                 // All participants currently assigned to this staff
                 const staffAssigned = attendingIds.filter(
@@ -793,7 +1033,6 @@ export default function EditAssignmentsScreen() {
                 });
 
                 const cardStyles = [styles.card] as any[];
-                if (isTraining) cardStyles.push(styles.cardTraining);
 
                 return (
                   <View key={staffId} style={cardStyles}>
@@ -816,28 +1055,40 @@ export default function EditAssignmentsScreen() {
                           <Text style={styles.scoreText}>{score}</Text>
                         </View>
                       )}
-                      <Text style={styles.staffName}>{st.name}</Text>
-                      {isAdmin &&
-                        (isTraining ? (
+                      <TouchableOpacity
+                        onLongPress={() => openTrainingPicker(staffId)}
+                        delayLongPress={650}
+                        disabled={readOnly || isEveryone(st.name)}
+                        activeOpacity={0.75}
+                        style={styles.staffNamePressTarget}
+                      >
+                        <Text style={styles.staffName}>{st.name}</Text>
+                      </TouchableOpacity>
+
+                      {shadowTrainee && (
+                        <View style={styles.shadowStaffDisplay}>
                           <MaterialCommunityIcons
-                            name="account-supervisor"
-                            size={24}
-                            color="#1C5F87"
+                            name="chevron-right"
+                            size={20}
+                            color="#667085"
                           />
-                        ) : band === 'senior' ? (
-                          <MaterialCommunityIcons
-                            name="account-star"
-                            size={24}
-                            color="#FBBF24"
-                          />
-                        ) : null)}
+                          <Text style={styles.shadowStaffName}>
+                            {shadowTrainee.name}
+                          </Text>
+                          <Text style={styles.shadowStaffLabel}>(in training)</Text>
+                        </View>
+                      )}
+
+                      {isAdmin && band === 'senior' ? (
+                        <MaterialCommunityIcons
+                          name="account-star"
+                          size={24}
+                          color="#FBBF24"
+                        />
+                      ) : null}
                     </View>
 
-                    {isTraining ? (
-                      <Text style={styles.trainingNote}>
-                        Training today – no direct participant assignments.
-                      </Text>
-                    ) : staffAssigned.length > 0 ? (
+                    {staffAssigned.length > 0 ? (
                       <Text style={styles.assignedSummary}>
                         Assigned: {assignedNames}
                       </Text>
@@ -993,11 +1244,116 @@ export default function EditAssignmentsScreen() {
         </View>
       </ScrollView>
       {renderProfileModal()}
+      {renderTrainingPicker()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  trainingModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  trainingModalCard: {
+    width: '100%',
+    maxWidth: 460,
+    maxHeight: '78%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  trainingModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  trainingModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#101828',
+  },
+  trainingModalSubtitle: {
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#667085',
+  },
+  trainingModalClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F2F4F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trainingCandidateScroll: {
+    maxHeight: 420,
+  },
+  trainingCandidateList: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  trainingCandidate: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E4E7EC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  trainingCandidateSelected: {
+    borderColor: '#14B8A6',
+    backgroundColor: '#F0FDFA',
+  },
+  trainingCandidateColor: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+  },
+  trainingCandidateName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#344054',
+  },
+  trainingCandidateStatus: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1C5F87',
+  },
+  trainingCandidateEmpty: {
+    paddingVertical: 18,
+    textAlign: 'center',
+    color: '#667085',
+    fontSize: 13,
+  },
+  removeTrainingButton: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FDA29B',
+    backgroundColor: '#FFF1F0',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  removeTrainingButtonText: {
+    color: '#B42318',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   profileModal: {
     position: 'absolute',
     zIndex: 50,
@@ -1230,10 +1586,30 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#E6ECF5',
   },
+  staffNamePressTarget: {
+    minHeight: 28,
+    justifyContent: 'center',
+  },
   staffName: {
     fontSize: 16,
     color: '#101828',
     fontWeight: '600',
+  },
+  shadowStaffDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 4,
+  },
+  shadowStaffName: {
+    fontSize: 15,
+    color: '#1C5F87',
+    fontWeight: '700',
+  },
+  shadowStaffLabel: {
+    fontSize: 11,
+    color: '#1C5F87',
+    fontWeight: '700',
   },
   scoreCircle: {
     width: 24,

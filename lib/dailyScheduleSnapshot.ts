@@ -17,6 +17,7 @@ function baseSnapshot(schedule: any, dateKey: string): ScheduleSnapshot {
     workingStaff: schedule.workingStaff || [],
     attendingParticipants: schedule.attendingParticipants || [],
     trainingStaffToday: schedule.trainingStaffToday || [],
+    trainingShadowAssignments: schedule.trainingShadowAssignments || {},
     assignments: schedule.assignments || {},
     floatingAssignments: schedule.floatingAssignments || {},
     cleaningAssignments: schedule.cleaningAssignments || {},
@@ -52,6 +53,7 @@ export function buildDailySchedulePatch(
       return {
         workingStaff: schedule.workingStaff || [],
         trainingStaffToday: schedule.trainingStaffToday || [],
+        trainingShadowAssignments: schedule.trainingShadowAssignments || {},
       };
     case 'participants':
       return {
@@ -60,6 +62,8 @@ export function buildDailySchedulePatch(
     case 'assignments':
       return {
         assignments: schedule.assignments || {},
+        trainingStaffToday: schedule.trainingStaffToday || [],
+        trainingShadowAssignments: schedule.trainingShadowAssignments || {},
       };
     case 'floating':
       return {

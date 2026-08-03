@@ -64,6 +64,7 @@ export default function EditDreamTeamScreen() {
     staff: scheduleStaff,
     workingStaff = [],
     trainingStaffToday = [],
+    trainingShadowAssignments = {},
     outingGroups = [],
     outingGroup,
     updateSchedule,
@@ -219,11 +220,39 @@ export default function EditDreamTeamScreen() {
 
     if (next.has(key)) {
       next.delete(key);
+
+      const nextTraining = new Set<string>(Array.from(trainingSet));
+      nextTraining.delete(key);
+
+      const nextShadows: Record<string, string | null> = {
+        ...(trainingShadowAssignments || {}),
+      };
+      const linkedTraineeId = nextShadows[key]
+        ? String(nextShadows[key])
+        : null;
+      delete nextShadows[key];
+      Object.entries(nextShadows).forEach(([mentorId, traineeId]) => {
+        if (String(traineeId || '') === key) delete nextShadows[mentorId];
+      });
+      if (
+        linkedTraineeId &&
+        !Object.values(nextShadows).some(
+          (traineeId) => String(traineeId || '') === linkedTraineeId,
+        )
+      ) {
+        nextTraining.delete(linkedTraineeId);
+      }
+
+      updateSchedule?.({
+        workingStaff: Array.from(next),
+        trainingStaffToday: Array.from(nextTraining),
+        trainingShadowAssignments: nextShadows,
+      });
     } else {
       next.add(key);
+      updateSchedule?.({ workingStaff: Array.from(next) });
     }
 
-    updateSchedule?.({ workingStaff: Array.from(next) });
     push?.('Dream Team updated', 'dream-team');
   };
 
@@ -236,13 +265,37 @@ export default function EditDreamTeamScreen() {
     const key = String(id);
     const next = new Set<string>(Array.from(trainingSet));
 
+    const nextShadows: Record<string, string | null> = {
+      ...(trainingShadowAssignments || {}),
+    };
+
     if (next.has(key)) {
       next.delete(key);
+      Object.entries(nextShadows).forEach(([mentorId, traineeId]) => {
+        if (String(traineeId || '') === key) delete nextShadows[mentorId];
+      });
     } else {
       next.add(key);
+
+      // A mentor cannot also be marked as another independent trainee.
+      const linkedTraineeId = nextShadows[key]
+        ? String(nextShadows[key])
+        : null;
+      delete nextShadows[key];
+      if (
+        linkedTraineeId &&
+        !Object.values(nextShadows).some(
+          (traineeId) => String(traineeId || '') === linkedTraineeId,
+        )
+      ) {
+        next.delete(linkedTraineeId);
+      }
     }
 
-    updateSchedule?.({ trainingStaffToday: Array.from(next) });
+    updateSchedule?.({
+      trainingStaffToday: Array.from(next),
+      trainingShadowAssignments: nextShadows,
+    });
     push?.('Training status updated', 'dream-team');
   };
 

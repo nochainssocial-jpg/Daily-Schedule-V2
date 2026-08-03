@@ -18,6 +18,7 @@ type PersistParams = {
   attendingParticipants: ID[];
 
   trainingStaffToday?: ID[];
+  trainingShadowAssignments?: ScheduleSnapshot['trainingShadowAssignments'];
 
   // assignments: participantId -> staffId | null   (WIZARD → CANONICAL)
   assignments?: Record<ID, ID | null>;
@@ -86,6 +87,7 @@ export async function persistFinish(params: PersistParams) {
     attendingParticipants = [],
 
     trainingStaffToday = [],
+    trainingShadowAssignments = {},
 
     assignments = {},
     floatingAssignments = {},
@@ -273,6 +275,7 @@ export async function persistFinish(params: PersistParams) {
     attendingParticipants,
 
     trainingStaffToday: [...new Set(trainingStaffToday)],
+    trainingShadowAssignments: { ...trainingShadowAssignments },
 
     assignments: assignmentsByStaff,
     floatingAssignments: normalizedFloating,

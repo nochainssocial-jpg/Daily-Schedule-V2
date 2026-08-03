@@ -961,6 +961,7 @@ snapshot = {
         workingStaff: state.workingStaff ?? realWorkers,
         attendingParticipants: state.attendingParticipants ?? attendingParticipants,
         trainingStaffToday: state.trainingStaffToday ?? [],
+        trainingShadowAssignments: state.trainingShadowAssignments ?? {},
 
         assignments: __ds_normaliseAssignmentsMap(state.assignments, assignmentsMap),
         floatingAssignments: state.floatingAssignments ?? {},
@@ -996,6 +997,7 @@ snapshot = {
         workingStaff: realWorkers,
         attendingParticipants,
         trainingStaffToday: [],
+        trainingShadowAssignments: {},
         assignments: assignmentsMap,
         floatingAssignments: {},
         cleaningAssignments: {},

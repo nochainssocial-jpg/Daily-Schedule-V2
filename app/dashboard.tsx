@@ -61,10 +61,10 @@ import {
   splitStaffCelebrations,
 } from "@/components/dashboard/staffCelebrationData";
 import {
-  armDashboardAudio,
   floatingRotationAlarmKey,
   getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
+  playFloatingAlarmTest,
   playFloatingRotationAnnouncement,
 } from "@/components/dashboard/dashboardAudio";
 
@@ -112,7 +112,7 @@ const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([
 const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
 const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(true);
 const [floatingAlarmAudioStatus, setFloatingAlarmAudioStatus] = useState<
-  "locked" | "arming" | "ready" | "played" | "blocked" | "unsupported"
+  "locked" | "ready" | "played" | "blocked" | "unsupported"
 >("locked");
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
@@ -126,6 +126,8 @@ scheduleLoadError,
 staff = [],
 participants = [],
 workingStaff = [],
+trainingStaffToday = [],
+trainingShadowAssignments = {},
 timeSlots = [],
 chores = [],
 checklistItems = [],
@@ -155,20 +157,6 @@ try {
   // Keep the operational default enabled when storage is unavailable.
 }
 }, []);
-
-useEffect(() => {
-  if (!floatingAlarmEnabled || !isDashboardAlarmSupported()) return;
-
-  let cancelled = false;
-  setFloatingAlarmAudioStatus("arming");
-  void armDashboardAudio().then((armed) => {
-    if (!cancelled) setFloatingAlarmAudioStatus(armed ? "ready" : "locked");
-  });
-
-  return () => {
-    cancelled = true;
-  };
-}, [floatingAlarmEnabled]);
 
 const previewTimeParam = useMemo(() => getPreviewTimeParam(), []);
 const previewMinutes = useMemo(
@@ -478,12 +466,19 @@ safetyTransportParticipantIds,
 const teamAssignmentRows = useMemo(() => {
 const byStaff = new Map<string, string[]>();
 const workingSet = new Set((workingStaff || []).map(String));
+const trainingSet = new Set((trainingStaffToday || []).map(String));
+const shadowMap = new Map<string, string>();
+Object.entries(trainingShadowAssignments || {}).forEach(([mentorId, traineeId]) => {
+if (!mentorId || !traineeId) return;
+shadowMap.set(String(mentorId), String(traineeId));
+});
+shadowMap.forEach((traineeId) => trainingSet.add(traineeId));
 
-// Always include every member of today's Dream Team, even when a participant
-// has not yet been allocated to them. This keeps the dashboard headcount aligned
-// with the Dream Team editor.
+// Always include each independently assigned member of today's Dream Team.
+// Trainees are displayed beside their mentor rather than as a separate tile.
 if (workingSet.size > 0) {
 workingSet.forEach((staffId) => {
+if (trainingSet.has(staffId)) return;
 if (staffById.has(staffId)) byStaff.set(staffId, []);
 });
 }
@@ -493,7 +488,7 @@ Object.entries(assignments || {}).forEach(
 if (Array.isArray(rawStaffId)) {
 // Compatibility with older/reverse shapes: staffId -> participantIds[].
 const staffId = String(rawParticipantId);
-if (!staffById.has(staffId)) return;
+if (!staffById.has(staffId) || trainingSet.has(staffId)) return;
 rawStaffId.forEach((pid) => {
 const participantId = String(pid);
 if (!participantsById.has(participantId)) return;
@@ -507,7 +502,11 @@ return;
 if (!rawStaffId) return;
 const participantId = String(rawParticipantId);
 const staffId = String(rawStaffId);
-if (!staffById.has(staffId) || !participantsById.has(participantId))
+if (
+!staffById.has(staffId) ||
+trainingSet.has(staffId) ||
+!participantsById.has(participantId)
+)
 return;
 
 const list = byStaff.get(staffId) || [];
@@ -521,6 +520,11 @@ return Array.from(byStaff.entries())
 const staffPerson = staffById.get(staffId);
 const staffName = String(staffPerson?.name || staffId);
 const staffColor = colorForStaff(staffPerson);
+const traineeId = shadowMap.get(staffId) || null;
+const traineePerson = traineeId ? staffById.get(traineeId) : null;
+const trainingStaffName = traineePerson
+? String(traineePerson?.name || traineeId)
+: null;
 const filteredParticipantIds = participantIds.filter((id) => {
 const name = String(participantsById.get(id)?.name || id)
 .trim()
@@ -540,6 +544,7 @@ staffId,
 staffName,
 staffColor,
 staffTextColor: "#FFFFFF",
+trainingStaffName,
 participantIds: filteredParticipantIds,
 participantNames: participantItems.map((item) => item.name),
 participantItems,
@@ -555,6 +560,8 @@ assignments,
 staffById,
 participantsById,
 workingStaff,
+trainingStaffToday,
+trainingShadowAssignments,
 getAssignmentTheme,
 getParticipantTheme,
 ]);
@@ -670,101 +677,101 @@ const hasFloatingAssignments = useMemo(
 );
 const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
-const runScheduledFloatingAlarm = useCallback(async (
-  alarmMinute: number,
-  options: { bypassDuplicateProtection?: boolean; source?: "live" | "simulation" } = {},
-) => {
-  if (!floatingAlarmEnabled || !isDashboardAlarmSupported()) return false;
-
-  const alarmDate = isPreviewMode ? date : getSydneyDateKey();
-  const alarmKey = floatingRotationAlarmKey(alarmDate, alarmMinute);
-
-  if (!options.bypassDuplicateProtection) {
-    if (playedFloatingAlarmKeysRef.current.has(alarmKey)) return false;
-    if (typeof window !== "undefined") {
-      try {
-        if (window.sessionStorage.getItem(alarmKey) === "played") {
-          playedFloatingAlarmKeysRef.current.add(alarmKey);
-          return false;
-        }
-      } catch {
-        // Continue with in-memory duplicate protection.
-      }
-    }
-  }
-
-  console.info("[dashboard alarm] scheduled trigger", {
-    source: options.source || "live",
-    alarmMinute,
-    alarmKey,
-  });
-
-  const played = await playFloatingRotationAnnouncement();
-  if (!played) {
-    console.warn("[dashboard alarm] scheduled playback failed", { alarmMinute, alarmKey });
-    setFloatingAlarmAudioStatus("blocked");
-    return false;
-  }
-
-  setFloatingAlarmAudioStatus("ready");
-  if (!options.bypassDuplicateProtection) {
-    playedFloatingAlarmKeysRef.current.add(alarmKey);
-    if (typeof window !== "undefined") {
-      try {
-        window.sessionStorage.setItem(alarmKey, "played");
-      } catch {
-        // In-memory protection is sufficient for this session.
-      }
-    }
-  }
-
-  console.info("[dashboard alarm] scheduled playback succeeded", { alarmMinute, alarmKey });
-  return true;
-}, [date, floatingAlarmEnabled, isPreviewMode]);
+const floatingAlarmMinute = useMemo(
+() => getFloatingRotationAlarmMinute(currentMinutes),
+[currentMinutes],
+);
+const floatingAlarmKey = useMemo(
+() =>
+floatingAlarmMinute === null
+? null
+: floatingRotationAlarmKey(date, floatingAlarmMinute),
+[date, floatingAlarmMinute],
+);
 
 useEffect(() => {
-  if (isPreviewMode || !floatingAlarmEnabled || !isDashboardAlarmSupported()) return;
+if (!floatingAlarmEnabled || !floatingAlarmKey) return;
+if (!isDashboardAlarmSupported()) return;
+if (playedFloatingAlarmKeysRef.current.has(floatingAlarmKey)) return;
 
-  const checkForScheduledAlarm = () => {
-    const liveMinutes = nowMinutes();
-    const alarmMinute = getFloatingRotationAlarmMinute(liveMinutes);
-    if (alarmMinute === null) return;
-    void runScheduledFloatingAlarm(alarmMinute, { source: "live" });
-  };
-
-  checkForScheduledAlarm();
-  const timer = window.setInterval(checkForScheduledAlarm, 5_000);
-  return () => window.clearInterval(timer);
-}, [floatingAlarmEnabled, isPreviewMode, runScheduledFloatingAlarm]);
-
-const handleToggleFloatingAlarm = async () => {
-  if (!isDashboardAlarmSupported()) {
-    setFloatingAlarmAudioStatus("unsupported");
-    return;
-  }
-
-  const audioIsReady =
-    floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played";
-
-  // When audio is operational, the button acts as a normal on/off toggle.
-  if (floatingAlarmEnabled && audioIsReady) {
-    setFloatingAlarmEnabled(false);
-    setFloatingAlarmAudioStatus("locked");
-    try {
-      window.localStorage.setItem(FLOATING_ALARM_PREFERENCE_KEY, "false");
-    } catch {}
-    return;
-  }
-
-  // When disabled or browser-blocked, this same button enables and arms audio.
-  setFloatingAlarmEnabled(true);
-  setFloatingAlarmAudioStatus("arming");
+if (typeof window !== "undefined") {
   try {
-    window.localStorage.setItem(FLOATING_ALARM_PREFERENCE_KEY, "true");
-  } catch {}
+    if (window.sessionStorage.getItem(floatingAlarmKey) === "played") {
+      playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
+      return;
+    }
+  } catch {
+    // Continue with in-memory duplicate protection when storage is unavailable.
+  }
+}
 
-  const armed = await armDashboardAudio();
-  setFloatingAlarmAudioStatus(armed ? "ready" : "blocked");
+void playFloatingRotationAnnouncement().then((played) => {
+  if (!played) {
+    setFloatingAlarmAudioStatus("blocked");
+    return;
+  }
+  setFloatingAlarmAudioStatus("ready");
+  playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(floatingAlarmKey, "played");
+    } catch {
+      // In-memory protection is sufficient for this session.
+    }
+  }
+});
+}, [floatingAlarmEnabled, floatingAlarmKey]);
+
+const handleEnableDashboardSounds = async () => {
+if (!isDashboardAlarmSupported()) {
+  setFloatingAlarmAudioStatus("unsupported");
+  return;
+}
+
+const played = await playFloatingAlarmTest();
+setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+if (played && typeof window !== "undefined") {
+  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+}
+};
+
+const handleTestFloatingAlarm = async () => {
+const played = await playFloatingAlarmTest();
+setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+if (played && typeof window !== "undefined") {
+  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+}
+};
+
+const handleTestRotationAlarm = async () => {
+const played = await playFloatingRotationAnnouncement();
+setFloatingAlarmAudioStatus(played ? "played" : "blocked");
+
+if (played && typeof window !== "undefined") {
+  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
+}
+};
+
+const handleToggleFloatingAlarm = () => {
+const nextEnabled = !floatingAlarmEnabled;
+setFloatingAlarmEnabled(nextEnabled);
+
+if (typeof window !== "undefined") {
+  try {
+    window.localStorage.setItem(
+      FLOATING_ALARM_PREFERENCE_KEY,
+      String(nextEnabled),
+    );
+  } catch {
+    // The in-memory setting remains active when storage is unavailable.
+  }
+}
+
+if (!nextEnabled) {
+  setFloatingAlarmAudioStatus("locked");
+}
 };
 
 const displayChores = useMemo(
@@ -1124,6 +1131,7 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
+  currentPage="team"
   pageIndex={0}
   pageCount={1}
   pageTheme={DASHBOARD_PAGE_THEMES.team}
@@ -1144,6 +1152,7 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
+  currentPage="team"
   pageIndex={0}
   pageCount={1}
   pageTheme={DASHBOARD_PAGE_THEMES.team}
@@ -1165,13 +1174,17 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
+  currentPage={currentPage}
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
   floatingAlarmEnabled={floatingAlarmEnabled}
   floatingAlarmSupported={isDashboardAlarmSupported()}
   floatingAlarmAudioStatus={floatingAlarmAudioStatus}
+  onEnableDashboardSounds={handleEnableDashboardSounds}
   onToggleFloatingAlarm={handleToggleFloatingAlarm}
+  onTestFloatingAlarm={handleTestFloatingAlarm}
+  onTestRotationAlarm={handleTestRotationAlarm}
   currentMinutes={currentMinutes}
   isPreviewMode={isPreviewMode}
   previewTimeLabel={previewTimeLabel}

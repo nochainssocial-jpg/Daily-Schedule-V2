@@ -41,6 +41,7 @@ export function TeamAssignmentsPanel({ teamAssignmentRows }: { teamAssignmentRow
               staffName={row.staffName}
               staffColor={row.staffColor}
               staffTextColor={row.staffTextColor}
+              trainingStaffName={row.trainingStaffName}
               style={[
                 styles.assignmentCard,
                 row.theme === "outing1"
