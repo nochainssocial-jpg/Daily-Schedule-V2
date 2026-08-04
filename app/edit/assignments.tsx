@@ -232,33 +232,44 @@ export default function EditAssignmentsScreen() {
     [trainingStaffToday],
   );
 
-  const trainingShadowMap = React.useMemo<Record<ID, ID>>(() => {
+  // Persisted shape is trainee -> mentor. Derive mentor -> trainee for the UI.
+  const storedTrainingShadowMap = React.useMemo<Record<ID, ID>>(() => {
     const next: Record<ID, ID> = {};
     Object.entries(trainingShadowAssignments || {}).forEach(
-      ([mentorId, traineeId]) => {
-        if (!mentorId || !traineeId) return;
-        next[String(mentorId)] = String(traineeId);
+      ([traineeId, mentorId]) => {
+        if (!traineeId || !mentorId) return;
+        next[String(traineeId)] = String(mentorId);
       },
     );
     return next;
   }, [trainingShadowAssignments]);
 
+  const trainingShadowMap = React.useMemo<Record<ID, ID>>(() => {
+    const next: Record<ID, ID> = {};
+    Object.entries(storedTrainingShadowMap).forEach(([traineeId, mentorId]) => {
+      if (!traineeId || !mentorId || next[String(mentorId)]) return;
+      next[String(mentorId)] = String(traineeId);
+    });
+    return next;
+  }, [storedTrainingShadowMap]);
+
   const shadowTraineeSet = React.useMemo(
-    () => new Set<ID>(Object.values(trainingShadowMap).map(String)),
-    [trainingShadowMap],
+    () => new Set<ID>(Object.keys(storedTrainingShadowMap).map(String)),
+    [storedTrainingShadowMap],
   );
 
   // Staff rows: working staff only, plus "Everyone", excluding Antoinette
-  // and anyone shadowing another staff member today.
+  // and only staff who have actually been linked beside a mentor as a trainee.
+  // A general "training today" flag must not hide the mentor or prevent the
+  // trainee from being selected in the long-press picker.
   const rowStaff = staffSource.filter((s) => {
     const staffId = String(s.id) as ID;
     const inWorking = workingSet.has(staffId);
     const everyone = isEveryone(s.name);
     const anto = isAntoinette(s.name);
-    const isTraining =
-      trainingSet.has(staffId) || shadowTraineeSet.has(staffId);
+    const isLinkedTrainee = shadowTraineeSet.has(staffId);
 
-    if (anto || isTraining) return false;
+    if (anto || isLinkedTrainee) return false;
     if (workingSet.size) {
       return inWorking || everyone;
     }
@@ -443,29 +454,6 @@ export default function EditAssignmentsScreen() {
 
   const outingIsActive = activeOutingEntries.length > 0;
 
-  // Ensure training staff do not keep participant assignments
-  React.useEffect(() => {
-    if (!assignmentsMap) return;
-    if (!trainingStaffToday || !(trainingStaffToday as ID[]).length) return;
-
-    const trainingIds = new Set<ID>((trainingStaffToday as ID[]) || []);
-    const current = assignmentsMap as Record<ID, ID | null>;
-    let changed = false;
-    const next: Record<ID, ID | null> = { ...current };
-
-    Object.entries(current).forEach(([pid, sid]) => {
-      if (!sid) return;
-      if (trainingIds.has(sid as ID)) {
-        next[pid as ID] = null;
-        changed = true;
-      }
-    });
-
-    if (changed) {
-      updateSchedule({ assignments: next });
-    }
-  }, [assignmentsMap, trainingStaffToday, updateSchedule]);
-
   // Helper: current owner for a participant (if any)
   const getOwner = (participantId: ID): ID | null => {
     const sid = assignmentsMap[participantId];
@@ -511,69 +499,90 @@ export default function EditAssignmentsScreen() {
 
     const mentorId = String(trainingMentorId) as ID;
     const selectedTraineeId = String(traineeId) as ID;
-    const nextShadows: Record<ID, ID | null> = { ...trainingShadowMap };
-    const previousTraineeId = nextShadows[mentorId]
-      ? String(nextShadows[mentorId])
-      : null;
+    const mentor = staffSource.find(
+      (staff) => String(staff.id) === mentorId,
+    );
+    const trainee = staffSource.find(
+      (staff) => String(staff.id) === selectedTraineeId,
+    );
 
-    // A trainee can shadow only one mentor, and a mentor cannot simultaneously
-    // be used as another staff member's trainee.
-    Object.entries(nextShadows).forEach(([existingMentorId, existingTraineeId]) => {
-      if (
-        String(existingTraineeId || '') === selectedTraineeId ||
-        existingMentorId === selectedTraineeId
-      ) {
-        delete nextShadows[existingMentorId];
-      }
-    });
-    nextShadows[mentorId] = selectedTraineeId;
+    // Training links are relationship markers only. Never move or clear the
+    // mentor's participant assignments when a trainee is selected.
+    const traineeParticipantCount = Object.values(assignmentsMap).filter(
+      (ownerId) => String(ownerId || '') === selectedTraineeId,
+    ).length;
 
-    const nextTraining = new Set<ID>((trainingStaffToday as ID[]) || []);
-    nextTraining.add(selectedTraineeId);
-
-    if (
-      previousTraineeId &&
-      previousTraineeId !== selectedTraineeId &&
-      !Object.values(nextShadows).some(
-        (id) => String(id || '') === previousTraineeId,
-      )
-    ) {
-      nextTraining.delete(previousTraineeId);
+    if (traineeParticipantCount > 0) {
+      push(
+        `${trainee?.name || 'This staff member'} still has participant assignments. Move those participants first, then assign the training link.`,
+        'assignments',
+      );
+      return;
     }
 
-    const nextAssignments: Record<ID, ID | null> = { ...assignmentsMap };
-    Object.entries(nextAssignments).forEach(([participantId, ownerId]) => {
-      if (String(ownerId || '') === selectedTraineeId) {
-        nextAssignments[participantId] = null;
+    // Canonical persisted shape: trainee -> mentor.
+    const nextShadows: Record<ID, ID | null> = {
+      ...storedTrainingShadowMap,
+    };
+    const previousTraineeId = Object.entries(nextShadows).find(
+      ([, existingMentorId]) => String(existingMentorId || '') === mentorId,
+    )?.[0] || null;
+
+    // One trainee per mentor, one mentor per trainee, and no chains/cycles.
+    Object.entries(nextShadows).forEach(([existingTraineeId, existingMentorId]) => {
+      const existingMentor = String(existingMentorId || '');
+      if (
+        existingTraineeId === selectedTraineeId ||
+        existingMentor === mentorId ||
+        existingTraineeId === mentorId ||
+        existingMentor === selectedTraineeId
+      ) {
+        delete nextShadows[existingTraineeId];
       }
     });
+    nextShadows[selectedTraineeId] = mentorId;
+
+    const nextTraining = new Set<ID>((trainingStaffToday as ID[]) || []);
+    // Remove the linked statuses from the old relationship before rebuilding.
+    Object.keys(storedTrainingShadowMap).forEach((id) => nextTraining.delete(id));
+    Object.keys(nextShadows).forEach((id) => nextTraining.add(String(id)));
+    Object.values(nextShadows).forEach((id) => {
+      if (id) nextTraining.delete(String(id));
+    });
+    if (previousTraineeId && previousTraineeId !== selectedTraineeId) {
+      nextTraining.delete(previousTraineeId);
+    }
 
     updateSchedule({
       trainingStaffToday: Array.from(nextTraining),
       trainingShadowAssignments: nextShadows,
-      assignments: nextAssignments,
     });
     setTrainingMentorId(null);
-    push('Training shadow assignment updated', 'assignments');
+    push(
+      `${mentor?.name || 'Staff'} now has ${trainee?.name || 'staff'} displayed beside them as IN TRAINING`,
+      'assignments',
+    );
   };
 
   const removeTrainingShadow = () => {
     if (!trainingMentorId || readOnly) return;
 
     const mentorId = String(trainingMentorId) as ID;
-    const nextShadows: Record<ID, ID | null> = { ...trainingShadowMap };
-    const traineeId = nextShadows[mentorId]
-      ? String(nextShadows[mentorId])
-      : null;
-    delete nextShadows[mentorId];
+    const nextShadows: Record<ID, ID | null> = {
+      ...storedTrainingShadowMap,
+    };
+    const traineeId = Object.entries(nextShadows).find(
+      ([, existingMentorId]) => String(existingMentorId || '') === mentorId,
+    )?.[0] || null;
+
+    if (traineeId) delete nextShadows[traineeId];
 
     const nextTraining = new Set<ID>((trainingStaffToday as ID[]) || []);
-    if (
-      traineeId &&
-      !Object.values(nextShadows).some((id) => String(id || '') === traineeId)
-    ) {
-      nextTraining.delete(traineeId);
-    }
+    if (traineeId) nextTraining.delete(traineeId);
+    Object.keys(nextShadows).forEach((id) => nextTraining.add(String(id)));
+    Object.values(nextShadows).forEach((id) => {
+      if (id) nextTraining.delete(String(id));
+    });
 
     updateSchedule({
       trainingStaffToday: Array.from(nextTraining),
@@ -591,9 +600,11 @@ export default function EditAssignmentsScreen() {
     );
     const currentTraineeId = trainingShadowMap[trainingMentorId] || null;
     const pairedTraineeIds = new Set(
-      Object.values(trainingShadowMap).filter(Boolean).map(String),
+      Object.keys(storedTrainingShadowMap).map(String),
     );
-    const activeMentorIds = new Set(Object.keys(trainingShadowMap).map(String));
+    const activeMentorIds = new Set(
+      Object.values(storedTrainingShadowMap).filter(Boolean).map(String),
+    );
 
     const candidates = staffSource
       .filter((staff) => {
@@ -1065,6 +1076,14 @@ export default function EditAssignmentsScreen() {
                         <Text style={styles.staffName}>{st.name}</Text>
                       </TouchableOpacity>
 
+                      {isAdmin && band === 'senior' ? (
+                        <MaterialCommunityIcons
+                          name="account-star"
+                          size={24}
+                          color="#FBBF24"
+                        />
+                      ) : null}
+
                       {shadowTrainee && (
                         <View style={styles.shadowStaffDisplay}>
                           <MaterialCommunityIcons
@@ -1075,17 +1094,9 @@ export default function EditAssignmentsScreen() {
                           <Text style={styles.shadowStaffName}>
                             {shadowTrainee.name}
                           </Text>
-                          <Text style={styles.shadowStaffLabel}>(in training)</Text>
+                          <Text style={styles.shadowStaffLabel}>IN TRAINING</Text>
                         </View>
                       )}
-
-                      {isAdmin && band === 'senior' ? (
-                        <MaterialCommunityIcons
-                          name="account-star"
-                          size={24}
-                          color="#FBBF24"
-                        />
-                      ) : null}
                     </View>
 
                     {staffAssigned.length > 0 ? (

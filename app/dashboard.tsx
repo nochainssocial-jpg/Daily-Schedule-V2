@@ -468,11 +468,12 @@ const byStaff = new Map<string, string[]>();
 const workingSet = new Set((workingStaff || []).map(String));
 const trainingSet = new Set((trainingStaffToday || []).map(String));
 const shadowMap = new Map<string, string>();
-Object.entries(trainingShadowAssignments || {}).forEach(([mentorId, traineeId]) => {
-if (!mentorId || !traineeId) return;
+Object.entries(trainingShadowAssignments || {}).forEach(([traineeId, mentorId]) => {
+if (!traineeId || !mentorId) return;
 shadowMap.set(String(mentorId), String(traineeId));
+trainingSet.add(String(traineeId));
+trainingSet.delete(String(mentorId));
 });
-shadowMap.forEach((traineeId) => trainingSet.add(traineeId));
 
 // Always include each independently assigned member of today's Dream Team.
 // Trainees are displayed beside their mentor rather than as a separate tile.

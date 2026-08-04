@@ -43,7 +43,8 @@ export type FloatingAssignments =
 
 export type CleaningAssignments = Record<ID, ID | null>;
 
-// Mentor staff ID -> trainee/shadowing staff ID for the current day.
+// Trainee/shadowing staff ID -> mentor staff ID for the current day.
+// The UI renders this relationship as Mentor > Trainee (IN TRAINING).
 export type TrainingShadowAssignments = Record<ID, ID | null>;
 
 export type DropoffAssignment = {
@@ -65,7 +66,7 @@ export type ScheduleSnapshot = {
   // Staff explicitly marked as "training today" (no own assignments)
   trainingStaffToday: ID[];
 
-  // Mentor staff -> trainee/shadowing staff for the current day.
+  // Trainee/shadowing staff -> mentor staff for the current day.
   trainingShadowAssignments: TrainingShadowAssignments;
 
   // Supports the current staff -> participant[] shape and older participant -> staff shape.
@@ -545,6 +546,98 @@ function normalizeDropoffAssignments(
   return result;
 }
 
+function normalizeAssignmentsForTraining(
+  assignments: unknown,
+  shadows: TrainingShadowAssignments,
+): ScheduleSnapshot["assignments"] {
+  if (!isPlainRecord(assignments)) return {};
+
+  const next: Record<ID, ID[] | ID | null> = {};
+  Object.entries(assignments).forEach(([key, value]) => {
+    next[String(key)] = Array.isArray(value)
+      ? value.filter(Boolean).map((id) => String(id))
+      : value === null || value === undefined || value === ""
+        ? null
+        : String(value);
+  });
+
+  // Compatibility with the older staffId -> participantIds[] shape.
+  Object.entries(shadows).forEach(([traineeId, mentorIdRaw]) => {
+    if (!mentorIdRaw) return;
+    const mentorId = String(mentorIdRaw);
+    const traineeParticipants = next[traineeId];
+    if (!Array.isArray(traineeParticipants)) return;
+
+    const mentorParticipants = Array.isArray(next[mentorId])
+      ? (next[mentorId] as ID[])
+      : [];
+    next[mentorId] = Array.from(
+      new Set([...mentorParticipants, ...traineeParticipants].map(String)),
+    );
+    delete next[traineeId];
+  });
+
+  // Current shape: participantId -> staffId. A trainee has no independent
+  // participant allocation, so repair any stale participant ownership by
+  // returning it to the mentor. This fixes the previously inverted Gilda /
+  // Jessica record without changing any unrelated assignments.
+  Object.entries(next).forEach(([recordKey, value]) => {
+    if (Array.isArray(value) || !value) return;
+    const mentorId = shadows[String(value)];
+    if (mentorId) next[recordKey] = String(mentorId);
+  });
+
+  return next;
+}
+
+function normalizeTrainingRelationships(snapshot: any): {
+  trainingStaffToday: ID[];
+  trainingShadowAssignments: TrainingShadowAssignments;
+  assignments: ScheduleSnapshot["assignments"];
+} {
+  const rawTrainingSet = new Set<ID>(
+    Array.isArray(snapshot?.trainingStaffToday)
+      ? snapshot.trainingStaffToday.filter(Boolean).map((id: unknown) => String(id))
+      : [],
+  );
+  const normalizedShadows: TrainingShadowAssignments = {};
+  const usedMentors = new Set<ID>();
+
+  if (isPlainRecord(snapshot?.trainingShadowAssignments)) {
+    Object.entries(snapshot.trainingShadowAssignments).forEach(
+      ([rawTraineeId, rawMentorId]) => {
+        if (!rawTraineeId || !rawMentorId) return;
+
+        const traineeId = String(rawTraineeId) as ID;
+        const mentorId = String(rawMentorId) as ID;
+        if (traineeId === mentorId) return;
+        if (normalizedShadows[traineeId] || usedMentors.has(mentorId)) return;
+
+        // Prevent circular/chained relationships.
+        if (normalizedShadows[mentorId] || usedMentors.has(traineeId)) return;
+
+        normalizedShadows[traineeId] = mentorId;
+        usedMentors.add(mentorId);
+      },
+    );
+  }
+
+  const normalizedTrainingSet = new Set<ID>(rawTrainingSet);
+  Object.entries(normalizedShadows).forEach(([traineeId, mentorId]) => {
+    normalizedTrainingSet.add(String(traineeId));
+    if (mentorId) normalizedTrainingSet.delete(String(mentorId));
+  });
+
+  return {
+    trainingStaffToday: Array.from(normalizedTrainingSet),
+    trainingShadowAssignments: normalizedShadows,
+    assignments: normalizeAssignmentsForTraining(
+      snapshot?.assignments,
+      normalizedShadows,
+    ),
+  };
+}
+
 function toTodayKey(date = new Date()): string {
   return getSydneyDateKey(date);
 }
@@ -556,20 +649,14 @@ function normaliseSnapshotForStore(snapshot: any): ScheduleSnapshot {
 
   const normalizedOutingGroups = normalizeOutingGroupsFromSnapshot(snapshot);
 
-  const normalizedTrainingShadows: TrainingShadowAssignments = {};
-  if (isPlainRecord((snapshot as any)?.trainingShadowAssignments)) {
-    Object.entries((snapshot as any).trainingShadowAssignments).forEach(
-      ([mentorId, traineeId]) => {
-        if (!mentorId || !traineeId) return;
-        normalizedTrainingShadows[String(mentorId)] = String(traineeId);
-      },
-    );
-  }
+  const normalizedTraining = normalizeTrainingRelationships(snapshot);
 
   return syncOutingCompatibility({
     ...makeInitialSnapshot(),
     ...(snapshot as ScheduleSnapshot),
-    trainingShadowAssignments: normalizedTrainingShadows,
+    trainingStaffToday: normalizedTraining.trainingStaffToday,
+    trainingShadowAssignments: normalizedTraining.trainingShadowAssignments,
+    assignments: normalizedTraining.assignments,
     dropoffAssignments: normalizedDropoffs,
     outingGroups: normalizedOutingGroups,
     outingGroup: normalizedOutingGroups[0] ?? null,

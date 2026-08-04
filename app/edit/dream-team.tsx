@@ -224,24 +224,17 @@ export default function EditDreamTeamScreen() {
       const nextTraining = new Set<string>(Array.from(trainingSet));
       nextTraining.delete(key);
 
+      // Canonical persisted shape: trainee -> mentor. Remove any relationship
+      // where the staff member is either side of the pair.
       const nextShadows: Record<string, string | null> = {
         ...(trainingShadowAssignments || {}),
       };
-      const linkedTraineeId = nextShadows[key]
-        ? String(nextShadows[key])
-        : null;
-      delete nextShadows[key];
-      Object.entries(nextShadows).forEach(([mentorId, traineeId]) => {
-        if (String(traineeId || '') === key) delete nextShadows[mentorId];
+      Object.entries(nextShadows).forEach(([traineeId, mentorId]) => {
+        if (traineeId === key || String(mentorId || '') === key) {
+          delete nextShadows[traineeId];
+          nextTraining.delete(traineeId);
+        }
       });
-      if (
-        linkedTraineeId &&
-        !Object.values(nextShadows).some(
-          (traineeId) => String(traineeId || '') === linkedTraineeId,
-        )
-      ) {
-        nextTraining.delete(linkedTraineeId);
-      }
 
       updateSchedule?.({
         workingStaff: Array.from(next),
@@ -264,33 +257,31 @@ export default function EditDreamTeamScreen() {
 
     const key = String(id);
     const next = new Set<string>(Array.from(trainingSet));
-
     const nextShadows: Record<string, string | null> = {
       ...(trainingShadowAssignments || {}),
     };
 
     if (next.has(key)) {
       next.delete(key);
-      Object.entries(nextShadows).forEach(([mentorId, traineeId]) => {
-        if (String(traineeId || '') === key) delete nextShadows[mentorId];
-      });
+      // If this person is a linked trainee, removing training also removes the link.
+      delete nextShadows[key];
     } else {
       next.add(key);
 
-      // A mentor cannot also be marked as another independent trainee.
-      const linkedTraineeId = nextShadows[key]
-        ? String(nextShadows[key])
-        : null;
-      delete nextShadows[key];
-      if (
-        linkedTraineeId &&
-        !Object.values(nextShadows).some(
-          (traineeId) => String(traineeId || '') === linkedTraineeId,
-        )
-      ) {
-        next.delete(linkedTraineeId);
-      }
+      // A mentor cannot simultaneously be marked as an independent trainee.
+      Object.entries(nextShadows).forEach(([traineeId, mentorId]) => {
+        if (String(mentorId || '') === key) {
+          delete nextShadows[traineeId];
+          next.delete(traineeId);
+        }
+      });
     }
+
+    // Reassert canonical linked statuses.
+    Object.entries(nextShadows).forEach(([traineeId, mentorId]) => {
+      next.add(traineeId);
+      if (mentorId) next.delete(String(mentorId));
+    });
 
     updateSchedule?.({
       trainingStaffToday: Array.from(next),
