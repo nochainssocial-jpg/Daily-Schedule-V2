@@ -20,6 +20,13 @@ import { resolveOutingTiming } from '@/lib/outingSlots';
 
 const PINK = '#F54FA5';
 
+// Drop-off helpers who may also be assigned end-of-shift cleaning duties.
+// They only become eligible when selected in Pickups & Dropoffs for the day.
+const CLEANING_HELPER_NAMES = new Set(['charbel', 'george']);
+
+const normaliseStaffName = (name?: string | null) =>
+  String(name || '').trim().toLowerCase();
+
 // ⏱ Helpers to detect full-day vs timed outing
 function parseTimeToMinutes(time?: string | null): number | null {
   if (!time) return null;
@@ -78,6 +85,7 @@ export default function CleaningEditScreen() {
     chores: rawChores = [],
     staff,
     workingStaff,
+    helperStaff = [],
     cleaningAssignments = {},
     outingGroups = [],
     outingGroup = null,
@@ -109,11 +117,28 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  // 🔁 Working staff for cleaning = Dream Team, optionally minus outing staff
+  // 🔁 Cleaning staff = Dream Team plus selected Charbel/George drop-off helpers,
+  // optionally minus staff assigned to untimed/all-day outings.
   const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
   );
+
+  const selectedCleaningHelperSet = useMemo(() => {
+    const selectedHelperIds = new Set<string>(
+      (helperStaff || []).map((id: any) => String(id)),
+    );
+
+    return new Set<string>(
+      (staff || [])
+        .filter(
+          (member: Staff) =>
+            selectedHelperIds.has(String(member.id)) &&
+            CLEANING_HELPER_NAMES.has(normaliseStaffName(member.name)),
+        )
+        .map((member: Staff) => String(member.id)),
+    );
+  }, [helperStaff, staff]);
 
   const outingGroupsForLogic = useMemo(() => {
     const groups = Array.isArray(outingGroups)
@@ -132,9 +157,10 @@ export default function CleaningEditScreen() {
   }, [outingGroups, outingGroup]);
 
   const workingStaffList: Staff[] = useMemo(() => {
-    const base = (staff || []).filter((s: Staff) =>
-      workingSet.has(String(s.id)),
-    );
+    const base = (staff || []).filter((s: Staff) => {
+      const staffId = String(s.id);
+      return workingSet.has(staffId) || selectedCleaningHelperSet.has(staffId);
+    });
 
     if (outingGroupsForLogic.length === 0) {
       return base.sort((a, b) =>
@@ -160,7 +186,7 @@ export default function CleaningEditScreen() {
     return onsite.sort((a, b) =>
       String(a.name).localeCompare(String(b.name), 'en-AU'),
     );
-  }, [staff, workingSet, outingGroupsForLogic]);
+  }, [staff, workingSet, selectedCleaningHelperSet, outingGroupsForLogic]);
 
   // ✅ Set of staff allowed to hold cleaning duties (onsite only)
   const allowedStaffIds = useMemo(
@@ -341,8 +367,9 @@ export default function CleaningEditScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>Cleaning Duties</Text>
           <Text style={styles.subheading}>
-            Tap a staff pill to update who is responsible for each task. Only staff
-            currently working onsite can be assigned.
+            Tap a staff pill to update who is responsible for each task. Staff
+            working onsite and selected Charbel or George drop-off helpers can be
+            assigned.
           </Text>
 
           <View style={styles.actionsRow}>
@@ -476,7 +503,7 @@ export default function CleaningEditScreen() {
                 </View>
               ) : (
                 <Text style={styles.noWorkingText}>
-                  No working staff set for this schedule.
+                  No eligible staff set for this schedule.
                 </Text>
               )}
 
