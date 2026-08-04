@@ -494,34 +494,10 @@ paddingVertical: 4,
 maxWidth: "40%",
 flexShrink: 1,
 },
-compactDashboardStaffPillTraining: {
-maxWidth: "64%",
-},
-compactDashboardTrainingStaffRow: {
-flexDirection: "row",
-alignItems: "center",
-minWidth: 0,
-},
-compactDashboardTraineeTextWrap: {
-minWidth: 0,
-flexShrink: 1,
-},
 compactDashboardStaffName: {
 fontSize: 14,
 lineHeight: 17,
 fontWeight: "900",
-flexShrink: 1,
-},
-compactDashboardTraineeName: {
-fontSize: 11,
-lineHeight: 12,
-fontWeight: "900",
-},
-compactDashboardTrainingCaption: {
-fontSize: 8,
-lineHeight: 9,
-fontWeight: "800",
-opacity: 0.9,
 },
 compactDashboardChevron: {
 marginHorizontal: 4,

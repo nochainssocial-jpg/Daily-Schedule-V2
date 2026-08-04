@@ -7,7 +7,6 @@ type Props = {
   staffName: string;
   staffColor: string;
   staffTextColor: string;
-  trainingStaffName?: string | null;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
@@ -20,7 +19,6 @@ export function CompactDashboardTile({
   staffName,
   staffColor,
   staffTextColor,
-  trainingStaffName,
   style,
   children,
 }: Props) {
@@ -29,46 +27,15 @@ export function CompactDashboardTile({
       <View
         style={[
           styles.compactDashboardStaffPill,
-          trainingStaffName && styles.compactDashboardStaffPillTraining,
           { backgroundColor: staffColor, borderColor: staffColor },
         ]}
       >
-        {trainingStaffName ? (
-          <View style={styles.compactDashboardTrainingStaffRow}>
-            <Text
-              style={[styles.compactDashboardStaffName, { color: staffTextColor }]}
-              numberOfLines={1}
-            >
-              {staffName}
-            </Text>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={14}
-              color={staffTextColor}
-            />
-            <View style={styles.compactDashboardTraineeTextWrap}>
-              <Text
-                style={[styles.compactDashboardTraineeName, { color: staffTextColor }]}
-                numberOfLines={1}
-              >
-                {trainingStaffName}
-              </Text>
-              <Text
-                style={[styles.compactDashboardTrainingCaption, { color: staffTextColor }]}
-                numberOfLines={1}
-              >
-                in training
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <Text
-            style={[styles.compactDashboardStaffName, { color: staffTextColor }]}
-            numberOfLines={1}
-          >
-            {staffName}
-          </Text>
-        )}
+        <Text
+          style={[styles.compactDashboardStaffName, { color: staffTextColor }]}
+          numberOfLines={1}
+        >
+          {staffName}
+        </Text>
       </View>
 
       <MaterialCommunityIcons

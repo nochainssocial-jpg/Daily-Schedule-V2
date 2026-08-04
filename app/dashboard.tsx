@@ -126,8 +126,6 @@ scheduleLoadError,
 staff = [],
 participants = [],
 workingStaff = [],
-trainingStaffToday = [],
-trainingShadowAssignments = {},
 timeSlots = [],
 chores = [],
 checklistItems = [],
@@ -466,20 +464,12 @@ safetyTransportParticipantIds,
 const teamAssignmentRows = useMemo(() => {
 const byStaff = new Map<string, string[]>();
 const workingSet = new Set((workingStaff || []).map(String));
-const trainingSet = new Set((trainingStaffToday || []).map(String));
-const shadowMap = new Map<string, string>();
-Object.entries(trainingShadowAssignments || {}).forEach(([traineeId, mentorId]) => {
-if (!traineeId || !mentorId) return;
-shadowMap.set(String(mentorId), String(traineeId));
-trainingSet.add(String(traineeId));
-trainingSet.delete(String(mentorId));
-});
 
-// Always include each independently assigned member of today's Dream Team.
-// Trainees are displayed beside their mentor rather than as a separate tile.
+// Always include every member of today's Dream Team, even when a participant
+// has not yet been allocated to them. This keeps the dashboard headcount aligned
+// with the Dream Team editor.
 if (workingSet.size > 0) {
 workingSet.forEach((staffId) => {
-if (trainingSet.has(staffId)) return;
 if (staffById.has(staffId)) byStaff.set(staffId, []);
 });
 }
@@ -489,7 +479,7 @@ Object.entries(assignments || {}).forEach(
 if (Array.isArray(rawStaffId)) {
 // Compatibility with older/reverse shapes: staffId -> participantIds[].
 const staffId = String(rawParticipantId);
-if (!staffById.has(staffId) || trainingSet.has(staffId)) return;
+if (!staffById.has(staffId)) return;
 rawStaffId.forEach((pid) => {
 const participantId = String(pid);
 if (!participantsById.has(participantId)) return;
@@ -503,11 +493,7 @@ return;
 if (!rawStaffId) return;
 const participantId = String(rawParticipantId);
 const staffId = String(rawStaffId);
-if (
-!staffById.has(staffId) ||
-trainingSet.has(staffId) ||
-!participantsById.has(participantId)
-)
+if (!staffById.has(staffId) || !participantsById.has(participantId))
 return;
 
 const list = byStaff.get(staffId) || [];
@@ -521,11 +507,6 @@ return Array.from(byStaff.entries())
 const staffPerson = staffById.get(staffId);
 const staffName = String(staffPerson?.name || staffId);
 const staffColor = colorForStaff(staffPerson);
-const traineeId = shadowMap.get(staffId) || null;
-const traineePerson = traineeId ? staffById.get(traineeId) : null;
-const trainingStaffName = traineePerson
-? String(traineePerson?.name || traineeId)
-: null;
 const filteredParticipantIds = participantIds.filter((id) => {
 const name = String(participantsById.get(id)?.name || id)
 .trim()
@@ -545,7 +526,6 @@ staffId,
 staffName,
 staffColor,
 staffTextColor: "#FFFFFF",
-trainingStaffName,
 participantIds: filteredParticipantIds,
 participantNames: participantItems.map((item) => item.name),
 participantItems,
@@ -561,8 +541,6 @@ assignments,
 staffById,
 participantsById,
 workingStaff,
-trainingStaffToday,
-trainingShadowAssignments,
 getAssignmentTheme,
 getParticipantTheme,
 ]);
