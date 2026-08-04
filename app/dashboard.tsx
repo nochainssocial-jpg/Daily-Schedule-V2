@@ -64,7 +64,7 @@ import {
   floatingRotationAlarmKey,
   getFloatingRotationAlarmMinute,
   isDashboardAlarmSupported,
-  playFloatingAlarmTest,
+  playDashboardAudio,
   playFloatingRotationAnnouncement,
 } from "@/components/dashboard/dashboardAudio";
 
@@ -112,7 +112,7 @@ const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([
 const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
 const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(true);
 const [floatingAlarmAudioStatus, setFloatingAlarmAudioStatus] = useState<
-  "locked" | "ready" | "played" | "blocked" | "unsupported"
+  "locked" | "arming" | "ready" | "played" | "blocked" | "unsupported"
 >("locked");
 const [autoRotationEnabled, setAutoRotationEnabled] = useState(true);
 const playedFloatingAlarmKeysRef = useRef<Set<string>>(new Set());
@@ -656,101 +656,104 @@ const hasFloatingAssignments = useMemo(
 );
 const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
-const floatingAlarmMinute = useMemo(
-() => getFloatingRotationAlarmMinute(currentMinutes),
-[currentMinutes],
-);
-const floatingAlarmKey = useMemo(
-() =>
-floatingAlarmMinute === null
-? null
-: floatingRotationAlarmKey(date, floatingAlarmMinute),
-[date, floatingAlarmMinute],
-);
+const runScheduledFloatingAlarm = useCallback(async (
+  alarmMinute: number,
+  options: { bypassDuplicateProtection?: boolean; source?: "live" | "simulation" } = {},
+) => {
+  if (!floatingAlarmEnabled || !isDashboardAlarmSupported()) return false;
+
+  const alarmDate = isPreviewMode ? date : getSydneyDateKey();
+  const alarmKey = floatingRotationAlarmKey(alarmDate, alarmMinute);
+
+  if (!options.bypassDuplicateProtection) {
+    if (playedFloatingAlarmKeysRef.current.has(alarmKey)) return false;
+    if (typeof window !== "undefined") {
+      try {
+        if (window.sessionStorage.getItem(alarmKey) === "played") {
+          playedFloatingAlarmKeysRef.current.add(alarmKey);
+          return false;
+        }
+      } catch {
+        // Continue with in-memory duplicate protection.
+      }
+    }
+  }
+
+  console.info("[dashboard alarm] scheduled trigger", {
+    source: options.source || "live",
+    alarmMinute,
+    alarmKey,
+  });
+
+  const played = await playFloatingRotationAnnouncement();
+  if (!played) {
+    console.warn("[dashboard alarm] scheduled playback failed", { alarmMinute, alarmKey });
+    setFloatingAlarmAudioStatus("blocked");
+    return false;
+  }
+
+  setFloatingAlarmAudioStatus("ready");
+  if (!options.bypassDuplicateProtection) {
+    playedFloatingAlarmKeysRef.current.add(alarmKey);
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(alarmKey, "played");
+      } catch {
+        // In-memory protection is sufficient for this session.
+      }
+    }
+  }
+
+  console.info("[dashboard alarm] scheduled playback succeeded", { alarmMinute, alarmKey });
+  return true;
+}, [date, floatingAlarmEnabled, isPreviewMode]);
 
 useEffect(() => {
-if (!floatingAlarmEnabled || !floatingAlarmKey) return;
-if (!isDashboardAlarmSupported()) return;
-if (playedFloatingAlarmKeysRef.current.has(floatingAlarmKey)) return;
+  if (isPreviewMode || !floatingAlarmEnabled || !isDashboardAlarmSupported()) return;
 
-if (typeof window !== "undefined") {
-  try {
-    if (window.sessionStorage.getItem(floatingAlarmKey) === "played") {
-      playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
-      return;
-    }
-  } catch {
-    // Continue with in-memory duplicate protection when storage is unavailable.
-  }
-}
+  const checkForScheduledAlarm = () => {
+    const liveMinutes = nowMinutes();
+    const alarmMinute = getFloatingRotationAlarmMinute(liveMinutes);
+    if (alarmMinute === null) return;
+    void runScheduledFloatingAlarm(alarmMinute, { source: "live" });
+  };
 
-void playFloatingRotationAnnouncement().then((played) => {
-  if (!played) {
-    setFloatingAlarmAudioStatus("blocked");
+  checkForScheduledAlarm();
+  const timer = window.setInterval(checkForScheduledAlarm, 5_000);
+  return () => window.clearInterval(timer);
+}, [floatingAlarmEnabled, isPreviewMode, runScheduledFloatingAlarm]);
+
+const handleToggleFloatingAlarm = async () => {
+  if (!isDashboardAlarmSupported()) {
+    setFloatingAlarmAudioStatus("unsupported");
     return;
   }
-  setFloatingAlarmAudioStatus("ready");
-  playedFloatingAlarmKeysRef.current.add(floatingAlarmKey);
-  if (typeof window !== "undefined") {
+
+  const audioIsReady =
+    floatingAlarmAudioStatus === "ready" || floatingAlarmAudioStatus === "played";
+
+  // When audio is operational, the button acts as a normal on/off toggle.
+  if (floatingAlarmEnabled && audioIsReady) {
+    setFloatingAlarmEnabled(false);
+    setFloatingAlarmAudioStatus("locked");
     try {
-      window.sessionStorage.setItem(floatingAlarmKey, "played");
-    } catch {
-      // In-memory protection is sufficient for this session.
-    }
+      window.localStorage.setItem(FLOATING_ALARM_PREFERENCE_KEY, "false");
+    } catch {}
+    return;
   }
-});
-}, [floatingAlarmEnabled, floatingAlarmKey]);
 
-const handleEnableDashboardSounds = async () => {
-if (!isDashboardAlarmSupported()) {
-  setFloatingAlarmAudioStatus("unsupported");
-  return;
-}
-
-const played = await playFloatingAlarmTest();
-setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-
-if (played && typeof window !== "undefined") {
-  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-}
-};
-
-const handleTestFloatingAlarm = async () => {
-const played = await playFloatingAlarmTest();
-setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-
-if (played && typeof window !== "undefined") {
-  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-}
-};
-
-const handleTestRotationAlarm = async () => {
-const played = await playFloatingRotationAnnouncement();
-setFloatingAlarmAudioStatus(played ? "played" : "blocked");
-
-if (played && typeof window !== "undefined") {
-  window.setTimeout(() => setFloatingAlarmAudioStatus("ready"), 1400);
-}
-};
-
-const handleToggleFloatingAlarm = () => {
-const nextEnabled = !floatingAlarmEnabled;
-setFloatingAlarmEnabled(nextEnabled);
-
-if (typeof window !== "undefined") {
+  // When disabled or browser-blocked, this same button enables and arms audio.
+  setFloatingAlarmEnabled(true);
+  setFloatingAlarmAudioStatus("arming");
   try {
-    window.localStorage.setItem(
-      FLOATING_ALARM_PREFERENCE_KEY,
-      String(nextEnabled),
-    );
-  } catch {
-    // The in-memory setting remains active when storage is unavailable.
-  }
-}
+    window.localStorage.setItem(FLOATING_ALARM_PREFERENCE_KEY, "true");
+  } catch {}
 
-if (!nextEnabled) {
-  setFloatingAlarmAudioStatus("locked");
-}
+  // Use the exact persistent HTML audio player used by scheduled alarms.
+  // Windows Chrome/Edge require real audible playback during this click;
+  // preloading or resuming an AudioContext alone can falsely report success.
+  const confirmed = await playDashboardAudio("test");
+  setFloatingAlarmAudioStatus(confirmed ? "played" : "blocked");
 };
 
 const displayChores = useMemo(
@@ -1110,7 +1113,6 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
-  currentPage="team"
   pageIndex={0}
   pageCount={1}
   pageTheme={DASHBOARD_PAGE_THEMES.team}
@@ -1131,7 +1133,6 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
-  currentPage="team"
   pageIndex={0}
   pageCount={1}
   pageTheme={DASHBOARD_PAGE_THEMES.team}
@@ -1153,17 +1154,13 @@ return (
   date={date}
   tick={tick}
   lastDashboardRefresh={lastDashboardRefresh}
-  currentPage={currentPage}
   pageIndex={pageIndex}
   pageCount={pages.length}
   pageTheme={pageTheme}
   floatingAlarmEnabled={floatingAlarmEnabled}
   floatingAlarmSupported={isDashboardAlarmSupported()}
   floatingAlarmAudioStatus={floatingAlarmAudioStatus}
-  onEnableDashboardSounds={handleEnableDashboardSounds}
   onToggleFloatingAlarm={handleToggleFloatingAlarm}
-  onTestFloatingAlarm={handleTestFloatingAlarm}
-  onTestRotationAlarm={handleTestRotationAlarm}
   currentMinutes={currentMinutes}
   isPreviewMode={isPreviewMode}
   previewTimeLabel={previewTimeLabel}
