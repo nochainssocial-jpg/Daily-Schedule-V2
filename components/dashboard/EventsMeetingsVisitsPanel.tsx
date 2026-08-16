@@ -8,14 +8,81 @@ import { styles } from "./dashboardStyles";
 
 const MAX_VISIBLE_PER_SECTION = 4;
 
-function EventCard({
+type DashboardEventItem = EventMeetingVisitRecord & {
+  related_participant?: string | null;
+};
+
+function ActiveTodayEventCard({
   item,
   number,
-  highlight = false,
 }: {
   item: EventMeetingVisitRecord;
   number: number;
-  highlight?: boolean;
+}) {
+  const activeItem = item as DashboardEventItem;
+  const theme = EVENT_CARD_THEMES.active;
+
+  const detailRows = [
+    { label: "Time", value: eventTimeRange(item) || "—" },
+    { label: "Type", value: item.event_type || item.main_category || "—" },
+    { label: "Responsible Staff", value: item.responsible_staff || "—" },
+    { label: "Participant", value: activeItem.related_participant || "—" },
+    { label: "Visitor", value: item.visitor_name || "—" },
+    { label: "Organisation", value: item.organisation || "—" },
+  ];
+
+  return (
+    <View
+      style={[
+        styles.eventCard,
+        styles.eventActiveCard,
+        {
+          backgroundColor: theme.background,
+          borderColor: theme.border,
+        },
+      ]}
+    >
+      <View style={styles.eventIconWrap}>
+        <View style={[styles.eventIconCircle, { backgroundColor: theme.iconBackground }]}>
+          <MaterialCommunityIcons name="calendar-check" size={22} color={theme.icon} />
+        </View>
+        <View style={[styles.eventNumberBadge, { backgroundColor: theme.label }]}>
+          <Text style={styles.eventNumberText}>{number}</Text>
+        </View>
+      </View>
+
+      <View style={styles.eventCardBody}>
+        <Text style={[styles.eventActiveTitleLabel, { color: theme.label }]}>Title</Text>
+        <Text style={styles.eventActiveTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        <View style={styles.eventActiveDetailsList}>
+          {detailRows.map((detail) => (
+            <View key={detail.label} style={styles.eventActiveDetailRow}>
+              <Text
+                style={[styles.eventActiveDetailLabel, { color: theme.label }]}
+                numberOfLines={1}
+              >
+                {detail.label}
+              </Text>
+              <Text style={styles.eventActiveDetailValue} numberOfLines={1}>
+                {detail.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function UpcomingEventCard({
+  item,
+  number,
+}: {
+  item: EventMeetingVisitRecord;
+  number: number;
 }) {
   const peopleRow = [
     item.responsible_staff ? `Host: ${item.responsible_staff}` : "",
@@ -33,9 +100,8 @@ function EventCard({
 
   const detailRows = [peopleRow, placeRow].filter(Boolean);
   const safeNote = item.main_category === "Event" ? String(item.notes || "").trim() : "";
-  const theme = highlight ? EVENT_CARD_THEMES.active : EVENT_CARD_THEMES.future;
-  const labelText = highlight ? "ACTIVE TODAY" : "UPCOMING";
-  const iconName = highlight ? "calendar-check" : item.all_day ? "calendar-star" : "calendar-clock";
+  const theme = EVENT_CARD_THEMES.future;
+  const iconName = item.all_day ? "calendar-star" : "calendar-clock";
 
   return (
     <View
@@ -59,7 +125,7 @@ function EventCard({
       <View style={styles.eventCardBody}>
         <View style={styles.eventCardHeader}>
           <View style={styles.eventHeadingBlock}>
-            <Text style={[styles.eventStatusLabel, { color: theme.label }]}>{labelText}</Text>
+            <Text style={[styles.eventStatusLabel, { color: theme.label }]}>UPCOMING</Text>
             <Text style={styles.eventTitle} numberOfLines={2}>
               {item.title}
             </Text>
@@ -130,14 +196,21 @@ function EventSection({
   return (
     <View style={styles.eventsSectionBody}>
       <View style={styles.eventsList}>
-        {visibleItems.map((item, index) => (
-          <EventCard
-            key={item.id}
-            item={item}
-            number={index + 1}
-            highlight={highlight}
-          />
-        ))}
+        {visibleItems.map((item, index) =>
+          highlight ? (
+            <ActiveTodayEventCard
+              key={item.id}
+              item={item}
+              number={index + 1}
+            />
+          ) : (
+            <UpcomingEventCard
+              key={item.id}
+              item={item}
+              number={index + 1}
+            />
+          ),
+        )}
       </View>
 
       {remainingCount > 0 ? (
