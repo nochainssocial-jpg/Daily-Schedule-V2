@@ -874,6 +874,28 @@ function getFormFieldValidation(
   }
 }
 
+function guideStepForField(field: FormFieldKey): GuideStepKey | null {
+  switch (field) {
+    case "title":
+      return "title";
+    case "eventType":
+      return "type";
+    case "eventDateAU":
+      return "date";
+    case "startTime":
+    case "endTime":
+      return "time";
+    case "recurrenceCount":
+    case "recurrenceEndAU":
+      return "recurrence";
+    case "responsibleStaff":
+    case "location":
+      return "hostLocation";
+    default:
+      return null;
+  }
+}
+
 export default function EventsMeetingsVisitsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<EventsMeetingsVisitsRecord[]>([]);
@@ -889,6 +911,7 @@ export default function EventsMeetingsVisitsScreen() {
   const [pendingPosterFile, setPendingPosterFile] = useState<any>(null);
   const [pendingPosterPreviewUrl, setPendingPosterPreviewUrl] = useState<string | null>(null);
   const posterInputRef = useRef<any>(null);
+  const formFieldRefs = useRef<Partial<Record<FormFieldKey, any>>>({});
   const [activeField, setActiveField] = useState<FormFieldKey | null>(null);
   const [invalidFields, setInvalidFields] = useState<Set<FormFieldKey>>(new Set());
 
@@ -900,8 +923,13 @@ export default function EventsMeetingsVisitsScreen() {
   const listItems = useMemo(() => buildGroupedListItems(items), [items]);
   const currentGuideStep = useMemo(() => getCurrentGuideStep(form), [form]);
 
+  const guideStepToShow = useMemo(() => {
+    if (!activeField) return currentGuideStep;
+    return guideStepForField(activeField);
+  }, [activeField, currentGuideStep]);
+
   function isGuided(step: GuideStepKey) {
-    return guideEnabled && currentGuideStep === step;
+    return guideEnabled && guideStepToShow === step;
   }
 
   const filteredItems = useMemo(() => {
@@ -1098,24 +1126,79 @@ export default function EventsMeetingsVisitsScreen() {
     }
   }
 
+  function preventTabDefault(event: any) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    event?.nativeEvent?.preventDefault?.();
+    event?.nativeEvent?.stopPropagation?.();
+  }
+
+  function orderedFormFields(): FormFieldKey[] {
+    const ordered: FormFieldKey[] = [
+      "title",
+      "eventType",
+      "eventDateAU",
+    ];
+
+    if (!form.allDay) {
+      ordered.push("startTime", "endTime");
+    }
+
+    if (form.recurring) {
+      ordered.push("recurrenceCount", "recurrenceEndAU");
+    }
+
+    ordered.push(
+      "displayFromAU",
+      "displayUntilAU",
+      "visitorName",
+      "organisation",
+      "responsibleStaff",
+      "location",
+      "relatedParticipant",
+      "notes",
+    );
+
+    return ordered;
+  }
+
+  function focusNextFormField(field: FormFieldKey) {
+    const ordered = orderedFormFields();
+    const currentIndex = ordered.indexOf(field);
+    const nextField = currentIndex >= 0 ? ordered[currentIndex + 1] : null;
+    if (!nextField) return false;
+
+    const focusNext = () => formFieldRefs.current[nextField]?.focus?.();
+    const requestFrame = (globalThis as any).requestAnimationFrame;
+    if (typeof requestFrame === "function") {
+      requestFrame(focusNext);
+    } else {
+      setTimeout(focusNext, 0);
+    }
+    return true;
+  }
+
   function handleFieldKeyDown(field: FormFieldKey, event: any) {
     const key = event?.key || event?.nativeEvent?.key;
     const shiftKey = Boolean(event?.shiftKey || event?.nativeEvent?.shiftKey);
     if (Platform.OS !== "web" || key !== "Tab" || shiftKey) return;
 
     const validation = getFormFieldValidation(field, form);
-    if (validation.valid) {
-      clearFieldInvalid(field);
+    if (!validation.valid) {
+      preventTabDefault(event);
+      setInvalidFields((current) => new Set(current).add(field));
+      setActiveField(field);
+      event?.currentTarget?.focus?.();
       return;
     }
 
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    event?.nativeEvent?.preventDefault?.();
-    event?.nativeEvent?.stopPropagation?.();
-    setInvalidFields((current) => new Set(current).add(field));
-    setActiveField(field);
-    event?.currentTarget?.focus?.();
+    clearFieldInvalid(field);
+
+    // Use an explicit forward tab sequence for the data-entry fields so the
+    // browser cannot jump to an unrelated switch/chip between visible fields.
+    if (focusNextFormField(field)) {
+      preventTabDefault(event);
+    }
   }
 
   function fieldStateStyle(field: FormFieldKey) {
@@ -1131,6 +1214,14 @@ export default function EventsMeetingsVisitsScreen() {
     if (Platform.OS !== "web") return {};
     return {
       onKeyDown: (event: any) => handleFieldKeyDown(field, event),
+    } as any;
+  }
+
+  function formFieldRefProps(field: FormFieldKey) {
+    return {
+      ref: (node: any) => {
+        formFieldRefs.current[field] = node;
+      },
     } as any;
   }
 
@@ -2049,14 +2140,14 @@ export default function EventsMeetingsVisitsScreen() {
               ) : null}
             </View>
 
-            {guideEnabled ? (
+            {guideEnabled && guideStepToShow ? (
               <View style={styles.guideCard}>
                 <View style={styles.guideIconBubble}>
                   <Ionicons name="sparkles-outline" size={17} color="#7C2D12" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.guideTitle}>{guideCopy[currentGuideStep].title}</Text>
-                  <Text style={styles.guideText}>{guideCopy[currentGuideStep].text}</Text>
+                  <Text style={styles.guideTitle}>{guideCopy[guideStepToShow].title}</Text>
+                  <Text style={styles.guideText}>{guideCopy[guideStepToShow].text}</Text>
                 </View>
                 <Pressable
                   style={styles.guideDismissButton}
@@ -2065,7 +2156,7 @@ export default function EventsMeetingsVisitsScreen() {
                   <Text style={styles.guideDismissText}>Hide</Text>
                 </Pressable>
               </View>
-            ) : (
+            ) : !guideEnabled ? (
               <Pressable
                 style={styles.showGuideButton}
                 onPress={() => setGuideEnabled(true)}
@@ -2073,7 +2164,7 @@ export default function EventsMeetingsVisitsScreen() {
                 <Ionicons name="help-circle-outline" size={16} color="#562C61" />
                 <Text style={styles.showGuideButtonText}>Show entry guide</Text>
               </Pressable>
-            )}
+            ) : null}
 
             <Label text="Title" />
             <GuideBubble
@@ -2089,9 +2180,9 @@ export default function EventsMeetingsVisitsScreen() {
               placeholder="BSP Specialist Visit"
               style={[
                 styles.input,
-                isGuided("title") && styles.guidedInput,
                 fieldStateStyle("title"),
               ]}
+              {...formFieldRefProps("title")}
               {...webFieldKeyDownProps("title")}
             />
 
@@ -2128,12 +2219,12 @@ export default function EventsMeetingsVisitsScreen() {
               <Pressable
                 style={[
                   styles.dropdownButton,
-                  isGuided("type") && styles.guidedInput,
                   fieldStateStyle("eventType"),
                 ]}
                 onPress={() => setTypeMenuOpen((value) => !value)}
                 onFocus={() => handleFieldFocus("eventType")}
                 onBlur={() => handleFieldBlur("eventType")}
+                {...formFieldRefProps("eventType")}
                 {...webFieldKeyDownProps("eventType")}
               >
                 <Text
@@ -2201,9 +2292,9 @@ export default function EventsMeetingsVisitsScreen() {
                   maxLength={10}
                   style={[
                     styles.input,
-                    isGuided("date") && styles.guidedInput,
                     fieldStateStyle("eventDateAU"),
                   ]}
+                  {...formFieldRefProps("eventDateAU")}
                   {...webFieldKeyDownProps("eventDateAU")}
                 />
               </View>
@@ -2234,9 +2325,9 @@ export default function EventsMeetingsVisitsScreen() {
                       placeholder="10:30"
                       style={[
                         styles.input,
-                        isGuided("time") && styles.guidedInput,
                         fieldStateStyle("startTime"),
                       ]}
+                      {...formFieldRefProps("startTime")}
                       {...webFieldKeyDownProps("startTime")}
                     />
                   </View>
@@ -2250,9 +2341,9 @@ export default function EventsMeetingsVisitsScreen() {
                       placeholder="11:30"
                       style={[
                         styles.input,
-                        isGuided("time") && styles.guidedInput,
                         fieldStateStyle("endTime"),
                       ]}
+                      {...formFieldRefProps("endTime")}
                       {...webFieldKeyDownProps("endTime")}
                     />
                   </View>
@@ -2261,7 +2352,7 @@ export default function EventsMeetingsVisitsScreen() {
             )}
 
             {(!editingId || editingGroupId || editingSeriesIds.length > 0) ? (
-              <View style={[styles.recurrencePanel, isGuided("recurrence") && styles.guidedPanel]}>
+              <View style={styles.recurrencePanel}>
                 <GuideBubble
                   visible={isGuided("recurrence")}
                   title={guideCopy.recurrence.title}
@@ -2354,6 +2445,7 @@ export default function EventsMeetingsVisitsScreen() {
                           placeholder="12"
                           keyboardType="numeric"
                           style={[styles.input, fieldStateStyle("recurrenceCount")]}
+                          {...formFieldRefProps("recurrenceCount")}
                           {...webFieldKeyDownProps("recurrenceCount")}
                         />
                       </View>
@@ -2370,6 +2462,7 @@ export default function EventsMeetingsVisitsScreen() {
                           keyboardType="number-pad"
                           maxLength={10}
                           style={[styles.input, fieldStateStyle("recurrenceEndAU")]}
+                          {...formFieldRefProps("recurrenceEndAU")}
                           {...webFieldKeyDownProps("recurrenceEndAU")}
                         />
                       </View>
@@ -2397,6 +2490,7 @@ export default function EventsMeetingsVisitsScreen() {
                   keyboardType="number-pad"
                   maxLength={10}
                   style={[styles.input, fieldStateStyle("displayFromAU")]}
+                  {...formFieldRefProps("displayFromAU")}
                   {...webFieldKeyDownProps("displayFromAU")}
                 />
               </View>
@@ -2413,6 +2507,7 @@ export default function EventsMeetingsVisitsScreen() {
                   keyboardType="number-pad"
                   maxLength={10}
                   style={[styles.input, fieldStateStyle("displayUntilAU")]}
+                  {...formFieldRefProps("displayUntilAU")}
                   {...webFieldKeyDownProps("displayUntilAU")}
                 />
               </View>
@@ -2430,6 +2525,7 @@ export default function EventsMeetingsVisitsScreen() {
                   onBlur={() => handleFieldBlur("visitorName")}
                   placeholder="Sarah Jones"
                   style={[styles.input, fieldStateStyle("visitorName")]}
+                  {...formFieldRefProps("visitorName")}
                   {...webFieldKeyDownProps("visitorName")}
                 />
               </View>
@@ -2442,6 +2538,7 @@ export default function EventsMeetingsVisitsScreen() {
                   onBlur={() => handleFieldBlur("organisation")}
                   placeholder="Example Behaviour Support"
                   style={[styles.input, fieldStateStyle("organisation")]}
+                  {...formFieldRefProps("organisation")}
                   {...webFieldKeyDownProps("organisation")}
                 />
               </View>
@@ -2465,9 +2562,9 @@ export default function EventsMeetingsVisitsScreen() {
                   placeholder="Bruno"
                   style={[
                     styles.input,
-                    isGuided("hostLocation") && styles.guidedInput,
                     fieldStateStyle("responsibleStaff"),
                   ]}
+                  {...formFieldRefProps("responsibleStaff")}
                   {...webFieldKeyDownProps("responsibleStaff")}
                 />
               </View>
@@ -2481,9 +2578,9 @@ export default function EventsMeetingsVisitsScreen() {
                   placeholder="Main Activity Room"
                   style={[
                     styles.input,
-                    isGuided("hostLocation") && styles.guidedInput,
                     fieldStateStyle("location"),
                   ]}
+                  {...formFieldRefProps("location")}
                   {...webFieldKeyDownProps("location")}
                 />
               </View>
@@ -2497,6 +2594,7 @@ export default function EventsMeetingsVisitsScreen() {
               onBlur={() => handleFieldBlur("relatedParticipant")}
               placeholder="Only if appropriate for admin view"
               style={[styles.input, fieldStateStyle("relatedParticipant")]}
+              {...formFieldRefProps("relatedParticipant")}
               {...webFieldKeyDownProps("relatedParticipant")}
             />
 
@@ -2514,6 +2612,7 @@ export default function EventsMeetingsVisitsScreen() {
               ]}
               multiline
               textAlignVertical="top"
+              {...formFieldRefProps("notes")}
               {...webFieldKeyDownProps("notes")}
             />
 
