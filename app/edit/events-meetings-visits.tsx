@@ -41,6 +41,29 @@ type WeekdayKey = "SU" | "MO" | "TU" | "WE" | "TH" | "FR" | "SA";
 type FilterStatus = "Inbox" | "All" | EventStatus;
 type FilterCategory = "All" | MainCategory;
 type GuideStepKey = "title" | "type" | "date" | "time" | "recurrence" | "hostLocation" | "save";
+type FormFieldKey =
+  | "title"
+  | "eventType"
+  | "eventDateAU"
+  | "startTime"
+  | "endTime"
+  | "recurrenceCount"
+  | "recurrenceEndAU"
+  | "displayFromAU"
+  | "displayUntilAU"
+  | "visitorName"
+  | "organisation"
+  | "responsibleStaff"
+  | "location"
+  | "relatedParticipant"
+  | "notes";
+
+type FieldValidationResult = {
+  valid: boolean;
+  hasValue: boolean;
+  required: boolean;
+  message?: string;
+};
 
 type EventsMeetingsVisitsRecord = {
   id: string;
@@ -696,6 +719,161 @@ function getCurrentGuideStep(form: FormState): GuideStepKey {
   return "save";
 }
 
+function timeToMinutes(value: string) {
+  const normalised = normaliseTime(value);
+  if (!normalised) return null;
+  const [hours, minutes] = normalised.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function getFormFieldValidation(
+  field: FormFieldKey,
+  form: FormState,
+): FieldValidationResult {
+  const value = String(form[field] ?? "");
+  const hasValue = value.trim().length > 0;
+
+  switch (field) {
+    case "title":
+      return {
+        valid: hasValue,
+        hasValue,
+        required: true,
+        message: "Please enter a title.",
+      };
+
+    case "eventType":
+      return {
+        valid: hasValue,
+        hasValue,
+        required: true,
+        message: "Please select a type.",
+      };
+
+    case "eventDateAU":
+      return {
+        valid: Boolean(auDateToISO(value)),
+        hasValue,
+        required: true,
+        message: "Use a valid date in DD/MM/YYYY format.",
+      };
+
+    case "startTime":
+      if (form.allDay) {
+        return { valid: true, hasValue: false, required: false };
+      }
+      return {
+        valid: Boolean(normaliseTime(value)),
+        hasValue,
+        required: true,
+        message: "Use a valid start time, for example 10:30.",
+      };
+
+    case "endTime": {
+      if (form.allDay) {
+        return { valid: true, hasValue: false, required: false };
+      }
+
+      const endMinutes = timeToMinutes(value);
+      const startMinutes = timeToMinutes(form.startTime);
+      const valid =
+        endMinutes !== null &&
+        (startMinutes === null || endMinutes > startMinutes);
+
+      return {
+        valid,
+        hasValue,
+        required: true,
+        message:
+          endMinutes !== null && startMinutes !== null && endMinutes <= startMinutes
+            ? "End time must be later than start time."
+            : "Use a valid end time, for example 11:30.",
+      };
+    }
+
+    case "recurrenceCount":
+      return {
+        valid: !hasValue || Boolean(parsePositiveInteger(value)),
+        hasValue,
+        required: false,
+        message: "Enter a whole number greater than zero.",
+      };
+
+    case "recurrenceEndAU": {
+      if (!hasValue) return { valid: true, hasValue: false, required: false };
+      const endDate = auDateToISO(value);
+      const startDate = auDateToISO(form.eventDateAU);
+      const valid = Boolean(endDate) && (!startDate || endDate! >= startDate);
+      return {
+        valid,
+        hasValue,
+        required: false,
+        message:
+          endDate && startDate && endDate < startDate
+            ? "Recurring end date cannot be before the event date."
+            : "Use a valid date in DD/MM/YYYY format.",
+      };
+    }
+
+    case "displayFromAU":
+      return {
+        valid: !hasValue || Boolean(auDateToISO(value)),
+        hasValue,
+        required: false,
+        message: "Use a valid date in DD/MM/YYYY format.",
+      };
+
+    case "displayUntilAU": {
+      if (!hasValue) return { valid: true, hasValue: false, required: false };
+      const untilDate = auDateToISO(value);
+      const fromDate = auDateToISO(form.displayFromAU);
+      const valid = Boolean(untilDate) && (!fromDate || untilDate! >= fromDate);
+      return {
+        valid,
+        hasValue,
+        required: false,
+        message:
+          untilDate && fromDate && untilDate < fromDate
+            ? "Display until cannot be before display from."
+            : "Use a valid date in DD/MM/YYYY format.",
+      };
+    }
+
+    case "responsibleStaff":
+      return {
+        valid: hasValue,
+        hasValue,
+        required: true,
+        message: "Please enter the responsible staff member.",
+      };
+
+    case "location":
+      return {
+        valid: hasValue,
+        hasValue,
+        required: true,
+        message: "Please enter a location.",
+      };
+
+    case "visitorName":
+    case "organisation":
+    case "relatedParticipant":
+    case "notes":
+      return {
+        valid: true,
+        hasValue,
+        required: false,
+      };
+
+    default:
+      return {
+        valid: true,
+        hasValue,
+        required: false,
+      };
+  }
+}
+
 export default function EventsMeetingsVisitsScreen() {
   const router = useRouter();
   const [items, setItems] = useState<EventsMeetingsVisitsRecord[]>([]);
@@ -711,6 +889,8 @@ export default function EventsMeetingsVisitsScreen() {
   const [pendingPosterFile, setPendingPosterFile] = useState<any>(null);
   const [pendingPosterPreviewUrl, setPendingPosterPreviewUrl] = useState<string | null>(null);
   const posterInputRef = useRef<any>(null);
+  const [activeField, setActiveField] = useState<FormFieldKey | null>(null);
+  const [invalidFields, setInvalidFields] = useState<Set<FormFieldKey>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("Inbox");
@@ -877,6 +1057,83 @@ export default function EventsMeetingsVisitsScreen() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function handleAllDayChange(value: boolean) {
+    updateForm("allDay", value);
+    if (value) {
+      clearFieldInvalid("startTime");
+      clearFieldInvalid("endTime");
+    }
+  }
+
+  function clearFieldInvalid(field: FormFieldKey) {
+    setInvalidFields((current) => {
+      if (!current.has(field)) return current;
+      const next = new Set(current);
+      next.delete(field);
+      return next;
+    });
+  }
+
+  function updateValidatedFormField(field: FormFieldKey, value: string) {
+    const nextForm = { ...form, [field]: value } as FormState;
+    setForm(nextForm);
+
+    if (getFormFieldValidation(field, nextForm).valid) {
+      clearFieldInvalid(field);
+    }
+  }
+
+  function handleFieldFocus(field: FormFieldKey) {
+    setActiveField(field);
+  }
+
+  function handleFieldBlur(field: FormFieldKey) {
+    setActiveField((current) => (current === field ? null : current));
+    const validation = getFormFieldValidation(field, form);
+
+    if (!validation.valid && (validation.required || validation.hasValue)) {
+      setInvalidFields((current) => new Set(current).add(field));
+    } else {
+      clearFieldInvalid(field);
+    }
+  }
+
+  function handleFieldKeyDown(field: FormFieldKey, event: any) {
+    const key = event?.key || event?.nativeEvent?.key;
+    const shiftKey = Boolean(event?.shiftKey || event?.nativeEvent?.shiftKey);
+    if (Platform.OS !== "web" || key !== "Tab" || shiftKey) return;
+
+    const validation = getFormFieldValidation(field, form);
+    if (validation.valid) {
+      clearFieldInvalid(field);
+      return;
+    }
+
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    event?.nativeEvent?.preventDefault?.();
+    event?.nativeEvent?.stopPropagation?.();
+    setInvalidFields((current) => new Set(current).add(field));
+    setActiveField(field);
+    event?.currentTarget?.focus?.();
+  }
+
+  function fieldStateStyle(field: FormFieldKey) {
+    const validation = getFormFieldValidation(field, form);
+
+    if (invalidFields.has(field)) return styles.inputInvalid;
+    if (activeField === field) return styles.inputActive;
+    if (validation.hasValue && validation.valid) return styles.inputValid;
+    return null;
+  }
+
+  function webFieldKeyDownProps(field: FormFieldKey) {
+    if (Platform.OS !== "web") return {};
+    return {
+      onKeyDown: (event: any) => handleFieldKeyDown(field, event),
+    } as any;
+  }
+
   function handleEdit(listItem: EventsMeetingsVisitsListItem) {
     clearPendingPosterSelection();
     const sortedGroupItems = [...listItem.items].sort(compareEventsByDateTime);
@@ -895,6 +1152,8 @@ export default function EventsMeetingsVisitsScreen() {
           );
 
     setSelectedIds(new Set());
+    setActiveField(null);
+    setInvalidFields(new Set());
     setEditingId(isSeries ? null : sourceItem.id);
     setEditingGroupId(isSeries && listItem.recurrenceGroupId ? listItem.recurrenceGroupId : null);
     setEditingSeriesIds(isSeries && !listItem.recurrenceGroupId ? sortedGroupItems.map((item) => item.id) : []);
@@ -942,6 +1201,8 @@ export default function EventsMeetingsVisitsScreen() {
     setEditingGroupId(null);
     setEditingSeriesIds([]);
     setForm(blankForm);
+    setActiveField(null);
+    setInvalidFields(new Set());
     setTypeMenuOpen(false);
   }
 
@@ -962,6 +1223,32 @@ export default function EventsMeetingsVisitsScreen() {
     const eventDate = auDateToISO(form.eventDateAU);
     const startTime = form.allDay ? null : normaliseTime(form.startTime);
     const endTime = form.allDay ? null : normaliseTime(form.endTime);
+
+    const fieldsToValidate: FormFieldKey[] = [
+      "title",
+      "eventType",
+      "eventDateAU",
+      ...(form.allDay ? [] : (["startTime", "endTime"] as FormFieldKey[])),
+      ...(form.recurring || editingGroupId || editingSeriesIds.length > 0
+        ? (["recurrenceCount", "recurrenceEndAU"] as FormFieldKey[])
+        : []),
+      "displayFromAU",
+      "displayUntilAU",
+      "responsibleStaff",
+      "location",
+    ];
+
+    const firstInvalidField = fieldsToValidate.find(
+      (field) => !getFormFieldValidation(field, form).valid,
+    );
+
+    if (firstInvalidField) {
+      const validation = getFormFieldValidation(firstInvalidField, form);
+      setInvalidFields((current) => new Set(current).add(firstInvalidField));
+      setActiveField(firstInvalidField);
+      Alert.alert("Check highlighted field", validation.message || "Please correct the highlighted field.");
+      return;
+    }
 
     if (!title) {
       Alert.alert("Missing title", "Please add a title first.");
@@ -1796,9 +2083,16 @@ export default function EventsMeetingsVisitsScreen() {
             />
             <TextInput
               value={form.title}
-              onChangeText={(value) => updateForm("title", value)}
+              onChangeText={(value) => updateValidatedFormField("title", value)}
+              onFocus={() => handleFieldFocus("title")}
+              onBlur={() => handleFieldBlur("title")}
               placeholder="BSP Specialist Visit"
-              style={[styles.input, isGuided("title") && styles.guidedInput]}
+              style={[
+                styles.input,
+                isGuided("title") && styles.guidedInput,
+                fieldStateStyle("title"),
+              ]}
+              {...webFieldKeyDownProps("title")}
             />
 
             <Label text="Category" />
@@ -1832,8 +2126,15 @@ export default function EventsMeetingsVisitsScreen() {
             />
             <View style={styles.dropdownWrap}>
               <Pressable
-                style={[styles.dropdownButton, isGuided("type") && styles.guidedInput]}
+                style={[
+                  styles.dropdownButton,
+                  isGuided("type") && styles.guidedInput,
+                  fieldStateStyle("eventType"),
+                ]}
                 onPress={() => setTypeMenuOpen((value) => !value)}
+                onFocus={() => handleFieldFocus("eventType")}
+                onBlur={() => handleFieldBlur("eventType")}
+                {...webFieldKeyDownProps("eventType")}
               >
                 <Text
                   style={[
@@ -1860,8 +2161,9 @@ export default function EventsMeetingsVisitsScreen() {
                         form.eventType === type && styles.dropdownOptionActive,
                       ]}
                       onPress={() => {
-                        updateForm("eventType", type);
+                        updateValidatedFormField("eventType", type);
                         setTypeMenuOpen(false);
+                        setActiveField(null);
                       }}
                     >
                       <Text
@@ -1890,19 +2192,26 @@ export default function EventsMeetingsVisitsScreen() {
                 <TextInput
                   value={form.eventDateAU}
                   onChangeText={(value) =>
-                    updateForm("eventDateAU", formatDateInput(value))
+                    updateValidatedFormField("eventDateAU", formatDateInput(value))
                   }
+                  onFocus={() => handleFieldFocus("eventDateAU")}
+                  onBlur={() => handleFieldBlur("eventDateAU")}
                   placeholder="30/06/2026"
                   keyboardType="number-pad"
                   maxLength={10}
-                  style={[styles.input, isGuided("date") && styles.guidedInput]}
+                  style={[
+                    styles.input,
+                    isGuided("date") && styles.guidedInput,
+                    fieldStateStyle("eventDateAU"),
+                  ]}
+                  {...webFieldKeyDownProps("eventDateAU")}
                 />
               </View>
               <View style={styles.columnSwitch}>
                 <Text style={styles.switchLabel}>All day</Text>
                 <Switch
                   value={form.allDay}
-                  onValueChange={(value) => updateForm("allDay", value)}
+                  onValueChange={handleAllDayChange}
                 />
               </View>
             </View>
@@ -1919,18 +2228,32 @@ export default function EventsMeetingsVisitsScreen() {
                     <Label text="Start time" />
                     <TextInput
                       value={form.startTime}
-                      onChangeText={(value) => updateForm("startTime", value)}
+                      onChangeText={(value) => updateValidatedFormField("startTime", value)}
+                      onFocus={() => handleFieldFocus("startTime")}
+                      onBlur={() => handleFieldBlur("startTime")}
                       placeholder="10:30"
-                      style={[styles.input, isGuided("time") && styles.guidedInput]}
+                      style={[
+                        styles.input,
+                        isGuided("time") && styles.guidedInput,
+                        fieldStateStyle("startTime"),
+                      ]}
+                      {...webFieldKeyDownProps("startTime")}
                     />
                   </View>
                   <View style={styles.column}>
                     <Label text="End time" />
                     <TextInput
                       value={form.endTime}
-                      onChangeText={(value) => updateForm("endTime", value)}
+                      onChangeText={(value) => updateValidatedFormField("endTime", value)}
+                      onFocus={() => handleFieldFocus("endTime")}
+                      onBlur={() => handleFieldBlur("endTime")}
                       placeholder="11:30"
-                      style={[styles.input, isGuided("time") && styles.guidedInput]}
+                      style={[
+                        styles.input,
+                        isGuided("time") && styles.guidedInput,
+                        fieldStateStyle("endTime"),
+                      ]}
+                      {...webFieldKeyDownProps("endTime")}
                     />
                   </View>
                 </View>
@@ -2024,11 +2347,14 @@ export default function EventsMeetingsVisitsScreen() {
                         <TextInput
                           value={form.recurrenceCount}
                           onChangeText={(value) =>
-                            updateForm("recurrenceCount", value)
+                            updateValidatedFormField("recurrenceCount", value)
                           }
+                          onFocus={() => handleFieldFocus("recurrenceCount")}
+                          onBlur={() => handleFieldBlur("recurrenceCount")}
                           placeholder="12"
                           keyboardType="numeric"
-                          style={styles.input}
+                          style={[styles.input, fieldStateStyle("recurrenceCount")]}
+                          {...webFieldKeyDownProps("recurrenceCount")}
                         />
                       </View>
                       <View style={styles.column}>
@@ -2036,12 +2362,15 @@ export default function EventsMeetingsVisitsScreen() {
                         <TextInput
                           value={form.recurrenceEndAU}
                           onChangeText={(value) =>
-                            updateForm("recurrenceEndAU", formatDateInput(value))
+                            updateValidatedFormField("recurrenceEndAU", formatDateInput(value))
                           }
+                          onFocus={() => handleFieldFocus("recurrenceEndAU")}
+                          onBlur={() => handleFieldBlur("recurrenceEndAU")}
                           placeholder="31/12/2026"
                           keyboardType="number-pad"
                           maxLength={10}
-                          style={styles.input}
+                          style={[styles.input, fieldStateStyle("recurrenceEndAU")]}
+                          {...webFieldKeyDownProps("recurrenceEndAU")}
                         />
                       </View>
                     </View>
@@ -2060,12 +2389,15 @@ export default function EventsMeetingsVisitsScreen() {
                 <TextInput
                   value={form.displayFromAU}
                   onChangeText={(value) =>
-                    updateForm("displayFromAU", formatDateInput(value))
+                    updateValidatedFormField("displayFromAU", formatDateInput(value))
                   }
+                  onFocus={() => handleFieldFocus("displayFromAU")}
+                  onBlur={() => handleFieldBlur("displayFromAU")}
                   placeholder="Leave blank for today"
                   keyboardType="number-pad"
                   maxLength={10}
-                  style={styles.input}
+                  style={[styles.input, fieldStateStyle("displayFromAU")]}
+                  {...webFieldKeyDownProps("displayFromAU")}
                 />
               </View>
               <View style={styles.column}>
@@ -2073,15 +2405,117 @@ export default function EventsMeetingsVisitsScreen() {
                 <TextInput
                   value={form.displayUntilAU}
                   onChangeText={(value) =>
-                    updateForm("displayUntilAU", formatDateInput(value))
+                    updateValidatedFormField("displayUntilAU", formatDateInput(value))
                   }
+                  onFocus={() => handleFieldFocus("displayUntilAU")}
+                  onBlur={() => handleFieldBlur("displayUntilAU")}
                   placeholder="Blank = event end time"
                   keyboardType="number-pad"
                   maxLength={10}
-                  style={styles.input}
+                  style={[styles.input, fieldStateStyle("displayUntilAU")]}
+                  {...webFieldKeyDownProps("displayUntilAU")}
                 />
               </View>
             </View>
+
+
+
+            <View style={styles.twoColumnRow}>
+              <View style={styles.column}>
+                <Label text="Visitor name" />
+                <TextInput
+                  value={form.visitorName}
+                  onChangeText={(value) => updateValidatedFormField("visitorName", value)}
+                  onFocus={() => handleFieldFocus("visitorName")}
+                  onBlur={() => handleFieldBlur("visitorName")}
+                  placeholder="Sarah Jones"
+                  style={[styles.input, fieldStateStyle("visitorName")]}
+                  {...webFieldKeyDownProps("visitorName")}
+                />
+              </View>
+              <View style={styles.column}>
+                <Label text="Organisation" />
+                <TextInput
+                  value={form.organisation}
+                  onChangeText={(value) => updateValidatedFormField("organisation", value)}
+                  onFocus={() => handleFieldFocus("organisation")}
+                  onBlur={() => handleFieldBlur("organisation")}
+                  placeholder="Example Behaviour Support"
+                  style={[styles.input, fieldStateStyle("organisation")]}
+                  {...webFieldKeyDownProps("organisation")}
+                />
+              </View>
+            </View>
+
+            <GuideBubble
+              visible={isGuided("hostLocation")}
+              title={guideCopy.hostLocation.title}
+              text={guideCopy.hostLocation.text}
+            />
+            <View style={styles.twoColumnRow}>
+              <View style={styles.column}>
+                <Label text="Responsible staff" />
+                <TextInput
+                  value={form.responsibleStaff}
+                  onChangeText={(value) =>
+                    updateValidatedFormField("responsibleStaff", value)
+                  }
+                  onFocus={() => handleFieldFocus("responsibleStaff")}
+                  onBlur={() => handleFieldBlur("responsibleStaff")}
+                  placeholder="Bruno"
+                  style={[
+                    styles.input,
+                    isGuided("hostLocation") && styles.guidedInput,
+                    fieldStateStyle("responsibleStaff"),
+                  ]}
+                  {...webFieldKeyDownProps("responsibleStaff")}
+                />
+              </View>
+              <View style={styles.column}>
+                <Label text="Location" />
+                <TextInput
+                  value={form.location}
+                  onChangeText={(value) => updateValidatedFormField("location", value)}
+                  onFocus={() => handleFieldFocus("location")}
+                  onBlur={() => handleFieldBlur("location")}
+                  placeholder="Main Activity Room"
+                  style={[
+                    styles.input,
+                    isGuided("hostLocation") && styles.guidedInput,
+                    fieldStateStyle("location"),
+                  ]}
+                  {...webFieldKeyDownProps("location")}
+                />
+              </View>
+            </View>
+
+            <Label text="Related participant, optional" />
+            <TextInput
+              value={form.relatedParticipant}
+              onChangeText={(value) => updateValidatedFormField("relatedParticipant", value)}
+              onFocus={() => handleFieldFocus("relatedParticipant")}
+              onBlur={() => handleFieldBlur("relatedParticipant")}
+              placeholder="Only if appropriate for admin view"
+              style={[styles.input, fieldStateStyle("relatedParticipant")]}
+              {...webFieldKeyDownProps("relatedParticipant")}
+            />
+
+            <Label text="Notes" />
+            <TextInput
+              value={form.notes}
+              onChangeText={(value) => updateValidatedFormField("notes", value)}
+              onFocus={() => handleFieldFocus("notes")}
+              onBlur={() => handleFieldBlur("notes")}
+              placeholder="Admin notes. Avoid sensitive details on dashboard."
+              style={[
+                styles.input,
+                styles.notesInput,
+                fieldStateStyle("notes"),
+              ]}
+              multiline
+              textAlignVertical="top"
+              {...webFieldKeyDownProps("notes")}
+            />
 
             <View style={styles.posterPanel}>
               <View style={styles.posterPanelHeader}>
@@ -2144,73 +2578,6 @@ export default function EventsMeetingsVisitsScreen() {
                 ) : null}
               </View>
             </View>
-
-            <View style={styles.twoColumnRow}>
-              <View style={styles.column}>
-                <Label text="Visitor name" />
-                <TextInput
-                  value={form.visitorName}
-                  onChangeText={(value) => updateForm("visitorName", value)}
-                  placeholder="Sarah Jones"
-                  style={styles.input}
-                />
-              </View>
-              <View style={styles.column}>
-                <Label text="Organisation" />
-                <TextInput
-                  value={form.organisation}
-                  onChangeText={(value) => updateForm("organisation", value)}
-                  placeholder="Example Behaviour Support"
-                  style={styles.input}
-                />
-              </View>
-            </View>
-
-            <GuideBubble
-              visible={isGuided("hostLocation")}
-              title={guideCopy.hostLocation.title}
-              text={guideCopy.hostLocation.text}
-            />
-            <View style={styles.twoColumnRow}>
-              <View style={styles.column}>
-                <Label text="Responsible staff" />
-                <TextInput
-                  value={form.responsibleStaff}
-                  onChangeText={(value) =>
-                    updateForm("responsibleStaff", value)
-                  }
-                  placeholder="Bruno"
-                  style={[styles.input, isGuided("hostLocation") && styles.guidedInput]}
-                />
-              </View>
-              <View style={styles.column}>
-                <Label text="Location" />
-                <TextInput
-                  value={form.location}
-                  onChangeText={(value) => updateForm("location", value)}
-                  placeholder="Main Activity Room"
-                  style={[styles.input, isGuided("hostLocation") && styles.guidedInput]}
-                />
-              </View>
-            </View>
-
-            <Label text="Related participant, optional" />
-            <TextInput
-              value={form.relatedParticipant}
-              onChangeText={(value) => updateForm("relatedParticipant", value)}
-              placeholder="Only if appropriate for admin view"
-              style={styles.input}
-            />
-
-            <Label text="Notes" />
-            <TextInput
-              value={form.notes}
-              onChangeText={(value) => updateForm("notes", value)}
-              placeholder="Admin notes. Avoid sensitive details on dashboard."
-              style={[styles.input, styles.notesInput]}
-              multiline
-              textAlignVertical="top"
-            />
 
             <Label text="Status" />
             <View style={styles.chipRow}>
@@ -2821,21 +3188,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   guidedInput: {
-    borderColor: "#F59E0B",
+    borderColor: "#2563EB",
     borderWidth: 2,
-    backgroundColor: "#FFFBEB",
-    shadowColor: "#F59E0B",
+    backgroundColor: "#EFF6FF",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.16,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
   guidedPanel: {
-    borderColor: "#F59E0B",
+    borderColor: "#2563EB",
     borderWidth: 2,
+    backgroundColor: "#EFF6FF",
   },
   saveButtonGuided: {
     backgroundColor: "#7C2D12",
-    shadowColor: "#F59E0B",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.24,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 0 },
@@ -2881,6 +3249,29 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: "#111827",
+  },
+  inputActive: {
+    borderColor: "#2563EB",
+    borderWidth: 2,
+    backgroundColor: "#EFF6FF",
+    shadowColor: "#2563EB",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  inputValid: {
+    borderColor: "#16A34A",
+    borderWidth: 2,
+    backgroundColor: "#F0FDF4",
+  },
+  inputInvalid: {
+    borderColor: "#DC2626",
+    borderWidth: 2,
+    backgroundColor: "#FEF2F2",
+    shadowColor: "#DC2626",
+    shadowOpacity: 0.14,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
   },
   notesInput: {
     minHeight: 90,
