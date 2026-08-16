@@ -23,6 +23,7 @@ function ActiveTodayEventCard({
   const theme = EVENT_CARD_THEMES.active;
 
   const detailRows = [
+    { label: "Title", value: item.title || "—" },
     { label: "Time", value: eventTimeRange(item) || "—" },
     { label: "Type", value: item.event_type || item.main_category || "—" },
     { label: "Responsible Staff", value: item.responsible_staff || "—" },
@@ -35,7 +36,6 @@ function ActiveTodayEventCard({
     <View
       style={[
         styles.eventCard,
-        styles.eventActiveCard,
         {
           backgroundColor: theme.background,
           borderColor: theme.border,
@@ -52,26 +52,40 @@ function ActiveTodayEventCard({
       </View>
 
       <View style={styles.eventCardBody}>
-        <Text style={[styles.eventActiveTitleLabel, { color: theme.label }]}>Title</Text>
-        <Text style={styles.eventActiveTitle} numberOfLines={2}>
-          {item.title}
-        </Text>
-
-        <View style={styles.eventActiveDetailsList}>
-          {detailRows.map((detail) => (
-            <View key={detail.label} style={styles.eventActiveDetailRow}>
-              <Text
-                style={[styles.eventActiveDetailLabel, { color: theme.label }]}
-                numberOfLines={1}
-              >
-                {detail.label}
-              </Text>
-              <Text style={styles.eventActiveDetailValue} numberOfLines={1}>
-                {detail.value}
-              </Text>
-            </View>
-          ))}
+        <View style={styles.eventCardHeader}>
+          <View style={styles.eventHeadingBlock}>
+            <Text style={[styles.eventStatusLabel, { color: theme.label }]}>
+              ACTIVE TODAY
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.eventCategoryPill,
+              {
+                backgroundColor: theme.pillBackground,
+                borderColor: theme.pillBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.eventCategoryText, { color: theme.pillText }]}>
+              {item.main_category}
+            </Text>
+          </View>
         </View>
+
+        {detailRows.map((detail) => (
+          <Text
+            key={detail.label}
+            style={styles.eventDetailText}
+            numberOfLines={1}
+          >
+            <Text style={{ color: theme.label, fontWeight: "900" }}>
+              {detail.label}:
+            </Text>
+            {" "}
+            {detail.value}
+          </Text>
+        ))}
       </View>
     </View>
   );
