@@ -34,6 +34,9 @@ export function OutingsPanel({
             const isSafety = slot === 2;
             const staffNames = namesFromIds(outing.staffIds, staffById);
             const participantNames = namesFromIds(outing.participantIds, participantsById);
+            const driverName = outing.driverId
+              ? staffById.get(String(outing.driverId))?.name || String(outing.driverId)
+              : "";
             const phase = getOutingPhase(outing, currentMinutes);
             const phaseLabel = outingPhaseLabel(phase);
             return (
@@ -83,6 +86,15 @@ export function OutingsPanel({
                     <Text style={styles.outingTime}>{(outing.startTime || "?") + " – " + (outing.endTime || "?")}</Text>
                   </View>
                 </View>
+
+                {!isSafety ? (
+                  <View style={styles.outingSection}>
+                    <Text style={styles.outingSectionTitle}>Driver</Text>
+                    <Text style={styles.outingSectionText}>
+                      {driverName || "Not assigned"}
+                    </Text>
+                  </View>
+                ) : null}
 
                 <View style={styles.outingSection}>
                   <Text style={styles.outingSectionTitle}>Staff</Text>
