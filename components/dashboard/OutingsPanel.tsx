@@ -40,6 +40,7 @@ export function OutingsPanel({
             const phase = getOutingPhase(outing, currentMinutes);
             const phaseLabel = outingPhaseLabel(phase);
             const notes = String(outing.notes || "").trim() || "No notes entered.";
+
             return (
               <View
                 key={outing.id || `outing-${index}`}
@@ -50,10 +51,13 @@ export function OutingsPanel({
                     : isSecond
                       ? styles.outingCardPurple
                       : styles.outingCardOrange,
-                  { paddingVertical: 20 },
+                  {
+                    paddingVertical: 20,
+                    paddingHorizontal: 20,
+                  },
                 ]}
               >
-                <View style={[styles.outingTitleRow, { alignItems: "flex-start" }]}> 
+                <View style={[styles.outingTitleRow, { alignItems: "flex-start", marginBottom: 14 }]}> 
                   <View
                     style={[
                       styles.outingIcon,
@@ -68,7 +72,7 @@ export function OutingsPanel({
                     <Ionicons name="car-outline" size={24} color="#FFFFFF" />
                   </View>
 
-                  <View style={{ flex: 1, minWidth: 0, paddingRight: 16 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       style={[
                         styles.outingLabel,
@@ -91,44 +95,40 @@ export function OutingsPanel({
                       {(outing.startTime || "?") + " – " + (outing.endTime || "?")}
                     </Text>
                   </View>
-
-                  {!isSafety ? (
-                    <View
-                      style={{
-                        minWidth: 140,
-                        alignItems: "flex-end",
-                        paddingTop: 2,
-                      }}
-                    >
-                      <Text style={styles.outingSectionTitle}>Driver</Text>
-                      <Text style={styles.outingSectionText}>{driverName || "Not assigned"}</Text>
-                    </View>
-                  ) : null}
                 </View>
 
                 <View
                   style={{
                     flexDirection: "row",
-                    flexWrap: "wrap",
-                    columnGap: 20,
-                    rowGap: 8,
-                    marginTop: 12,
+                    gap: 28,
+                    alignItems: "flex-start",
                   }}
                 >
-                  <View style={[styles.outingSection, { flex: 1, minWidth: 240, marginTop: 0 }]}> 
-                    <Text style={styles.outingSectionTitle}>Staff</Text>
-                    <Text style={styles.outingSectionText}>{shortNames(staffNames)}</Text>
+                  <View style={{ flex: 1.05, minWidth: 0 }}>
+                    {!isSafety ? (
+                      <View style={[styles.outingSection, { marginTop: 0 }]}> 
+                        <Text style={styles.outingSectionTitle}>Driver</Text>
+                        <Text style={styles.outingSectionText}>{driverName || "Not assigned"}</Text>
+                      </View>
+                    ) : null}
+
+                    <View style={[styles.outingSection, { marginTop: !isSafety ? 14 : 0 }]}> 
+                      <Text style={styles.outingSectionTitle}>Staff</Text>
+                      <Text style={styles.outingSectionText}>{shortNames(staffNames)}</Text>
+                    </View>
                   </View>
 
-                  <View style={[styles.outingSection, { flex: 1, minWidth: 260, marginTop: 0 }]}> 
-                    <Text style={styles.outingSectionTitle}>Participants</Text>
-                    <Text style={styles.outingSectionText}>{shortNames(participantNames)}</Text>
+                  <View style={{ flex: 1, minWidth: 0, paddingTop: isSafety ? 0 : 36 }}>
+                    <View style={[styles.outingSection, { marginTop: 0 }]}> 
+                      <Text style={styles.outingSectionTitle}>Participants</Text>
+                      <Text style={styles.outingSectionText}>{shortNames(participantNames)}</Text>
+                    </View>
                   </View>
+                </View>
 
-                  <View style={[styles.outingSection, { width: "100%", marginTop: 0 }]}> 
-                    <Text style={styles.outingSectionTitle}>Notes</Text>
-                    <Text style={styles.outingSectionText} numberOfLines={1}>{notes}</Text>
-                  </View>
+                <View style={[styles.outingSection, { marginTop: 14 }]}> 
+                  <Text style={styles.outingSectionTitle}>Notes</Text>
+                  <Text style={styles.outingSectionText} numberOfLines={1}>{notes}</Text>
                 </View>
               </View>
             );
