@@ -118,7 +118,7 @@ export function OutingsPanel({
                     </View>
                   </View>
 
-                  <View style={{ flex: 1, minWidth: 0, paddingTop: isSafety ? 0 : 36 }}>
+                  <View style={{ flex: 1, minWidth: 0, paddingTop: isSafety ? 0 : 60 }}>
                     <View style={[styles.outingSection, { marginTop: 0 }]}> 
                       <Text style={styles.outingSectionTitle}>Participants</Text>
                       <Text style={styles.outingSectionText}>{shortNames(participantNames)}</Text>
