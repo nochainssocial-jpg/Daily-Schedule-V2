@@ -457,6 +457,7 @@ export default function EditHubScreen() {
               style={[
                 styles.sectionPanel,
                 styles.scheduleSection,
+                !isCompactLayout && styles.scheduleSectionWide,
                 isCompactLayout && styles.sectionPanelStacked,
               ]}
             >
@@ -509,6 +510,7 @@ export default function EditHubScreen() {
               style={[
                 styles.sectionPanel,
                 styles.operationsSection,
+                !isCompactLayout && styles.operationsSectionWide,
                 isCompactLayout && styles.sectionPanelStacked,
               ]}
             >
@@ -717,18 +719,26 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   scheduleSection: {
-    flex: 1.55,
     backgroundColor: "rgba(255,255,255,0.48)",
     borderColor: "#F3D7E7",
   },
+  scheduleSectionWide: {
+    flex: 1.55,
+  },
   operationsSection: {
-    flex: 1,
     backgroundColor: "rgba(240,253,250,0.72)",
     borderColor: "#BFE8E1",
   },
+  operationsSectionWide: {
+    flex: 1,
+  },
   sectionPanelStacked: {
     width: "100%",
-    flex: 0,
+    // Keep compact/mobile panels in normal document flow so their full
+    // content height is measured before the next panel is placed below it.
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
   },
   sectionHeadingRow: {
     flexDirection: "row",
