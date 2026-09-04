@@ -126,6 +126,24 @@ export const DROPOFF_OPTIONS: Record<ID, string[]> = {
   ],
 };
 
+// Name-based options are used for participants whose live Supabase legacy ID
+// may differ from the older local constants. This also avoids any collision
+// with staff members who happen to share the same name.
+export const DROPOFF_OPTIONS_BY_NAME: Record<string, string[]> = {
+  charbel: [
+    'Charbel → Home',
+    'Charbel → Grandmother\'s Place',
+  ],
+};
+
+export function getDropoffOptions(participant: { id: ID; name?: string | null }): string[] | undefined {
+  const byId = DROPOFF_OPTIONS[String(participant.id)];
+  if (byId && byId.length > 0) return byId;
+
+  const nameKey = String(participant.name ?? '').trim().toLowerCase();
+  return DROPOFF_OPTIONS_BY_NAME[nameKey];
+}
+
 // End-of-shift chores (tap to assign / unassign)
 export const DEFAULT_CHORES: Chore[] = [
   { id: '1', name: 'Vacuuming' },
