@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DROPOFF_OPTIONS } from '@/constants/data';
+import { getDropoffOptions } from '@/constants/data';
 import { useSchedule } from '@/hooks/schedule-store';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
@@ -166,7 +166,7 @@ export default function PickupsDropoffsScreen() {
 
   // Label for dropoff chips = participant name + current location option
   const getDropoffLabel = (p: { id: ID; name: string }): string => {
-    const options = DROPOFF_OPTIONS[p.id as ID];
+    const options = getDropoffOptions(p);
     if (!options || options.length === 0) return p.name;
     const index =
       (dropoffLocations && dropoffLocations[p.id as ID]) ?? 0;
@@ -174,9 +174,12 @@ export default function PickupsDropoffsScreen() {
     return `${p.name} – ${location}`;
   };
 
-  // Long-press to cycle dropoff location
-  const cycleDropoffLocation = (pid: ID) => {
-    const options = DROPOFF_OPTIONS[pid];
+  // Long-press to cycle dropoff location. Options can be resolved by either
+  // participant ID (existing Billy/Reema behaviour) or participant name
+  // (Charbel), which keeps this safe with live Supabase participant IDs.
+  const cycleDropoffLocation = (participant: { id: ID; name: string }) => {
+    const pid = participant.id as ID;
+    const options = getDropoffOptions(participant);
     if (!options || options.length === 0) return;
 
     const currentIndex =
@@ -541,7 +544,10 @@ export default function PickupsDropoffsScreen() {
                               toggleDropoff(s.id as ID, p.id as ID)
                             }
                             onLongPress={() =>
-                              cycleDropoffLocation(p.id as ID)
+                              cycleDropoffLocation({
+                                id: p.id as ID,
+                                name: p.name,
+                              })
                             }
                             activeOpacity={0.85}
                             style={[styles.chip, selected && styles.chipSel]}
