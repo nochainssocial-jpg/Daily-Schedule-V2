@@ -109,35 +109,19 @@ export default function CleaningEditScreen() {
       });
   }, [outingGroups, outingGroup]);
 
-  type OutingTone = 'primary' | 'second' | 'safety';
+  const outingStaffIds = useMemo(() => {
+    const ids = new Set<string>();
 
-  const outingStaffToneMap = useMemo(() => {
-    const map = new Map<string, OutingTone>();
-
-    outingGroupsForLogic.forEach((group: any, index: number) => {
-      const groupId = String(group?.id || '').toLowerCase();
-      const tone: OutingTone =
-        groupId === 'outing-3' || index === 2
-          ? 'safety'
-          : groupId === 'outing-2' || index === 1
-            ? 'second'
-            : 'primary';
-
-      ((group.staffIds ?? []) as (string | number)[]).forEach((id) => {
-        const staffId = String(id);
-        if (!map.has(staffId)) {
-          map.set(staffId, tone);
-        }
-      });
+    outingGroupsForLogic.forEach((group: any) => {
+      ((group.staffIds ?? []) as (string | number)[]).forEach((id) =>
+        ids.add(String(id)),
+      );
     });
 
-    return map;
+    return ids;
   }, [outingGroupsForLogic]);
 
-  const outingStaffIds = useMemo(
-    () => new Set<string>(outingStaffToneMap.keys()),
-    [outingStaffToneMap],
-  );
+
 
   // Everyone MD can potentially use for Cleaning remains visible in the picker.
   const workingStaffList: Staff[] = useMemo(
@@ -468,8 +452,7 @@ export default function CleaningEditScreen() {
                       (cleaningAssignments as any)[
                         String(activeChoreId ?? '')
                       ] === st.id;
-                    const outingTone = outingStaffToneMap.get(staffId);
-                    const isOnOuting = !!outingTone;
+                    const isOnOuting = outingStaffIds.has(staffId);
 
                     return (
                       <TouchableOpacity
@@ -479,32 +462,21 @@ export default function CleaningEditScreen() {
                         disabled={isOnOuting}
                         style={[
                           styles.chip,
+                          styles.chipAvailable,
                           selected && !isOnOuting && styles.chipSel,
                           isOnOuting && styles.chipOnOuting,
-                          outingTone === 'primary' &&
-                            styles.chipOnOutingPrimary,
-                          outingTone === 'second' &&
-                            styles.chipOnOutingSecond,
-                          outingTone === 'safety' &&
-                            styles.chipOnOutingSafety,
                         ]}
                       >
                         <Text
                           style={[
                             styles.chipLabel,
+                            styles.chipLabelAvailable,
                             selected && !isOnOuting && styles.chipLabelSel,
                             isOnOuting && styles.chipLabelOnOuting,
-                            outingTone === 'primary' &&
-                              styles.chipLabelOnOutingPrimary,
-                            outingTone === 'second' &&
-                              styles.chipLabelOnOutingSecond,
-                            outingTone === 'safety' &&
-                              styles.chipLabelOnOutingSafety,
                           ]}
                           numberOfLines={1}
                         >
                           {st.name}
-                          {isOnOuting ? ' · ON OUTING' : ''}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -719,45 +691,36 @@ const styles = StyleSheet.create({
     borderColor: '#DDD',
     backgroundColor: '#FFF',
   },
+  chipAvailable: {
+    borderColor: '#3B82F6',
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
   chipSel: {
     borderColor: PINK,
     backgroundColor: '#FFE5F4',
   },
   chipOnOuting: {
-    opacity: 0.45,
-  },
-  chipOnOutingPrimary: {
-    backgroundColor: '#FFF7ED',
     borderColor: '#FB923C',
-  },
-  chipOnOutingSecond: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#8B5CF6',
-  },
-  chipOnOutingSafety: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#DC2626',
     borderWidth: 2,
+    backgroundColor: '#F3F4F6',
+    opacity: 0.45,
   },
   chipLabel: {
     fontSize: 15,
     color: '#222',
+  },
+  chipLabelAvailable: {
+    color: '#1D4ED8',
+    fontWeight: '600',
   },
   chipLabelSel: {
     fontWeight: '600',
     color: '#111',
   },
   chipLabelOnOuting: {
+    color: '#9A3412',
     fontWeight: '600',
-  },
-  chipLabelOnOutingPrimary: {
-    color: '#C2410C',
-  },
-  chipLabelOnOutingSecond: {
-    color: '#6D28D9',
-  },
-  chipLabelOnOutingSafety: {
-    color: '#B91C1C',
   },
   clearLink: {
     fontSize: 14,
