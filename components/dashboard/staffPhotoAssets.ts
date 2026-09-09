@@ -1,6 +1,6 @@
 import type { ImageSourcePropType } from "react-native";
 
-export type StaffPhotoKey = "Anita" | "Antoinette" | "Antonia" | "Bruno" | "Charbel" | "Charlie" | "Chelsea" | "Claudette" | "Crystal" | "Dalida" | "Eliana" | "Gabriel" | "George" | "Gilda" | "Isabella" | "Jamie" | "Jessica" | "Juliet" | "Liana" | "Liya" | "Maray" | "Marianne" | "Mary" | "Merna" | "Michelle" | "Mikaela" | "Miraye" | "Natalie" | "Peter" | "Princess" | "Readium" | "Rebecca" | "Tayla" | "Tema" | "Theresia" | "Violet" | "William";
+export type StaffPhotoKey = "Anita" | "Antoinette" | "Antonia" | "Bruno" | "Charbel" | "Charlie" | "Chelsea" | "Claudette" | "Crystal" | "Dalida" | "Eliana" | "Gabriel" | "George" | "Gilda" | "Isabella" | "Jamie" | "Jessica" | "Juliet" | "Liana" | "Liya" | "Maray" | "Mary-Lourdes" | "Mary" | "Merna" | "Michelle" | "Mikaela" | "Miraye" | "Natalie" | "Peter" | "Princess" | "Readium" | "Rebecca" | "Tayla" | "Tema" | "Theresia" | "Violet" | "William";
 
 export const STAFF_PHOTO_ASSETS: Partial<Record<StaffPhotoKey, ImageSourcePropType>> = {
   "Anita": require("../../assets/images/staff/Anita.png"),
