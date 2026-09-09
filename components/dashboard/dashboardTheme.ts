@@ -197,7 +197,7 @@ export function pageLabel(page: DashboardPage): string {
     case "staffCelebrations":
       return "Staff Birthdays & Milestones";
     case "staffFeedback":
-      return "Well Done Staff 👏🏽";
+      return "Well Done Team 👏🏽";
     case "cleaning":
       return "Cleaning";
     case "checklist":
