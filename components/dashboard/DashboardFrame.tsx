@@ -2,7 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable, View, Text, useWindowDimensions } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { styles } from "./dashboardStyles";
-import { DASHBOARD_REFRESH_MS, HOUSE_ID, ROTATE_MS } from "./dashboardTheme";
+import {
+  DASHBOARD_REFRESH_MS,
+  HOUSE_ID,
+  ROTATE_MS,
+  STAFF_FEEDBACK_ROTATE_MS,
+} from "./dashboardTheme";
 import { formatDateKey, timeLabel, timeNowLabel } from "./dashboardUtils";
 
 type Props = {
@@ -128,7 +133,7 @@ export function DashboardFrame({
           {isTvDisplay ? (
             <>
               <Text style={styles.cycleInlineTextTv}>
-                (Cycles every {Math.round(ROTATE_MS / 1000)}s   |   Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s)
+                (Standard {Math.round(ROTATE_MS / 1000)}s   |   Feedback {Math.round(STAFF_FEEDBACK_ROTATE_MS / 1000)}s   |   Refresh {Math.round(DASHBOARD_REFRESH_MS / 1000)}s)
               </Text>
               <Text style={styles.cycleTextTv}>
                 Last updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}
@@ -138,10 +143,10 @@ export function DashboardFrame({
           ) : (
             <>
               <Text style={styles.cycleText}>
-                Cycles every {Math.round(ROTATE_MS / 1000)}s
+                Standard cycle {Math.round(ROTATE_MS / 1000)}s
               </Text>
               <Text style={styles.cycleText}>
-                Refresh every {Math.round(DASHBOARD_REFRESH_MS / 1000)}s
+                Feedback {Math.round(STAFF_FEEDBACK_ROTATE_MS / 1000)}s · Refresh {Math.round(DASHBOARD_REFRESH_MS / 1000)}s
               </Text>
               <Text style={styles.cycleText}>
                 Updated: {lastDashboardRefresh ? timeLabel(lastDashboardRefresh) : "Loading..."}

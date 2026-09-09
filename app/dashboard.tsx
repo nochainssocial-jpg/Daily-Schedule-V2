@@ -23,6 +23,7 @@ import { OutingsPanel } from "@/components/dashboard/OutingsPanel";
 import { NoSchedulePanel } from "@/components/dashboard/NoSchedulePanel";
 import { ReminderPanel } from "@/components/dashboard/ReminderPanel";
 import { StaffCelebrationsPanel } from "@/components/dashboard/StaffCelebrationsPanel";
+import { StaffFeedbackPanel } from "@/components/dashboard/StaffFeedbackPanel";
 import { TeamAssignmentsPanel } from "@/components/dashboard/TeamAssignmentsPanel";
 import type { DashboardPage, EventMeetingVisitRecord } from "@/components/dashboard/dashboardTypes";
 import {
@@ -39,6 +40,7 @@ import {
   HOUSE_ID,
   REMINDER_PAGE_ORDER,
   ROTATE_MS,
+  STAFF_FEEDBACK_ROTATE_MS,
   STAFF_OTHER_COLOR,
   isReminderPage,
 } from "@/components/dashboard/dashboardTheme";
@@ -108,6 +110,8 @@ const [pageIndex, setPageIndex] = useState(0);
 const [tick, setTick] = useState(0);
 const [lastDashboardRefresh, setLastDashboardRefresh] = useState<Date | null>(null);
 const [eventsMeetingsVisits, setEventsMeetingsVisits] = useState<EventMeetingVisitRecord[]>([]);
+const [staffFeedbackMessages, setStaffFeedbackMessages] = useState<string[]>([]);
+const [staffFeedbackIndex, setStaffFeedbackIndex] = useState(0);
 const [propertyLocations, setPropertyLocations] = useState<PropertyLocation[]>([]);
 const [propertySupportAssignments, setPropertySupportAssignments] = useState<PropertySupportAssignment[]>([]);
 const [floatingAlarmEnabled, setFloatingAlarmEnabled] = useState(true);
@@ -193,6 +197,35 @@ const reminderBurstActive =
 reminderBurstMinute >= REMINDER_BURST_MINUTE &&
 reminderBurstMinute < REMINDER_BURST_MINUTE + REMINDER_BURST_DURATION_MINUTES;
 
+const fetchStaffFeedback = useCallback(async () => {
+if (typeof window === "undefined") return;
+
+try {
+const response = await fetch(`/family-feedback.txt?v=${Date.now()}`, {
+cache: "no-store",
+});
+
+if (!response.ok) {
+setStaffFeedbackMessages([]);
+return;
+}
+
+const raw = await response.text();
+const messages = raw
+.split(/\r?\n\s*---+\s*\r?\n/g)
+.map((message) => message.trim())
+.filter(Boolean);
+
+setStaffFeedbackMessages(messages);
+setStaffFeedbackIndex((current) =>
+messages.length ? current % messages.length : 0,
+);
+} catch (error) {
+console.error("[dashboard] failed to load family feedback", error);
+setStaffFeedbackMessages([]);
+}
+}, []);
+
 const fetchEventsMeetingsVisits = useCallback(async () => {
 try {
 const { data, error } = await supabase
@@ -274,7 +307,11 @@ await initScheduleForToday(HOUSE_ID);
 // chores, checklist items, and Supabase time slots available.
 if (!cancelled) {
 await useSchedule.getState().loadMasterData();
-await Promise.all([fetchEventsMeetingsVisits(), fetchPropertySupport()]);
+await Promise.all([
+fetchEventsMeetingsVisits(),
+fetchPropertySupport(),
+fetchStaffFeedback(),
+]);
 setLastDashboardRefresh(new Date());
 }
 } catch (error) {
@@ -287,7 +324,7 @@ void initialiseDashboard();
 return () => {
 cancelled = true;
 };
-}, [fetchEventsMeetingsVisits, fetchPropertySupport]);
+}, [fetchEventsMeetingsVisits, fetchPropertySupport, fetchStaffFeedback]);
 
 useEffect(() => {
 const timer = setInterval(() => setTick((value) => value + 1), 30_000);
@@ -314,7 +351,11 @@ refreshInFlight = true;
 
 try {
 await refreshScheduleFromSupabase(HOUSE_ID);
-await Promise.all([fetchEventsMeetingsVisits(), fetchPropertySupport()]);
+await Promise.all([
+fetchEventsMeetingsVisits(),
+fetchPropertySupport(),
+fetchStaffFeedback(),
+]);
 if (!cancelled) setLastDashboardRefresh(new Date());
 } catch (error) {
 console.error("[dashboard] failed to refresh schedule", error);
@@ -343,7 +384,7 @@ window.removeEventListener("focus", requestRefresh);
 window.removeEventListener("online", requestRefresh);
 document.removeEventListener("visibilitychange", handleVisibilityChange);
 };
-}, [fetchEventsMeetingsVisits, fetchPropertySupport]);
+}, [fetchEventsMeetingsVisits, fetchPropertySupport, fetchStaffFeedback]);
 
 const staffById = useMemo(
 () =>
@@ -868,6 +909,7 @@ const { today: todayStaffCelebrations, upcoming: upcomingStaffCelebrations } =
 useMemo(() => splitStaffCelebrations(staffCelebrationItems), [staffCelebrationItems]);
 
 const hasStaffCelebrations = staffCelebrationItems.length > 0;
+const hasStaffFeedback = staffFeedbackMessages.length > 0;
 
 const pages = useMemo<DashboardPage[]>(() => {
 const list: DashboardPage[] = [];
@@ -882,6 +924,7 @@ add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("eventPoster", hasEventPoster);
 add("outings", visibleOutings.length > 0);
 add("staffCelebrations", hasStaffCelebrations);
+add("staffFeedback", hasStaffFeedback);
 add("floating", showFloatingPanel);
 } else if (operationalPhase === "activeProgram") {
 add("floating", showFloatingPanel);
@@ -891,6 +934,7 @@ add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
+add("staffFeedback", hasStaffFeedback);
 } else if (operationalPhase === "cleaningActive") {
 add("floating", showFloatingPanel);
 add("cleaning", showCleaningPanel);
@@ -900,6 +944,7 @@ add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
+add("staffFeedback", hasStaffFeedback);
 } else if (operationalPhase === "departureWindow") {
 add("dropoffs", showDropoffsPanel);
 add("propertySupport", showPropertySupportPanel);
@@ -910,6 +955,7 @@ add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
+add("staffFeedback", hasStaffFeedback);
 } else {
 add("checklist", showChecklistPanel);
 add("dropoffs", showDropoffsPanel);
@@ -919,6 +965,7 @@ add("eventsMeetingsVisits", hasEventsMeetingsVisits);
 add("eventPoster", hasEventPoster);
 add("team", dailyAssignmentsAreOperational);
 add("staffCelebrations", hasStaffCelebrations);
+add("staffFeedback", hasStaffFeedback);
 }
 
 return reminderBurstActive ? [...REMINDER_PAGE_ORDER] : list;
@@ -929,6 +976,7 @@ dailyAssignmentsAreOperational,
 morningSetupIsOperational,
 showFloatingPanel,
 hasStaffCelebrations,
+hasStaffFeedback,
 operationalPhase,
 reminderBurstActive,
 showChecklistPanel,
@@ -945,11 +993,26 @@ setPageIndex(0);
 useEffect(() => {
 if (!autoRotationEnabled || pages.length <= 1) return;
 
-const timer = setInterval(() => {
+const activePage = pages[pageIndex] || pages[0];
+const duration =
+activePage === "staffFeedback" ? STAFF_FEEDBACK_ROTATE_MS : ROTATE_MS;
+
+const timer = setTimeout(() => {
+if (activePage === "staffFeedback" && staffFeedbackMessages.length > 1) {
+setStaffFeedbackIndex(
+(value) => (value + 1) % staffFeedbackMessages.length,
+);
+}
 setPageIndex((value) => (value + 1) % Math.max(1, pages.length));
-}, ROTATE_MS);
-return () => clearInterval(timer);
-}, [autoRotationEnabled, pages.length]);
+}, duration);
+
+return () => clearTimeout(timer);
+}, [
+autoRotationEnabled,
+pageIndex,
+pages,
+staffFeedbackMessages.length,
+]);
 
 useEffect(() => {
 if (pageIndex >= pages.length) setPageIndex(0);
@@ -1017,6 +1080,16 @@ window.addEventListener("keydown", handleKeyDown);
 return () => window.removeEventListener("keydown", handleKeyDown);
 }, [handleNextPage, handlePreviousPage, handleToggleAutoRotation]);
 
+useEffect(() => {
+if (!staffFeedbackMessages.length) {
+setStaffFeedbackIndex(0);
+return;
+}
+if (staffFeedbackIndex >= staffFeedbackMessages.length) {
+setStaffFeedbackIndex(0);
+}
+}, [staffFeedbackIndex, staffFeedbackMessages.length]);
+
 const currentPage = pages[pageIndex] || "floating";
 const pageTheme = DASHBOARD_PAGE_THEMES[currentPage] || DASHBOARD_PAGE_THEMES.team;
 
@@ -1076,6 +1149,17 @@ return (
 <StaffCelebrationsPanel
   todayCelebrations={todayStaffCelebrations}
   upcomingCelebrations={upcomingStaffCelebrations}
+/>
+);
+}
+
+if (currentPage === "staffFeedback" && staffFeedbackMessages.length > 0) {
+const messageIndex = staffFeedbackIndex % staffFeedbackMessages.length;
+return (
+<StaffFeedbackPanel
+  message={staffFeedbackMessages[messageIndex]}
+  position={messageIndex + 1}
+  total={staffFeedbackMessages.length}
 />
 );
 }

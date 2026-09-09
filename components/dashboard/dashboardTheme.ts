@@ -3,6 +3,7 @@ import type { DashboardOperationalPhase, DashboardPage, ReminderPage, RoomKey } 
 
 export const HOUSE_ID = DEFAULT_LOCATION_ID;
 export const ROTATE_MS = 15_000;
+export const STAFF_FEEDBACK_ROTATE_MS = 45_000;
 export const DASHBOARD_REFRESH_MS = 60_000;
 
 export const DASHBOARD_OPERATIONAL_TIMES = {
@@ -42,6 +43,7 @@ export const DASHBOARD_PAGE_THEMES: Record<DashboardPage, { background: string; 
   outings: { background: "#FFF7ED", accent: "#F97316" },
   eventsMeetingsVisits: { background: "#FFF4FA", accent: "#F54FA5" },
   staffCelebrations: { background: "#F8F1FF", accent: "#7C3AED" },
+  staffFeedback: { background: "#FFF8E7", accent: "#F59E0B" },
   cleaning: { background: "#DCFCE7", accent: "#22C55E" },
   checklist: { background: "#E5ECFF", accent: "#6366F1" },
   dropoffs: { background: "#FFD0B5", accent: "#FB7185" },
@@ -194,6 +196,8 @@ export function pageLabel(page: DashboardPage): string {
       return "Events | Meetings | Visits";
     case "staffCelebrations":
       return "Staff Birthdays & Milestones";
+    case "staffFeedback":
+      return "Well Done Staff 👏🏽";
     case "cleaning":
       return "Cleaning";
     case "checklist":

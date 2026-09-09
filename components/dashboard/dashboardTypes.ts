@@ -7,6 +7,7 @@ export type DashboardPage =
   | "eventsMeetingsVisits"
   | "eventPoster"
   | "staffCelebrations"
+  | "staffFeedback"
   | "cleaning"
   | "checklist"
   | "dropoffs"
