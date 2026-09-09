@@ -56,6 +56,7 @@ import {
   nowMinutes,
   parsePreviewTimeToMinutes,
   sortEventsMeetingsVisits,
+  slotWindow,
   todayISODate,
 } from "@/components/dashboard/dashboardUtils";
 import {
@@ -76,6 +77,7 @@ const MANUAL_ROTATION_RESUME_MS = 90_000;
 const REMINDER_BURST_MINUTE = 15;
 const REMINDER_BURST_DURATION_MINUTES = 1;
 const FLOATING_ALARM_PREFERENCE_KEY = "dashboard:floating-alarm-enabled";
+const FLOATING_FEEDBACK_PREVIEW_MINUTES = 3;
 
 
 const FLOATING_ROOM_KEYS = ["frontRoom", "scotty", "twins"] as const;
@@ -697,6 +699,36 @@ const hasFloatingAssignments = useMemo(
 );
 const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
+const feedbackFloatingRows = useMemo(() => {
+if (!hasFloatingAssignments) return 0;
+if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return 0;
+if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return 0;
+
+const slots = (displayTimeSlots || [])
+.map((slot: any) => slotWindow(slot))
+.filter(({ start, end }) =>
+start !== null &&
+end !== null &&
+end > start &&
+start >= DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+start < DASHBOARD_OPERATIONAL_TIMES.floatingEnds,
+) as { start: number; end: number }[];
+
+const hasCurrent = slots.some(
+(slot) => currentMinutes >= slot.start && currentMinutes < slot.end,
+);
+if (!hasCurrent) return 0;
+
+const hasUpNext = slots.some(
+(slot) =>
+slot.start > currentMinutes &&
+currentMinutes >= slot.start - FLOATING_FEEDBACK_PREVIEW_MINUTES &&
+slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart,
+);
+
+return hasUpNext ? 2 : 1;
+}, [currentMinutes, displayTimeSlots, hasFloatingAssignments]);
+
 const runScheduledFloatingAlarm = useCallback(async (
   alarmMinute: number,
   options: { bypassDuplicateProtection?: boolean; source?: "live" | "simulation" } = {},
@@ -1160,6 +1192,7 @@ return (
   message={staffFeedbackMessages[messageIndex]}
   position={messageIndex + 1}
   total={staffFeedbackMessages.length}
+  floatingRows={feedbackFloatingRows}
 />
 );
 }
