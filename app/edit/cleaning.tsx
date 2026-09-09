@@ -20,57 +20,12 @@ import { resolveOutingTiming } from '@/lib/outingSlots';
 
 const PINK = '#F54FA5';
 
-// Drop-off helpers who may also be assigned end-of-shift cleaning duties.
-// They only become eligible when selected in Pickups & Dropoffs for the day.
-const CLEANING_HELPER_NAMES = new Set(['charbel', 'george']);
+// George and Charbel are always available for end-of-shift cleaning,
+// regardless of whether they have been selected as drop-off helpers.
+const ALWAYS_AVAILABLE_CLEANING_NAMES = new Set(['charbel', 'george']);
 
 const normaliseStaffName = (name?: string | null) =>
   String(name || '').trim().toLowerCase();
-
-// ⏱ Helpers to detect full-day vs timed outing
-function parseTimeToMinutes(time?: string | null): number | null {
-  if (!time) return null;
-  let t = String(time).trim().toLowerCase();
-
-  // accept "9:00am-10:00am" by splitting
-  if (t.includes('-')) {
-    t = t.split('-')[0].trim();
-  }
-
-  const m = t.match(/^(\d{1,2}):(\d{2})(am|pm)?$/);
-  if (!m) return null;
-
-  let hour = parseInt(m[1], 10);
-  const minute = parseInt(m[2], 10);
-  const suffix = m[3];
-
-  if (suffix === 'am') {
-    if (hour === 12) hour = 0;
-  } else if (suffix === 'pm') {
-    if (hour !== 12) hour += 12;
-  } else {
-    // bare 9:00 or 14:00 – assume afternoon if early hour
-    if (hour <= 6) hour += 12;
-  }
-
-  return hour * 60 + minute;
-}
-
-function getOutingWindowMinutes(outingGroup: any): {
-  start: number | null;
-  end: number | null;
-} {
-  if (!outingGroup) return { start: null, end: null };
-  const start = parseTimeToMinutes(outingGroup.startTime);
-  const end = parseTimeToMinutes(outingGroup.endTime);
-  if (start == null || end == null) {
-    return { start: null, end: null };
-  }
-  if (end <= start) {
-    return { start: null, end: null };
-  }
-  return { start, end };
-}
 
 export default function CleaningEditScreen() {
   const { width, height } = useWindowDimensions();
@@ -85,7 +40,6 @@ export default function CleaningEditScreen() {
     chores: rawChores = [],
     staff,
     workingStaff,
-    helperStaff = [],
     cleaningAssignments = {},
     outingGroups = [],
     outingGroup = null,
@@ -117,28 +71,27 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  // 🔁 Cleaning staff = Dream Team plus selected Charbel/George drop-off helpers,
-  // optionally minus staff assigned to untimed/all-day outings.
+  // 🔁 Cleaning staff = working staff plus George and Charbel, who are always
+  // available in Cleaning. Staff assigned to any outing remain visible but
+  // cannot be selected for cleaning duties.
   const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
   );
 
-  const selectedCleaningHelperSet = useMemo(() => {
-    const selectedHelperIds = new Set<string>(
-      (helperStaff || []).map((id: any) => String(id)),
-    );
-
-    return new Set<string>(
-      (staff || [])
-        .filter(
-          (member: Staff) =>
-            selectedHelperIds.has(String(member.id)) &&
-            CLEANING_HELPER_NAMES.has(normaliseStaffName(member.name)),
-        )
-        .map((member: Staff) => String(member.id)),
-    );
-  }, [helperStaff, staff]);
+  const alwaysAvailableCleaningSet = useMemo(
+    () =>
+      new Set<string>(
+        (staff || [])
+          .filter((member: Staff) =>
+            ALWAYS_AVAILABLE_CLEANING_NAMES.has(
+              normaliseStaffName(member.name),
+            ),
+          )
+          .map((member: Staff) => String(member.id)),
+      ),
+    [staff],
+  );
 
   const outingGroupsForLogic = useMemo(() => {
     const groups = Array.isArray(outingGroups)
@@ -156,42 +109,68 @@ export default function CleaningEditScreen() {
       });
   }, [outingGroups, outingGroup]);
 
-  const workingStaffList: Staff[] = useMemo(() => {
-    const base = (staff || []).filter((s: Staff) => {
-      const staffId = String(s.id);
-      return workingSet.has(staffId) || selectedCleaningHelperSet.has(staffId);
+  type OutingTone = 'primary' | 'second' | 'safety';
+
+  const outingStaffToneMap = useMemo(() => {
+    const map = new Map<string, OutingTone>();
+
+    outingGroupsForLogic.forEach((group: any, index: number) => {
+      const groupId = String(group?.id || '').toLowerCase();
+      const tone: OutingTone =
+        groupId === 'outing-3' || index === 2
+          ? 'safety'
+          : groupId === 'outing-2' || index === 1
+            ? 'second'
+            : 'primary';
+
+      ((group.staffIds ?? []) as (string | number)[]).forEach((id) => {
+        const staffId = String(id);
+        if (!map.has(staffId)) {
+          map.set(staffId, tone);
+        }
+      });
     });
 
-    if (outingGroupsForLogic.length === 0) {
-      return base.sort((a, b) =>
-        String(a.name).localeCompare(String(b.name), 'en-AU'),
-      );
-    }
+    return map;
+  }, [outingGroupsForLogic]);
 
-    const excluded = new Set<string>();
-    outingGroupsForLogic.forEach((group: any) => {
-      const outingWindow = getOutingWindowMinutes(group);
-      const hasTimedOuting =
-        outingWindow.start !== null && outingWindow.end !== null;
+  const outingStaffIds = useMemo(
+    () => new Set<string>(outingStaffToneMap.keys()),
+    [outingStaffToneMap],
+  );
 
-      // Preserve the existing cleaning rule: timed outings remain eligible
-      // for end-of-shift cleaning; untimed/all-day outings are excluded.
-      if (hasTimedOuting) return;
-      ((group.staffIds ?? []) as (string | number)[]).forEach((id) =>
-        excluded.add(String(id)),
-      );
-    });
+  // Everyone MD can potentially use for Cleaning remains visible in the picker.
+  const workingStaffList: Staff[] = useMemo(
+    () =>
+      (staff || [])
+        .filter((member: Staff) => {
+          const staffId = String(member.id);
+          return (
+            workingSet.has(staffId) ||
+            alwaysAvailableCleaningSet.has(staffId)
+          );
+        })
+        .sort((a: Staff, b: Staff) =>
+          String(a.name).localeCompare(String(b.name), 'en-AU'),
+        ),
+    [staff, workingSet, alwaysAvailableCleaningSet],
+  );
 
-    const onsite = base.filter((s) => !excluded.has(String(s.id)));
-    return onsite.sort((a, b) =>
-      String(a.name).localeCompare(String(b.name), 'en-AU'),
-    );
-  }, [staff, workingSet, selectedCleaningHelperSet, outingGroupsForLogic]);
+  // Only staff who are not assigned to an outing may hold a cleaning duty.
+  const selectableCleaningStaffList = useMemo(
+    () =>
+      workingStaffList.filter(
+        (member) => !outingStaffIds.has(String(member.id)),
+      ),
+    [workingStaffList, outingStaffIds],
+  );
 
-  // ✅ Set of staff allowed to hold cleaning duties (onsite only)
   const allowedStaffIds = useMemo(
-    () => new Set<string>(workingStaffList.map((s) => String(s.id))),
-    [workingStaffList],
+    () =>
+      new Set<string>(
+        selectableCleaningStaffList.map((member) => String(member.id)),
+      ),
+    [selectableCleaningStaffList],
   );
 
   // ✅ Normalise assignments: drop any chores assigned to off-site staff
@@ -219,6 +198,14 @@ export default function CleaningEditScreen() {
       return;
     }
     if (!activeChoreId) return;
+
+    if (staffId && outingStaffIds.has(String(staffId))) {
+      push(
+        'Staff assigned to an outing cannot be assigned cleaning duties.',
+        'cleaning',
+      );
+      return;
+    }
 
     const chore = chores.find((c) => String(c.id) === String(activeChoreId));
 
@@ -334,12 +321,12 @@ export default function CleaningEditScreen() {
       blockReadOnly();
       return;
     }
-    if (!workingStaffList.length) {
+    if (!selectableCleaningStaffList.length) {
       push('No onsite staff available to assign cleaning duties.', 'cleaning');
       return;
     }
 
-    const staffIds = workingStaffList.map((s) => String(s.id));
+    const staffIds = selectableCleaningStaffList.map((s) => String(s.id));
     const next: Record<string, string | undefined> = {};
 
     chores.forEach((chore, index) => {
@@ -367,9 +354,9 @@ export default function CleaningEditScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>Cleaning Duties</Text>
           <Text style={styles.subheading}>
-            Tap a staff pill to update who is responsible for each task. Staff
-            working onsite and selected Charbel or George drop-off helpers can be
-            assigned.
+            Tap a staff pill to update who is responsible for each task. George
+            and Charbel are always available. Staff assigned to an outing are
+            shown but cannot be selected.
           </Text>
 
           <View style={styles.actionsRow}>
@@ -476,26 +463,48 @@ export default function CleaningEditScreen() {
               {workingStaffList.length ? (
                 <View style={styles.chipGrid}>
                   {workingStaffList.map((st) => {
+                    const staffId = String(st.id);
                     const selected =
                       (cleaningAssignments as any)[
                         String(activeChoreId ?? '')
                       ] === st.id;
+                    const outingTone = outingStaffToneMap.get(staffId);
+                    const isOnOuting = !!outingTone;
 
                     return (
                       <TouchableOpacity
                         key={st.id}
-                        onPress={() => handleSelectStaff(st.id)}
-                        activeOpacity={0.85}
-                        style={[styles.chip, selected && styles.chipSel]}
+                        onPress={() => handleSelectStaff(staffId)}
+                        activeOpacity={isOnOuting ? 1 : 0.85}
+                        disabled={isOnOuting}
+                        style={[
+                          styles.chip,
+                          selected && !isOnOuting && styles.chipSel,
+                          isOnOuting && styles.chipOnOuting,
+                          outingTone === 'primary' &&
+                            styles.chipOnOutingPrimary,
+                          outingTone === 'second' &&
+                            styles.chipOnOutingSecond,
+                          outingTone === 'safety' &&
+                            styles.chipOnOutingSafety,
+                        ]}
                       >
                         <Text
                           style={[
                             styles.chipLabel,
-                            selected && styles.chipLabelSel,
+                            selected && !isOnOuting && styles.chipLabelSel,
+                            isOnOuting && styles.chipLabelOnOuting,
+                            outingTone === 'primary' &&
+                              styles.chipLabelOnOutingPrimary,
+                            outingTone === 'second' &&
+                              styles.chipLabelOnOutingSecond,
+                            outingTone === 'safety' &&
+                              styles.chipLabelOnOutingSafety,
                           ]}
                           numberOfLines={1}
                         >
                           {st.name}
+                          {isOnOuting ? ' · ON OUTING' : ''}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -714,6 +723,22 @@ const styles = StyleSheet.create({
     borderColor: PINK,
     backgroundColor: '#FFE5F4',
   },
+  chipOnOuting: {
+    opacity: 0.45,
+  },
+  chipOnOutingPrimary: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FB923C',
+  },
+  chipOnOutingSecond: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#8B5CF6',
+  },
+  chipOnOutingSafety: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC2626',
+    borderWidth: 2,
+  },
   chipLabel: {
     fontSize: 15,
     color: '#222',
@@ -721,6 +746,18 @@ const styles = StyleSheet.create({
   chipLabelSel: {
     fontWeight: '600',
     color: '#111',
+  },
+  chipLabelOnOuting: {
+    fontWeight: '600',
+  },
+  chipLabelOnOutingPrimary: {
+    color: '#C2410C',
+  },
+  chipLabelOnOutingSecond: {
+    color: '#6D28D9',
+  },
+  chipLabelOnOutingSafety: {
+    color: '#B91C1C',
   },
   clearLink: {
     fontSize: 14,
