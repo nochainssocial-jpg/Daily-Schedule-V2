@@ -24,7 +24,7 @@ export const STAFF_PHOTO_ASSETS: Partial<Record<StaffPhotoKey, ImageSourcePropTy
   "Liana": require("../../assets/images/staff/Liana.png"),
   "Liya": require("../../assets/images/staff/Liya.png"),
   "Maray": require("../../assets/images/staff/Maray.png"),
-  "Marianne": require("../../assets/images/staff/Marianne.png"),
+  "Mary-Lourdes": require("../../assets/images/staff/Mary-Lourdes.png"),
   "Mary": require("../../assets/images/staff/Mary.png"),
   "Merna": require("../../assets/images/staff/Merna.png"),
   "Michelle": require("../../assets/images/staff/Michelle.png"),
