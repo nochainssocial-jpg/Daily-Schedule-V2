@@ -182,6 +182,22 @@ export const TIME_SLOTS: TimeSlot[] = [
   { id: '9', startTime: '14:00', endTime: '14:30', displayTime: '2:00pm - 2:30pm' }
 ];
 
+// Floating starts before the program. Keep shared slots and saved IDs unchanged.
+export const EARLY_FLOATING_SLOT: TimeSlot = {
+  id: 'floating-0930', startTime: '09:30', endTime: '10:00',
+  displayTime: '9:30am - 10:00am',
+};
+
+export function withEarlyFloatingSlot<T extends { id: string; startTime?: string; endTime?: string }>(slots: T[]): (T | TimeSlot)[] {
+  const existing = slots.find((slot) =>
+    slot.id === EARLY_FLOATING_SLOT.id ||
+    ((slot.startTime === '09:30' || slot.startTime === '9:30') && slot.endTime === '10:00'),
+  );
+  return [existing || EARLY_FLOATING_SLOT, ...slots.filter((slot) => slot !== existing)];
+}
+
+export const FLOATING_TIME_SLOTS = withEarlyFloatingSlot(TIME_SLOTS);
+
 // Twins FSO (Female Staff Only) slots – used for nappy changes in the Twins room.
 // These correspond to TIME_SLOTS with IDs '3' (11:00–11:30) and '7' (13:00–13:30).
 export const TWIN_FSO_TIME_SLOT_IDS: ID[] = ['3', '7'];

@@ -6,6 +6,7 @@ import {
   DEFAULT_CHORES as STATIC_CHORES,
   DEFAULT_CHECKLIST as STATIC_CHECKLIST_ITEMS,
   TIME_SLOTS,
+  withEarlyFloatingSlot,
 } from "@/constants/data";
 
 import { ChecklistPanel } from "@/components/dashboard/ChecklistPanel";
@@ -689,7 +690,7 @@ notes: String(assignment.notes || "").trim(),
 }, [propertyLocationById, propertySupportAssignments, staffById]);
 
 const displayTimeSlots = useMemo(
-() => (timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || [],
+() => withEarlyFloatingSlot((timeSlots && timeSlots.length ? timeSlots : TIME_SLOTS) || []),
 [timeSlots],
 );
 
@@ -701,7 +702,7 @@ const showFloatingPanel = floatingIsOperational && hasFloatingAssignments;
 
 const feedbackFloatingRows = useMemo(() => {
 if (!hasFloatingAssignments) return 0;
-if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.officialStart) return 0;
+if (currentMinutes < DASHBOARD_OPERATIONAL_TIMES.floatingStarts) return 0;
 if (currentMinutes >= DASHBOARD_OPERATIONAL_TIMES.floatingEnds) return 0;
 
 const slots = (displayTimeSlots || [])
@@ -710,7 +711,7 @@ const slots = (displayTimeSlots || [])
 start !== null &&
 end !== null &&
 end > start &&
-start >= DASHBOARD_OPERATIONAL_TIMES.officialStart &&
+start >= DASHBOARD_OPERATIONAL_TIMES.floatingStarts &&
 start < DASHBOARD_OPERATIONAL_TIMES.floatingEnds,
 ) as { start: number; end: number }[];
 
@@ -723,7 +724,7 @@ const hasUpNext = slots.some(
 (slot) =>
 slot.start > currentMinutes &&
 currentMinutes >= slot.start - FLOATING_FEEDBACK_PREVIEW_MINUTES &&
-slot.start > DASHBOARD_OPERATIONAL_TIMES.officialStart,
+slot.start > DASHBOARD_OPERATIONAL_TIMES.floatingStarts,
 );
 
 return hasUpNext ? 2 : 1;

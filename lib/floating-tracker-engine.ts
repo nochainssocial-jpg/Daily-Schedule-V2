@@ -1,4 +1,4 @@
-import { TIME_SLOTS } from '@/constants/data';
+import { FLOATING_TIME_SLOTS } from '@/constants/data';
 import { resolveOutingTiming } from '@/lib/outingSlots';
 import { supabase } from '@/lib/supabase';
 import {
@@ -661,8 +661,10 @@ export async function loadFloatingAssignmentsTracker(
       offsiteParticipantSlots: 0,
     };
 
-    TIME_SLOTS.forEach((slot, index) => {
+    FLOATING_TIME_SLOTS.forEach((slot, index) => {
       const slotId = String(slot.id ?? index);
+      if (slotId === 'floating-0930' && !Object.prototype.hasOwnProperty.call(snapshot.floatingAssignments, slotId)) return;
+      if (slotId === 'floating-0930' && !Object.prototype.hasOwnProperty.call(snapshot.floatingAssignments, slotId)) return;
       const { activeRooms, offsiteParticipantCount } = activeRoomsForSlot(snapshot, outings, slot);
       const activeRoomSet = new Set(activeRooms);
       const offsiteStaff = outingIdsForSlot(slot, outings, 'staffIds');

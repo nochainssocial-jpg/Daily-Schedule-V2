@@ -1,4 +1,5 @@
 // app/print-floating.tsx
+import { withEarlyFloatingSlot, TIME_SLOTS } from '@/constants/data';
 import React, { useEffect, useMemo } from 'react';
 import { ScrollView, View, Text, Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -28,8 +29,10 @@ export default function PrintFloatingScreen() {
   const filterStaffId =
     params.staff && params.staff !== 'ALL' ? String(params.staff) : null;
 
-  const { staff = [], floatingAssignments = {}, selectedDate, timeSlots = [] } =
+  const { staff = [], floatingAssignments = {}, selectedDate, timeSlots: scheduleTimeSlots = [] } =
     useSchedule() as any;
+
+  const timeSlots = withEarlyFloatingSlot(scheduleTimeSlots.length ? scheduleTimeSlots : TIME_SLOTS);
 
   const staffById = useMemo(() => {
     const m: Record<string, any> = {};

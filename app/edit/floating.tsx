@@ -723,7 +723,7 @@ function FloatingScreenInner() {
 
   const TIME_SLOTS = useMemo(
     () =>
-      (Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length
+      Data.withEarlyFloatingSlot(Array.isArray(scheduleTimeSlots) && scheduleTimeSlots.length
         ? scheduleTimeSlots
         : Array.isArray((Data as any).TIME_SLOTS)
           ? (Data as any).TIME_SLOTS
