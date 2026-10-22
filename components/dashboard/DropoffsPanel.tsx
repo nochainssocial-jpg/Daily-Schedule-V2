@@ -23,41 +23,48 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
       ) : (
         <ScrollView style={styles.innerScroll} contentContainerStyle={styles.assignmentGrid}>
           {dropoffRows.map((row) => (
-            <CompactDashboardTile
+            <View
               key={row.staffId}
-              staffName={row.staffName}
-              staffColor={row.staffColor}
-              staffTextColor={row.staffTextColor}
               style={[styles.assignmentCard, styles.assignmentCardOnsite]}
             >
-              <View style={styles.assignmentParticipantList}>
-                {row.items.map((item: any) => {
-                  const label = item.locationLabel
-                    ? `${item.participantName} · ${item.locationLabel}`
-                    : item.participantName;
-                  return (
-                    <View
-                      key={`${row.staffId}-${item.participantName}`}
-                      style={[
-                        styles.assignmentParticipantChip,
-                        styles.assignmentParticipantChipOnsite,
-                      ]}
-                    >
-                      <Text
+              <CompactDashboardTile
+                staffName={row.staffName}
+                staffColor={row.staffColor}
+                staffTextColor={row.staffTextColor}
+              >
+                <View style={styles.assignmentParticipantList}>
+                  {row.items.map((item: any) => {
+                    const label = item.locationLabel
+                      ? `${item.participantName} · ${item.locationLabel}`
+                      : item.participantName;
+                    return (
+                      <View
+                        key={`${row.staffId}-${item.participantName}`}
                         style={[
-                          styles.assignmentParticipantName,
-                          styles.assignmentParticipantNameOnsite,
+                          styles.assignmentParticipantChip,
+                          styles.assignmentParticipantChipOnsite,
                         ]}
-                        numberOfLines={1}
                       >
-                        {label}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-              {row.note ? <Text style={noteStyles.message}>{row.note}</Text> : null}
-            </CompactDashboardTile>
+                        <Text
+                          style={[
+                            styles.assignmentParticipantName,
+                            styles.assignmentParticipantNameOnsite,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {label}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </CompactDashboardTile>
+              {row.note ? (
+                <View style={noteStyles.messageArea}>
+                  <Text style={noteStyles.message}>{row.note}</Text>
+                </View>
+              ) : null}
+            </View>
           ))}
         </ScrollView>
       )}
@@ -66,8 +73,11 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
 }
 
 const noteStyles = StyleSheet.create({
+  messageArea: {
+    marginTop: "auto",
+    paddingTop: 8,
+  },
   message: {
-    marginTop: 6,
     paddingHorizontal: 7,
     paddingVertical: 5,
     borderRadius: 8,
