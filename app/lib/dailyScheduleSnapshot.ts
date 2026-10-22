@@ -29,6 +29,7 @@ function baseSnapshot(schedule: any, dateKey: string): ScheduleSnapshot {
     helperPickupStaff: schedule.helperPickupStaff || [],
     dropoffAssignments: schedule.dropoffAssignments || {},
     dropoffLocations: schedule.dropoffLocations || {},
+    dropoffNotes: schedule.dropoffNotes || {},
 
     // Outings are deliberately excluded from the daily schedule source of truth.
     // They are persisted independently in daily_outings.
@@ -81,6 +82,7 @@ export function buildDailySchedulePatch(
         helperPickupStaff: schedule.helperPickupStaff || [],
         dropoffAssignments: schedule.dropoffAssignments || {},
         dropoffLocations: schedule.dropoffLocations || {},
+        dropoffNotes: schedule.dropoffNotes || {},
       } as Partial<ScheduleSnapshot>;
     case 'checklist':
       return {

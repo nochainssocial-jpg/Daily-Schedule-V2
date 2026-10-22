@@ -93,6 +93,9 @@ export type ScheduleSnapshot = {
   // Locations still stored separately (for now)
   dropoffLocations: Record<ID, number | null>;
 
+  // Optional transport instructions per staff/helper, for this day's schedule only.
+  dropoffNotes?: Record<ID, string>;
+
   // End of shift checklist state.
   // finalChecklist is itemId -> checked.
   // finalChecklistStaff is the staff member selected as last to leave.
@@ -209,6 +212,7 @@ function makeInitialSnapshot(): ScheduleSnapshot {
     helperStaff: [],
     dropoffAssignments: {},
     dropoffLocations: {},
+    dropoffNotes: {},
     finalChecklist: {},
     finalChecklistStaff: null,
     outingGroups: [],
@@ -805,6 +809,8 @@ export const useSchedule = create<ScheduleState>((set, get) => ({
           ...snapshot,
           // Always replace the prior day's checklist object rather than reusing it.
           finalChecklist: { ...(snapshot.finalChecklist || {}) },
+          // A new daily schedule must not inherit yesterday's transport instructions.
+          dropoffNotes: { ...(snapshot.dropoffNotes || {}) },
         } as ScheduleState),
       );
       resolve();

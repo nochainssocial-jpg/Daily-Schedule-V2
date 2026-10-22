@@ -25,6 +25,7 @@ export default function SchedulePrintable() {
     pickupParticipants,
     helperStaff,
     dropoffAssignments,
+    dropoffNotes = {},
     cleaningAssignments,
     finalChecklistStaff,
     date,
@@ -146,6 +147,7 @@ export default function SchedulePrintable() {
         {dropoffEntries.length ? (
           dropoffEntries.map(([staffId, ids]) => {
             const st = findStaff(staffId);
+            const note = (dropoffNotes[staffId] || '').trim();
             const names = ids
               .map(findParticipant)
               .filter(Boolean)
@@ -156,9 +158,16 @@ export default function SchedulePrintable() {
             return (
               <View key={staffId} style={styles.row}>
                 <Text style={styles.rowLabel}>{st.name}</Text>
-                <Text style={styles.rowValue}>
-                  {names.length ? names.join(', ') : 'No participants assigned'}
-                </Text>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.bodyText}>
+                    {names.length ? names.join(', ') : 'No participants assigned'}
+                  </Text>
+                  {note ? (
+                    <Text style={[styles.bodyText, { marginTop: 4, fontWeight: '600' }]}>
+                      {note}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
             );
           })

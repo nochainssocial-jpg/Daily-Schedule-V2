@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { CompactDashboardTile } from "./CompactDashboardTile";
 import { styles } from "./dashboardStyles";
@@ -56,6 +56,7 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
                   );
                 })}
               </View>
+              {row.note ? <Text style={noteStyles.message}>{row.note}</Text> : null}
             </CompactDashboardTile>
           ))}
         </ScrollView>
@@ -63,3 +64,17 @@ export function DropoffsPanel({ dropoffRows }: { dropoffRows: any[] }) {
     </View>
   );
 }
+
+const noteStyles = StyleSheet.create({
+  message: {
+    marginTop: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#FFF7ED",
+    color: "#9A3412",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+});

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
+  TextInput,
   View,
   TouchableOpacity,
   StyleSheet,
@@ -43,6 +44,7 @@ export default function PickupsDropoffsScreen() {
     helperStaff,
     dropoffAssignments,
     dropoffLocations,
+    dropoffNotes = {},
     updateSchedule,
   } = useSchedule();
 
@@ -269,6 +271,14 @@ export default function PickupsDropoffsScreen() {
     push('Helper staff updated', 'pickups');
   };
 
+  const updateDropoffNote = (sid: ID, message: string) => {
+    if (readOnly) return;
+    const nextNotes = { ...(useSchedule.getState().dropoffNotes || {}) };
+    if (message.length > 0) nextNotes[sid] = message;
+    else delete nextNotes[sid];
+    updateSchedule({ dropoffNotes: nextNotes });
+  };
+
   const toggleDropoff = (sid: ID, pid: ID) => {
     if (readOnly) {
       push('B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)', 'general');
@@ -488,7 +498,8 @@ export default function PickupsDropoffsScreen() {
               Tap participants inside each staff card to assign or move
               dropoffs. Long-press a participant to cycle their dropoff
               location. Each participant can only belong to one staff member at
-              a time.
+              a time. Add an optional short message beside an assigned staff
+              member or helper&apos;s name.
             </Text>
 
             {staffForCards.map((s) => {
@@ -529,8 +540,28 @@ export default function PickupsDropoffsScreen() {
                           { backgroundColor: (s as any).color || '#E6ECF5' },
                         ]}
                       />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.assignmentName}>{s.name}</Text>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={styles.assignmentNameRow}>
+                          <Text style={styles.assignmentName}>{s.name}</Text>
+                          {hasAssigned && (
+                            <TextInput
+                              value={dropoffNotes[s.id as ID] || ''}
+                              onChangeText={(message) =>
+                                updateDropoffNote(s.id as ID, message)
+                              }
+                              editable={!readOnly}
+                              placeholder="Add a short message…"
+                              placeholderTextColor="#9CA3AF"
+                              accessibilityLabel={`${s.name} transport message`}
+                              maxLength={200}
+                              style={[
+                                styles.dropoffNoteInput,
+                                width < 600 && styles.dropoffNoteInputNarrow,
+                                readOnly && styles.dropoffNoteReadOnly,
+                              ]}
+                            />
+                          )}
+                        </View>
                         <Text style={styles.assignedSummary}>
                           {assigned.length
                             ? `Assigned: ${assigned
@@ -704,6 +735,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
   },
   rect: {
     width: 24,
@@ -715,6 +747,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
+  },
+  assignmentNameRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dropoffNoteInput: {
+    flex: 1,
+    minWidth: 180,
+    minHeight: 36,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
+  dropoffNoteInputNarrow: {
+    flexBasis: '100%',
+    minWidth: 0,
+  },
+  dropoffNoteReadOnly: {
+    backgroundColor: '#F9FAFB',
   },
   assignedSummary: {
     fontSize: 12,
