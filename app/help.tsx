@@ -41,7 +41,7 @@ export default function HelpScreen() {
               {'\n'}• Choose which staff are working at B2 today (Dream Team), and which staff are away or helping with transport.{'\n'}
               • Choose which participants are attending today, including who will be off-site on an outing or marked as{' '}
               <Text style={styles.bold}>Not attending</Text>.{'\n'}
-              • Set up drives / outings so that floating, cleaning and daily assignments only use staff who remain on-site.{'\n'}
+              • Set up drives / outings so that floating and daily assignments reflect who is off-site.{'\n'}
               • Assign participants to staff for the main program.{'\n'}
               • Manage floating assignments (Front Room, Scotty, Twins) using only onsite and attending participants.{'\n'}
               • Allocate cleaning duties and a final end-of-shift checklist.{'\n'}
@@ -192,7 +192,7 @@ export default function HelpScreen() {
                   <Text style={styles.editCardTitle}>The Dream Team (Working at B2)</Text>
                   <Text style={styles.editCardBody}>
                     Choose who is working at B2 today and who is away. Ratings, trainee/senior status and colours
-                    help you balance the team. Only staff shown here are used in Daily Assignments, Floating, and Cleaning.
+                    help you balance the team. Dream Team staff are available for Cleaning, along with George and Charbel.
                   </Text>
                 </View>
               </View>
@@ -221,8 +221,9 @@ export default function HelpScreen() {
                   <Text style={styles.editCardTitle}>Drive / Outing / Off-site</Text>
                   <Text style={styles.editCardBody}>
                     Set up any drives or outings, including names, times and notes. Staff and participants on an outing
-                    are treated as off-site for floating and cleaning. Outing windows can temporarily disable certain
-                    rooms or groups, and participants on an outing appear outlined in assignments.
+                    are treated as off-site for floating. Dream Team staff on outings remain available for cleaning.
+                    Outing windows can temporarily disable certain rooms or groups, and participants on an outing
+                    appear outlined in assignments.
                   </Text>
                 </View>
               </View>

@@ -16,7 +16,6 @@ import { type Staff, type Chore } from '@/constants/data';
 import { useNotifications } from '@/hooks/notifications';
 import { useIsAdmin } from '@/hooks/access-control';
 import SaveExit from '@/components/SaveExit';
-import { resolveOutingTiming } from '@/lib/outingSlots';
 
 const PINK = '#F54FA5';
 
@@ -41,8 +40,6 @@ export default function CleaningEditScreen() {
     staff,
     workingStaff,
     cleaningAssignments = {},
-    outingGroups = [],
-    outingGroup = null,
     cleaningBinsVariant = 0,
     updateSchedule,
   } = useSchedule() as any;
@@ -71,9 +68,8 @@ export default function CleaningEditScreen() {
     [chores, activeChoreId],
   );
 
-  // 🔁 Cleaning staff = working staff plus George and Charbel, who are always
-  // available in Cleaning. Staff assigned to any outing remain visible but
-  // cannot be selected for cleaning duties.
+  // Cleaning includes the full Dream Team plus George and Charbel,
+  // regardless of outing assignments.
   const workingSet = useMemo(
     () => new Set<string>((workingStaff || []).map((id: any) => String(id))),
     [workingStaff],
@@ -93,37 +89,7 @@ export default function CleaningEditScreen() {
     [staff],
   );
 
-  const outingGroupsForLogic = useMemo(() => {
-    const groups = Array.isArray(outingGroups)
-      ? outingGroups
-      : outingGroup
-        ? [outingGroup]
-        : [];
-
-    return groups
-      .map((group: any) => resolveOutingTiming(group, groups))
-      .filter((group: any) => {
-        const staffCount = group?.staffIds?.length ?? 0;
-        const participantCount = group?.participantIds?.length ?? 0;
-        return staffCount > 0 || participantCount > 0;
-      });
-  }, [outingGroups, outingGroup]);
-
-  const outingStaffIds = useMemo(() => {
-    const ids = new Set<string>();
-
-    outingGroupsForLogic.forEach((group: any) => {
-      ((group.staffIds ?? []) as (string | number)[]).forEach((id) =>
-        ids.add(String(id)),
-      );
-    });
-
-    return ids;
-  }, [outingGroupsForLogic]);
-
-
-
-  // Everyone MD can potentially use for Cleaning remains visible in the picker.
+  // The same eligible staff are used for selection, reshuffling and retention.
   const workingStaffList: Staff[] = useMemo(
     () =>
       (staff || [])
@@ -140,24 +106,12 @@ export default function CleaningEditScreen() {
     [staff, workingSet, alwaysAvailableCleaningSet],
   );
 
-  // Only staff who are not assigned to an outing may hold a cleaning duty.
-  const selectableCleaningStaffList = useMemo(
-    () =>
-      workingStaffList.filter(
-        (member) => !outingStaffIds.has(String(member.id)),
-      ),
-    [workingStaffList, outingStaffIds],
-  );
-
   const allowedStaffIds = useMemo(
-    () =>
-      new Set<string>(
-        selectableCleaningStaffList.map((member) => String(member.id)),
-      ),
-    [selectableCleaningStaffList],
+    () => new Set<string>(workingStaffList.map((member) => String(member.id))),
+    [workingStaffList],
   );
 
-  // ✅ Normalise assignments: drop any chores assigned to off-site staff
+  // Remove assignments for staff who are no longer eligible for the day.
   useEffect(() => {
     if (!cleaningAssignments) return;
 
@@ -182,14 +136,6 @@ export default function CleaningEditScreen() {
       return;
     }
     if (!activeChoreId) return;
-
-    if (staffId && outingStaffIds.has(String(staffId))) {
-      push(
-        'Staff assigned to an outing cannot be assigned cleaning duties.',
-        'cleaning',
-      );
-      return;
-    }
 
     const chore = chores.find((c) => String(c.id) === String(activeChoreId));
 
@@ -299,18 +245,18 @@ export default function CleaningEditScreen() {
     return <Text style={styles.taskLabel}>{getBinsLabel(base)}</Text>;
   };
 
-  // 🔀 Re-shuffle all chores fairly across onsite staff (round-robin)
+  // Re-shuffle chores across the full eligible team (round-robin).
   const reshuffleCleaning = () => {
     if (readOnly) {
       blockReadOnly();
       return;
     }
-    if (!selectableCleaningStaffList.length) {
-      push('No onsite staff available to assign cleaning duties.', 'cleaning');
+    if (!workingStaffList.length) {
+      push('No staff available to assign cleaning duties.', 'cleaning');
       return;
     }
 
-    const staffIds = selectableCleaningStaffList.map((s) => String(s.id));
+    const staffIds = workingStaffList.map((s) => String(s.id));
     const next: Record<string, string | undefined> = {};
 
     chores.forEach((chore, index) => {
@@ -319,7 +265,7 @@ export default function CleaningEditScreen() {
     });
 
     updateSchedule?.({ cleaningAssignments: next });
-    push('Cleaning duties reshuffled across onsite staff.', 'cleaning');
+    push('Cleaning duties reshuffled across available staff.', 'cleaning');
   };
 
   return (
@@ -338,9 +284,9 @@ export default function CleaningEditScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>Cleaning Duties</Text>
           <Text style={styles.subheading}>
-            Tap a staff pill to update who is responsible for each task. George
-            and Charbel are always available. Staff assigned to an outing are
-            shown but cannot be selected.
+            Tap a staff pill to update who is responsible for each task. The
+            full Dream Team is available, including staff on outings. George
+            and Charbel are always available.
           </Text>
 
           <View style={styles.actionsRow}>
@@ -449,30 +395,26 @@ export default function CleaningEditScreen() {
                   {workingStaffList.map((st) => {
                     const staffId = String(st.id);
                     const selected =
-                      (cleaningAssignments as any)[
-                        String(activeChoreId ?? '')
-                      ] === st.id;
-                    const isOnOuting = outingStaffIds.has(staffId);
+                      String(
+                        (cleaningAssignments as any)[String(activeChoreId ?? '')],
+                      ) === staffId;
 
                     return (
                       <TouchableOpacity
                         key={st.id}
                         onPress={() => handleSelectStaff(staffId)}
-                        activeOpacity={isOnOuting ? 1 : 0.85}
-                        disabled={isOnOuting}
+                        activeOpacity={0.85}
                         style={[
                           styles.chip,
                           styles.chipAvailable,
-                          selected && !isOnOuting && styles.chipSel,
-                          isOnOuting && styles.chipOnOuting,
+                          selected && styles.chipSel,
                         ]}
                       >
                         <Text
                           style={[
                             styles.chipLabel,
                             styles.chipLabelAvailable,
-                            selected && !isOnOuting && styles.chipLabelSel,
-                            isOnOuting && styles.chipLabelOnOuting,
+                            selected && styles.chipLabelSel,
                           ]}
                           numberOfLines={1}
                         >
@@ -700,12 +642,6 @@ const styles = StyleSheet.create({
     borderColor: PINK,
     backgroundColor: '#FFE5F4',
   },
-  chipOnOuting: {
-    borderColor: '#FB923C',
-    borderWidth: 2,
-    backgroundColor: '#F3F4F6',
-    opacity: 0.45,
-  },
   chipLabel: {
     fontSize: 15,
     color: '#222',
@@ -717,10 +653,6 @@ const styles = StyleSheet.create({
   chipLabelSel: {
     fontWeight: '600',
     color: '#111',
-  },
-  chipLabelOnOuting: {
-    color: '#9A3412',
-    fontWeight: '600',
   },
   clearLink: {
     fontSize: 14,
