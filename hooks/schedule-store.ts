@@ -103,7 +103,7 @@ export type ScheduleSnapshot = {
   finalChecklist: FinalChecklist;
   finalChecklistStaff: ID | null;
 
-  // Primary outings model. The UI supports two main outings plus optional safety transport.
+  // Two main outings and two optional additional vehicles.
   outingGroups: OutingGroup[];
 
   // Backwards compatibility for older saved schedules and any screens not yet refactored.
@@ -265,7 +265,7 @@ function normalizeOutingGroupsFromSnapshot(snapshot: any): OutingGroup[] {
       : [];
 
   return rawGroups
-    .slice(0, 3)
+    .slice(0, 4)
     .map((outing: any, index: number) =>
       normalizeOutingGroup(outing, `outing-${index + 1}`),
     )

@@ -403,7 +403,7 @@ export default function EditAssignmentsScreen() {
   // Keep the original outing index so Outing 2 stays purple even if Outing 1 is inactive.
   const activeOutingEntries = React.useMemo(
     () =>
-      normalizedOutingGroups.slice(0, 3).map((rawGroup, index) => {
+      normalizedOutingGroups.slice(0, 4).map((rawGroup, index) => {
         const group = resolveOutingTiming(rawGroup as any, normalizedOutingGroups as any);
         return {
           group,
@@ -415,7 +415,7 @@ export default function EditAssignmentsScreen() {
   );
 
   // Offsite participants from each active outing group (IDs only).
-  // Outing 1 = orange, Outing 2 = purple, Additional Safety Transport = red.
+  // Outing 1 = orange, Outing 2 = purple, additional vehicles = red.
   const outing1ParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
     activeOutingEntries
@@ -442,7 +442,7 @@ export default function EditAssignmentsScreen() {
   const safetyTransportParticipantIds = React.useMemo(() => {
     const set = new Set<ID>();
     activeOutingEntries
-      .filter(({ index }) => index === 2)
+      .filter(({ index }) => index >= 2)
       .forEach(({ group }) => {
         ((group?.participantIds ?? []) as (string | number)[]).forEach((id: any) => {
           set.add(String(id) as ID);

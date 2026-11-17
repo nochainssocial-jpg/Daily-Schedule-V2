@@ -266,7 +266,7 @@ function buildVisibleOutings(
       };
     })
     .filter((item) => item.phase !== "none")
-    .slice(0, 3);
+    .slice(0, 4);
 }
 
 function formatSessionRemaining(remainingMs: number) {

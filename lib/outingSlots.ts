@@ -1,9 +1,10 @@
-export type OutingSlot = 0 | 1 | 2;
+export type OutingSlot = 0 | 1 | 2 | 3;
 
 const OUTING_ID_TO_SLOT: Record<string, OutingSlot> = {
   "outing-1": 0,
   "outing-2": 1,
   "outing-3": 2,
+  "outing-4": 3,
 };
 
 export function getOutingSlot(outing: unknown, fallbackIndex = 0): OutingSlot {
@@ -13,7 +14,7 @@ export function getOutingSlot(outing: unknown, fallbackIndex = 0): OutingSlot {
       .toLowerCase();
     if (id in OUTING_ID_TO_SLOT) return OUTING_ID_TO_SLOT[id];
   }
-  return Math.max(0, Math.min(2, fallbackIndex)) as OutingSlot;
+  return Math.max(0, Math.min(3, fallbackIndex)) as OutingSlot;
 }
 
 export function getOutingBySlot<T>(
@@ -24,8 +25,8 @@ export function getOutingBySlot<T>(
   return groups.find((group, index) => getOutingSlot(group, index) === slot);
 }
 
-export function isSafetyTransport(outing: unknown, fallbackIndex = 0): boolean {
-  return getOutingSlot(outing, fallbackIndex) === 2;
+export function isAdditionalVehicle(outing: unknown, fallbackIndex = 0): boolean {
+  return getOutingSlot(outing, fallbackIndex) >= 2;
 }
 
 type OutingTiming = {
@@ -40,7 +41,7 @@ export function resolveOutingTiming<T extends OutingTiming>(
   outing: T,
   outings: T[] | null | undefined,
 ): T & { linkedOutingName?: string } {
-  if (!isSafetyTransport(outing)) return outing;
+  if (!isAdditionalVehicle(outing)) return outing;
   const linked = (Array.isArray(outings) ? outings : []).find(
     (candidate) => String(candidate?.id || "") === String(outing.linkedOutingId || ""),
   );

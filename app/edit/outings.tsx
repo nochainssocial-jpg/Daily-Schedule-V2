@@ -20,6 +20,7 @@ import { useIsAdmin } from "@/hooks/access-control";
 import SaveExit from "@/components/SaveExit";
 import { masterParticipants, masterStaff } from "@/constants/data";
 import { getRiskBand, SCORE_BUBBLE_STYLES } from "@/constants/ratingsTheme";
+import { getOutingSlot } from "@/lib/outingSlots";
 
 type ID = string;
 
@@ -356,6 +357,17 @@ const DEFAULT_OUTINGS: OutingGroup[] = [
     endTime: "",
     notes: "",
   },
+  {
+    id: "outing-4",
+    name: "",
+    staffIds: [],
+    participantIds: [],
+    driverId: "",
+    linkedOutingId: "",
+    startTime: "",
+    endTime: "",
+    notes: "",
+  },
 ];
 
 function getStaffTotalScore(member: StaffLike | any): number | null {
@@ -407,16 +419,12 @@ function mergeDefaultOutings(
   outingGroups: Partial<OutingGroup>[] | null | undefined,
 ): OutingGroup[] {
   const groups = outingGroups || [];
-  const groupsById = new Map(
-    groups
-      .filter((outing) => outing?.id)
-      .map((outing) => [String(outing.id), outing]),
-  );
-
   return DEFAULT_OUTINGS.map((fallback, index) => {
-    const source = (groupsById.get(fallback.id) ||
-      groups[index] ||
-      {}) as Partial<OutingGroup>;
+    // Persisted groups are sparse. Match their stable slot, not their position
+    // in the filtered array, so a later vehicle cannot appear twice.
+    const source = (groups.find((group, groupIndex) =>
+      getOutingSlot(group, groupIndex) === index,
+    ) || {}) as Partial<OutingGroup>;
 
     return {
       ...fallback,
@@ -535,8 +543,8 @@ export default function OutingsScreen() {
             ...(patch.driverId ? { driver: false } : {}),
             ...(patch.linkedOutingId ? { linkedOuting: false } : {}),
             ...(patch.notes?.trim() ? { notes: false } : {}),
-            ...(Array.isArray(patch.staffIds) && patch.staffIds.length === 2 ? { staff: false } : {}),
-            ...(Array.isArray(patch.participantIds) && patch.participantIds.length === 1 ? { participant: false } : {}),
+            ...(Array.isArray(patch.staffIds) && patch.staffIds.length > 0 ? { staff: false } : {}),
+            ...(Array.isArray(patch.participantIds) && patch.participantIds.length > 0 ? { participant: false } : {}),
           },
         }));
       }
@@ -555,19 +563,13 @@ export default function OutingsScreen() {
     );
 
   const toggleStaff = (index: number, id: ID) => {
-    if (isSelectedElsewhere("staffIds", id, index)) return;
     const current = outings[index];
     const next = new Set<ID>(current.staffIds);
     const removing = next.has(id);
+    if (!removing && isSelectedElsewhere("staffIds", id, index)) return;
 
     if (removing) next.delete(id);
-    else {
-      if (index === 2 && next.size >= 2) {
-        push?.("Additional Safety Transport allows exactly two staff", "outings");
-        return;
-      }
-      next.add(id);
-    }
+    else next.add(id);
 
     applyChange(index, {
       staffIds: Array.from(next),
@@ -587,21 +589,20 @@ export default function OutingsScreen() {
   };
 
   const toggleParticipant = (index: number, id: ID) => {
-    if (isSelectedElsewhere("participantIds", id, index)) return;
     const current = outings[index];
     const next = new Set<ID>(current.participantIds);
+    if (!next.has(id) && isSelectedElsewhere("participantIds", id, index)) return;
     if (next.has(id)) next.delete(id);
-    else {
-      if (index === 2 && next.size >= 1) {
-        push?.("Additional Safety Transport allows one participant", "outings");
-        return;
-      }
-      next.add(id);
-    }
+    else next.add(id);
     applyChange(index, { participantIds: Array.from(next) });
   };
 
   const handleDeleteOuting = (index: number) => {
+    if (readOnly) {
+      push?.("B2 Mode Enabled - Read-Only (NO EDITING ALLOWED)", "general");
+      return;
+    }
+
     const cleared: Partial<OutingGroup> = {
       name: "",
       staffIds: [],
@@ -613,17 +614,25 @@ export default function OutingsScreen() {
       notes: "",
     };
 
-    if (index < 2 && outings[2]?.linkedOutingId === outings[index]?.id) {
+    if (index < 2 && outings.some((group, groupIndex) =>
+      groupIndex >= 2 && group.linkedOutingId === outings[index]?.id,
+    )) {
+      const clearedOuting = outings[index];
       const nextOutings = outings.map((outing, outingIndex) =>
-        outingIndex === index || outingIndex === 2
+        outingIndex === index
           ? { ...outing, ...cleared }
-          : outing,
+          : outingIndex >= 2 && outing.linkedOutingId === clearedOuting.id
+            ? {
+                ...outing,
+                linkedOutingId: "",
+                name: outing.name || clearedOuting.name,
+                startTime: outing.startTime || clearedOuting.startTime,
+                endTime: outing.endTime || clearedOuting.endTime,
+              }
+            : outing,
       );
       saveOutings(nextOutings);
-      push?.(
-        `Outing ${index + 1} and its linked safety transport were cleared`,
-        "outings",
-      );
+      push?.(`Outing ${index + 1} cleared; additional vehicles were kept`, "outings");
       return;
     }
 
@@ -687,25 +696,16 @@ export default function OutingsScreen() {
         return;
       }
 
-      const linkedOuting = outings
-        .slice(0, 2)
+      const linkedOuting = outings.slice(0, 2)
         .find((candidate) => candidate.id === outing.linkedOutingId);
-      const linkedOutingMissing = !linkedOuting || !hasOutingContent(linkedOuting);
-      const staffInvalid = outing.staffIds.length !== 2;
-      const participantInvalid = outing.participantIds.length !== 1;
-      const notesMissing = !String(outing.notes || "").trim();
+      const linkedOutingMissing = Boolean(outing.linkedOutingId) &&
+        (!linkedOuting || !hasOutingContent(linkedOuting));
+      const driverMissing = !outing.driverId || !workingSet.has(String(outing.driverId));
 
-      if (
-        linkedOutingMissing ||
-        staffInvalid ||
-        participantInvalid ||
-        notesMissing
-      ) {
+      if (linkedOutingMissing || driverMissing) {
         errors[outing.id] = {
           linkedOuting: linkedOutingMissing,
-          staff: staffInvalid,
-          participant: participantInvalid,
-          notes: notesMissing,
+          driver: driverMissing,
         };
         if (firstInvalidIndex === -1) firstInvalidIndex = index;
       }
@@ -714,11 +714,13 @@ export default function OutingsScreen() {
     setValidationErrors(errors);
 
     if (firstInvalidIndex !== -1) {
-      if (firstInvalidIndex === 2) {
-        push?.(
-          "Additional Safety Transport requires a linked outing, exactly two staff, one participant and notes",
-          "outings",
-        );
+      if (firstInvalidIndex >= 2) {
+        const invalid = errors[outings[firstInvalidIndex].id];
+        const missing = [
+          invalid?.driver ? "Driver" : null,
+          invalid?.linkedOuting ? "a valid linked outing" : null,
+        ].filter(Boolean);
+        push?.(`Additional Vehicle ${firstInvalidIndex - 1}: ${missing.join(" and ")} required`, "outings");
       } else {
         const invalid = errors[outings[firstInvalidIndex].id];
         const missing = [
@@ -758,9 +760,9 @@ export default function OutingsScreen() {
           <Text style={styles.heading}>Drive / Outings</Text>
           <Text style={styles.subheading}>
             Use this screen when some staff and participants are out on an
-            excursion or appointment. You can run two main outings and, when
-            required, one Additional Safety Transport group linked to either
-            outing. People selected in one group are unavailable in the others.
+            excursion or appointment. Set up two main outings and up to two
+            additional vehicles. People selected in one vehicle are unavailable
+            in the others.
           </Text>
 
           <View style={styles.autoResetCard}>
@@ -793,7 +795,7 @@ export default function OutingsScreen() {
             const staffOnOuting = new Set<string>(outing.staffIds ?? []);
             const partsOnOuting = new Set<string>(outing.participantIds ?? []);
             const isSecond = index === 1;
-            const isSafety = index === 2;
+            const isSafety = index >= 2;
             const outingErrors = validationErrors[outing.id] || {};
             const driverOptions = workingStaffObjs.map((member: any) => ({
               value: String(member.id),
@@ -820,11 +822,11 @@ export default function OutingsScreen() {
                 <View style={styles.outingHeaderRow}>
                   <View>
                     <Text style={[styles.outingHeading, isSafety && styles.safetyText]}>
-                      {isSafety ? "Additional Safety Transport" : `Outing ${index + 1}`}
+                      {isSafety ? `Additional Vehicle ${index - 1}` : `Outing ${index + 1}`}
                     </Text>
                     <Text style={styles.outingHint}>
                       {isSafety
-                        ? "Optional extension of Outing 1 or Outing 2"
+                        ? "Optional additional vehicle"
                         : isSecond
                           ? "Second group / parallel outing"
                           : "Primary outing group"}
@@ -845,100 +847,107 @@ export default function OutingsScreen() {
                 </View>
 
                 <View style={styles.section}>
-                  {isSafety ? (
+                  {isSafety && (
                     <View>
                       <Text style={styles.sectionTitle}>
-                        Linked Outing <Text style={styles.requiredMark}>*</Text>
+                        Linked Outing (optional)
                       </Text>
                       <SelectionDropdown
                         value={outing.linkedOutingId || ""}
                         options={linkedOutingOptions}
-                        placeholder="Select Outing 1 or Outing 2"
+                        placeholder="Independent vehicle or select an outing"
                         onChange={(value) =>
                           applyChange(index, { linkedOutingId: value })
                         }
                         disabled={readOnly}
                         isSafety
+                        clearable
                         hasError={Boolean(outingErrors.linkedOuting)}
                       />
                       <Text style={styles.sectionSub}>
-                        Start and end times are inherited from the linked outing.
+                        Link to an outing to share its destination and times, or enter your own below.
+                        Both start and end times are needed for the dashboard.
                       </Text>
                     </View>
-                  ) : (
-                    <>
-                      <View style={styles.nameDriverRow}>
-                        <View style={styles.nameFieldWrap}>
-                          <Text style={styles.sectionTitle}>
-                            Outing Name <Text style={styles.requiredMark}>*</Text>
-                          </Text>
-                          <TextInput
-                            value={outing.name}
-                            onChangeText={(value) =>
-                              applyChange(index, { name: value })
-                            }
-                            editable={!readOnly}
-                            placeholder={isSecond ? "e.g. Bowling" : "e.g. Drive 1"}
-                            style={[
-                              styles.input,
-                              outingErrors.name && styles.inputError,
-                            ]}
-                          />
-                        </View>
-
-                        <View style={styles.driverFieldWrap}>
-                          <Text style={styles.sectionTitle}>
-                            Driver <Text style={styles.requiredMark}>*</Text>
-                          </Text>
-                          <SelectionDropdown
-                            value={outing.driverId || ""}
-                            options={driverOptions}
-                            placeholder="Select driver"
-                            onChange={(value) => handleDriverChange(index, value)}
-                            disabled={readOnly}
-                            isSecond={isSecond}
-                            hasError={Boolean(outingErrors.driver)}
-                          />
-                        </View>
+                  )}
+                  <View style={styles.nameDriverRow}>
+                    {(!isSafety || !outing.linkedOutingId) && (
+                      <View style={styles.nameFieldWrap}>
+                        <Text style={styles.sectionTitle}>
+                          {isSafety ? "Destination (optional)" : "Outing Name"}{" "}
+                          {!isSafety && <Text style={styles.requiredMark}>*</Text>}
+                        </Text>
+                        <TextInput
+                          value={outing.name}
+                          onChangeText={(value) =>
+                            applyChange(index, { name: value })
+                          }
+                          editable={!readOnly}
+                          placeholder={isSafety || isSecond ? "e.g. Bowling" : "e.g. Drive 1"}
+                          style={[
+                            styles.input,
+                            outingErrors.name && styles.inputError,
+                          ]}
+                        />
                       </View>
+                    )}
 
-                      <View style={[styles.row, { marginTop: 8 }]}>
-                        <View style={styles.timeFieldLeft}>
-                          <Text style={styles.sectionTitle}>Start Time</Text>
-                          <TimeDropdown
-                            value={outing.startTime}
-                            onChange={(value) =>
-                              applyChange(index, { startTime: value })
-                            }
-                            disabled={readOnly}
-                            isSecond={isSecond}
-                          />
-                        </View>
-                        <View style={styles.timeFieldRight}>
-                          <Text style={styles.sectionTitle}>End Time</Text>
-                          <TimeDropdown
-                            value={outing.endTime}
-                            onChange={(value) =>
-                              applyChange(index, { endTime: value })
-                            }
-                            disabled={readOnly}
-                            isSecond={isSecond}
-                          />
-                        </View>
+                    <View style={styles.driverFieldWrap}>
+                      <Text style={styles.sectionTitle}>
+                        Driver <Text style={styles.requiredMark}>*</Text>
+                      </Text>
+                      <SelectionDropdown
+                        value={outing.driverId || ""}
+                        options={driverOptions}
+                        placeholder="Select driver"
+                        onChange={(value) => handleDriverChange(index, value)}
+                        disabled={readOnly}
+                        isSecond={isSecond}
+                        isSafety={isSafety}
+                        hasError={Boolean(outingErrors.driver)}
+                      />
+                    </View>
+                  </View>
+
+                  {(!isSafety || !outing.linkedOutingId) && (
+                    <View style={[styles.row, { marginTop: 8 }]}>
+                      <View style={styles.timeFieldLeft}>
+                        <Text style={styles.sectionTitle}>Start Time</Text>
+                        <TimeDropdown
+                          value={outing.startTime}
+                          onChange={(value) =>
+                            applyChange(index, { startTime: value })
+                          }
+                          disabled={readOnly}
+                          isSecond={isSecond}
+                        />
                       </View>
-                    </>
+                      <View style={styles.timeFieldRight}>
+                        <Text style={styles.sectionTitle}>End Time</Text>
+                        <TimeDropdown
+                          value={outing.endTime}
+                          onChange={(value) =>
+                            applyChange(index, { endTime: value })
+                          }
+                          disabled={readOnly}
+                          isSecond={isSecond}
+                        />
+                      </View>
+                    </View>
+                  )}
+                  {isSafety && !outing.linkedOutingId && (
+                    <Text style={styles.sectionSub}>
+                      Enter both times for the dashboard and accurate floating availability.
+                    </Text>
                   )}
                 </View>
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
-                    {isSafety ? "Safety Transport Staff" : `Staff on Outing ${index + 1}`}{" "}
-                    {isSafety ? <Text style={styles.requiredMark}>*</Text> : null}
+                    {isSafety ? `Staff in Additional Vehicle ${index - 1}` : `Staff on Outing ${index + 1}`}
                   </Text>
                   <Text style={[styles.sectionSub, outingErrors.staff && styles.validationText]}>
-                    {isSafety
-                      ? "Select exactly two available staff. Staff assigned to either main outing are unavailable."
-                      : "Only staff currently working at B2 can be added. Staff already selected in another group are disabled."}
+                    Only staff currently working at B2 can be added. Staff already selected in another vehicle are disabled.
                   </Text>
 
                   {workingStaffObjs.length === 0 ? (
@@ -951,8 +960,7 @@ export default function OutingsScreen() {
                         const selected = staffOnOuting.has(st.id);
                         const disabled =
                           !selected &&
-                          (isSelectedElsewhere("staffIds", st.id, index) ||
-                            (isSafety && staffOnOuting.size >= 2));
+                          isSelectedElsewhere("staffIds", st.id, index);
                         const total = getStaffTotalScore(st);
                         const level =
                           total !== null ? getStaffScoreLevel(total) : null;
@@ -1014,13 +1022,10 @@ export default function OutingsScreen() {
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
-                    {isSafety ? "Safety Transport Participant" : `Participants on Outing ${index + 1}`}{" "}
-                    {isSafety ? <Text style={styles.requiredMark}>*</Text> : null}
+                    {isSafety ? `Participants in Additional Vehicle ${index - 1}` : `Participants on Outing ${index + 1}`}
                   </Text>
                   <Text style={[styles.sectionSub, outingErrors.participant && styles.validationText]}>
-                    {isSafety
-                      ? "Select exactly one available participant. Participants assigned to either main outing are unavailable."
-                      : "Only attending participants can be added. Participants already selected in another group are disabled."}
+                    Only attending participants can be added. Participants already selected in another vehicle are disabled.
                   </Text>
 
                   {attendingPartsObjs.length === 0 ? (
@@ -1033,8 +1038,7 @@ export default function OutingsScreen() {
                         const selected = partsOnOuting.has(p.id);
                         const disabled =
                           !selected &&
-                          (isSelectedElsewhere("participantIds", p.id, index) ||
-                            (isSafety && partsOnOuting.size >= 1));
+                          isSelectedElsewhere("participantIds", p.id, index);
                         const total = getParticipantTotalScore(p);
                         const level =
                           total !== null
@@ -1098,10 +1102,11 @@ export default function OutingsScreen() {
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
-                    Notes {isSafety ? <Text style={styles.requiredMark}>*</Text> : "(optional)"}
+                    Notes (optional)
                   </Text>
                   <TextInput
                     value={outing.notes}
+                    editable={!readOnly}
                     onChangeText={(value) =>
                       applyChange(index, { notes: value })
                     }
@@ -1109,7 +1114,6 @@ export default function OutingsScreen() {
                     style={[
                       styles.input,
                       styles.notesInput,
-                      isSafety && outingErrors.notes && styles.inputError,
                     ]}
                     multiline
                   />
@@ -1123,7 +1127,7 @@ export default function OutingsScreen() {
                   >
                     <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
                     <Text style={styles.deleteText}>
-                      {isSafety ? "Clear safety transport" : `Clear outing ${index + 1}`}
+                      {isSafety ? `Clear additional vehicle ${index - 1}` : `Clear outing ${index + 1}`}
                     </Text>
                   </TouchableOpacity>
                 </View>

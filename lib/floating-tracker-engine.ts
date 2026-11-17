@@ -286,7 +286,7 @@ function compareScheduleRows(a: ScheduleRow, b: ScheduleRow): number {
 
 function normaliseOutings(raw: unknown): OutingGroup[] {
   return safeArray<Record<string, unknown>>(raw)
-    .slice(0, 3)
+    .slice(0, 4)
     .map((outing, index) => ({
       id: String(outing.id || `outing-${index + 1}`),
       name: String(outing.name || ''),

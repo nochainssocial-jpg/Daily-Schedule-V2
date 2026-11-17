@@ -201,9 +201,10 @@ export default function EditDreamTeamScreen() {
   const safetyTransportStaffSet = useMemo(
     () =>
       new Set<string>(
-        (((getOutingBySlot(normalizedOutingGroups, 2) as any)?.staffIds ?? []) as (string | number)[]).map(
-          (raw) => String(raw),
-        ),
+        [
+          ...((getOutingBySlot(normalizedOutingGroups, 2) as any)?.staffIds ?? []),
+          ...((getOutingBySlot(normalizedOutingGroups, 3) as any)?.staffIds ?? []),
+        ].map((raw) => String(raw)),
       ),
     [normalizedOutingGroups],
   );
@@ -430,7 +431,7 @@ export default function EditDreamTeamScreen() {
 
               <View style={styles.legendItem}>
                 <View style={[styles.legendSwatch, styles.legendSafety]} />
-                <Text style={styles.legendLabel}>Safety Transport</Text>
+                <Text style={styles.legendLabel}>Additional Vehicles</Text>
               </View>
             </View>
 

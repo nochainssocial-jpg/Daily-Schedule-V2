@@ -412,7 +412,7 @@ const groups = Array.isArray(outingGroups)
 : [];
 return groups
 .map((group: any) => resolveOutingTiming(group, groups as any))
-.slice(0, 3)
+.slice(0, 4)
 .filter(hasOutingContent);
 }, [outingGroups, outingGroup]);
 
@@ -455,7 +455,8 @@ new Set<string>(
 const safetyTransportStaffIds = useMemo(
 () =>
 new Set<string>(
-((getOutingBySlot(visibleOutings, 2)?.staffIds ?? []) as any[]).map(String),
+[...(getOutingBySlot(visibleOutings, 2)?.staffIds ?? []),
+  ...(getOutingBySlot(visibleOutings, 3)?.staffIds ?? [])].map(String),
 ),
 [visibleOutings],
 );
@@ -463,7 +464,8 @@ new Set<string>(
 const safetyTransportParticipantIds = useMemo(
 () =>
 new Set<string>(
-((getOutingBySlot(visibleOutings, 2)?.participantIds ?? []) as any[]).map(String),
+[...(getOutingBySlot(visibleOutings, 2)?.participantIds ?? []),
+  ...(getOutingBySlot(visibleOutings, 3)?.participantIds ?? [])].map(String),
 ),
 [visibleOutings],
 );

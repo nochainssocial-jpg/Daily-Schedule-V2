@@ -16,6 +16,8 @@ export function OutingsPanel({
   participantsById: Map<string, any>;
   currentMinutes?: number;
 }) {
+  const compactCards = activeOutings.length >= 3;
+
   return (
     <View style={styles.panel}>
       <Text style={styles.panelEyebrow}>Scheduled off-site activity</Text>
@@ -31,7 +33,7 @@ export function OutingsPanel({
           {activeOutings.map((outing: any, index: number) => {
             const slot = getOutingSlot(outing, index);
             const isSecond = slot === 1;
-            const isSafety = slot === 2;
+            const isSafety = slot >= 2;
             const staffNames = namesFromIds(outing.staffIds, staffById);
             const participantNames = namesFromIds(outing.participantIds, participantsById);
             const driverName = outing.driverId
@@ -52,12 +54,12 @@ export function OutingsPanel({
                       ? styles.outingCardPurple
                       : styles.outingCardOrange,
                   {
-                    paddingVertical: 20,
-                    paddingHorizontal: 20,
+                    paddingVertical: compactCards ? 14 : 20,
+                    paddingHorizontal: compactCards ? 14 : 20,
                   },
                 ]}
               >
-                <View style={[styles.outingTitleRow, { alignItems: "flex-start", marginBottom: 14 }]}> 
+                <View style={[styles.outingTitleRow, { alignItems: "flex-start", marginBottom: compactCards ? 10 : 14 }]}> 
                   <View
                     style={[
                       styles.outingIcon,
@@ -67,6 +69,7 @@ export function OutingsPanel({
                           ? styles.outingIconPurple
                           : styles.outingIconOrange,
                       { marginTop: 2 },
+                      compactCards && { width: 42, height: 42 },
                     ]}
                   >
                     <Ionicons name="car-outline" size={24} color="#FFFFFF" />
@@ -83,13 +86,13 @@ export function OutingsPanel({
                             : styles.orangeText,
                       ]}
                     >
-                      {isSafety ? "Additional Transport" : isSecond ? "Outing 2" : "Outing 1"}
+                      {isSafety ? `Additional Vehicle ${slot - 1}` : isSecond ? "Outing 2" : "Outing 1"}
                       {phaseLabel ? ` · ${phaseLabel}` : ""}
                     </Text>
-                    <Text style={styles.outingName}>
-                      {isSafety
-                        ? `Linked to ${outing.linkedOutingName || "main outing"}`
-                        : outing.name || "Unnamed outing"}
+                    <Text style={[styles.outingName, compactCards && { fontSize: 20 }]}>
+                      {isSafety && outing.linkedOutingName
+                        ? `Linked to ${outing.linkedOutingName}`
+                        : outing.name || (isSafety ? "Independent vehicle" : "Unnamed outing")}
                     </Text>
                     <Text style={styles.outingTime}>
                       {(outing.startTime || "?") + " – " + (outing.endTime || "?")}
@@ -99,36 +102,34 @@ export function OutingsPanel({
 
                 <View
                   style={{
-                    flexDirection: "row",
-                    gap: 28,
+                    flexDirection: compactCards ? "column" : "row",
+                    gap: compactCards ? 10 : 28,
                     alignItems: "flex-start",
                   }}
                 >
-                  <View style={{ flex: 1.05, minWidth: 0 }}>
-                    {!isSafety ? (
-                      <View style={[styles.outingSection, { marginTop: 0 }]}> 
-                        <Text style={styles.outingSectionTitle}>Driver</Text>
-                        <Text style={styles.outingSectionText}>{driverName || "Not assigned"}</Text>
-                      </View>
-                    ) : null}
+                  <View style={{ flex: compactCards ? undefined : 1.05, minWidth: 0 }}>
+                    <View style={[styles.outingSection, { marginTop: 0 }]}> 
+                      <Text style={styles.outingSectionTitle}>Driver</Text>
+                      <Text style={[styles.outingSectionText, compactCards && { fontSize: 16, lineHeight: 22 }]}>{driverName || "Not assigned"}</Text>
+                    </View>
 
-                    <View style={[styles.outingSection, { marginTop: !isSafety ? 14 : 0 }]}> 
+                    <View style={[styles.outingSection, { marginTop: 14 }]}> 
                       <Text style={styles.outingSectionTitle}>Staff</Text>
-                      <Text style={styles.outingSectionText}>{shortNames(staffNames)}</Text>
+                      <Text style={[styles.outingSectionText, compactCards && { fontSize: 16, lineHeight: 22 }]}>{shortNames(staffNames)}</Text>
                     </View>
                   </View>
 
-                  <View style={{ flex: 1, minWidth: 0, paddingTop: isSafety ? 0 : 60 }}>
+                  <View style={{ flex: compactCards ? undefined : 1, minWidth: 0, paddingTop: compactCards ? 0 : 60 }}>
                     <View style={[styles.outingSection, { marginTop: 0 }]}> 
                       <Text style={styles.outingSectionTitle}>Participants</Text>
-                      <Text style={styles.outingSectionText}>{shortNames(participantNames)}</Text>
+                      <Text style={[styles.outingSectionText, compactCards && { fontSize: 16, lineHeight: 22 }]}>{shortNames(participantNames)}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={[styles.outingSection, { marginTop: 14 }]}> 
                   <Text style={styles.outingSectionTitle}>Notes</Text>
-                  <Text style={styles.outingSectionText} numberOfLines={1}>{notes}</Text>
+                  <Text style={[styles.outingSectionText, compactCards && { fontSize: 16, lineHeight: 22 }]} numberOfLines={1}>{notes}</Text>
                 </View>
               </View>
             );

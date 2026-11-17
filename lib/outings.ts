@@ -34,7 +34,7 @@ function normaliseOuting(value: any, index: number): OutingGroup {
 
 export function normaliseOutings(value: unknown): OutingGroup[] {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 3).map(normaliseOuting).filter((outing) =>
+  return value.slice(0, 4).map(normaliseOuting).filter((outing) =>
     Boolean(
       outing.name.trim() ||
         outing.startTime?.trim() ||

@@ -268,10 +268,10 @@ export default function EditParticipantsScreen() {
   const safetyTransportParticipantSet = useMemo(
     () =>
       new Set<string>(
-        (((getOutingBySlot(normalizedOutingGroups, 2) as any)?.participantIds ?? []) as (
-          | string
-          | number
-        )[]).map((id) => String(id)),
+        [
+          ...((getOutingBySlot(normalizedOutingGroups, 2) as any)?.participantIds ?? []),
+          ...((getOutingBySlot(normalizedOutingGroups, 3) as any)?.participantIds ?? []),
+        ].map((id) => String(id)),
       ),
     [normalizedOutingGroups],
   );
@@ -384,7 +384,9 @@ export default function EditParticipantsScreen() {
                         ? styles.attendingPillOuting1
                         : mode === 'outing2'
                           ? styles.attendingPillOuting2
-                          : styles.attendingPillOnsite,
+                          : mode === 'outing3'
+                            ? styles.attendingPillOuting3
+                            : styles.attendingPillOnsite,
                     ]}
                   >
                     <View style={styles.attendingPillContent}>
@@ -394,6 +396,7 @@ export default function EditParticipantsScreen() {
                             styles.attendingName,
                             mode === 'outing1' && styles.attendingNameOuting1,
                             mode === 'outing2' && styles.attendingNameOuting2,
+                            mode === 'outing3' && styles.attendingNameOuting3,
                           ]}
                           numberOfLines={1}
                         >
@@ -465,7 +468,7 @@ export default function EditParticipantsScreen() {
               </View>
               <View style={styles.legendItem}>
                 <View style={[styles.legendSwatch, styles.legendSafety]} />
-                <Text style={styles.legendLabel}>Safety Transport</Text>
+                <Text style={styles.legendLabel}>Additional Vehicles</Text>
               </View>
             </View>
 
@@ -654,6 +657,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     borderColor: '#8B5CF6',
   },
+  attendingPillOuting3: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC2626',
+  },
   attendingPillContent: {
     flex: 1,
     flexDirection: 'column',
@@ -684,6 +691,9 @@ const styles = StyleSheet.create({
   },
   attendingNameOuting2: {
     color: '#6D28D9',
+  },
+  attendingNameOuting3: {
+    color: '#B91C1C',
   },
 
   // Gradient behaviour meter inside pill

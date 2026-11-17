@@ -67,8 +67,8 @@ export default function OutingSummaryBanner({
   const isStartingSoon = phase === "startingSoon";
   const isComplete = phase === "complete";
   const isSecond = outingIndex === 1;
-  const isSafety = outingIndex === 2;
-  const displayLabel = isSafety ? "Additional Safety Transport" : `Outing ${outingIndex + 1}`;
+  const isSafety = outingIndex >= 2;
+  const displayLabel = isSafety ? `Additional Vehicle ${outingIndex - 1}` : `Outing ${outingIndex + 1}`;
 
   const outingTitle = isStartingSoon
     ? `${displayLabel} starting soon`
@@ -102,7 +102,7 @@ export default function OutingSummaryBanner({
     <Pressable
       onPress={() => setExpanded((value) => !value)}
       accessibilityRole="button"
-      accessibilityLabel={`Expand details for outing ${outingIndex + 1}`}
+      accessibilityLabel={`Expand details for ${displayLabel}`}
       style={({ pressed }) => [
         styles.outingSummary,
         isSecond && styles.outingSummarySecond,
@@ -182,9 +182,9 @@ export default function OutingSummaryBanner({
             ]}
             numberOfLines={expanded ? undefined : 1}
           >
-            {isSafety
-              ? `Linked to ${outingGroup.linkedOutingName || "main outing"}`
-              : outingGroup.name || "Unnamed outing"}
+            {isSafety && outingGroup.linkedOutingName
+              ? `Linked to ${outingGroup.linkedOutingName}`
+              : outingGroup.name || (isSafety ? "Independent vehicle" : "Unnamed outing")}
             {timeRange ? ` · ${timeRange}` : ""}
             {` · ${outingSubtitle}`}
           </Text>

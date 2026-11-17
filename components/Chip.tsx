@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Additional Safety Transport = light red pill
+  // Additional vehicles = light red pill
   outing3: {
     backgroundColor: OUTING3_BG,
     borderColor: OUTING3_BORDER,
